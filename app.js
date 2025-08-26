@@ -477,6 +477,15 @@ async function renderOverdueTable() {
 // Renderizar tabela de empréstimos quitados
 async function renderPaidLoansTable() {
     try {
+        console.log('Iniciando carregamento de empréstimos quitados...');
+        
+        // Verificar se o elemento tbody existe
+        const tbody = document.getElementById('paidLoansTableBody');
+        if (!tbody) {
+            console.error('Elemento paidLoansTableBody não encontrado');
+            return;
+        }
+        
         // Buscar empréstimos quitados da tabela paid_loans
         const { data: paidLoans, error } = await supabase
             .from('paid_loans')
@@ -491,9 +500,12 @@ async function renderPaidLoansTable() {
             `)
             .order('paid_date', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+            console.error('Erro na consulta Supabase:', error);
+            throw error;
+        }
         
-        const tbody = document.getElementById('paidLoansTableBody');
+        console.log('Dados recebidos:', paidLoans);
         
         if (!paidLoans || paidLoans.length === 0) {
             tbody.innerHTML = `
@@ -509,49 +521,97 @@ async function renderPaidLoansTable() {
         // Renderizar linhas com valores atualizados
         let tableHTML = '';
         for (const paidLoan of paidLoans) {
-            tableHTML += `
-                <tr class="table-row">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-white">${paidLoan.clients?.name || 'Cliente não encontrado'}</div>
-                        <div class="text-sm text-gray-300">${paidLoan.clients?.cpf || ''}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paidLoan.interest_rate}%</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(paidLoan.loan_date)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(paidLoan.due_date)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-300">
-                        R$ ${parseFloat(paidLoan.total_paid).toFixed(2)}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        ${formatDate(paidLoan.paid_date)}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showPaidLoanDetails('${paidLoan.id}')">Detalhes</button>
-                        <button class="text-green-400 hover:text-green-300 mr-3" onclick="restorePaidLoan('${paidLoan.id}')">Restaurar</button>
-                        <button class="text-red-400 hover:text-red-300" onclick="deletePaidLoan('${paidLoan.id}')">Excluir</button>
+            try {
+                // Verificar se os dados necessários existem
+                if (!paidLoan) {
+                    console.warn('Empréstimo quitado inválido:', paidLoan);
+                    continue;
+                }
+                
+                // Função auxiliar para formatar valores com segurança
+                const safeFormatNumber = (value, defaultValue = '0.00') => {
+                    try {
+                        if (value === null || value === undefined) return defaultValue;
+                        const num = parseFloat(value);
+                        return isNaN(num) ? defaultValue : num.toFixed(2);
+                    } catch (e) {
+                        return defaultValue;
+                    }
+                };
+                
+                // Função auxiliar para formatar datas com segurança
+                const safeFormatDate = (dateString) => {
+                    try {
+                        if (!dateString) return 'N/A';
+                        return formatDate(dateString);
+                    } catch (e) {
+                        console.warn('Erro ao formatar data:', dateString, e);
+                        return 'Data inválida';
+                    }
+                };
+                
+                tableHTML += `
+                    <tr class="table-row">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-white">${paidLoan.clients?.name || 'Cliente não encontrado'}</div>
+                            <div class="text-sm text-gray-300">${paidLoan.clients?.cpf || ''}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(paidLoan.original_amount)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paidLoan.interest_rate || 0}%</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(paidLoan.loan_date)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(paidLoan.due_date)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-300">
+                            R$ ${safeFormatNumber(paidLoan.total_paid)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${safeFormatDate(paidLoan.paid_date)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showPaidLoanDetails('${paidLoan.id}')">Detalhes</button>
+                            <button class="text-green-400 hover:text-green-300 mr-3" onclick="restorePaidLoan('${paidLoan.id}')">Restaurar</button>
+                            <button class="text-red-400 hover:text-red-300" onclick="deletePaidLoan('${paidLoan.id}')">Excluir</button>
+                        </td>
+                    </tr>
+                `;
+            } catch (rowError) {
+                console.error('Erro ao processar linha:', paidLoan, rowError);
+                // Continuar com a próxima linha
+            }
+        }
+        
+        tbody.innerHTML = tableHTML;
+        console.log('Tabela de empréstimos quitados renderizada com sucesso');
+        
+    } catch (error) {
+        console.error('Erro ao carregar empréstimos quitados:', error);
+        
+        // Tentar mostrar o erro de forma mais detalhada
+        const tbody = document.getElementById('paidLoansTableBody');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="px-6 py-8 text-center text-gray-400">
+                        <div class="text-red-400 mb-2">Erro ao carregar empréstimos quitados</div>
+                        <div class="text-xs text-gray-500">${error.message || 'Erro desconhecido'}</div>
                     </td>
                 </tr>
             `;
         }
-        
-        tbody.innerHTML = tableHTML;
-        
-    } catch (error) {
-        console.error('Erro ao carregar empréstimos quitados:', error);
-        const tbody = document.getElementById('paidLoansTableBody');
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                    Erro ao carregar empréstimos quitados
-                </td>
-            </tr>
-        `;
     }
 }
 
 // Renderizar tabela de empréstimos cancelados
 async function renderCancelledLoansTable() {
     try {
+        console.log('Iniciando carregamento de empréstimos cancelados...');
+        
+        // Verificar se o elemento tbody existe
+        const tbody = document.getElementById('cancelledLoansTableBody');
+        if (!tbody) {
+            console.error('Elemento cancelledLoansTableBody não encontrado');
+            return;
+        }
+        
         // Buscar empréstimos cancelados da tabela cancelled_loans
         const { data: cancelledLoans, error } = await supabase
             .from('cancelled_loans')
@@ -566,9 +626,12 @@ async function renderCancelledLoansTable() {
             `)
             .order('cancellation_date', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+            console.error('Erro na consulta Supabase:', error);
+            throw error;
+        }
         
-        const tbody = document.getElementById('cancelledLoansTableBody');
+        console.log('Dados recebidos:', cancelledLoans);
         
         if (!cancelledLoans || cancelledLoans.length === 0) {
             tbody.innerHTML = `
@@ -584,45 +647,84 @@ async function renderCancelledLoansTable() {
         // Renderizar linhas com valores atualizados
         let tableHTML = '';
         for (const cancelledLoan of cancelledLoans) {
-            tableHTML += `
-                <tr class="table-row">
-                    <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-white">${cancelledLoan.clients?.name || 'Cliente não encontrado'}</div>
-                        <div class="text-sm text-gray-300">${cancelledLoan.clients?.cpf || ''}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(cancelledLoan.original_amount).toFixed(2)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${cancelledLoan.interest_rate}%</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(cancelledLoan.loan_date)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(cancelledLoan.due_date)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        ${formatDate(cancelledLoan.cancellation_date)}
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                        <div class="text-red-300">Cancelado</div>
-                        <div class="text-xs text-gray-400">Motivo: ${cancelledLoan.cancellation_reason}</div>
-                        <div class="text-xs text-gray-400">Pago antes: R$ ${parseFloat(cancelledLoan.total_paid_before_cancellation).toFixed(2)}</div>
-                    </td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showCancelledLoanDetails('${cancelledLoan.id}')">Detalhes</button>
-                        <button class="text-green-400 hover:text-green-300 mr-3" onclick="restoreCancelledLoan('${cancelledLoan.id}')">Restaurar</button>
-                        <button class="text-red-400 hover:text-red-300" onclick="deleteCancelledLoan('${cancelledLoan.id}')">Excluir</button>
+            try {
+                // Verificar se os dados necessários existem
+                if (!cancelledLoan) {
+                    console.warn('Empréstimo cancelado inválido:', cancelledLoan);
+                    continue;
+                }
+                
+                // Função auxiliar para formatar valores com segurança
+                const safeFormatNumber = (value, defaultValue = '0.00') => {
+                    try {
+                        if (value === null || value === undefined) return defaultValue;
+                        const num = parseFloat(value);
+                        return isNaN(num) ? defaultValue : num.toFixed(2);
+                    } catch (e) {
+                        return defaultValue;
+                    }
+                };
+                
+                // Função auxiliar para formatar datas com segurança
+                const safeFormatDate = (dateString) => {
+                    try {
+                        if (!dateString) return 'N/A';
+                        return formatDate(dateString);
+                    } catch (e) {
+                        console.warn('Erro ao formatar data:', dateString, e);
+                        return 'Data inválida';
+                    }
+                };
+                
+                tableHTML += `
+                    <tr class="table-row">
+                        <td class="px-6 py-4 whitespace-nowrap">
+                            <div class="text-sm font-medium text-white">${cancelledLoan.clients?.name || 'Cliente não encontrado'}</div>
+                            <div class="text-sm text-gray-300">${cancelledLoan.clients?.cpf || ''}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(cancelledLoan.original_amount)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${cancelledLoan.interest_rate || 0}%</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(cancelledLoan.loan_date)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(cancelledLoan.due_date)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            ${safeFormatDate(cancelledLoan.cancellation_date)}
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                            <div class="text-red-300">Cancelado</div>
+                            <div class="text-xs text-gray-400">Motivo: ${cancelledLoan.cancellation_reason || 'Não informado'}</div>
+                            <div class="text-xs text-gray-400">Pago antes: R$ ${safeFormatNumber(cancelledLoan.total_paid_before_cancellation)}</div>
+                        </td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                            <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showCancelledLoanDetails('${cancelledLoan.id}')">Detalhes</button>
+                            <button class="text-green-400 hover:text-green-300 mr-3" onclick="restoreCancelledLoan('${cancelledLoan.id}')">Restaurar</button>
+                            <button class="text-red-400 hover:text-red-300" onclick="deleteCancelledLoan('${cancelledLoan.id}')">Excluir</button>
+                        </td>
+                    </tr>
+                `;
+            } catch (rowError) {
+                console.error('Erro ao processar linha:', cancelledLoan, rowError);
+                // Continuar com a próxima linha
+            }
+        }
+        
+        tbody.innerHTML = tableHTML;
+        console.log('Tabela de empréstimos cancelados renderizada com sucesso');
+        
+    } catch (error) {
+        console.error('Erro ao carregar empréstimos cancelados:', error);
+        
+        // Tentar mostrar o erro de forma mais detalhada
+        const tbody = document.getElementById('cancelledLoansTableBody');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="px-6 py-8 text-center text-gray-400">
+                        <div class="text-red-400 mb-2">Erro ao carregar empréstimos cancelados</div>
+                        <div class="text-xs text-gray-500">${error.message || 'Erro desconhecido'}</div>
                     </td>
                 </tr>
             `;
         }
-        
-        tbody.innerHTML = tableHTML;
-        
-    } catch (error) {
-        console.error('Erro ao carregar empréstimos cancelados:', error);
-        const tbody = document.getElementById('cancelledLoansTableBody');
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                    Erro ao carregar empréstimos cancelados
-                </td>
-            </tr>
-        `;
     }
 }
 
