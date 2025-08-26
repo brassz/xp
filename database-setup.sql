@@ -478,6 +478,48 @@ FROM pg_policies
 WHERE schemaname = 'public'
 ORDER BY tablename, policyname;
 
+-- Criar tabela de despesas
+CREATE TABLE expenses (
+    id BIGSERIAL PRIMARY KEY,
+    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    description TEXT NOT NULL,
+    category VARCHAR(50) NOT NULL,
+    amount DECIMAL(10, 2) NOT NULL,
+    date DATE NOT NULL,
+    notes TEXT,
+    signature TEXT, -- Base64 da assinatura digital
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+);
+
+-- Índices para a tabela expenses
+CREATE INDEX idx_expenses_user_id ON expenses(user_id);
+CREATE INDEX idx_expenses_date ON expenses(date);
+CREATE INDEX idx_expenses_category ON expenses(category);
+
+-- RLS para a tabela expenses
+ALTER TABLE expenses ENABLE ROW LEVEL SECURITY;
+
+-- Política para ver apenas as próprias despesas
+CREATE POLICY "Users can view own expenses" ON expenses
+    FOR SELECT USING (user_id = auth.uid());
+
+-- Política para inserir despesas
+CREATE POLICY "Users can insert own expenses" ON expenses
+    FOR INSERT WITH CHECK (user_id = auth.uid());
+
+-- Política para atualizar próprias despesas
+CREATE POLICY "Users can update own expenses" ON expenses
+    FOR UPDATE USING (user_id = auth.uid());
+
+-- Política para deletar próprias despesas
+CREATE POLICY "Users can delete own expenses" ON expenses
+    FOR DELETE USING (user_id = auth.uid());
+
+-- Trigger para atualizar updated_at
+CREATE TRIGGER update_expenses_updated_at BEFORE UPDATE ON expenses
+    FOR EACH ROW EXECUTE PROCEDURE update_updated_at_column();
+
 -- Verificar usuário admin criado
 SELECT id, email, full_name, role, is_active, created_at FROM users WHERE role = 'admin';
 

@@ -12,8 +12,10 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let clients = [];
 let loans = [];
+let expenses = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
+let signaturePad = null;
 
 // Elementos DOM
 const loginPage = document.getElementById('loginPage');
@@ -33,15 +35,18 @@ const editClientModal = document.getElementById('editClientModal');
 const editLoanModal = document.getElementById('editLoanModal');
 const confirmationModal = document.getElementById('confirmationModal');
 const paymentHistoryModal = document.getElementById('paymentHistoryModal');
+const newExpenseModal = document.getElementById('newExpenseModal');
 
 // Botões
 const newClientBtn = document.getElementById('newClientBtn');
 const newLoanBtn = document.getElementById('newLoanBtn');
+const newExpenseBtn = document.getElementById('newExpenseBtn');
 
 // Formulários
 const newClientForm = document.getElementById('newClientForm');
 const newLoanForm = document.getElementById('newLoanForm');
 const paymentForm = document.getElementById('paymentForm');
+const newExpenseForm = document.getElementById('newExpenseForm');
 
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
@@ -88,6 +93,11 @@ function setupEventListeners() {
     // Botões
     newClientBtn.addEventListener('click', () => showModal(newClientModal));
     newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
+    newExpenseBtn.addEventListener('click', () => {
+        showModal(newExpenseModal);
+        setupSignatureCanvas();
+        setDefaultExpenseDate();
+    });
     
     // Fechar modais
     document.getElementById('closeClientModal').addEventListener('click', () => hideModal(newClientModal));
@@ -96,6 +106,7 @@ function setupEventListeners() {
     document.getElementById('closeEditClientModal').addEventListener('click', () => hideModal(editClientModal));
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
+    document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     
     // Cancelar modais
     document.getElementById('cancelClientBtn').addEventListener('click', () => hideModal(newClientModal));
@@ -105,6 +116,7 @@ function setupEventListeners() {
     document.getElementById('cancelEditLoanBtn').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('cancelConfirmationBtn').addEventListener('click', () => hideModal(confirmationModal));
     document.getElementById('closePaymentHistoryBtn').addEventListener('click', () => hideModal(paymentHistoryModal));
+    document.getElementById('cancelExpense').addEventListener('click', () => hideModal(newExpenseModal));
     
     // Botões do modal de histórico de pagamentos
     document.getElementById('newPaymentBtn').addEventListener('click', () => showNewPaymentFromHistory());
@@ -118,6 +130,10 @@ function setupEventListeners() {
     paymentForm.addEventListener('submit', handlePayment);
     document.getElementById('editClientForm').addEventListener('submit', handleEditClient);
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
+    newExpenseForm.addEventListener('submit', handleNewExpense);
+    
+    // Assinatura
+    document.getElementById('clearSignature').addEventListener('click', clearSignature);
     
     // Cálculos em tempo real
     document.getElementById('loanAmount').addEventListener('input', updateLoanSummary);
@@ -240,6 +256,12 @@ function handleNavigation(e) {
                     updateDistributionChart();
                 }, 100);
             }
+            
+            // Carregar dados das despesas quando a seção for exibida
+            if (target === 'expenses') {
+                console.log('Seção de despesas ativada, carregando dados...');
+                loadExpenses();
+            }
         }
     });
 }
@@ -257,7 +279,8 @@ async function loadData() {
     try {
         await Promise.all([
             loadClients(),
-            loadLoans()
+            loadLoans(),
+            loadExpenses()
         ]);
         
         // Carregar empréstimos quitados separadamente
@@ -1924,6 +1947,22 @@ async function createTablesIfNotExist() {
             console.log('Erro ao verificar tabela users:', error);
         }
         
+        // Verificar se a tabela expenses existe
+        try {
+            const { data: expensesCheck, error: expensesCheckError } = await supabase
+                .from('expenses')
+                .select('id')
+                .limit(1);
+            
+            if (expensesCheckError) {
+                console.log('Tabela expenses não encontrada. Execute o script database-setup.sql no Supabase.');
+            } else {
+                console.log('✓ Tabela expenses encontrada');
+            }
+        } catch (error) {
+            console.log('Erro ao verificar tabela expenses:', error);
+        }
+        
         console.log('Verificação de tabelas concluída!');
         console.log('Se alguma tabela não foi encontrada, execute o script database-setup.sql no SQL Editor do Supabase.');
         
@@ -2455,5 +2494,390 @@ async function deletePaidLoan(paidLoanId) {
     } catch (error) {
         console.error('Erro ao excluir empréstimo quitado:', error);
         showInfoMessage('Erro ao excluir empréstimo: ' + error.message);
+    }
+}
+
+// ================================
+// GESTÃO DE DESPESAS
+// ================================
+
+// Configurar canvas de assinatura
+function setupSignatureCanvas() {
+    const canvas = document.getElementById('signatureCanvas');
+    const ctx = canvas.getContext('2d');
+    let isDrawing = false;
+    let lastX = 0;
+    let lastY = 0;
+    
+    // Limpar o canvas
+    ctx.fillStyle = 'white';
+    ctx.fillRect(0, 0, canvas.width, canvas.height);
+    
+    // Configurar estilo do pincel
+    ctx.strokeStyle = '#000000';
+    ctx.lineWidth = 2;
+    ctx.lineCap = 'round';
+    ctx.lineJoin = 'round';
+    
+    function draw(e) {
+        if (!isDrawing) return;
+        
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        const x = (e.clientX - rect.left) * scaleX;
+        const y = (e.clientY - rect.top) * scaleY;
+        
+        ctx.beginPath();
+        ctx.moveTo(lastX, lastY);
+        ctx.lineTo(x, y);
+        ctx.stroke();
+        
+        [lastX, lastY] = [x, y];
+    }
+    
+    function startDrawing(e) {
+        isDrawing = true;
+        const rect = canvas.getBoundingClientRect();
+        const scaleX = canvas.width / rect.width;
+        const scaleY = canvas.height / rect.height;
+        
+        lastX = (e.clientX - rect.left) * scaleX;
+        lastY = (e.clientY - rect.top) * scaleY;
+    }
+    
+    function stopDrawing() {
+        isDrawing = false;
+    }
+    
+    // Mouse events
+    canvas.addEventListener('mousedown', startDrawing);
+    canvas.addEventListener('mousemove', draw);
+    canvas.addEventListener('mouseup', stopDrawing);
+    canvas.addEventListener('mouseout', stopDrawing);
+    
+    // Touch events para dispositivos móveis
+    canvas.addEventListener('touchstart', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent('mousedown', {
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+        canvas.dispatchEvent(mouseEvent);
+    });
+    
+    canvas.addEventListener('touchmove', (e) => {
+        e.preventDefault();
+        const touch = e.touches[0];
+        const mouseEvent = new MouseEvent('mousemove', {
+            clientX: touch.clientX,
+            clientY: touch.clientY
+        });
+        canvas.dispatchEvent(mouseEvent);
+    });
+    
+    canvas.addEventListener('touchend', (e) => {
+        e.preventDefault();
+        const mouseEvent = new MouseEvent('mouseup', {});
+        canvas.dispatchEvent(mouseEvent);
+    });
+    
+    signaturePad = { canvas, ctx };
+}
+
+// Limpar assinatura
+function clearSignature() {
+    if (signaturePad) {
+        const { canvas, ctx } = signaturePad;
+        ctx.fillStyle = 'white';
+        ctx.fillRect(0, 0, canvas.width, canvas.height);
+    }
+}
+
+// Definir data padrão para hoje
+function setDefaultExpenseDate() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('expenseDate').value = today;
+}
+
+// Capturar assinatura como base64
+function getSignatureData() {
+    if (signaturePad) {
+        const canvas = signaturePad.canvas;
+        return canvas.toDataURL('image/png');
+    }
+    return null;
+}
+
+// Verificar se há assinatura
+function hasSignature() {
+    if (!signaturePad) return false;
+    
+    const canvas = signaturePad.canvas;
+    const ctx = signaturePad.ctx;
+    const pixelBuffer = new Uint32Array(
+        ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer
+    );
+    
+    return !pixelBuffer.every(color => color === 0xffffffff);
+}
+
+// Manipular envio de nova despesa
+async function handleNewExpense(e) {
+    e.preventDefault();
+    
+    try {
+        const formData = new FormData(e.target);
+        const description = document.getElementById('expenseDescription').value;
+        const category = document.getElementById('expenseCategory').value;
+        const amount = parseFloat(document.getElementById('expenseAmount').value);
+        const date = document.getElementById('expenseDate').value;
+        const notes = document.getElementById('expenseNotes').value;
+        
+        // Verificar se há assinatura
+        if (!hasSignature()) {
+            showInfoMessage('Por favor, adicione uma assinatura antes de criar a despesa.');
+            return;
+        }
+        
+        const signatureData = getSignatureData();
+        
+        const expenseData = {
+            description: description,
+            category: category,
+            amount: amount,
+            date: date,
+            notes: notes,
+            signature: signatureData,
+            created_at: new Date().toISOString(),
+            user_id: currentUser.id
+        };
+        
+        // Inserir no banco de dados
+        const { data, error } = await supabase
+            .from('expenses')
+            .insert([expenseData])
+            .select();
+            
+        if (error) throw error;
+        
+        // Atualizar lista local
+        expenses.push(data[0]);
+        
+        // Atualizar interface
+        await loadExpenses();
+        updateExpensesSummary();
+        
+        // Fechar modal e limpar formulário
+        hideModal(newExpenseModal);
+        newExpenseForm.reset();
+        clearSignature();
+        
+        showSuccessMessage('Despesa criada com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao criar despesa:', error);
+        showInfoMessage('Erro ao criar despesa: ' + error.message);
+    }
+}
+
+// Carregar despesas
+async function loadExpenses() {
+    try {
+        const { data, error } = await supabase
+            .from('expenses')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('date', { ascending: false });
+            
+        if (error) throw error;
+        
+        expenses = data || [];
+        displayExpenses();
+        updateExpensesSummary();
+        
+    } catch (error) {
+        console.error('Erro ao carregar despesas:', error);
+        showInfoMessage('Erro ao carregar despesas: ' + error.message);
+    }
+}
+
+// Exibir despesas na tabela
+function displayExpenses() {
+    const tbody = document.getElementById('expensesTableBody');
+    
+    if (expenses.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
+                    <div class="flex flex-col items-center">
+                        <svg class="w-12 h-12 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">Nenhuma despesa encontrada</p>
+                        <p class="text-sm">Clique em "Nova Despesa" para adicionar sua primeira despesa</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = expenses.map(expense => `
+        <tr class="table-row">
+            <td class="px-6 py-4">
+                <div>
+                    <p class="text-white font-medium">${expense.description}</p>
+                    ${expense.notes ? `<p class="text-gray-400 text-sm">${expense.notes}</p>` : ''}
+                </div>
+            </td>
+            <td class="px-6 py-4">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadge(expense.category)}">
+                    ${getCategoryName(expense.category)}
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
+            </td>
+            <td class="px-6 py-4">
+                <span class="text-gray-300">${formatDate(expense.date)}</span>
+            </td>
+            <td class="px-6 py-4">
+                <button onclick="viewSignature('${expense.signature}')" class="text-blue-400 hover:text-blue-300 text-sm">
+                    Ver Assinatura
+                </button>
+            </td>
+            <td class="px-6 py-4">
+                <div class="flex space-x-2">
+                    <button onclick="deleteExpense(${expense.id})" class="text-red-400 hover:text-red-300 p-1">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Obter classe CSS para badge da categoria
+function getCategoryBadge(category) {
+    const badges = {
+        alimentacao: 'bg-green-100 text-green-800',
+        transporte: 'bg-blue-100 text-blue-800',
+        escritorio: 'bg-purple-100 text-purple-800',
+        marketing: 'bg-yellow-100 text-yellow-800',
+        outros: 'bg-gray-100 text-gray-800'
+    };
+    return badges[category] || badges.outros;
+}
+
+// Obter nome da categoria
+function getCategoryName(category) {
+    const names = {
+        alimentacao: 'Alimentação',
+        transporte: 'Transporte',
+        escritorio: 'Escritório',
+        marketing: 'Marketing',
+        outros: 'Outros'
+    };
+    return names[category] || 'Outros';
+}
+
+// Atualizar resumo de despesas
+function updateExpensesSummary() {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Total do mês atual
+    const monthlyTotal = expenses
+        .filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, expense) => sum + expense.amount, 0);
+    
+    // Total do ano atual
+    const yearlyTotal = expenses
+        .filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, expense) => sum + expense.amount, 0);
+    
+    // Atualizar elementos da interface
+    document.getElementById('monthlyExpensesTotal').textContent = `R$ ${monthlyTotal.toFixed(2).replace('.', ',')}`;
+    document.getElementById('yearlyExpensesTotal').textContent = `R$ ${yearlyTotal.toFixed(2).replace('.', ',')}`;
+    document.getElementById('expensesCount').textContent = expenses.length;
+}
+
+// Visualizar assinatura
+function viewSignature(signatureData) {
+    if (!signatureData) {
+        showInfoMessage('Nenhuma assinatura disponível.');
+        return;
+    }
+    
+    // Criar modal para exibir a assinatura
+    const modal = document.createElement('div');
+    modal.className = 'modal-overlay fixed inset-0 z-50';
+    modal.innerHTML = `
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Assinatura Digital</h3>
+                    <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                <div class="text-center">
+                    <img src="${signatureData}" alt="Assinatura" class="mx-auto border border-gray-600 rounded-lg max-w-full">
+                </div>
+                <div class="mt-6 text-center">
+                    <button onclick="this.closest('.modal-overlay').remove()" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
+                        Fechar
+                    </button>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.appendChild(modal);
+}
+
+// Excluir despesa
+async function deleteExpense(expenseId) {
+    try {
+        const expense = expenses.find(e => e.id === expenseId);
+        if (!expense) return;
+        
+        if (!confirm(`Tem certeza que deseja excluir a despesa "${expense.description}"?`)) {
+            return;
+        }
+        
+        const { error } = await supabase
+            .from('expenses')
+            .delete()
+            .eq('id', expenseId);
+            
+        if (error) throw error;
+        
+        // Remover da lista local
+        expenses = expenses.filter(e => e.id !== expenseId);
+        
+        // Atualizar interface
+        displayExpenses();
+        updateExpensesSummary();
+        
+        showSuccessMessage('Despesa excluída com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao excluir despesa:', error);
+        showInfoMessage('Erro ao excluir despesa: ' + error.message);
     }
 }
