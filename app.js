@@ -8,6 +8,14 @@ const UPLOADCARE_PUBLIC_KEY = '5bb6bf6b98f6d36060dc';
 // Inicializar Supabase
 const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 
+// Função para limpar cache do Supabase (solução temporária para erro de schema cache)
+function clearSupabaseCache() {
+    console.log('Limpando cache do Supabase...');
+    // Recriar cliente Supabase para forçar atualização do schema cache
+    window.supabaseClient = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+    return window.supabaseClient;
+}
+
 // Estado global da aplicação
 let currentUser = null;
 let clients = [];
@@ -654,7 +662,9 @@ async function handleNewClient(e) {
     };
     
     try {
-        const { data, error } = await supabase
+        let client = supabase;
+        
+        const { data, error } = await client
             .from('clients')
             .insert([formData])
             .select();
@@ -674,7 +684,40 @@ async function handleNewClient(e) {
         await updateDashboard();
         
     } catch (error) {
-        alert('Erro ao criar cliente: ' + error.message);
+        console.error('Erro detalhado:', error);
+        
+        // Se for erro de schema cache, tentar com cliente limpo
+        if (error.message && error.message.includes('schema cache')) {
+            console.log('Detectado erro de schema cache. Tentando com cliente limpo...');
+            try {
+                const cleanClient = clearSupabaseCache();
+                const { data, error: retryError } = await cleanClient
+                    .from('clients')
+                    .insert([formData])
+                    .select();
+                
+                if (retryError) throw retryError;
+                
+                hideModal(newClientModal);
+                newClientForm.reset();
+                document.getElementById('photoUpload').innerHTML = `
+                    <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
+                    </svg>
+                    <p class="text-gray-400">Clique para fazer upload da foto</p>
+                `;
+                
+                await loadClients();
+                await updateDashboard();
+                
+                alert('Cliente criado com sucesso! (cache limpo)');
+                return;
+            } catch (retryError) {
+                console.error('Erro após limpar cache:', retryError);
+            }
+        }
+        
+        alert('Erro ao criar cliente: ' + error.message + '\n\nTente fazer um refresh da página (Ctrl+Shift+R)');
     }
 }
 
