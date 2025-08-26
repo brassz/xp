@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste - Nexus Gestão Financeira</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center">Teste de Funcionalidade</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <!-- Teste de JavaScript -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">Teste de JavaScript</h2>
+                <button id="testJsBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+                    Testar JavaScript
+                </button>
+                <div id="jsResult" class="mt-4 p-3 bg-gray-700 rounded hidden"></div>
+            </div>
+            
+            <!-- Teste de Supabase -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">Teste de Supabase</h2>
+                <button id="testSupabaseBtn" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
+                    Testar Conexão
+                </button>
+                <div id="supabaseResult" class="mt-4 p-3 bg-gray-700 rounded hidden"></div>
+            </div>
+            
+            <!-- Teste de Console -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">Teste de Console</h2>
+                <button id="testConsoleBtn" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded">
+                    Testar Console
+                </button>
+                <div id="consoleResult" class="mt-4 p-3 bg-gray-700 rounded hidden"></div>
+            </div>
+            
+            <!-- Status Geral -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">Status Geral</h2>
+                <div id="statusResult" class="space-y-2">
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
+                        <span>Carregando...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Log de Erros -->
+        <div class="mt-8 bg-gray-800 p-6 rounded-lg">
+            <h2 class="text-xl font-semibold mb-4">Log de Erros</h2>
+            <div id="errorLog" class="bg-gray-900 p-4 rounded text-sm font-mono max-h-64 overflow-y-auto">
+                <div class="text-gray-400">Aguardando erros...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuração do Supabase
+        const SUPABASE_URL = 'https://mhtxyxizfnxupwmilith.supabase.co';
+        const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI';
+
+        // Inicializar Supabase
+        let supabase;
+        try {
+            supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+            console.log('✅ Supabase inicializado com sucesso');
+        } catch (error) {
+            console.error('❌ Erro ao inicializar Supabase:', error);
+        }
+
+        // Função para adicionar log de erro
+        function addErrorLog(message, type = 'error') {
+            const errorLog = document.getElementById('errorLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const color = type === 'error' ? 'text-red-400' : 'text-green-400';
+            
+            errorLog.innerHTML += `
+                <div class="${color}">
+                    [${timestamp}] ${message}
+                </div>
+            `;
+            
+            errorLog.scrollTop = errorLog.scrollHeight;
+        }
+
+        // Função para mostrar resultado
+        function showResult(elementId, message, isSuccess = true) {
+            const element = document.getElementById(elementId);
+            element.textContent = message;
+            element.className = `mt-4 p-3 rounded ${isSuccess ? 'bg-green-700' : 'bg-red-700'}`;
+            element.classList.remove('hidden');
+        }
+
+        // Teste de JavaScript
+        document.getElementById('testJsBtn').addEventListener('click', function() {
+            try {
+                // Testar funcionalidades básicas
+                const testArray = [1, 2, 3, 4, 5];
+                const sum = testArray.reduce((a, b) => a + b, 0);
+                
+                if (sum === 15) {
+                    showResult('jsResult', '✅ JavaScript funcionando perfeitamente!', true);
+                    addErrorLog('JavaScript testado com sucesso', 'success');
+                } else {
+                    throw new Error('Cálculo incorreto');
+                }
+            } catch (error) {
+                showResult('jsResult', `❌ Erro no JavaScript: ${error.message}`, false);
+                addErrorLog(`Erro no JavaScript: ${error.message}`);
+            }
+        });
+
+        // Teste de Supabase
+        document.getElementById('testSupabaseBtn').addEventListener('click', async function() {
+            try {
+                if (!supabase) {
+                    throw new Error('Supabase não foi inicializado');
+                }
+
+                // Testar conexão fazendo uma consulta simples
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('id')
+                    .limit(1);
+
+                if (error) {
+                    throw error;
+                }
+
+                showResult('supabaseResult', '✅ Conexão com Supabase funcionando!', true);
+                addErrorLog('Conexão com Supabase testada com sucesso', 'success');
+            } catch (error) {
+                showResult('supabaseResult', `❌ Erro na conexão: ${error.message}`, false);
+                addErrorLog(`Erro na conexão Supabase: ${error.message}`);
+            }
+        });
+
+        // Teste de Console
+        document.getElementById('testConsoleBtn').addEventListener('click', function() {
+            try {
+                console.log('Teste de console funcionando!');
+                console.warn('Aviso de teste');
+                console.error('Erro de teste');
+                
+                showResult('consoleResult', '✅ Console funcionando! Verifique o DevTools (F12)', true);
+                addErrorLog('Console testado com sucesso', 'success');
+            } catch (error) {
+                showResult('consoleResult', `❌ Erro no console: ${error.message}`, false);
+                addErrorLog(`Erro no console: ${error.message}`);
+            }
+        });
+
+        // Verificar status geral
+        async function checkGeneralStatus() {
+            const statusResult = document.getElementById('statusResult');
+            let statusHTML = '';
+
+            try {
+                // Verificar JavaScript
+                statusHTML += `
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                        <span>JavaScript: OK</span>
+                    </div>
+                `;
+
+                // Verificar Supabase
+                if (supabase) {
+                    statusHTML += `
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                            <span>Supabase: Inicializado</span>
+                        </div>
+                    `;
+                } else {
+                    statusHTML += `
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                            <span>Supabase: Erro na inicialização</span>
+                        </div>
+                    `;
+                }
+
+                // Verificar DOM
+                if (document.getElementById('testJsBtn')) {
+                    statusHTML += `
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                            <span>DOM: OK</span>
+                        </div>
+                    `;
+                } else {
+                    statusHTML += `
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                            <span>DOM: Erro</span>
+                        </div>
+                    `;
+                }
+
+                // Verificar Event Listeners
+                try {
+                    document.getElementById('testJsBtn').addEventListener('click', () => {});
+                    statusHTML += `
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-green-500 rounded-full mr-2"></span>
+                            <span>Event Listeners: OK</span>
+                        </div>
+                    `;
+                } catch (error) {
+                    statusHTML += `
+                        <div class="flex items-center">
+                            <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                            <span>Event Listeners: Erro</span>
+                        </div>
+                    `;
+                }
+
+            } catch (error) {
+                statusHTML += `
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 bg-red-500 rounded-full mr-2"></span>
+                        <span>Erro geral: ${error.message}</span>
+                    </div>
+                `;
+                addErrorLog(`Erro geral: ${error.message}`);
+            }
+
+            statusResult.innerHTML = statusHTML;
+        }
+
+        // Capturar erros globais
+        window.addEventListener('error', function(event) {
+            addErrorLog(`Erro global: ${event.error?.message || event.message}`);
+        });
+
+        window.addEventListener('unhandledrejection', function(event) {
+            addErrorLog(`Promise rejeitada: ${event.reason}`);
+        });
+
+        // Inicializar quando a página carregar
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('✅ Página carregada com sucesso');
+            checkGeneralStatus();
+            addErrorLog('Página carregada com sucesso', 'success');
+        });
+
+        // Verificar se há problemas de carregamento
+        window.addEventListener('load', function() {
+            console.log('✅ Todos os recursos carregados');
+            addErrorLog('Todos os recursos carregados', 'success');
+        });
+    </script>
+</body>
+</html> 
