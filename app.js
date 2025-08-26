@@ -489,16 +489,30 @@ async function renderPaidLoansTable() {
         // Buscar empréstimos quitados da tabela paid_loans
         const { data: paidLoans, error } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .order('paid_date', { ascending: false });
+        
+        if (error) {
+            console.error('Erro ao buscar empréstimos quitados:', error);
+            throw error;
+        }
+        
+        // Buscar dados dos clientes separadamente
+        let clientsData = {};
+        if (paidLoans && paidLoans.length > 0) {
+            const clientIds = [...new Set(paidLoans.map(loan => loan.client_id))];
+            const { data: clients, error: clientsError } = await supabase
+                .from('clients')
+                .select('id, name, cpf, email, phone')
+                .in('id', clientIds);
+            
+            if (!clientsError && clients) {
+                clientsData = clients.reduce((acc, client) => {
+                    acc[client.id] = client;
+                    return acc;
+                }, {});
+            }
+        }
         
         if (error) {
             console.error('Erro na consulta Supabase:', error);
@@ -553,8 +567,8 @@ async function renderPaidLoansTable() {
                 tableHTML += `
                     <tr class="table-row">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-white">${paidLoan.clients?.name || 'Cliente não encontrado'}</div>
-                            <div class="text-sm text-gray-300">${paidLoan.clients?.cpf || ''}</div>
+                            <div class="text-sm font-medium text-white">${clientsData[paidLoan.client_id]?.name || 'Cliente não encontrado'}</div>
+                            <div class="text-sm text-gray-300">${clientsData[paidLoan.client_id]?.cpf || ''}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(paidLoan.original_amount)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paidLoan.interest_rate || 0}%</td>
@@ -2580,25 +2594,28 @@ async function showPaidLoanDetails(paidLoanId) {
     try {
         const { data: paidLoan, error } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .eq('id', paidLoanId)
             .single();
         
         if (error) throw error;
         
+        // Buscar dados do cliente separadamente
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, name, cpf, email, phone')
+            .eq('id', paidLoan.client_id)
+            .single();
+        
+        if (clientError) {
+            console.warn('Cliente não encontrado:', clientError);
+        }
+        
         const message = `
 Detalhes do Empréstimo Quitado:
 
-Cliente: ${paidLoan.clients?.name || 'Cliente não encontrado'}
-CPF: ${paidLoan.clients?.cpf || 'N/A'}
+Cliente: ${client?.name || 'Cliente não encontrado'}
+CPF: ${client?.cpf || 'N/A'}
 Valor Original: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}
 Taxa de Juros: ${paidLoan.interest_rate}%
 Total com Juros: R$ ${parseFloat(paidLoan.total_with_interest).toFixed(2)}
@@ -2624,22 +2641,25 @@ async function restorePaidLoan(paidLoanId) {
         // Buscar dados do empréstimo quitado
         const { data: paidLoan, error: fetchError } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .eq('id', paidLoanId)
             .single();
-        
+            
         if (fetchError) throw fetchError;
         
+        // Buscar dados do cliente separadamente
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, name, cpf, email, phone')
+            .eq('id', paidLoan.client_id)
+            .single();
+        
+        if (clientError) {
+            console.warn('Cliente não encontrado:', clientError);
+        }
+        
         // Mostrar confirmação
-        const confirmMessage = `Deseja restaurar o empréstimo quitado?\n\nCliente: ${paidLoan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nEsta ação irá recriar o empréstimo na tabela principal.`;
+        const confirmMessage = `Deseja restaurar o empréstimo quitado?\n\nCliente: ${client?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nEsta ação irá recriar o empréstimo na tabela principal.`;
         
         if (!confirm(confirmMessage)) return;
         
@@ -2687,22 +2707,25 @@ async function deletePaidLoan(paidLoanId) {
         // Buscar dados do empréstimo quitado
         const { data: paidLoan, error: fetchError } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .eq('id', paidLoanId)
             .single();
-        
+            
         if (fetchError) throw fetchError;
         
+        // Buscar dados do cliente separadamente
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, name, cpf, email, phone')
+            .eq('id', paidLoan.client_id)
+            .single();
+        
+        if (clientError) {
+            console.warn('Cliente não encontrado:', clientError);
+        }
+        
         // Mostrar confirmação
-        const confirmMessage = `ATENÇÃO: Esta ação é irreversível!\n\nDeseja excluir permanentemente o empréstimo quitado?\n\nCliente: ${paidLoan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nTodos os dados serão perdidos para sempre.`;
+        const confirmMessage = `ATENÇÃO: Esta ação é irreversível!\n\nDeseja excluir permanentemente o empréstimo quitado?\n\nCliente: ${client?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nTodos os dados serão perdidos para sempre.`;
         
         if (!confirm(confirmMessage)) return;
         
