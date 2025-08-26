@@ -412,6 +412,7 @@ async function renderLoansTable() {
                     <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
                     <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
+                    <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -1555,6 +1556,81 @@ function showNewPaymentFromHistory() {
     showPaymentModal(loanId);
 }
 
+// Função para enviar mensagem de cobrança via WhatsApp
+async function sendWhatsAppMessage(loanId) {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showErrorMessage('Empréstimo não encontrado!');
+        return;
+    }
+
+    const client = loan.clients;
+    if (!client) {
+        showErrorMessage('Dados do cliente não encontrados!');
+        return;
+    }
+
+    // Verificar se o cliente tem telefone
+    if (!client.phone) {
+        showErrorMessage('Cliente não possui telefone cadastrado!');
+        return;
+    }
+
+    try {
+        // Calcular valores atuais do empréstimo
+        const principalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = principalAmount * (interestRate / 100);
+        const remainingAmount = await calculateLoanRemainingAmount(loanId);
+        
+        // Calcular multa se estiver vencido
+        const dueDate = new Date(loan.due_date);
+        const today = new Date();
+        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+        const dailyFine = 50.00; // Multa diária de R$ 50,00
+        const currentFine = daysOverdue > 0 ? daysOverdue * dailyFine : 0;
+
+        // Formatar data de vencimento
+        const formattedDueDate = formatDate(loan.due_date);
+
+        // Montar mensagem do WhatsApp
+        const message = `📅 VENCIMENTO: ${formattedDueDate}
+
+💰 CLIENTE: ${client.name}
+💵 Capital: R$ ${principalAmount.toFixed(2)}
+📈 Juros: R$ ${interestAmount.toFixed(2)}
+❌ Multa atual: R$ ${currentFine.toFixed(2)}
+
+📌 PAGAMENTO VIA PIX (CNPJ):
+Chave PIX: 54413674000147
+Favorecido: Tuane Carla Mendes Tomaz
+Instituição: Stone Pagamento S.A
+
+⚠️🚨 ATENÇÃO!
+O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
+Após o vencimento, será aplicada uma multa diária de R$ 50,00.`;
+
+        // Limpar o número de telefone (remover caracteres especiais)
+        const cleanPhone = client.phone.replace(/\D/g, '');
+        
+        // Verificar se o número tem o código do país
+        const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+        // Criar URL do WhatsApp
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+        // Abrir WhatsApp em nova aba
+        window.open(whatsappUrl, '_blank');
+
+        // Mostrar mensagem de sucesso
+        showSuccessMessage(`Mensagem de cobrança enviada para ${client.name} (${client.phone})`);
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem do WhatsApp:', error);
+        showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
+    }
+}
+
 async function loadPaymentHistory(loanId) {
     try {
         const { data, error } = await supabase
@@ -1831,6 +1907,28 @@ function showSuccessMessage(message) {
             document.body.removeChild(notification);
         }, 300);
     }, 3000);
+}
+
+function showErrorMessage(message) {
+    // Criar uma notificação de erro
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full';
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Animar entrada
+    setTimeout(() => {
+        notification.classList.remove('translate-x-full');
+    }, 100);
+    
+    // Remover após 4 segundos (um pouco mais para erros)
+    setTimeout(() => {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 4000);
 }
 
 function showInfoMessage(message) {
