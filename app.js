@@ -15,7 +15,7 @@ let loans = [];
 let expenses = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
-let signaturePad = null;
+
 
 // Elementos DOM
 const loginPage = document.getElementById('loginPage');
@@ -95,7 +95,7 @@ function setupEventListeners() {
     newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
     newExpenseBtn.addEventListener('click', () => {
         showModal(newExpenseModal);
-        setupSignatureCanvas();
+
         setDefaultExpenseDate();
     });
     
@@ -133,7 +133,7 @@ function setupEventListeners() {
     newExpenseForm.addEventListener('submit', handleNewExpense);
     
     // Assinatura
-    document.getElementById('clearSignature').addEventListener('click', clearSignature);
+
     
     // Cálculos em tempo real
     document.getElementById('loanAmount').addEventListener('input', updateLoanSummary);
@@ -2501,100 +2501,9 @@ async function deletePaidLoan(paidLoanId) {
 // GESTÃO DE DESPESAS
 // ================================
 
-// Configurar canvas de assinatura
-function setupSignatureCanvas() {
-    const canvas = document.getElementById('signatureCanvas');
-    const ctx = canvas.getContext('2d');
-    let isDrawing = false;
-    let lastX = 0;
-    let lastY = 0;
-    
-    // Limpar o canvas
-    ctx.fillStyle = 'white';
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    
-    // Configurar estilo do pincel
-    ctx.strokeStyle = '#000000';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
-    
-    function draw(e) {
-        if (!isDrawing) return;
-        
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        
-        const x = (e.clientX - rect.left) * scaleX;
-        const y = (e.clientY - rect.top) * scaleY;
-        
-        ctx.beginPath();
-        ctx.moveTo(lastX, lastY);
-        ctx.lineTo(x, y);
-        ctx.stroke();
-        
-        [lastX, lastY] = [x, y];
-    }
-    
-    function startDrawing(e) {
-        isDrawing = true;
-        const rect = canvas.getBoundingClientRect();
-        const scaleX = canvas.width / rect.width;
-        const scaleY = canvas.height / rect.height;
-        
-        lastX = (e.clientX - rect.left) * scaleX;
-        lastY = (e.clientY - rect.top) * scaleY;
-    }
-    
-    function stopDrawing() {
-        isDrawing = false;
-    }
-    
-    // Mouse events
-    canvas.addEventListener('mousedown', startDrawing);
-    canvas.addEventListener('mousemove', draw);
-    canvas.addEventListener('mouseup', stopDrawing);
-    canvas.addEventListener('mouseout', stopDrawing);
-    
-    // Touch events para dispositivos móveis
-    canvas.addEventListener('touchstart', (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const mouseEvent = new MouseEvent('mousedown', {
-            clientX: touch.clientX,
-            clientY: touch.clientY
-        });
-        canvas.dispatchEvent(mouseEvent);
-    });
-    
-    canvas.addEventListener('touchmove', (e) => {
-        e.preventDefault();
-        const touch = e.touches[0];
-        const mouseEvent = new MouseEvent('mousemove', {
-            clientX: touch.clientX,
-            clientY: touch.clientY
-        });
-        canvas.dispatchEvent(mouseEvent);
-    });
-    
-    canvas.addEventListener('touchend', (e) => {
-        e.preventDefault();
-        const mouseEvent = new MouseEvent('mouseup', {});
-        canvas.dispatchEvent(mouseEvent);
-    });
-    
-    signaturePad = { canvas, ctx };
-}
 
-// Limpar assinatura
-function clearSignature() {
-    if (signaturePad) {
-        const { canvas, ctx } = signaturePad;
-        ctx.fillStyle = 'white';
-        ctx.fillRect(0, 0, canvas.width, canvas.height);
-    }
-}
+
+
 
 // Definir data padrão para hoje
 function setDefaultExpenseDate() {
@@ -2602,27 +2511,9 @@ function setDefaultExpenseDate() {
     document.getElementById('expenseDate').value = today;
 }
 
-// Capturar assinatura como base64
-function getSignatureData() {
-    if (signaturePad) {
-        const canvas = signaturePad.canvas;
-        return canvas.toDataURL('image/png');
-    }
-    return null;
-}
 
-// Verificar se há assinatura
-function hasSignature() {
-    if (!signaturePad) return false;
-    
-    const canvas = signaturePad.canvas;
-    const ctx = signaturePad.ctx;
-    const pixelBuffer = new Uint32Array(
-        ctx.getImageData(0, 0, canvas.width, canvas.height).data.buffer
-    );
-    
-    return !pixelBuffer.every(color => color === 0xffffffff);
-}
+
+
 
 // Manipular envio de nova despesa
 async function handleNewExpense(e) {
@@ -2636,13 +2527,7 @@ async function handleNewExpense(e) {
         const date = document.getElementById('expenseDate').value;
         const notes = document.getElementById('expenseNotes').value;
         
-        // Verificar se há assinatura
-        if (!hasSignature()) {
-            showInfoMessage('Por favor, adicione uma assinatura antes de criar a despesa.');
-            return;
-        }
-        
-        const signatureData = getSignatureData();
+
         
         const expenseData = {
             description: description,
@@ -2650,7 +2535,7 @@ async function handleNewExpense(e) {
             amount: amount,
             date: date,
             notes: notes,
-            signature: signatureData,
+
             created_at: new Date().toISOString(),
             user_id: currentUser.id
         };
@@ -2673,7 +2558,7 @@ async function handleNewExpense(e) {
         // Fechar modal e limpar formulário
         hideModal(newExpenseModal);
         newExpenseForm.reset();
-        clearSignature();
+
         
         showSuccessMessage('Despesa criada com sucesso!');
         
@@ -2711,7 +2596,7 @@ function displayExpenses() {
     if (expenses.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
                     <div class="flex flex-col items-center">
                         <svg class="w-12 h-12 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -2744,11 +2629,7 @@ function displayExpenses() {
             <td class="px-6 py-4">
                 <span class="text-gray-300">${formatDate(expense.date)}</span>
             </td>
-            <td class="px-6 py-4">
-                <button onclick="viewSignature('${expense.signature}')" class="text-blue-400 hover:text-blue-300 text-sm">
-                    Ver Assinatura
-                </button>
-            </td>
+
             <td class="px-6 py-4">
                 <div class="flex space-x-2">
                     <button onclick="deleteExpense(${expense.id})" class="text-red-400 hover:text-red-300 p-1">
@@ -2815,40 +2696,7 @@ function updateExpensesSummary() {
 }
 
 // Visualizar assinatura
-function viewSignature(signatureData) {
-    if (!signatureData) {
-        showInfoMessage('Nenhuma assinatura disponível.');
-        return;
-    }
-    
-    // Criar modal para exibir a assinatura
-    const modal = document.createElement('div');
-    modal.className = 'modal-overlay fixed inset-0 z-50';
-    modal.innerHTML = `
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-2xl p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-semibold text-white">Assinatura Digital</h3>
-                    <button onclick="this.closest('.modal-overlay').remove()" class="text-gray-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-                <div class="text-center">
-                    <img src="${signatureData}" alt="Assinatura" class="mx-auto border border-gray-600 rounded-lg max-w-full">
-                </div>
-                <div class="mt-6 text-center">
-                    <button onclick="this.closest('.modal-overlay').remove()" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
-                        Fechar
-                    </button>
-                </div>
-            </div>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-}
+
 
 // Excluir despesa
 async function deleteExpense(expenseId) {
