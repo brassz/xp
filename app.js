@@ -2871,12 +2871,12 @@ async function generateContract(loanId) {
         doc.text('CONTRATO DE MÚTUO', 105, 20, { align: 'center' });
         
         // Reset font
-        doc.setFontSize(12);
+        doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
         
         // Texto do contrato
-        let yPosition = 35;
-        const lineHeight = 6;
+        let yPosition = 30;
+        const lineHeight = 5;
         const margin = 20;
         const pageWidth = doc.internal.pageSize.width;
         const maxWidth = pageWidth - (margin * 2);
@@ -2890,49 +2890,49 @@ async function generateContract(loanId) {
 
         // Parágrafo inicial
         const introText = "Pelo presente instrumento particular, as partes abaixo qualificadas:";
-        yPosition = addWrappedText(introText, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(introText, margin, yPosition, maxWidth) + 3;
 
         // Mutuante
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("MUTUANTE:", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const mutuanteText = "VALORUM, pessoa jurídica de direito privado, inscrita no CNPJ sob nº 52.496.899/0001-89, com sede à Rua Domingos Chicaroni, nº 5840, APT 2, Jardim Três Colinas, Franca/SP.";
-        yPosition = addWrappedText(mutuanteText, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(mutuanteText, margin, yPosition, maxWidth) + 3;
 
         // Mutuário
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("MUTUÁRIO:", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const mutuarioText = `${client.name}, brasileiro, portador do CPF nº ${client.cpf}, RG nº ${client.rg || 'N/A'}, residente e domiciliada à ${client.address || 'Endereço não informado'}.`;
-        yPosition = addWrappedText(mutuarioText, margin, yPosition, maxWidth) + 10;
+        yPosition = addWrappedText(mutuarioText, margin, yPosition, maxWidth) + 5;
 
         // Acordo
         const acordoText = "Têm entre si justo e acordado o presente contrato de mútuo, que se regerá pelas seguintes cláusulas e condições:";
-        yPosition = addWrappedText(acordoText, margin, yPosition, maxWidth) + 10;
+        yPosition = addWrappedText(acordoText, margin, yPosition, maxWidth) + 5;
 
         // Cláusula Primeira
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("CLÁUSULA PRIMEIRA - DO OBJETO DO CONTRATO", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const clausula1Text = `1.1. Pelo presente instrumento, o MUTUANTE empresta ao MUTUÁRIO, que aceita, a quantia de R$ ${parseFloat(loan.amount).toFixed(2).replace('.', ',')}, que será utilizada conforme acordado entre as partes. O MUTUÁRIO declara ter recebido o valor nesta data.`;
-        yPosition = addWrappedText(clausula1Text, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(clausula1Text, margin, yPosition, maxWidth) + 3;
 
         // Cláusula Segunda
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("CLÁUSULA SEGUNDA - DO PRAZO E FORMA DE PAGAMENTO", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const clausula2Text = `2.1. O valor do mútuo será devolvido em uma parcela única, com vencimento em ${formatDate(loan.due_date)}, podendo ser renegociado por escrito. O pagamento deverá ser feito por transferência bancária ou outro meio acordado.`;
-        yPosition = addWrappedText(clausula2Text, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(clausula2Text, margin, yPosition, maxWidth) + 3;
 
         // Cláusula Terceira
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("CLÁUSULA TERCEIRA - DOS ENCARGOS PELO EMPRÉSTIMO", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const clausula3Text = `3.1. O mútuo será acrescido de juros de ${loan.interest_rate}% ao mês e multa de 10% sobre o valor da parcela vencida, além de correção monetária pelo IGPM/FGV.`;
-        yPosition = addWrappedText(clausula3Text, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(clausula3Text, margin, yPosition, maxWidth) + 3;
 
-        // Verificar se precisa de nova página
-        if (yPosition > 250) {
+        // Verificar se precisa de nova página (mais permissivo)
+        if (yPosition > 270) {
             doc.addPage();
             yPosition = 20;
         }
@@ -2942,65 +2942,65 @@ async function generateContract(loanId) {
         yPosition = addWrappedText("CLÁUSULA QUARTA - DA CONFISSÃO DE DÍVIDA", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const clausula4Text = "4.1. O MUTUÁRIO confessa que a dívida é líquida, certa e exigível, não podendo contestar sua existência ou valor. Em caso de inadimplemento, o MUTUANTE poderá exigir o pagamento imediato do saldo devedor, acrescido de encargos.";
-        yPosition = addWrappedText(clausula4Text, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(clausula4Text, margin, yPosition, maxWidth) + 3;
 
         // Cláusula Quinta
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("CLÁUSULA QUINTA - DA GARANTIA E DA EXECUÇÃO", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const clausula5Text = "5.1. O contrato é título executivo extrajudicial, conforme artigo 784, III do CPC, podendo o MUTUANTE requerer judicialmente a penhora de bens do MUTUÁRIO em caso de inadimplência.";
-        yPosition = addWrappedText(clausula5Text, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(clausula5Text, margin, yPosition, maxWidth) + 3;
 
         // Cláusula Sexta
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("CLÁUSULA SEXTA - DA NOTIFICAÇÃO", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const clausula6Text = "6.1. Em caso de inadimplemento, o MUTUANTE notificará o MUTUÁRIO por carta registrada ou e-mail, concedendo-lhe 10 dias para regularizar o pagamento.";
-        yPosition = addWrappedText(clausula6Text, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(clausula6Text, margin, yPosition, maxWidth) + 3;
 
         // Cláusula Sétima
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("CLÁUSULA SÉTIMA - DO FORO", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const clausula7Text = "7.1. Fica eleito o foro da Comarca de Franca/SP para dirimir qualquer litígio decorrente deste contrato.";
-        yPosition = addWrappedText(clausula7Text, margin, yPosition, maxWidth) + 10;
+        yPosition = addWrappedText(clausula7Text, margin, yPosition, maxWidth) + 5;
 
-        // Verificar se precisa de nova página para as assinaturas
-        if (yPosition > 220) {
+        // Verificar se precisa de nova página para as assinaturas (mais permissivo)
+        if (yPosition > 240) {
             doc.addPage();
             yPosition = 20;
         }
 
         // Encerramento
         const encerramentoText = "E por estarem assim justos e contratados, firmam o presente instrumento em duas vias de igual teor e forma, na presença de duas testemunhas, para que produza seus jurídicos e legais efeitos.";
-        yPosition = addWrappedText(encerramentoText, margin, yPosition, maxWidth) + 10;
+        yPosition = addWrappedText(encerramentoText, margin, yPosition, maxWidth) + 6;
 
         // Data e local
         const dataEmprestimo = new Date(loan.loan_date).toLocaleDateString('pt-BR');
-        yPosition = addWrappedText(`Franca, ${dataEmprestimo}.`, margin, yPosition, maxWidth) + 15;
+        yPosition = addWrappedText(`Franca, ${dataEmprestimo}.`, margin, yPosition, maxWidth) + 8;
 
         // Assinaturas
         doc.setFont('helvetica', 'bold');
-        yPosition = addWrappedText("Assinaturas:", margin, yPosition, maxWidth) + 15;
+        yPosition = addWrappedText("Assinaturas:", margin, yPosition, maxWidth) + 8;
 
         // Espaço para assinatura do mutuante
-        yPosition += 20;
+        yPosition += 12;
         doc.line(margin, yPosition, 90, yPosition);
-        yPosition += 5;
+        yPosition += 4;
         doc.text("VALORUM", margin, yPosition);
-        yPosition += 5;
+        yPosition += 4;
         doc.text("Mutuante", margin, yPosition);
 
         // Espaço para assinatura do mutuário
-        yPosition -= 25;
-        doc.line(120, yPosition + 20, 190, yPosition + 20);
-        yPosition += 25;
+        yPosition -= 16;
+        doc.line(120, yPosition + 12, 190, yPosition + 12);
+        yPosition += 16;
         doc.text(client.name, 120, yPosition);
-        yPosition += 5;
+        yPosition += 4;
         doc.text("Mutuário", 120, yPosition);
 
         // Testemunha
-        yPosition += 15;
+        yPosition += 8;
         doc.setFont('helvetica', 'normal');
         const testemunhaText = "Testemunha: Inove Porcelanataria e Marmoraria LTDA";
         yPosition = addWrappedText(testemunhaText, margin, yPosition, maxWidth);
