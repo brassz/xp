@@ -103,23 +103,23 @@ CREATE TABLE cancelled_loans (
 );
 
 -- Adicionar constraints de foreign key após criar as tabelas
--- (comentadas para evitar erros se as tabelas referenciadas não existirem)
--- ALTER TABLE paid_loans ADD CONSTRAINT fk_paid_loans_loan_id FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE;
--- ALTER TABLE paid_loans ADD CONSTRAINT fk_paid_loans_client_id FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE;
--- ALTER TABLE paid_loans ADD CONSTRAINT fk_paid_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
+-- IMPORTANTE: Certifique-se de que as tabelas loans, clients e users já existem antes de executar este script
+ALTER TABLE paid_loans ADD CONSTRAINT fk_paid_loans_loan_id FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE;
+ALTER TABLE paid_loans ADD CONSTRAINT fk_paid_loans_client_id FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE;
+ALTER TABLE paid_loans ADD CONSTRAINT fk_paid_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
 
--- ALTER TABLE overdue_loans ADD CONSTRAINT fk_overdue_loans_loan_id FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE;
--- ALTER TABLE overdue_loans ADD CONSTRAINT fk_overdue_loans_client_id FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE;
--- ALTER TABLE overdue_loans ADD CONSTRAINT fk_overdue_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
+ALTER TABLE overdue_loans ADD CONSTRAINT fk_overdue_loans_loan_id FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE;
+ALTER TABLE overdue_loans ADD CONSTRAINT fk_overdue_loans_client_id FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE;
+ALTER TABLE overdue_loans ADD CONSTRAINT fk_overdue_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
 
--- ALTER TABLE partial_paid_loans ADD CONSTRAINT fk_partial_paid_loans_loan_id FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE;
--- ALTER TABLE partial_paid_loans ADD CONSTRAINT fk_partial_paid_loans_client_id FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE;
--- ALTER TABLE partial_paid_loans ADD CONSTRAINT fk_partial_paid_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
+ALTER TABLE partial_paid_loans ADD CONSTRAINT fk_partial_paid_loans_loan_id FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE;
+ALTER TABLE partial_paid_loans ADD CONSTRAINT fk_partial_paid_loans_client_id FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE;
+ALTER TABLE partial_paid_loans ADD CONSTRAINT fk_partial_paid_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
 
--- ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_loan_id FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE;
--- ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_client_id FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE;
--- ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users(id);
--- ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
+ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_loan_id FOREIGN KEY (loan_id) REFERENCES loans(id) ON DELETE CASCADE;
+ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_client_id FOREIGN KEY (client_id) REFERENCES clients(id) ON DELETE CASCADE;
+ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users(id);
+ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
 
 -- Índices para melhor performance
 CREATE INDEX idx_paid_loans_loan_id ON paid_loans(loan_id);
