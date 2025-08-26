@@ -260,9 +260,8 @@ async function loadData() {
             loadLoans()
         ]);
         
-        // Carregar empréstimos quitados e cancelados separadamente
+        // Carregar empréstimos quitados separadamente
         await renderPaidLoansTable();
-        await renderCancelledLoansTable();
         
         await updateDashboard();
         await updateCharts();
@@ -614,133 +613,7 @@ async function renderPaidLoansTable() {
     }
 }
 
-// Renderizar tabela de empréstimos cancelados
-async function renderCancelledLoansTable() {
-    try {
-        console.log('Iniciando carregamento de empréstimos cancelados...');
-        
-        // Verificar se o elemento tbody existe
-        const tbody = document.getElementById('cancelledLoansTableBody');
-        if (!tbody) {
-            console.error('Elemento cancelledLoansTableBody não encontrado');
-            return;
-        }
-        
-        // Buscar empréstimos cancelados da tabela cancelled_loans
-        const { data: cancelledLoans, error } = await supabase
-            .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .order('cancellation_date', { ascending: false });
-        
-        if (error) {
-            console.error('Erro na consulta Supabase:', error);
-            throw error;
-        }
-        
-        console.log('Dados recebidos:', cancelledLoans);
-        
-        if (!cancelledLoans || cancelledLoans.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                        Nenhum empréstimo cancelado
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-        
-        // Renderizar linhas com valores atualizados
-        let tableHTML = '';
-        for (const cancelledLoan of cancelledLoans) {
-            try {
-                // Verificar se os dados necessários existem
-                if (!cancelledLoan) {
-                    console.warn('Empréstimo cancelado inválido:', cancelledLoan);
-                    continue;
-                }
-                
-                // Função auxiliar para formatar valores com segurança
-                const safeFormatNumber = (value, defaultValue = '0.00') => {
-                    try {
-                        if (value === null || value === undefined) return defaultValue;
-                        const num = parseFloat(value);
-                        return isNaN(num) ? defaultValue : num.toFixed(2);
-                    } catch (e) {
-                        return defaultValue;
-                    }
-                };
-                
-                // Função auxiliar para formatar datas com segurança
-                const safeFormatDate = (dateString) => {
-                    try {
-                        if (!dateString) return 'N/A';
-                        return formatDate(dateString);
-                    } catch (e) {
-                        console.warn('Erro ao formatar data:', dateString, e);
-                        return 'Data inválida';
-                    }
-                };
-                
-                tableHTML += `
-                    <tr class="table-row">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-white">${cancelledLoan.clients?.name || 'Cliente não encontrado'}</div>
-                            <div class="text-sm text-gray-300">${cancelledLoan.clients?.cpf || ''}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(cancelledLoan.original_amount)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${cancelledLoan.interest_rate || 0}%</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(cancelledLoan.loan_date)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(cancelledLoan.due_date)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${safeFormatDate(cancelledLoan.cancellation_date)}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            <div class="text-red-300">Cancelado</div>
-                            <div class="text-xs text-gray-400">Motivo: ${cancelledLoan.cancellation_reason || 'Não informado'}</div>
-                            <div class="text-xs text-gray-400">Pago antes: R$ ${safeFormatNumber(cancelledLoan.total_paid_before_cancellation)}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showCancelledLoanDetails('${cancelledLoan.id}')">Detalhes</button>
-                            <button class="text-green-400 hover:text-green-300 mr-3" onclick="restoreCancelledLoan('${cancelledLoan.id}')">Restaurar</button>
-                            <button class="text-red-400 hover:text-red-300" onclick="deleteCancelledLoan('${cancelledLoan.id}')">Excluir</button>
-                        </td>
-                    </tr>
-                `;
-            } catch (rowError) {
-                console.error('Erro ao processar linha:', cancelledLoan, rowError);
-                // Continuar com a próxima linha
-            }
-        }
-        
-        tbody.innerHTML = tableHTML;
-        console.log('Tabela de empréstimos cancelados renderizada com sucesso');
-        
-    } catch (error) {
-        console.error('Erro ao carregar empréstimos cancelados:', error);
-        
-        // Tentar mostrar o erro de forma mais detalhada
-        const tbody = document.getElementById('cancelledLoansTableBody');
-        if (tbody) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                        <div class="text-red-400 mb-2">Erro ao carregar empréstimos cancelados</div>
-                        <div class="text-xs text-gray-500">${error.message || 'Erro desconhecido'}</div>
-                    </td>
-                </tr>
-            `;
-        }
-    }
-}
+
 
 // Handlers de formulários
 async function handleNewClient(e) {
@@ -1187,20 +1060,7 @@ async function updateDashboard() {
     }
     document.getElementById('paidLoans').textContent = paidLoansCount;
     
-    // Contar empréstimos cancelados da tabela cancelled_loans
-    let cancelledLoansCount = 0;
-    try {
-        const { count, error } = await supabase
-            .from('cancelled_loans')
-            .select('*', { count: 'exact', head: true });
-        
-        if (!error) {
-            cancelledLoansCount = count || 0;
-        }
-    } catch (error) {
-        console.error('Erro ao contar empréstimos cancelados:', error);
-    }
-    document.getElementById('cancelledLoans').textContent = cancelledLoansCount;
+
     
     // Atualizar informações do usuário no header
     updateUserInfo();
@@ -2147,7 +2007,6 @@ async function markLoanAsPaid(loanId) {
                 await renderLoansTable();
                 await renderOverdueTable();
                 await renderPaidLoansTable();
-                await renderCancelledLoansTable();
                 await updateDashboard();
                 await updateCharts();
             },
@@ -2426,7 +2285,6 @@ async function cancelLoan(loanId) {
         // Atualizar interface imediatamente
         await renderLoansTable();
         await renderOverdueTable();
-        await renderCancelledLoansTable();
         await updateDashboard();
         await updateCharts();
         
@@ -2436,158 +2294,8 @@ async function cancelLoan(loanId) {
     }
 }
 
-// Função para mostrar detalhes de um empréstimo cancelado
-async function showCancelledLoanDetails(cancelledLoanId) {
-    try {
-        const { data: cancelledLoan, error } = await supabase
-            .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .eq('id', cancelledLoanId)
-            .single();
-        
-        if (error) throw error;
-        
-        const message = `
-Detalhes do Empréstimo Cancelado:
 
-Cliente: ${cancelledLoan.clients?.name || 'Cliente não encontrado'}
-CPF: ${cancelledLoan.clients?.cpf || 'N/A'}
-Valor Original: R$ ${parseFloat(cancelledLoan.original_amount).toFixed(2)}
-Taxa de Juros: ${cancelledLoan.interest_rate}%
-Total com Juros: R$ ${parseFloat(cancelledLoan.total_with_interest).toFixed(2)}
-Data do Empréstimo: ${formatDate(cancelledLoan.loan_date)}
-Data de Vencimento: ${formatDate(cancelledLoan.due_date)}
-Data de Cancelamento: ${formatDate(cancelledLoan.cancellation_date)}
-Motivo do Cancelamento: ${cancelledLoan.cancellation_reason}
-Valor Pago Antes do Cancelamento: R$ ${parseFloat(cancelledLoan.total_paid_before_cancellation).toFixed(2)}
-Valor de Reembolso: R$ ${parseFloat(cancelledLoan.refund_amount).toFixed(2)}
-Taxa de Cancelamento: R$ ${parseFloat(cancelledLoan.cancellation_fee).toFixed(2)}
-        `;
-        
-        alert(message);
-        
-    } catch (error) {
-        console.error('Erro ao buscar detalhes do empréstimo cancelado:', error);
-        showInfoMessage('Erro ao buscar detalhes: ' + error.message);
-    }
-}
 
-// Função para restaurar um empréstimo cancelado
-async function restoreCancelledLoan(cancelledLoanId) {
-    try {
-        // Buscar dados do empréstimo cancelado
-        const { data: cancelledLoan, error: fetchError } = await supabase
-            .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .eq('id', cancelledLoanId)
-            .single();
-        
-        if (fetchError) throw fetchError;
-        
-        // Mostrar confirmação
-        const confirmMessage = `Deseja restaurar o empréstimo cancelado?\n\nCliente: ${cancelledLoan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(cancelledLoan.original_amount).toFixed(2)}\nJuros: ${cancelledLoan.interest_rate}%\n\nEsta ação irá recriar o empréstimo na tabela principal.`;
-        
-        if (!confirm(confirmMessage)) return;
-        
-        // Recriar o empréstimo na tabela loans
-        const { error: insertError } = await supabase
-            .from('loans')
-            .insert([{
-                id: cancelledLoan.loan_id, // Manter o ID original
-                client_id: cancelledLoan.client_id,
-                amount: cancelledLoan.original_amount,
-                interest_rate: cancelledLoan.interest_rate,
-                loan_date: cancelledLoan.loan_date,
-                due_date: cancelledLoan.due_date,
-                status: 'active', // Status ativo
-                created_by: cancelledLoan.created_by,
-                created_at: cancelledLoan.created_at
-            }]);
-        
-        if (insertError) throw insertError;
-        
-        // Remover da tabela cancelled_loans
-        const { error: deleteError } = await supabase
-            .from('cancelled_loans')
-            .delete()
-            .eq('id', cancelledLoanId);
-        
-        if (deleteError) throw deleteError;
-        
-        // Recarregar dados
-        await loadLoans();
-        await updateDashboard();
-        await updateCharts();
-        
-        showSuccessMessage('Empréstimo restaurado com sucesso!');
-        
-    } catch (error) {
-        console.error('Erro ao restaurar empréstimo:', error);
-        showInfoMessage('Erro ao restaurar empréstimo: ' + error.message);
-    }
-}
-
-// Função para excluir um empréstimo cancelado permanentemente
-async function deleteCancelledLoan(cancelledLoanId) {
-    try {
-        // Buscar dados do empréstimo cancelado
-        const { data: cancelledLoan, error: fetchError } = await supabase
-            .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .eq('id', cancelledLoanId)
-            .single();
-        
-        if (fetchError) throw fetchError;
-        
-        // Mostrar confirmação
-        const confirmMessage = `ATENÇÃO: Esta ação é irreversível!\n\nDeseja excluir permanentemente o empréstimo cancelado?\n\nCliente: ${cancelledLoan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(cancelledLoan.original_amount).toFixed(2)}\nJuros: ${cancelledLoan.interest_rate}%\n\nTodos os dados serão perdidos para sempre.`;
-        
-        if (!confirm(confirmMessage)) return;
-        
-        // Excluir da tabela cancelled_loans
-        const { error: deleteError } = await supabase
-            .from('cancelled_loans')
-            .delete()
-            .eq('id', cancelledLoanId);
-        
-        if (deleteError) throw deleteError;
-        
-        // Atualizar interface
-        await renderCancelledLoansTable();
-        await updateDashboard();
-        await updateCharts();
-        
-        showSuccessMessage('Empréstimo cancelado excluído permanentemente!');
-        
-    } catch (error) {
-        console.error('Erro ao excluir empréstimo cancelado:', error);
-        showInfoMessage('Erro ao excluir empréstimo: ' + error.message);
-    }
-}
 
 // Função para mostrar detalhes de um empréstimo quitado
 async function showPaidLoanDetails(paidLoanId) {
