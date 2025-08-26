@@ -16,6 +16,7 @@ let expenses = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 let signaturePad = null;
+let currentReportFilter = 'monthly'; // Default filter for reports
 
 // Elementos DOM
 const loginPage = document.getElementById('loginPage');
@@ -140,6 +141,18 @@ function setupEventListeners() {
     document.getElementById('loanInterest').addEventListener('input', updateLoanSummary);
     document.getElementById('editLoanAmount').addEventListener('input', updateEditLoanSummary);
     document.getElementById('editLoanInterest').addEventListener('input', updateEditLoanSummary);
+    
+    // Filtros de relatório
+    document.getElementById('filterDaily').addEventListener('click', () => setReportFilter('daily'));
+    document.getElementById('filterWeekly').addEventListener('click', () => setReportFilter('weekly'));
+    document.getElementById('filterMonthly').addEventListener('click', () => setReportFilter('monthly'));
+    document.getElementById('filterLast6Months').addEventListener('click', () => setReportFilter('last6months'));
+    
+    // Exportação PDF
+    document.getElementById('exportPdfGrowth').addEventListener('click', () => exportToPDF('growth'));
+    document.getElementById('exportPdfDistribution').addEventListener('click', () => exportToPDF('distribution'));
+    document.getElementById('exportPdfFinancial').addEventListener('click', () => exportToPDF('financial'));
+    document.getElementById('exportPdfComplete').addEventListener('click', () => exportToPDF('complete'));
 }
 
 // Configurar Uploadcare
@@ -1246,27 +1259,35 @@ function updateGrowthChart() {
         return;
     }
     
-    console.log('Atualizando gráfico de crescimento...');
+    console.log('Atualizando gráfico de crescimento com filtro:', currentReportFilter);
     
     if (charts.growth) {
         charts.growth.destroy();
     }
     
-    const last12Months = getLast12Months();
-    const growthData = last12Months.map(month => {
+    const dates = getDateRangeForFilter(currentReportFilter);
+    const growthData = dates.map(date => {
         return clients.filter(client => {
             const clientDate = new Date(client.created_at);
-            return clientDate.getMonth() === month.getMonth() && 
-                   clientDate.getFullYear() === month.getFullYear();
+            if (currentReportFilter === 'daily') {
+                return clientDate.toDateString() === date.toDateString();
+            } else if (currentReportFilter === 'weekly') {
+                const weekEnd = new Date(date);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                return clientDate >= date && clientDate <= weekEnd;
+            } else {
+                return clientDate.getMonth() === date.getMonth() && 
+                       clientDate.getFullYear() === date.getFullYear();
+            }
         }).length;
     });
     
     charts.growth = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: last12Months.map(date => date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })),
+            labels: dates.map(date => formatLabelForFilter(date, currentReportFilter)),
             datasets: [{
-                label: 'Crescimento',
+                label: 'Novos Clientes',
                 data: growthData,
                 borderColor: '#8b5cf6',
                 backgroundColor: 'rgba(139, 92, 246, 0.1)',
@@ -1304,26 +1325,45 @@ async function updateDistributionChart() {
         return;
     }
     
-    console.log('Atualizando gráfico de distribuição...');
+    console.log('Atualizando gráfico de distribuição com filtro:', currentReportFilter);
     
     if (charts.distribution) {
         charts.distribution.destroy();
     }
     
+    // Filtrar empréstimos por período
+    const dates = getDateRangeForFilter(currentReportFilter);
+    const startDate = dates[0];
+    const endDate = dates[dates.length - 1];
+    
+    const filteredLoans = loans.filter(loan => {
+        const loanDate = new Date(loan.created_at);
+        if (currentReportFilter === 'daily') {
+            return loanDate >= startDate && loanDate <= endDate;
+        } else if (currentReportFilter === 'weekly') {
+            return loanDate >= startDate && loanDate <= endDate;
+        } else {
+            return loanDate >= startDate;
+        }
+    });
+    
     const statusCounts = {
-        'Ativo': loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'active').length,
-        'Vencido': loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'overdue').length,
+        'Ativo': filteredLoans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'active').length,
+        'Vencido': filteredLoans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'overdue').length,
+        'Cancelado': filteredLoans.filter(loan => loan.cancelled_date).length,
         'Pago': 0 // Será atualizado dinamicamente da tabela paid_loans
     };
     
-    // Buscar contagem de empréstimos quitados da tabela paid_loans
+    // Buscar contagem de empréstimos quitados da tabela paid_loans no período
     try {
-        const { count, error } = await supabase
+        const { data: paidLoans, error } = await supabase
             .from('paid_loans')
-            .select('*', { count: 'exact', head: true });
+            .select('created_at')
+            .gte('created_at', startDate.toISOString())
+            .lte('created_at', endDate.toISOString());
         
-        if (!error) {
-            statusCounts['Pago'] = count || 0;
+        if (!error && paidLoans) {
+            statusCounts['Pago'] = paidLoans.length;
         }
     } catch (error) {
         console.error('Erro ao contar empréstimos quitados:', error);
@@ -1338,11 +1378,13 @@ async function updateDistributionChart() {
                 backgroundColor: [
                     'rgba(34, 197, 94, 0.8)',
                     'rgba(239, 68, 68, 0.8)',
+                    'rgba(251, 191, 36, 0.8)',
                     'rgba(59, 130, 246, 0.8)'
                 ],
                 borderColor: [
                     '#22c55e',
                     '#ef4444',
+                    '#f59e0b',
                     '#3b82f6'
                 ],
                 borderWidth: 2
@@ -1361,6 +1403,27 @@ async function updateDistributionChart() {
 }
 
 function updateFinancialSummary() {
+    console.log('Atualizando resumo financeiro com filtro:', currentReportFilter);
+    
+    const dates = getDateRangeForFilter(currentReportFilter);
+    const startDate = dates[0];
+    const endDate = dates[dates.length - 1];
+    
+    // Filtrar empréstimos por período atual
+    const filteredLoans = loans.filter(loan => {
+        const loanDate = new Date(loan.created_at);
+        if (currentReportFilter === 'daily') {
+            return loanDate >= startDate && loanDate <= endDate;
+        } else {
+            return loanDate >= startDate;
+        }
+    });
+    
+    const totalAmount = filteredLoans.reduce((sum, loan) => sum + parseFloat(loan.total_amount), 0);
+    const totalInterest = filteredLoans.reduce((sum, loan) => sum + (parseFloat(loan.total_amount) - parseFloat(loan.amount)), 0);
+    const activeLoans = filteredLoans.filter(loan => !loan.paid_date && !loan.cancelled_date).length;
+    
+    // Sempre manter os valores históricos fixos
     const now = new Date();
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const last6Months = new Date(now.getFullYear(), now.getMonth() - 6, 1);
@@ -1369,21 +1432,26 @@ function updateFinancialSummary() {
     const lastMonthTotal = loans.filter(loan => {
         const loanDate = new Date(loan.created_at);
         return loanDate >= lastMonth;
-    }).reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+    }).reduce((sum, loan) => sum + parseFloat(loan.total_amount), 0);
     
     const last6MonthsTotal = loans.filter(loan => {
         const loanDate = new Date(loan.created_at);
         return loanDate >= last6Months;
-    }).reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+    }).reduce((sum, loan) => sum + parseFloat(loan.total_amount), 0);
     
     const last12MonthsTotal = loans.filter(loan => {
         const loanDate = new Date(loan.created_at);
         return loanDate >= last12Months;
-    }).reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+    }).reduce((sum, loan) => sum + parseFloat(loan.total_amount), 0);
     
-    document.getElementById('lastMonthTotal').textContent = `R$ ${lastMonthTotal.toFixed(2)}`;
-    document.getElementById('last6MonthsTotal').textContent = `R$ ${last6MonthsTotal.toFixed(2)}`;
-    document.getElementById('last12MonthsTotal').textContent = `R$ ${last12MonthsTotal.toFixed(2)}`;
+    // Atualizar elementos na interface
+    const lastMonthElement = document.getElementById('lastMonthTotal');
+    const last6MonthsElement = document.getElementById('last6MonthsTotal');
+    const last12MonthsElement = document.getElementById('last12MonthsTotal');
+    
+    if (lastMonthElement) lastMonthElement.textContent = `R$ ${lastMonthTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    if (last6MonthsElement) last6MonthsElement.textContent = `R$ ${last6MonthsTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    if (last12MonthsElement) last12MonthsElement.textContent = `R$ ${last12MonthsTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
 // Funções auxiliares para datas
@@ -2879,5 +2947,338 @@ async function deleteExpense(expenseId) {
     } catch (error) {
         console.error('Erro ao excluir despesa:', error);
         showInfoMessage('Erro ao excluir despesa: ' + error.message);
+    }
+}
+
+// ================================
+// FILTROS DE RELATÓRIO
+// ================================
+
+// Função para definir o filtro de relatório
+function setReportFilter(filter) {
+    console.log('Definindo filtro de relatório:', filter);
+    currentReportFilter = filter;
+    
+    // Atualizar aparência dos botões
+    document.querySelectorAll('.filter-btn').forEach(btn => {
+        btn.classList.remove('bg-blue-600');
+        btn.classList.add('bg-gray-600');
+    });
+    
+    // Marcar o botão ativo
+    const activeBtn = {
+        'daily': document.getElementById('filterDaily'),
+        'weekly': document.getElementById('filterWeekly'),
+        'monthly': document.getElementById('filterMonthly'),
+        'last6months': document.getElementById('filterLast6Months')
+    }[filter];
+    
+    if (activeBtn) {
+        activeBtn.classList.remove('bg-gray-600');
+        activeBtn.classList.add('bg-blue-600');
+    }
+    
+    // Atualizar gráficos com o novo filtro
+    updateGrowthChart();
+    updateDistributionChart();
+    updateFinancialSummary();
+}
+
+// Função para obter período baseado no filtro
+function getDateRangeForFilter(filter) {
+    const now = new Date();
+    const dates = [];
+    
+    switch (filter) {
+        case 'daily':
+            // Últimos 30 dias
+            for (let i = 29; i >= 0; i--) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - i);
+                dates.push(date);
+            }
+            break;
+            
+        case 'weekly':
+            // Últimas 12 semanas
+            for (let i = 11; i >= 0; i--) {
+                const date = new Date(now);
+                date.setDate(date.getDate() - (i * 7));
+                // Ajustar para o início da semana (domingo)
+                const dayOfWeek = date.getDay();
+                date.setDate(date.getDate() - dayOfWeek);
+                dates.push(date);
+            }
+            break;
+            
+        case 'monthly':
+            // Últimos 12 meses
+            for (let i = 11; i >= 0; i--) {
+                const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                dates.push(date);
+            }
+            break;
+            
+        case 'last6months':
+            // Últimos 6 meses
+            for (let i = 5; i >= 0; i--) {
+                const date = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                dates.push(date);
+            }
+            break;
+    }
+    
+    return dates;
+}
+
+// Função para formatar labels baseado no filtro
+function formatLabelForFilter(date, filter) {
+    switch (filter) {
+        case 'daily':
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+        case 'weekly':
+            const endOfWeek = new Date(date);
+            endOfWeek.setDate(endOfWeek.getDate() + 6);
+            return `${date.getDate()}/${date.getMonth() + 1} - ${endOfWeek.getDate()}/${endOfWeek.getMonth() + 1}`;
+        case 'monthly':
+        case 'last6months':
+            return date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' });
+        default:
+            return date.toLocaleDateString('pt-BR');
+    }
+}
+
+// ================================
+// EXPORTAÇÃO PDF
+// ================================
+
+// Função para exportar relatórios em PDF
+async function exportToPDF(reportType) {
+    try {
+        console.log('Exportando relatório PDF:', reportType);
+        
+        // Verificar se jsPDF está disponível
+        if (typeof window.jsPDF === 'undefined') {
+            // Carregar jsPDF dinamicamente
+            await loadJsPDF();
+        }
+        
+        const { jsPDF } = window.jsPDF;
+        const doc = new jsPDF();
+        
+        // Configurações do PDF
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 20;
+        let yPosition = margin;
+        
+        // Título do relatório
+        doc.setFontSize(20);
+        doc.text('Relatório de Empréstimos', margin, yPosition);
+        yPosition += 10;
+        
+        // Data e filtro
+        doc.setFontSize(12);
+        const filterLabel = {
+            'daily': 'Diário',
+            'weekly': 'Semanal', 
+            'monthly': 'Mensal',
+            'last6months': 'Últimos 6 Meses'
+        }[currentReportFilter] || 'Mensal';
+        
+        doc.text(`Período: ${filterLabel}`, margin, yPosition);
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, pageWidth - 60, yPosition);
+        yPosition += 20;
+        
+        if (reportType === 'growth' || reportType === 'complete') {
+            await addGrowthDataToPDF(doc, margin, yPosition, pageWidth);
+            yPosition += 60;
+        }
+        
+        if (reportType === 'distribution' || reportType === 'complete') {
+            await addDistributionDataToPDF(doc, margin, yPosition, pageWidth);
+            yPosition += 60;
+        }
+        
+        if (reportType === 'financial' || reportType === 'complete') {
+            await addFinancialDataToPDF(doc, margin, yPosition, pageWidth);
+            yPosition += 60;
+        }
+        
+        // Adicionar dados das tabelas se for relatório completo
+        if (reportType === 'complete') {
+            await addTablesDataToPDF(doc, margin, yPosition, pageWidth);
+        }
+        
+        // Salvar o PDF
+        const fileName = `relatorio_${reportType}_${currentReportFilter}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+        
+        showSuccessMessage('Relatório PDF gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao exportar PDF:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// Função para carregar jsPDF dinamicamente
+function loadJsPDF() {
+    return new Promise((resolve, reject) => {
+        if (typeof window.jsPDF !== 'undefined') {
+            resolve();
+            return;
+        }
+        
+        const script = document.createElement('script');
+        script.src = 'https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js';
+        script.onload = () => resolve();
+        script.onerror = () => reject(new Error('Falha ao carregar jsPDF'));
+        document.head.appendChild(script);
+    });
+}
+
+// Função para adicionar dados de crescimento ao PDF
+async function addGrowthDataToPDF(doc, margin, yPosition, pageWidth) {
+    doc.setFontSize(14);
+    doc.text('Crescimento de Clientes', margin, yPosition);
+    yPosition += 10;
+    
+    const dates = getDateRangeForFilter(currentReportFilter);
+    const growthData = dates.map(date => {
+        return clients.filter(client => {
+            const clientDate = new Date(client.created_at);
+            if (currentReportFilter === 'daily') {
+                return clientDate.toDateString() === date.toDateString();
+            } else if (currentReportFilter === 'weekly') {
+                const weekEnd = new Date(date);
+                weekEnd.setDate(weekEnd.getDate() + 6);
+                return clientDate >= date && clientDate <= weekEnd;
+            } else {
+                return clientDate.getMonth() === date.getMonth() && 
+                       clientDate.getFullYear() === date.getFullYear();
+            }
+        }).length;
+    });
+    
+    doc.setFontSize(10);
+    let dataText = '';
+    dates.forEach((date, index) => {
+        const label = formatLabelForFilter(date, currentReportFilter);
+        dataText += `${label}: ${growthData[index]} novos clientes\n`;
+    });
+    
+    const lines = doc.splitTextToSize(dataText, pageWidth - 2 * margin);
+    doc.text(lines, margin, yPosition + 5);
+}
+
+// Função para adicionar dados de distribuição ao PDF
+async function addDistributionDataToPDF(doc, margin, yPosition, pageWidth) {
+    doc.setFontSize(14);
+    doc.text('Distribuição de Empréstimos', margin, yPosition);
+    yPosition += 10;
+    
+    const statusCounts = {
+        'Ativo': loans.filter(loan => !loan.paid_date && !loan.cancelled_date).length,
+        'Cancelado': loans.filter(loan => loan.cancelled_date).length,
+        'Quitado': 0
+    };
+    
+    // Contar empréstimos quitados
+    try {
+        const { data: paidLoans } = await supabase
+            .from('paid_loans')
+            .select('id');
+        statusCounts['Quitado'] = paidLoans ? paidLoans.length : 0;
+    } catch (error) {
+        console.error('Erro ao contar empréstimos quitados:', error);
+    }
+    
+    doc.setFontSize(10);
+    Object.entries(statusCounts).forEach(([status, count], index) => {
+        doc.text(`${status}: ${count} empréstimos`, margin, yPosition + 5 + (index * 5));
+    });
+}
+
+// Função para adicionar dados financeiros ao PDF
+async function addFinancialDataToPDF(doc, margin, yPosition, pageWidth) {
+    doc.setFontSize(14);
+    doc.text('Resumo Financeiro', margin, yPosition);
+    yPosition += 10;
+    
+    const now = new Date();
+    
+    // Último mês
+    const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+    const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+    const lastMonthLoans = loans.filter(loan => {
+        const loanDate = new Date(loan.created_at);
+        return loanDate >= lastMonth && loanDate <= lastMonthEnd;
+    });
+    const lastMonthTotal = lastMonthLoans.reduce((sum, loan) => sum + parseFloat(loan.total_amount), 0);
+    
+    // Últimos 6 meses
+    const last6Months = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+    const last6MonthsLoans = loans.filter(loan => {
+        const loanDate = new Date(loan.created_at);
+        return loanDate >= last6Months;
+    });
+    const last6MonthsTotal = last6MonthsLoans.reduce((sum, loan) => sum + parseFloat(loan.total_amount), 0);
+    
+    doc.setFontSize(10);
+    doc.text(`Último Mês: R$ ${lastMonthTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin, yPosition + 5);
+    doc.text(`Últimos 6 Meses: R$ ${last6MonthsTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, margin, yPosition + 10);
+}
+
+// Função para adicionar dados das tabelas ao PDF
+async function addTablesDataToPDF(doc, margin, yPosition, pageWidth) {
+    doc.addPage();
+    yPosition = margin;
+    
+    doc.setFontSize(14);
+    doc.text('Detalhes dos Empréstimos', margin, yPosition);
+    yPosition += 15;
+    
+    doc.setFontSize(8);
+    
+    // Cabeçalho da tabela
+    doc.text('Cliente', margin, yPosition);
+    doc.text('Valor', margin + 40, yPosition);
+    doc.text('Juros', margin + 70, yPosition);
+    doc.text('Total', margin + 90, yPosition);
+    doc.text('Data', margin + 120, yPosition);
+    doc.text('Status', margin + 150, yPosition);
+    yPosition += 5;
+    
+    // Linha divisória
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 5;
+    
+    // Dados dos empréstimos (primeiros 30 para não sobrecarregar o PDF)
+    const displayLoans = loans.slice(0, 30);
+    
+    for (const loan of displayLoans) {
+        if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = margin;
+        }
+        
+        const client = clients.find(c => c.id === loan.client_id);
+        const clientName = client ? client.name : 'N/A';
+        const status = loan.cancelled_date ? 'Cancelado' : (loan.paid_date ? 'Quitado' : 'Ativo');
+        
+        doc.text(clientName.substring(0, 15), margin, yPosition);
+        doc.text(`R$ ${parseFloat(loan.amount).toFixed(2)}`, margin + 40, yPosition);
+        doc.text(`${loan.interest_rate}%`, margin + 70, yPosition);
+        doc.text(`R$ ${parseFloat(loan.total_amount).toFixed(2)}`, margin + 90, yPosition);
+        doc.text(new Date(loan.created_at).toLocaleDateString('pt-BR'), margin + 120, yPosition);
+        doc.text(status, margin + 150, yPosition);
+        
+        yPosition += 4;
+    }
+    
+    if (loans.length > 30) {
+        yPosition += 5;
+        doc.text(`... e mais ${loans.length - 30} empréstimos`, margin, yPosition);
     }
 }
