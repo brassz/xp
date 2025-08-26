@@ -13,6 +13,7 @@ let currentUser = null;
 let clients = [];
 let loans = [];
 let charts = {};
+let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
 // Elementos DOM
 const loginPage = document.getElementById('loginPage');
@@ -59,7 +60,11 @@ async function initializeApp() {
             showDashboard();
             // Verificar e criar tabelas se necessário
             await createTablesIfNotExist();
-            await loadData();
+            
+            // Aguardar um pouco para garantir que o DOM esteja pronto
+            setTimeout(async () => {
+                await loadData();
+            }, 100);
         } catch (error) {
             localStorage.removeItem('nexusUser');
             showLogin();
@@ -226,23 +231,48 @@ function handleNavigation(e) {
         if (section.id === target) {
             section.classList.remove('hidden');
             section.classList.add('fade-in');
+            
+            // Atualizar gráficos apenas quando a seção de relatórios for exibida
+            if (target === 'reports') {
+                console.log('Seção de relatórios ativada, atualizando gráficos...');
+                setTimeout(() => {
+                    updateGrowthChart();
+                    updateDistributionChart();
+                }, 100);
+            }
         }
     });
 }
 
 // Carregar dados
 async function loadData() {
-    await Promise.all([
-        loadClients(),
-        loadLoans()
-    ]);
+    if (isLoadingData) {
+        console.log('Dados já estão sendo carregados, ignorando chamada duplicada');
+        return;
+    }
     
-    // Carregar empréstimos quitados e cancelados separadamente
-    await renderPaidLoansTable();
-    await renderCancelledLoansTable();
+    isLoadingData = true;
+    console.log('Iniciando carregamento de dados...');
     
-    await updateDashboard();
-    await updateCharts();
+    try {
+        await Promise.all([
+            loadClients(),
+            loadLoans()
+        ]);
+        
+        // Carregar empréstimos quitados e cancelados separadamente
+        await renderPaidLoansTable();
+        await renderCancelledLoansTable();
+        
+        await updateDashboard();
+        await updateCharts();
+        
+        console.log('Dados carregados com sucesso');
+    } catch (error) {
+        console.error('Erro ao carregar dados:', error);
+    } finally {
+        isLoadingData = false;
+    }
 }
 
 // Carregar clientes
@@ -1062,16 +1092,35 @@ async function updateDashboard() {
 
 // Atualizar gráficos
 async function updateCharts() {
-    updateClientsChart();
-    updateLoansChart();
-    updateGrowthChart();
-    updateDistributionChart();
+    console.log('Atualizando gráficos...');
+    
+    // Verificar se os elementos existem antes de tentar criar os gráficos
+    if (document.getElementById('clientsChart')) {
+        updateClientsChart();
+    }
+    if (document.getElementById('loansChart')) {
+        updateLoansChart();
+    }
+    if (document.getElementById('growthChart')) {
+        updateGrowthChart();
+    }
+    if (document.getElementById('distributionChart')) {
+        updateDistributionChart();
+    }
+    
     updateFinancialSummary();
+    
+    console.log('Gráficos atualizados com sucesso');
 }
 
 function updateClientsChart() {
     const ctx = document.getElementById('clientsChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.log('Elemento clientsChart não encontrado');
+        return;
+    }
+    
+    console.log('Atualizando gráfico de clientes...');
     
     if (charts.clients) {
         charts.clients.destroy();
@@ -1085,6 +1134,12 @@ function updateClientsChart() {
                    clientDate.getFullYear() === month.getFullYear();
         }).length;
     });
+    
+    // Verificar se há dados para mostrar
+    if (clientCounts.every(count => count === 0)) {
+        console.log('Sem dados de clientes para mostrar no gráfico');
+        return;
+    }
     
     charts.clients = new Chart(ctx, {
         type: 'line',
@@ -1124,7 +1179,12 @@ function updateClientsChart() {
 
 function updateLoansChart() {
     const ctx = document.getElementById('loansChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.log('Elemento loansChart não encontrado');
+        return;
+    }
+    
+    console.log('Atualizando gráfico de empréstimos...');
     
     if (charts.loans) {
         charts.loans.destroy();
@@ -1138,6 +1198,12 @@ function updateLoansChart() {
                    loanDate.getFullYear() === month.getFullYear();
         }).reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
     });
+    
+    // Verificar se há dados para mostrar
+    if (loanAmounts.every(amount => amount === 0)) {
+        console.log('Sem dados de empréstimos para mostrar no gráfico');
+        return;
+    }
     
     charts.loans = new Chart(ctx, {
         type: 'bar',
@@ -1176,7 +1242,12 @@ function updateLoansChart() {
 
 function updateGrowthChart() {
     const ctx = document.getElementById('growthChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.log('Elemento growthChart não encontrado');
+        return;
+    }
+    
+    console.log('Atualizando gráfico de crescimento...');
     
     if (charts.growth) {
         charts.growth.destroy();
@@ -1229,7 +1300,12 @@ function updateGrowthChart() {
 
 async function updateDistributionChart() {
     const ctx = document.getElementById('distributionChart');
-    if (!ctx) return;
+    if (!ctx) {
+        console.log('Elemento distributionChart não encontrado');
+        return;
+    }
+    
+    console.log('Atualizando gráfico de distribuição...');
     
     if (charts.distribution) {
         charts.distribution.destroy();

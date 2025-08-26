@@ -175,6 +175,23 @@
             cursor: not-allowed;
             pointer-events: none;
         }
+
+        .chart-container {
+            position: relative;
+            width: 100%;
+            height: 300px;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .chart-container canvas {
+            max-height: 100% !important;
+            max-width: 100% !important;
+            width: 100% !important;
+            height: 100% !important;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -424,12 +441,16 @@
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="glass-card p-6 rounded-xl">
                             <h3 class="text-lg font-semibold text-white mb-4">Clientes por Período</h3>
-                            <canvas id="clientsChart" height="300"></canvas>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="clientsChart"></canvas>
+                            </div>
                         </div>
                         
                         <div class="glass-card p-6 rounded-xl">
                             <h3 class="text-lg font-semibold text-white mb-4">Empréstimos por Mês</h3>
-                            <canvas id="loansChart" height="300"></canvas>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="loansChart"></canvas>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -618,12 +639,16 @@
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-8">
                         <div class="glass-card p-6 rounded-xl">
                             <h3 class="text-lg font-semibold text-white mb-4">Crescimento de Clientes</h3>
-                            <canvas id="growthChart" height="300"></canvas>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="growthChart"></canvas>
+                            </div>
                         </div>
                         
                         <div class="glass-card p-6 rounded-xl">
                             <h3 class="text-lg font-semibold text-white mb-4">Distribuição de Empréstimos</h3>
-                            <canvas id="distributionChart" height="300"></canvas>
+                            <div class="chart-container" style="height: 300px;">
+                                <canvas id="distributionChart"></canvas>
+                            </div>
                         </div>
                     </div>
                     
