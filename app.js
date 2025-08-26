@@ -359,8 +359,8 @@ function renderClientsTable() {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email}</td>
             <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')">Editar</button>
-                <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">Excluir</button>
+                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')">✏️</button>
+                <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">🗑️</button>
             </td>
         </tr>
     `).join('');
@@ -409,10 +409,10 @@ async function renderLoansTable() {
                     <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">Editar</button>
-                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">Gerenciar Pagamentos</button>
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>${loan.status === 'paid' ? 'Quitado' : 'Marcar como Quitado'}</button>
-                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">Excluir</button>
+                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
+                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
+                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
+                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
         `;
@@ -460,11 +460,11 @@ async function renderOverdueTable() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${remainingAmount.toFixed(2)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${daysOverdue} dias</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="showPaymentModal('${loan.id}')">Registrar Pagamento</button>
-                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">Editar</button>
-                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">Gerenciar Pagamentos</button>
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>${loan.status === 'paid' ? 'Quitado' : 'Marcar como Quitado'}</button>
-                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">Excluir</button>
+                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="showPaymentModal('${loan.id}')">💵</button>
+                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
+                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
+                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
+                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
         `;
@@ -580,9 +580,9 @@ async function renderPaidLoansTable() {
                             ${safeFormatDate(paidLoan.paid_date)}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showPaidLoanDetails('${paidLoan.id}')">Detalhes</button>
-                            <button class="text-green-400 hover:text-green-300 mr-3" onclick="restorePaidLoan('${paidLoan.id}')">Restaurar</button>
-                            <button class="text-red-400 hover:text-red-300" onclick="deletePaidLoan('${paidLoan.id}')">Excluir</button>
+                            <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showPaidLoanDetails('${paidLoan.id}')">ℹ️</button>
+                            <button class="text-green-400 hover:text-green-300 mr-3" onclick="restorePaidLoan('${paidLoan.id}')">🔄</button>
+                            <button class="text-red-400 hover:text-red-300" onclick="deletePaidLoan('${paidLoan.id}')">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -1594,8 +1594,8 @@ async function loadPaymentHistory(loanId) {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editPayment('${payment.id}')">Editar</button>
-                        <button class="text-red-400 hover:text-red-300" onclick="deletePayment('${payment.id}')">Excluir</button>
+                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editPayment('${payment.id}')">✏️</button>
+                        <button class="text-red-400 hover:text-red-300" onclick="deletePayment('${payment.id}')">🗑️</button>
                     </td>
                 </tr>
             `;
