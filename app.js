@@ -1576,7 +1576,7 @@ function deleteLoan(loanId) {
         'Cancelar Empréstimo',
         `Tem certeza que deseja cancelar o empréstimo de "${clientName}" no valor de R$ ${parseFloat(loan.amount).toFixed(2)} com juros de ${loan.interest_rate}% (Total: R$ ${total.toFixed(2)})${statusInfo}? Esta ação não pode ser desfeita.`,
         () => cancelLoan(loanId),
-        'Cancelar'
+        'Excluir'
     );
 }
 
