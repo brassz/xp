@@ -12,8 +12,11 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 let currentUser = null;
 let clients = [];
 let loans = [];
+let expenses = [];
+let expenseCategories = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
+
 
 // Elementos DOM
 const loginPage = document.getElementById('loginPage');
@@ -33,15 +36,20 @@ const editClientModal = document.getElementById('editClientModal');
 const editLoanModal = document.getElementById('editLoanModal');
 const confirmationModal = document.getElementById('confirmationModal');
 const paymentHistoryModal = document.getElementById('paymentHistoryModal');
+const newExpenseModal = document.getElementById('newExpenseModal');
 
 // Botões
 const newClientBtn = document.getElementById('newClientBtn');
 const newLoanBtn = document.getElementById('newLoanBtn');
+const newExpenseBtn = document.getElementById('newExpenseBtn');
+const generatePdfBtn = document.getElementById('generatePdfBtn');
+const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
 
 // Formulários
 const newClientForm = document.getElementById('newClientForm');
 const newLoanForm = document.getElementById('newLoanForm');
 const paymentForm = document.getElementById('paymentForm');
+const newExpenseForm = document.getElementById('newExpenseForm');
 
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
@@ -88,6 +96,16 @@ function setupEventListeners() {
     // Botões
     newClientBtn.addEventListener('click', () => showModal(newClientModal));
     newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
+    newExpenseBtn.addEventListener('click', () => {
+        showModal(newExpenseModal);
+        setDefaultExpenseDate();
+    });
+    generatePdfBtn.addEventListener('click', generateMonthlyLoansPDF);
+    
+    // Adicionar event listener para o botão de PDF das despesas
+    if (generateExpensesPDFBtn) {
+        generateExpensesPDFBtn.addEventListener('click', generateMonthlyExpensesPDF);
+    }
     
     // Fechar modais
     document.getElementById('closeClientModal').addEventListener('click', () => hideModal(newClientModal));
@@ -96,6 +114,7 @@ function setupEventListeners() {
     document.getElementById('closeEditClientModal').addEventListener('click', () => hideModal(editClientModal));
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
+    document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     
     // Cancelar modais
     document.getElementById('cancelClientBtn').addEventListener('click', () => hideModal(newClientModal));
@@ -105,6 +124,7 @@ function setupEventListeners() {
     document.getElementById('cancelEditLoanBtn').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('cancelConfirmationBtn').addEventListener('click', () => hideModal(confirmationModal));
     document.getElementById('closePaymentHistoryBtn').addEventListener('click', () => hideModal(paymentHistoryModal));
+    document.getElementById('cancelExpense').addEventListener('click', () => hideModal(newExpenseModal));
     
     // Botões do modal de histórico de pagamentos
     document.getElementById('newPaymentBtn').addEventListener('click', () => showNewPaymentFromHistory());
@@ -112,12 +132,37 @@ function setupEventListeners() {
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
     
+    // Campo de busca de clientes no histórico
+    document.getElementById('historyClientSearch').addEventListener('input', function(e) {
+        const searchTerm = e.target.value;
+        if (searchTerm.length >= 2) {
+            const results = searchHistoryClients(searchTerm);
+            renderHistorySearchResults(results);
+        } else {
+            document.getElementById('historyClientResults').classList.add('hidden');
+        }
+    });
+    
+    // Esconder resultados ao clicar fora
+    document.addEventListener('click', function(e) {
+        const searchInput = document.getElementById('historyClientSearch');
+        const resultsContainer = document.getElementById('historyClientResults');
+        
+        if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+            resultsContainer.classList.add('hidden');
+        }
+    });
+    
     // Formulários
     newClientForm.addEventListener('submit', handleNewClient);
     newLoanForm.addEventListener('submit', handleNewLoan);
     paymentForm.addEventListener('submit', handlePayment);
     document.getElementById('editClientForm').addEventListener('submit', handleEditClient);
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
+    newExpenseForm.addEventListener('submit', handleNewExpense);
+    
+    // Assinatura
+
     
     // Cálculos em tempo real
     document.getElementById('loanAmount').addEventListener('input', updateLoanSummary);
@@ -240,6 +285,20 @@ function handleNavigation(e) {
                     updateDistributionChart();
                 }, 100);
             }
+            
+            // Carregar dados das despesas quando a seção for exibida
+            if (target === 'expenses') {
+                console.log('Seção de despesas ativada, carregando dados...');
+                loadExpenses();
+            }
+            
+            // Atualizar lista de clientes quando a seção de histórico for exibida
+            if (target === 'history') {
+                console.log('Seção de histórico ativada, atualizando lista de clientes...');
+                setTimeout(() => {
+                    populateHistoryClientSelect();
+                }, 100);
+            }
         }
     });
 }
@@ -255,14 +314,18 @@ async function loadData() {
     console.log('Iniciando carregamento de dados...');
     
     try {
+        // Primeiro, testar a conectividade com categorias
+        await testCategoriesConnection();
+        
         await Promise.all([
             loadClients(),
-            loadLoans()
+            loadLoans(),
+            loadExpenses(),
+            loadExpenseCategories()
         ]);
         
-        // Carregar empréstimos quitados e cancelados separadamente
+        // Carregar empréstimos quitados separadamente
         await renderPaidLoansTable();
-        await renderCancelledLoansTable();
         
         await updateDashboard();
         await updateCharts();
@@ -360,8 +423,8 @@ function renderClientsTable() {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email}</td>
             <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')">Editar</button>
-                <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">Excluir</button>
+                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')">✏️</button>
+                <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">🗑️</button>
             </td>
         </tr>
     `).join('');
@@ -410,10 +473,12 @@ async function renderLoansTable() {
                     <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">Editar</button>
-                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">Gerenciar Pagamentos</button>
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>${loan.status === 'paid' ? 'Quitado' : 'Marcar como Quitado'}</button>
-                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">Excluir</button>
+                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
+                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
+                    <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
+                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
+                    <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
         `;
@@ -461,11 +526,11 @@ async function renderOverdueTable() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${remainingAmount.toFixed(2)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${daysOverdue} dias</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="showPaymentModal('${loan.id}')">Registrar Pagamento</button>
-                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">Editar</button>
-                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">Gerenciar Pagamentos</button>
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>${loan.status === 'paid' ? 'Quitado' : 'Marcar como Quitado'}</button>
-                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">Excluir</button>
+                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="showPaymentModal('${loan.id}')">💵</button>
+                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
+                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
+                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
+                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
         `;
@@ -489,16 +554,30 @@ async function renderPaidLoansTable() {
         // Buscar empréstimos quitados da tabela paid_loans
         const { data: paidLoans, error } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .order('paid_date', { ascending: false });
+        
+        if (error) {
+            console.error('Erro ao buscar empréstimos quitados:', error);
+            throw error;
+        }
+        
+        // Buscar dados dos clientes separadamente
+        let clientsData = {};
+        if (paidLoans && paidLoans.length > 0) {
+            const clientIds = [...new Set(paidLoans.map(loan => loan.client_id))];
+            const { data: clients, error: clientsError } = await supabase
+                .from('clients')
+                .select('id, name, cpf, email, phone')
+                .in('id', clientIds);
+            
+            if (!clientsError && clients) {
+                clientsData = clients.reduce((acc, client) => {
+                    acc[client.id] = client;
+                    return acc;
+                }, {});
+            }
+        }
         
         if (error) {
             console.error('Erro na consulta Supabase:', error);
@@ -553,8 +632,8 @@ async function renderPaidLoansTable() {
                 tableHTML += `
                     <tr class="table-row">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-white">${paidLoan.clients?.name || 'Cliente não encontrado'}</div>
-                            <div class="text-sm text-gray-300">${paidLoan.clients?.cpf || ''}</div>
+                            <div class="text-sm font-medium text-white">${clientsData[paidLoan.client_id]?.name || 'Cliente não encontrado'}</div>
+                            <div class="text-sm text-gray-300">${clientsData[paidLoan.client_id]?.cpf || ''}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(paidLoan.original_amount)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paidLoan.interest_rate || 0}%</td>
@@ -567,9 +646,9 @@ async function renderPaidLoansTable() {
                             ${safeFormatDate(paidLoan.paid_date)}
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showPaidLoanDetails('${paidLoan.id}')">Detalhes</button>
-                            <button class="text-green-400 hover:text-green-300 mr-3" onclick="restorePaidLoan('${paidLoan.id}')">Restaurar</button>
-                            <button class="text-red-400 hover:text-red-300" onclick="deletePaidLoan('${paidLoan.id}')">Excluir</button>
+                            <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showPaidLoanDetails('${paidLoan.id}')">ℹ️</button>
+                            <button class="text-green-400 hover:text-green-300 mr-3" onclick="restorePaidLoan('${paidLoan.id}')">🔄</button>
+                            <button class="text-red-400 hover:text-red-300" onclick="deletePaidLoan('${paidLoan.id}')">🗑️</button>
                         </td>
                     </tr>
                 `;
@@ -600,133 +679,7 @@ async function renderPaidLoansTable() {
     }
 }
 
-// Renderizar tabela de empréstimos cancelados
-async function renderCancelledLoansTable() {
-    try {
-        console.log('Iniciando carregamento de empréstimos cancelados...');
-        
-        // Verificar se o elemento tbody existe
-        const tbody = document.getElementById('cancelledLoansTableBody');
-        if (!tbody) {
-            console.error('Elemento cancelledLoansTableBody não encontrado');
-            return;
-        }
-        
-        // Buscar empréstimos cancelados da tabela cancelled_loans
-        const { data: cancelledLoans, error } = await supabase
-            .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .order('cancellation_date', { ascending: false });
-        
-        if (error) {
-            console.error('Erro na consulta Supabase:', error);
-            throw error;
-        }
-        
-        console.log('Dados recebidos:', cancelledLoans);
-        
-        if (!cancelledLoans || cancelledLoans.length === 0) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                        Nenhum empréstimo cancelado
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-        
-        // Renderizar linhas com valores atualizados
-        let tableHTML = '';
-        for (const cancelledLoan of cancelledLoans) {
-            try {
-                // Verificar se os dados necessários existem
-                if (!cancelledLoan) {
-                    console.warn('Empréstimo cancelado inválido:', cancelledLoan);
-                    continue;
-                }
-                
-                // Função auxiliar para formatar valores com segurança
-                const safeFormatNumber = (value, defaultValue = '0.00') => {
-                    try {
-                        if (value === null || value === undefined) return defaultValue;
-                        const num = parseFloat(value);
-                        return isNaN(num) ? defaultValue : num.toFixed(2);
-                    } catch (e) {
-                        return defaultValue;
-                    }
-                };
-                
-                // Função auxiliar para formatar datas com segurança
-                const safeFormatDate = (dateString) => {
-                    try {
-                        if (!dateString) return 'N/A';
-                        return formatDate(dateString);
-                    } catch (e) {
-                        console.warn('Erro ao formatar data:', dateString, e);
-                        return 'Data inválida';
-                    }
-                };
-                
-                tableHTML += `
-                    <tr class="table-row">
-                        <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-white">${cancelledLoan.clients?.name || 'Cliente não encontrado'}</div>
-                            <div class="text-sm text-gray-300">${cancelledLoan.clients?.cpf || ''}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(cancelledLoan.original_amount)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${cancelledLoan.interest_rate || 0}%</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(cancelledLoan.loan_date)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(cancelledLoan.due_date)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            ${safeFormatDate(cancelledLoan.cancellation_date)}
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                            <div class="text-red-300">Cancelado</div>
-                            <div class="text-xs text-gray-400">Motivo: ${cancelledLoan.cancellation_reason || 'Não informado'}</div>
-                            <div class="text-xs text-gray-400">Pago antes: R$ ${safeFormatNumber(cancelledLoan.total_paid_before_cancellation)}</div>
-                        </td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                            <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="showCancelledLoanDetails('${cancelledLoan.id}')">Detalhes</button>
-                            <button class="text-green-400 hover:text-green-300 mr-3" onclick="restoreCancelledLoan('${cancelledLoan.id}')">Restaurar</button>
-                            <button class="text-red-400 hover:text-red-300" onclick="deleteCancelledLoan('${cancelledLoan.id}')">Excluir</button>
-                        </td>
-                    </tr>
-                `;
-            } catch (rowError) {
-                console.error('Erro ao processar linha:', cancelledLoan, rowError);
-                // Continuar com a próxima linha
-            }
-        }
-        
-        tbody.innerHTML = tableHTML;
-        console.log('Tabela de empréstimos cancelados renderizada com sucesso');
-        
-    } catch (error) {
-        console.error('Erro ao carregar empréstimos cancelados:', error);
-        
-        // Tentar mostrar o erro de forma mais detalhada
-        const tbody = document.getElementById('cancelledLoansTableBody');
-        if (tbody) {
-            tbody.innerHTML = `
-                <tr>
-                    <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                        <div class="text-red-400 mb-2">Erro ao carregar empréstimos cancelados</div>
-                        <div class="text-xs text-gray-500">${error.message || 'Erro desconhecido'}</div>
-                    </td>
-                </tr>
-            `;
-        }
-    }
-}
+
 
 // Handlers de formulários
 async function handleNewClient(e) {
@@ -738,6 +691,8 @@ async function handleNewClient(e) {
         email: document.getElementById('clientEmail').value,
         phone: document.getElementById('clientPhone').value,
         address: document.getElementById('clientAddress').value,
+        rg: document.getElementById('clientRG').value,
+        birth_date: document.getElementById('clientBirthDate').value,
         photo: document.getElementById('clientPhoto').value,
         created_by: currentUser.id,
         created_at: new Date().toISOString()
@@ -795,6 +750,12 @@ async function handleNewLoan(e) {
         
         await loadLoans();
         await updateDashboard();
+        
+        // Perguntar se deseja gerar contrato
+        const generateContractNow = confirm('Empréstimo criado com sucesso! Deseja gerar o contrato agora?');
+        if (generateContractNow && data && data[0]) {
+            await generateContract(data[0].id);
+        }
         
     } catch (error) {
         alert('Erro ao criar empréstimo: ' + error.message);
@@ -872,6 +833,8 @@ async function handleEditClient(e) {
         email: document.getElementById('editClientEmail').value,
         phone: document.getElementById('editClientPhone').value,
         address: document.getElementById('editClientAddress').value,
+        rg: document.getElementById('editClientRG').value,
+        birth_date: document.getElementById('editClientBirthDate').value,
         photo: document.getElementById('editClientPhoto').value,
         updated_at: new Date().toISOString()
     };
@@ -1173,20 +1136,7 @@ async function updateDashboard() {
     }
     document.getElementById('paidLoans').textContent = paidLoansCount;
     
-    // Contar empréstimos cancelados da tabela cancelled_loans
-    let cancelledLoansCount = 0;
-    try {
-        const { count, error } = await supabase
-            .from('cancelled_loans')
-            .select('*', { count: 'exact', head: true });
-        
-        if (!error) {
-            cancelledLoansCount = count || 0;
-        }
-    } catch (error) {
-        console.error('Erro ao contar empréstimos cancelados:', error);
-    }
-    document.getElementById('cancelledLoans').textContent = cancelledLoansCount;
+
     
     // Atualizar informações do usuário no header
     updateUserInfo();
@@ -1526,6 +1476,8 @@ function editClient(clientId) {
     document.getElementById('editClientEmail').value = client.email;
     document.getElementById('editClientPhone').value = client.phone;
     document.getElementById('editClientAddress').value = client.address;
+    document.getElementById('editClientRG').value = client.rg || '';
+    document.getElementById('editClientBirthDate').value = client.birth_date || '';
     document.getElementById('editClientPhoto').value = client.photo || '';
     
     // Atualizar a área de upload de foto
@@ -1634,7 +1586,7 @@ function deleteLoan(loanId) {
         'Cancelar Empréstimo',
         `Tem certeza que deseja cancelar o empréstimo de "${clientName}" no valor de R$ ${parseFloat(loan.amount).toFixed(2)} com juros de ${loan.interest_rate}% (Total: R$ ${total.toFixed(2)})${statusInfo}? Esta ação não pode ser desfeita.`,
         () => cancelLoan(loanId),
-        'Cancelar'
+        'Excluir'
     );
 }
 
@@ -1681,6 +1633,81 @@ function showNewPaymentFromHistory() {
     showPaymentModal(loanId);
 }
 
+// Função para enviar mensagem de cobrança via WhatsApp
+async function sendWhatsAppMessage(loanId) {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showErrorMessage('Empréstimo não encontrado!');
+        return;
+    }
+
+    const client = loan.clients;
+    if (!client) {
+        showErrorMessage('Dados do cliente não encontrados!');
+        return;
+    }
+
+    // Verificar se o cliente tem telefone
+    if (!client.phone) {
+        showErrorMessage('Cliente não possui telefone cadastrado!');
+        return;
+    }
+
+    try {
+        // Calcular valores atuais do empréstimo
+        const principalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = principalAmount * (interestRate / 100);
+        const remainingAmount = await calculateLoanRemainingAmount(loanId);
+        
+        // Calcular multa se estiver vencido
+        const dueDate = new Date(loan.due_date);
+        const today = new Date();
+        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+        const dailyFine = 50.00; // Multa diária de R$ 50,00
+        const currentFine = daysOverdue > 0 ? daysOverdue * dailyFine : 0;
+
+        // Formatar data de vencimento
+        const formattedDueDate = formatDate(loan.due_date);
+
+        // Montar mensagem do WhatsApp
+        const message = `📅 VENCIMENTO: ${formattedDueDate}
+
+💰 CLIENTE: ${client.name}
+💵 Capital: R$ ${principalAmount.toFixed(2)}
+📈 Juros: R$ ${interestAmount.toFixed(2)}
+❌ Multa atual: R$ ${currentFine.toFixed(2)}
+
+📌 PAGAMENTO VIA PIX (CNPJ):
+Chave PIX: 54413674000147
+Favorecido: Tuane Carla Mendes Tomaz
+Instituição: Stone Pagamento S.A
+
+⚠️🚨 ATENÇÃO!
+O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
+Após o vencimento, será aplicada uma multa diária de R$ 50,00.`;
+
+        // Limpar o número de telefone (remover caracteres especiais)
+        const cleanPhone = client.phone.replace(/\D/g, '');
+        
+        // Verificar se o número tem o código do país
+        const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+        // Criar URL do WhatsApp
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+        // Abrir WhatsApp em nova aba
+        window.open(whatsappUrl, '_blank');
+
+        // Mostrar mensagem de sucesso
+        showSuccessMessage(`Mensagem de cobrança enviada para ${client.name} (${client.phone})`);
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem do WhatsApp:', error);
+        showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
+    }
+}
+
 async function loadPaymentHistory(loanId) {
     try {
         const { data, error } = await supabase
@@ -1720,8 +1747,8 @@ async function loadPaymentHistory(loanId) {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editPayment('${payment.id}')">Editar</button>
-                        <button class="text-red-400 hover:text-red-300" onclick="deletePayment('${payment.id}')">Excluir</button>
+                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editPayment('${payment.id}')">✏️</button>
+                        <button class="text-red-400 hover:text-red-300" onclick="deletePayment('${payment.id}')">🗑️</button>
                     </td>
                 </tr>
             `;
@@ -1959,6 +1986,28 @@ function showSuccessMessage(message) {
     }, 3000);
 }
 
+function showErrorMessage(message) {
+    // Criar uma notificação de erro
+    const notification = document.createElement('div');
+    notification.className = 'fixed top-4 right-4 bg-red-600 text-white px-6 py-3 rounded-lg shadow-lg z-50 transform transition-all duration-300 translate-x-full';
+    notification.textContent = message;
+    
+    document.body.appendChild(notification);
+    
+    // Animar entrada
+    setTimeout(() => {
+        notification.classList.remove('translate-x-full');
+    }, 100);
+    
+    // Remover após 4 segundos (um pouco mais para erros)
+    setTimeout(() => {
+        notification.classList.add('translate-x-full');
+        setTimeout(() => {
+            document.body.removeChild(notification);
+        }, 300);
+    }, 4000);
+}
+
 function showInfoMessage(message) {
     // Criar uma notificação informativa
     const notification = document.createElement('div');
@@ -2050,6 +2099,22 @@ async function createTablesIfNotExist() {
             console.log('Erro ao verificar tabela users:', error);
         }
         
+        // Verificar se a tabela expenses existe
+        try {
+            const { data: expensesCheck, error: expensesCheckError } = await supabase
+                .from('expenses')
+                .select('id')
+                .limit(1);
+            
+            if (expensesCheckError) {
+                console.log('Tabela expenses não encontrada. Execute o script database-setup.sql no Supabase.');
+            } else {
+                console.log('✓ Tabela expenses encontrada');
+            }
+        } catch (error) {
+            console.log('Erro ao verificar tabela expenses:', error);
+        }
+        
         console.log('Verificação de tabelas concluída!');
         console.log('Se alguma tabela não foi encontrada, execute o script database-setup.sql no SQL Editor do Supabase.');
         
@@ -2133,7 +2198,6 @@ async function markLoanAsPaid(loanId) {
                 await renderLoansTable();
                 await renderOverdueTable();
                 await renderPaidLoansTable();
-                await renderCancelledLoansTable();
                 await updateDashboard();
                 await updateCharts();
             },
@@ -2171,7 +2235,17 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para popular o select de clientes na aba de histórico
 function populateHistoryClientSelect() {
     const select = document.getElementById('historyClientSelect');
-    select.innerHTML = '<option value="">Selecione um cliente para ver o histórico</option>';
+    select.innerHTML = '<option value="">Ou selecione da lista completa</option>';
+    
+    if (!clients || clients.length === 0) {
+        console.log('Nenhum cliente carregado para o histórico');
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "Nenhum cliente encontrado";
+        option.disabled = true;
+        select.appendChild(option);
+        return;
+    }
     
     clients.forEach(client => {
         const option = document.createElement('option');
@@ -2179,6 +2253,70 @@ function populateHistoryClientSelect() {
         option.textContent = `${client.name} - ${client.cpf}`;
         select.appendChild(option);
     });
+}
+
+// Função para buscar clientes por nome
+function searchHistoryClients(searchTerm) {
+    if (!clients || clients.length === 0) {
+        return [];
+    }
+    
+    if (!searchTerm || searchTerm.trim().length < 2) {
+        return [];
+    }
+    
+    const term = searchTerm.toLowerCase().trim();
+    return clients.filter(client => 
+        client.name.toLowerCase().includes(term) ||
+        client.cpf.includes(term) ||
+        (client.email && client.email.toLowerCase().includes(term))
+    );
+}
+
+// Função para renderizar resultados da busca
+function renderHistorySearchResults(results) {
+    const resultsList = document.getElementById('historyClientResultsList');
+    const resultsContainer = document.getElementById('historyClientResults');
+    
+    if (!results || results.length === 0) {
+        resultsContainer.classList.add('hidden');
+        return;
+    }
+    
+    resultsList.innerHTML = '';
+    
+    results.forEach(client => {
+        const resultItem = document.createElement('div');
+        resultItem.className = 'p-3 hover:bg-gray-700 cursor-pointer transition-colors';
+        resultItem.innerHTML = `
+            <div class="text-white font-medium">${client.name}</div>
+            <div class="text-gray-400 text-sm">${client.cpf}</div>
+            ${client.email ? `<div class="text-gray-400 text-sm">${client.email}</div>` : ''}
+        `;
+        
+        resultItem.addEventListener('click', () => {
+            selectHistoryClient(client);
+        });
+        
+        resultsList.appendChild(resultItem);
+    });
+    
+    resultsContainer.classList.remove('hidden');
+}
+
+// Função para selecionar um cliente
+function selectHistoryClient(client) {
+    // Atualizar o campo de busca
+    document.getElementById('historyClientSearch').value = `${client.name} - ${client.cpf}`;
+    
+    // Atualizar o select
+    document.getElementById('historyClientSelect').value = client.id;
+    
+    // Esconder resultados
+    document.getElementById('historyClientResults').classList.add('hidden');
+    
+    // Carregar histórico automaticamente
+    loadClientHistory();
 }
 
 // Função para carregar o histórico completo de um cliente
@@ -2406,13 +2544,15 @@ async function cancelLoan(loanId) {
             loans.splice(loanIndex, 1);
         }
         
+        // Fechar modal de confirmação
+        hideModal(document.getElementById('confirmationModal'));
+        
         // Mostrar mensagem de sucesso
         showSuccessMessage('Empréstimo cancelado com sucesso e movido para histórico de cancelamentos!');
         
         // Atualizar interface imediatamente
         await renderLoansTable();
         await renderOverdueTable();
-        await renderCancelledLoansTable();
         await updateDashboard();
         await updateCharts();
         
@@ -2422,183 +2562,36 @@ async function cancelLoan(loanId) {
     }
 }
 
-// Função para mostrar detalhes de um empréstimo cancelado
-async function showCancelledLoanDetails(cancelledLoanId) {
-    try {
-        const { data: cancelledLoan, error } = await supabase
-            .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .eq('id', cancelledLoanId)
-            .single();
-        
-        if (error) throw error;
-        
-        const message = `
-Detalhes do Empréstimo Cancelado:
 
-Cliente: ${cancelledLoan.clients?.name || 'Cliente não encontrado'}
-CPF: ${cancelledLoan.clients?.cpf || 'N/A'}
-Valor Original: R$ ${parseFloat(cancelledLoan.original_amount).toFixed(2)}
-Taxa de Juros: ${cancelledLoan.interest_rate}%
-Total com Juros: R$ ${parseFloat(cancelledLoan.total_with_interest).toFixed(2)}
-Data do Empréstimo: ${formatDate(cancelledLoan.loan_date)}
-Data de Vencimento: ${formatDate(cancelledLoan.due_date)}
-Data de Cancelamento: ${formatDate(cancelledLoan.cancellation_date)}
-Motivo do Cancelamento: ${cancelledLoan.cancellation_reason}
-Valor Pago Antes do Cancelamento: R$ ${parseFloat(cancelledLoan.total_paid_before_cancellation).toFixed(2)}
-Valor de Reembolso: R$ ${parseFloat(cancelledLoan.refund_amount).toFixed(2)}
-Taxa de Cancelamento: R$ ${parseFloat(cancelledLoan.cancellation_fee).toFixed(2)}
-        `;
-        
-        alert(message);
-        
-    } catch (error) {
-        console.error('Erro ao buscar detalhes do empréstimo cancelado:', error);
-        showInfoMessage('Erro ao buscar detalhes: ' + error.message);
-    }
-}
 
-// Função para restaurar um empréstimo cancelado
-async function restoreCancelledLoan(cancelledLoanId) {
-    try {
-        // Buscar dados do empréstimo cancelado
-        const { data: cancelledLoan, error: fetchError } = await supabase
-            .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .eq('id', cancelledLoanId)
-            .single();
-        
-        if (fetchError) throw fetchError;
-        
-        // Mostrar confirmação
-        const confirmMessage = `Deseja restaurar o empréstimo cancelado?\n\nCliente: ${cancelledLoan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(cancelledLoan.original_amount).toFixed(2)}\nJuros: ${cancelledLoan.interest_rate}%\n\nEsta ação irá recriar o empréstimo na tabela principal.`;
-        
-        if (!confirm(confirmMessage)) return;
-        
-        // Recriar o empréstimo na tabela loans
-        const { error: insertError } = await supabase
-            .from('loans')
-            .insert([{
-                id: cancelledLoan.loan_id, // Manter o ID original
-                client_id: cancelledLoan.client_id,
-                amount: cancelledLoan.original_amount,
-                interest_rate: cancelledLoan.interest_rate,
-                loan_date: cancelledLoan.loan_date,
-                due_date: cancelledLoan.due_date,
-                status: 'active', // Status ativo
-                created_by: cancelledLoan.created_by,
-                created_at: cancelledLoan.created_at
-            }]);
-        
-        if (insertError) throw insertError;
-        
-        // Remover da tabela cancelled_loans
-        const { error: deleteError } = await supabase
-            .from('cancelled_loans')
-            .delete()
-            .eq('id', cancelledLoanId);
-        
-        if (deleteError) throw deleteError;
-        
-        // Recarregar dados
-        await loadLoans();
-        await updateDashboard();
-        await updateCharts();
-        
-        showSuccessMessage('Empréstimo restaurado com sucesso!');
-        
-    } catch (error) {
-        console.error('Erro ao restaurar empréstimo:', error);
-        showInfoMessage('Erro ao restaurar empréstimo: ' + error.message);
-    }
-}
-
-// Função para excluir um empréstimo cancelado permanentemente
-async function deleteCancelledLoan(cancelledLoanId) {
-    try {
-        // Buscar dados do empréstimo cancelado
-        const { data: cancelledLoan, error: fetchError } = await supabase
-            .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .eq('id', cancelledLoanId)
-            .single();
-        
-        if (fetchError) throw fetchError;
-        
-        // Mostrar confirmação
-        const confirmMessage = `ATENÇÃO: Esta ação é irreversível!\n\nDeseja excluir permanentemente o empréstimo cancelado?\n\nCliente: ${cancelledLoan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(cancelledLoan.original_amount).toFixed(2)}\nJuros: ${cancelledLoan.interest_rate}%\n\nTodos os dados serão perdidos para sempre.`;
-        
-        if (!confirm(confirmMessage)) return;
-        
-        // Excluir da tabela cancelled_loans
-        const { error: deleteError } = await supabase
-            .from('cancelled_loans')
-            .delete()
-            .eq('id', cancelledLoanId);
-        
-        if (deleteError) throw deleteError;
-        
-        // Atualizar interface
-        await renderCancelledLoansTable();
-        await updateDashboard();
-        await updateCharts();
-        
-        showSuccessMessage('Empréstimo cancelado excluído permanentemente!');
-        
-    } catch (error) {
-        console.error('Erro ao excluir empréstimo cancelado:', error);
-        showInfoMessage('Erro ao excluir empréstimo: ' + error.message);
-    }
-}
 
 // Função para mostrar detalhes de um empréstimo quitado
 async function showPaidLoanDetails(paidLoanId) {
     try {
         const { data: paidLoan, error } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .eq('id', paidLoanId)
             .single();
         
         if (error) throw error;
         
+        // Buscar dados do cliente separadamente
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, name, cpf, email, phone')
+            .eq('id', paidLoan.client_id)
+            .single();
+        
+        if (clientError) {
+            console.warn('Cliente não encontrado:', clientError);
+        }
+        
         const message = `
 Detalhes do Empréstimo Quitado:
 
-Cliente: ${paidLoan.clients?.name || 'Cliente não encontrado'}
-CPF: ${paidLoan.clients?.cpf || 'N/A'}
+Cliente: ${client?.name || 'Cliente não encontrado'}
+CPF: ${client?.cpf || 'N/A'}
 Valor Original: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}
 Taxa de Juros: ${paidLoan.interest_rate}%
 Total com Juros: R$ ${parseFloat(paidLoan.total_with_interest).toFixed(2)}
@@ -2624,22 +2617,25 @@ async function restorePaidLoan(paidLoanId) {
         // Buscar dados do empréstimo quitado
         const { data: paidLoan, error: fetchError } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .eq('id', paidLoanId)
             .single();
-        
+            
         if (fetchError) throw fetchError;
         
+        // Buscar dados do cliente separadamente
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, name, cpf, email, phone')
+            .eq('id', paidLoan.client_id)
+            .single();
+        
+        if (clientError) {
+            console.warn('Cliente não encontrado:', clientError);
+        }
+        
         // Mostrar confirmação
-        const confirmMessage = `Deseja restaurar o empréstimo quitado?\n\nCliente: ${paidLoan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nEsta ação irá recriar o empréstimo na tabela principal.`;
+        const confirmMessage = `Deseja restaurar o empréstimo quitado?\n\nCliente: ${client?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nEsta ação irá recriar o empréstimo na tabela principal.`;
         
         if (!confirm(confirmMessage)) return;
         
@@ -2687,22 +2683,25 @@ async function deletePaidLoan(paidLoanId) {
         // Buscar dados do empréstimo quitado
         const { data: paidLoan, error: fetchError } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .eq('id', paidLoanId)
             .single();
-        
+            
         if (fetchError) throw fetchError;
         
+        // Buscar dados do cliente separadamente
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, name, cpf, email, phone')
+            .eq('id', paidLoan.client_id)
+            .single();
+        
+        if (clientError) {
+            console.warn('Cliente não encontrado:', clientError);
+        }
+        
         // Mostrar confirmação
-        const confirmMessage = `ATENÇÃO: Esta ação é irreversível!\n\nDeseja excluir permanentemente o empréstimo quitado?\n\nCliente: ${paidLoan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nTodos os dados serão perdidos para sempre.`;
+        const confirmMessage = `ATENÇÃO: Esta ação é irreversível!\n\nDeseja excluir permanentemente o empréstimo quitado?\n\nCliente: ${client?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nTodos os dados serão perdidos para sempre.`;
         
         if (!confirm(confirmMessage)) return;
         
@@ -2724,5 +2723,1009 @@ async function deletePaidLoan(paidLoanId) {
     } catch (error) {
         console.error('Erro ao excluir empréstimo quitado:', error);
         showInfoMessage('Erro ao excluir empréstimo: ' + error.message);
+    }
+}
+
+// ================================
+// GESTÃO DE DESPESAS
+// ================================
+
+
+
+
+
+// Definir data padrão para hoje
+function setDefaultExpenseDate() {
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('expenseDate').value = today;
+}
+
+
+
+
+
+// Manipular envio de nova despesa
+async function handleNewExpense(e) {
+    e.preventDefault();
+    
+    try {
+        const formData = new FormData(e.target);
+        const description = document.getElementById('expenseDescription').value;
+        const category = document.getElementById('expenseCategory').value;
+        const amount = parseFloat(document.getElementById('expenseAmount').value);
+        const date = document.getElementById('expenseDate').value;
+        const notes = document.getElementById('expenseNotes').value;
+        
+
+        
+        const expenseData = {
+            title: description,
+            description: description,
+            category_id: category, // Este será o ID da categoria
+            amount: amount,
+            date: date,
+            notes: notes,
+            payment_method: 'cash', // valor padrão
+            status: 'pending',
+            user_id: currentUser.id,
+            created_by: currentUser.id
+        };
+        
+        // Inserir no banco de dados
+        const { data, error } = await supabase
+            .from('expenses')
+            .insert([expenseData])
+            .select();
+            
+        if (error) throw error;
+        
+        // Atualizar lista local
+        expenses.push(data[0]);
+        
+        // Atualizar interface
+        await loadExpenses();
+        updateExpensesSummary();
+        
+        // Fechar modal e limpar formulário
+        hideModal(newExpenseModal);
+        newExpenseForm.reset();
+
+        
+        showSuccessMessage('Despesa criada com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao criar despesa:', error);
+        showInfoMessage('Erro ao criar despesa: ' + error.message);
+    }
+}
+
+// Carregar despesas
+async function loadExpenses() {
+    try {
+        // First, get the expenses
+        const { data: expensesData, error: expensesError } = await supabase
+            .from('expenses')
+            .select('*')
+            .eq('user_id', currentUser.id)
+            .order('date', { ascending: false });
+            
+        if (expensesError) throw expensesError;
+        
+        // Then, get all categories
+        const { data: categoriesData, error: categoriesError } = await supabase
+            .from('expense_categories')
+            .select('id, name, color, icon')
+            .eq('is_active', true);
+            
+        if (categoriesError) throw categoriesError;
+        
+        // Create a map of categories for quick lookup
+        const categoriesMap = {};
+        (categoriesData || []).forEach(category => {
+            categoriesMap[category.id] = category;
+        });
+        
+        // Join expenses with categories
+        expenses = (expensesData || []).map(expense => ({
+            ...expense,
+            expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null
+        }));
+        
+        displayExpenses();
+        updateExpensesSummary();
+        
+    } catch (error) {
+        console.error('Erro ao carregar despesas:', error);
+        showInfoMessage('Erro ao carregar despesas: ' + error.message);
+    }
+}
+
+// Exibir despesas na tabela
+function displayExpenses() {
+    const tbody = document.getElementById('expensesTableBody');
+    
+    if (expenses.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                    <div class="flex flex-col items-center">
+                        <svg class="w-12 h-12 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">Nenhuma despesa encontrada</p>
+                        <p class="text-sm">Clique em "Nova Despesa" para adicionar sua primeira despesa</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = expenses.map(expense => `
+        <tr class="table-row">
+            <td class="px-6 py-4">
+                <div>
+                    <p class="text-white font-medium">${expense.title || expense.description}</p>
+                    ${expense.notes ? `<p class="text-gray-400 text-sm">${expense.notes}</p>` : ''}
+                </div>
+            </td>
+            <td class="px-6 py-4">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadge(expense.expense_categories?.name || 'outros')}">
+                    ${getCategoryName(expense.expense_categories?.name || 'outros')}
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
+            </td>
+            <td class="px-6 py-4">
+                <span class="text-gray-300">${formatDate(expense.date)}</span>
+            </td>
+
+            <td class="px-6 py-4">
+                <div class="flex space-x-2">
+                    <button onclick="deleteExpense('${expense.id}')" class="text-red-400 hover:text-red-300 p-1" title="Excluir despesa">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Obter classe CSS para badge da categoria
+function getCategoryBadge(categoryName) {
+    const badges = {
+        'Alimentação': 'bg-green-100 text-green-800',
+        'Transporte': 'bg-blue-100 text-blue-800',
+        'Escritório': 'bg-purple-100 text-purple-800',
+        'Marketing': 'bg-yellow-100 text-yellow-800',
+        'Tecnologia': 'bg-teal-100 text-teal-800',
+        'Saúde': 'bg-pink-100 text-pink-800',
+        'Educação': 'bg-indigo-100 text-indigo-800',
+        'Limpeza': 'bg-cyan-100 text-cyan-800',
+        'Manutenção': 'bg-orange-100 text-orange-800',
+        'Outros': 'bg-gray-100 text-gray-800'
+    };
+    return badges[categoryName] || badges['Outros'];
+}
+
+// Obter nome da categoria (retorna o próprio nome já que vem da tabela)
+function getCategoryName(categoryName) {
+    return categoryName || 'Outros';
+}
+
+// Atualizar resumo de despesas
+function updateExpensesSummary() {
+    const now = new Date();
+    const currentMonth = now.getMonth();
+    const currentYear = now.getFullYear();
+    
+    // Total do mês atual
+    const monthlyTotal = expenses
+        .filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, expense) => sum + expense.amount, 0);
+    
+    // Total do ano atual
+    const yearlyTotal = expenses
+        .filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate.getFullYear() === currentYear;
+        })
+        .reduce((sum, expense) => sum + expense.amount, 0);
+    
+    // Atualizar elementos da interface
+    document.getElementById('monthlyExpensesTotal').textContent = `R$ ${monthlyTotal.toFixed(2).replace('.', ',')}`;
+    document.getElementById('yearlyExpensesTotal').textContent = `R$ ${yearlyTotal.toFixed(2).replace('.', ',')}`;
+    document.getElementById('expensesCount').textContent = expenses.length;
+}
+
+// Visualizar assinatura
+
+
+// Excluir despesa
+async function deleteExpense(expenseId) {
+    try {
+        console.log('deleteExpense chamada com ID:', expenseId, 'Tipo:', typeof expenseId);
+        
+        // Garantir que o ID seja uma string
+        const id = String(expenseId);
+        
+        const expense = expenses.find(e => String(e.id) === id);
+        if (!expense) {
+            console.error('Despesa não encontrada. ID procurado:', id);
+            console.log('Despesas disponíveis:', expenses.map(e => ({ id: e.id, title: e.title || e.description })));
+            showInfoMessage('Despesa não encontrada.');
+            return;
+        }
+        
+        console.log('Despesa encontrada:', expense);
+        
+        // Usar modal de confirmação ao invés de confirm simples
+        const title = expense.title || expense.description || 'esta despesa';
+        showConfirmationModal(
+            'Excluir Despesa',
+            `Tem certeza que deseja excluir a despesa "${title}"? Esta ação não pode ser desfeita.`,
+            () => performDeleteExpense(id),
+            'Excluir'
+        );
+        
+    } catch (error) {
+        console.error('Erro ao excluir despesa:', error);
+        showInfoMessage('Erro ao excluir despesa: ' + error.message);
+    }
+}
+
+// Executar exclusão da despesa
+async function performDeleteExpense(expenseId) {
+    try {
+        console.log('Tentando excluir despesa com ID:', expenseId, 'Tipo:', typeof expenseId);
+        
+        // Garantir que o ID seja uma string
+        const id = String(expenseId);
+        
+        // Verificar se a despesa existe antes de tentar excluir
+        const expense = expenses.find(e => String(e.id) === id);
+        if (!expense) {
+            console.error('Despesa não encontrada para exclusão. ID:', id);
+            showErrorMessage('Despesa não encontrada.');
+            return;
+        }
+        
+        console.log('Excluindo despesa:', expense);
+        
+        const { data, error } = await supabase
+            .from('expenses')
+            .delete()
+            .eq('id', id)
+            .select();
+            
+        if (error) {
+            console.error('Erro do Supabase ao excluir despesa:', error);
+            throw error;
+        }
+        
+        console.log('Despesa excluída do banco de dados com sucesso. Dados retornados:', data);
+        
+        // Remover da lista local usando filter para garantir que funcione
+        const originalLength = expenses.length;
+        expenses = expenses.filter(e => String(e.id) !== id);
+        
+        if (expenses.length < originalLength) {
+            console.log('Despesa removida da lista local. Quantidade antes:', originalLength, 'Depois:', expenses.length);
+        } else {
+            console.warn('Despesa não foi removida da lista local. Pode haver problema com o ID.');
+        }
+        
+        // Atualizar interface
+        displayExpenses();
+        updateExpensesSummary();
+        
+        showSuccessMessage('Despesa excluída com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao excluir despesa:', error);
+        showErrorMessage('Erro ao excluir despesa: ' + error.message);
+    }
+}
+
+// Função para gerar contrato PDF
+async function generateContract(loanId) {
+    try {
+        // Buscar dados do empréstimo
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            showInfoMessage('Empréstimo não encontrado!');
+            return;
+        }
+
+        // Buscar dados do cliente
+        const client = clients.find(c => c.id === loan.client_id);
+        if (!client) {
+            showInfoMessage('Cliente não encontrado!');
+            return;
+        }
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(16);
+        doc.setFont('helvetica', 'bold');
+        doc.text('CONTRATO DE MÚTUO', 105, 20, { align: 'center' });
+        
+        // Reset font
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        
+        // Texto do contrato
+        let yPosition = 30;
+        const lineHeight = 5;
+        const margin = 20;
+        const pageWidth = doc.internal.pageSize.width;
+        const maxWidth = pageWidth - (margin * 2);
+
+        // Função para adicionar texto com quebra de linha
+        function addWrappedText(text, x, y, maxWidth) {
+            const lines = doc.splitTextToSize(text, maxWidth);
+            doc.text(lines, x, y);
+            return y + (lines.length * lineHeight);
+        }
+
+        // Parágrafo inicial
+        const introText = "Pelo presente instrumento particular, as partes abaixo qualificadas:";
+        yPosition = addWrappedText(introText, margin, yPosition, maxWidth) + 3;
+
+        // Mutuante
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("MUTUANTE:", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const mutuanteText = "VALORUM, pessoa jurídica de direito privado, inscrita no CNPJ sob nº 52.496.899/0001-89, com sede à Rua Domingos Chicaroni, nº 5840, APT 2, Jardim Três Colinas, Franca/SP.";
+        yPosition = addWrappedText(mutuanteText, margin, yPosition, maxWidth) + 3;
+
+        // Mutuário
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("MUTUÁRIO:", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const mutuarioText = `${client.name}, brasileiro, portador do CPF nº ${client.cpf}, RG nº ${client.rg || 'N/A'}, residente e domiciliada à ${client.address || 'Endereço não informado'}.`;
+        yPosition = addWrappedText(mutuarioText, margin, yPosition, maxWidth) + 5;
+
+        // Acordo
+        const acordoText = "Têm entre si justo e acordado o presente contrato de mútuo, que se regerá pelas seguintes cláusulas e condições:";
+        yPosition = addWrappedText(acordoText, margin, yPosition, maxWidth) + 5;
+
+        // Cláusula Primeira
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("CLÁUSULA PRIMEIRA - DO OBJETO DO CONTRATO", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const clausula1Text = `1.1. Pelo presente instrumento, o MUTUANTE empresta ao MUTUÁRIO, que aceita, a quantia de R$ ${parseFloat(loan.amount).toFixed(2).replace('.', ',')}, que será utilizada conforme acordado entre as partes. O MUTUÁRIO declara ter recebido o valor nesta data.`;
+        yPosition = addWrappedText(clausula1Text, margin, yPosition, maxWidth) + 3;
+
+        // Cláusula Segunda
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("CLÁUSULA SEGUNDA - DO PRAZO E FORMA DE PAGAMENTO", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const clausula2Text = `2.1. O valor do mútuo será devolvido em uma parcela única, com vencimento em ${formatDate(loan.due_date)}, podendo ser renegociado por escrito. O pagamento deverá ser feito por transferência bancária ou outro meio acordado.`;
+        yPosition = addWrappedText(clausula2Text, margin, yPosition, maxWidth) + 3;
+
+        // Cláusula Terceira
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("CLÁUSULA TERCEIRA - DOS ENCARGOS PELO EMPRÉSTIMO", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const clausula3Text = `3.1. O mútuo será acrescido de juros de 1% ao mês e multa de 10% sobre o valor da parcela vencida, além de correção monetária pelo IGPM/FGV.`;
+        yPosition = addWrappedText(clausula3Text, margin, yPosition, maxWidth) + 3;
+
+        // Verificar se precisa de nova página (mais permissivo)
+        if (yPosition > 270) {
+            doc.addPage();
+            yPosition = 20;
+        }
+
+        // Cláusula Quarta
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("CLÁUSULA QUARTA - DA CONFISSÃO DE DÍVIDA", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const clausula4Text = "4.1. O MUTUÁRIO confessa que a dívida é líquida, certa e exigível, não podendo contestar sua existência ou valor. Em caso de inadimplemento, o MUTUANTE poderá exigir o pagamento imediato do saldo devedor, acrescido de encargos.";
+        yPosition = addWrappedText(clausula4Text, margin, yPosition, maxWidth) + 3;
+
+        // Cláusula Quinta
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("CLÁUSULA QUINTA - DA GARANTIA E DA EXECUÇÃO", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const clausula5Text = "5.1. O contrato é título executivo extrajudicial, conforme artigo 784, III do CPC, podendo o MUTUANTE requerer judicialmente a penhora de bens do MUTUÁRIO em caso de inadimplência.";
+        yPosition = addWrappedText(clausula5Text, margin, yPosition, maxWidth) + 3;
+
+        // Cláusula Sexta
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("CLÁUSULA SEXTA - DA NOTIFICAÇÃO", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const clausula6Text = "6.1. Em caso de inadimplemento, o MUTUANTE notificará o MUTUÁRIO por carta registrada ou e-mail, concedendo-lhe 10 dias para regularizar o pagamento.";
+        yPosition = addWrappedText(clausula6Text, margin, yPosition, maxWidth) + 3;
+
+        // Cláusula Sétima
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("CLÁUSULA SÉTIMA - DO FORO", margin, yPosition, maxWidth);
+        doc.setFont('helvetica', 'normal');
+        const clausula7Text = "7.1. Fica eleito o foro da Comarca de Franca/SP para dirimir qualquer litígio decorrente deste contrato.";
+        yPosition = addWrappedText(clausula7Text, margin, yPosition, maxWidth) + 5;
+
+        // Verificar se precisa de nova página para as assinaturas (mais permissivo)
+        if (yPosition > 240) {
+            doc.addPage();
+            yPosition = 20;
+        }
+
+        // Encerramento
+        const encerramentoText = "E por estarem assim justos e contratados, firmam o presente instrumento em duas vias de igual teor e forma, na presença de duas testemunhas, para que produza seus jurídicos e legais efeitos.";
+        yPosition = addWrappedText(encerramentoText, margin, yPosition, maxWidth) + 6;
+
+        // Data e local
+        const dataEmprestimo = new Date(loan.loan_date).toLocaleDateString('pt-BR');
+        yPosition = addWrappedText(`Franca, ${dataEmprestimo}.`, margin, yPosition, maxWidth) + 8;
+
+        // Assinaturas
+        doc.setFont('helvetica', 'bold');
+        yPosition = addWrappedText("Assinaturas:", margin, yPosition, maxWidth) + 8;
+
+        // Espaço para assinatura do mutuante
+        yPosition += 12;
+        doc.line(margin, yPosition, 90, yPosition);
+        yPosition += 4;
+        doc.text("VALORUM", margin, yPosition);
+        yPosition += 4;
+        doc.text("Mutuante", margin, yPosition);
+
+        // Espaço para assinatura do mutuário
+        yPosition -= 16;
+        doc.line(120, yPosition + 12, 190, yPosition + 12);
+        yPosition += 16;
+        doc.text(client.name, 120, yPosition);
+        yPosition += 4;
+        doc.text("Mutuário", 120, yPosition);
+
+        // Testemunha
+        yPosition += 8;
+        doc.setFont('helvetica', 'normal');
+        const testemunhaText = "Testemunha: Inove Porcelanataria e Marmoraria LTDA";
+        yPosition = addWrappedText(testemunhaText, margin, yPosition, maxWidth);
+        const cnpjText = "CNPJ: 50.485.843/0001-01";
+        yPosition = addWrappedText(cnpjText, margin, yPosition, maxWidth);
+
+        // Salvar o PDF
+        const fileName = `Contrato_${client.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+
+        showSuccessMessage('Contrato gerado com sucesso!');
+
+    } catch (error) {
+        console.error('Erro ao gerar contrato:', error);
+        showInfoMessage('Erro ao gerar contrato: ' + error.message);
+    }
+}
+
+// Função para gerar PDF dos empréstimos do último mês
+async function generateMonthlyLoansPDF() {
+    try {
+        // Calcular data de um mês atrás
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        
+        // Filtrar empréstimos do último mês
+        const monthlyLoans = loans.filter(loan => {
+            const loanDate = new Date(loan.created_at);
+            return loanDate >= oneMonthAgo;
+        });
+
+        if (monthlyLoans.length === 0) {
+            showInfoMessage('Nenhum empréstimo foi encontrado no último mês.');
+            return;
+        }
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO DE EMPRÉSTIMOS - ÚLTIMO MÊS', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const periodText = `Período: ${oneMonthAgo.toLocaleDateString('pt-BR')} a ${new Date().toLocaleDateString('pt-BR')}`;
+        doc.text(periodText, 105, 30, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 40);
+        
+        // Linha divisória
+        doc.line(20, 45, 190, 45);
+        
+        let yPosition = 55;
+        
+        // Resumo
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO', 20, yPosition);
+        yPosition += 10;
+        
+        const totalAmount = monthlyLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+        const totalInterest = monthlyLoans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
+        const totalWithInterest = totalAmount + totalInterest;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de empréstimos: ${monthlyLoans.length}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total emprestado: R$ ${totalAmount.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de juros: R$ ${totalInterest.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total com juros: R$ ${totalWithInterest.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 15;
+        
+        // Cabeçalho da tabela
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALHAMENTO DOS EMPRÉSTIMOS', 20, yPosition);
+        yPosition += 10;
+        
+        // Cabeçalhos das colunas
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Data', 20, yPosition);
+        doc.text('Cliente', 40, yPosition);
+        doc.text('Valor', 100, yPosition);
+        doc.text('Juros%', 130, yPosition);
+        doc.text('Total', 150, yPosition);
+        doc.text('Status', 175, yPosition);
+        yPosition += 5;
+        
+        // Linha divisória
+        doc.line(20, yPosition, 190, yPosition);
+        yPosition += 5;
+        
+        // Dados dos empréstimos
+        doc.setFont('helvetica', 'normal');
+        
+        for (const loan of monthlyLoans) {
+            // Verificar se precisa de nova página
+            if (yPosition > 270) {
+                doc.addPage();
+                yPosition = 20;
+                
+                // Repetir cabeçalho na nova página
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Data', 20, yPosition);
+                doc.text('Cliente', 40, yPosition);
+                doc.text('Valor', 100, yPosition);
+                doc.text('Juros%', 130, yPosition);
+                doc.text('Total', 150, yPosition);
+                doc.text('Status', 175, yPosition);
+                yPosition += 5;
+                doc.line(20, yPosition, 190, yPosition);
+                yPosition += 5;
+                doc.setFont('helvetica', 'normal');
+            }
+            
+            const loanDate = new Date(loan.created_at).toLocaleDateString('pt-BR');
+            const clientName = loan.clients ? loan.clients.name : 'Cliente não encontrado';
+            const amount = parseFloat(loan.amount);
+            const interestRate = parseFloat(loan.interest_rate);
+            const totalWithInterestLoan = amount + (amount * interestRate / 100);
+            
+            // Truncar nome do cliente se for muito longo
+            const truncatedName = clientName.length > 25 ? clientName.substring(0, 22) + '...' : clientName;
+            
+            doc.text(loanDate, 20, yPosition);
+            doc.text(truncatedName, 40, yPosition);
+            doc.text(`R$ ${amount.toFixed(2).replace('.', ',')}`, 100, yPosition);
+            doc.text(`${interestRate.toFixed(1)}%`, 130, yPosition);
+            doc.text(`R$ ${totalWithInterestLoan.toFixed(2).replace('.', ',')}`, 150, yPosition);
+            doc.text(loan.status === 'active' ? 'Ativo' : loan.status === 'paid' ? 'Pago' : 'Cancelado', 175, yPosition);
+            
+            yPosition += 6;
+        }
+        
+        // Rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${pageCount}`, 190, 290, { align: 'right' });
+            doc.text('Nexus Gestão Financeira', 20, 290);
+        }
+        
+        // Salvar o PDF
+        const fileName = `Emprestimos_Ultimo_Mes_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+
+        showSuccessMessage(`PDF gerado com sucesso! ${monthlyLoans.length} empréstimos encontrados.`);
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF dos empréstimos:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// Função para gerar PDF das despesas do último mês
+async function generateMonthlyExpensesPDF() {
+    try {
+        // Calcular data de um mês atrás
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        
+        // Filtrar despesas do último mês
+        const monthlyExpenses = expenses.filter(expense => {
+            const expenseDate = new Date(expense.date);
+            return expenseDate >= oneMonthAgo;
+        });
+
+        if (monthlyExpenses.length === 0) {
+            showInfoMessage('Nenhuma despesa foi encontrada no último mês.');
+            return;
+        }
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO DE DESPESAS - ÚLTIMO MÊS', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const periodText = `Período: ${oneMonthAgo.toLocaleDateString('pt-BR')} a ${new Date().toLocaleDateString('pt-BR')}`;
+        doc.text(periodText, 105, 30, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 40);
+        
+        // Linha divisória
+        doc.line(20, 45, 190, 45);
+        
+        let yPosition = 55;
+        
+        // Resumo
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO', 20, yPosition);
+        yPosition += 10;
+        
+        const totalAmount = monthlyExpenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+        
+        // Agrupar por categoria
+        const categoryTotals = {};
+        monthlyExpenses.forEach(expense => {
+            const categoryName = expense.expense_categories?.name || 'Outros';
+            categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + parseFloat(expense.amount);
+        });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de despesas: ${monthlyExpenses.length}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total: R$ ${totalAmount.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor médio por despesa: R$ ${(totalAmount / monthlyExpenses.length).toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 10;
+        
+        // Resumo por categoria
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO POR CATEGORIA', 20, yPosition);
+        yPosition += 8;
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]).forEach(([category, total]) => {
+            const percentage = ((total / totalAmount) * 100).toFixed(1);
+            doc.text(`${category}: R$ ${total.toFixed(2).replace('.', ',')} (${percentage}%)`, 20, yPosition);
+            yPosition += 5;
+        });
+        
+        yPosition += 10;
+        
+        // Cabeçalho da tabela
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALHAMENTO DAS DESPESAS', 20, yPosition);
+        yPosition += 10;
+        
+        // Cabeçalhos das colunas
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Data', 20, yPosition);
+        doc.text('Descrição', 45, yPosition);
+        doc.text('Categoria', 110, yPosition);
+        doc.text('Valor', 145, yPosition);
+        doc.text('Método', 170, yPosition);
+        yPosition += 5;
+        
+        // Linha divisória
+        doc.line(20, yPosition, 190, yPosition);
+        yPosition += 5;
+        
+        // Dados das despesas
+        doc.setFont('helvetica', 'normal');
+        
+        for (const expense of monthlyExpenses) {
+            // Verificar se precisa de nova página
+            if (yPosition > 270) {
+                doc.addPage();
+                yPosition = 20;
+                
+                // Repetir cabeçalho na nova página
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Data', 20, yPosition);
+                doc.text('Descrição', 45, yPosition);
+                doc.text('Categoria', 110, yPosition);
+                doc.text('Valor', 145, yPosition);
+                doc.text('Método', 170, yPosition);
+                yPosition += 5;
+                doc.line(20, yPosition, 190, yPosition);
+                yPosition += 5;
+                doc.setFont('helvetica', 'normal');
+            }
+            
+            const expenseDate = new Date(expense.date).toLocaleDateString('pt-BR');
+            const description = expense.title || expense.description || 'Sem descrição';
+            const categoryName = expense.expense_categories?.name || 'Outros';
+            const amount = parseFloat(expense.amount);
+            const paymentMethod = expense.payment_method || 'N/A';
+            
+            // Truncar descrição se for muito longa
+            const truncatedDescription = description.length > 30 ? description.substring(0, 27) + '...' : description;
+            const truncatedCategory = categoryName.length > 15 ? categoryName.substring(0, 12) + '...' : categoryName;
+            
+            doc.text(expenseDate, 20, yPosition);
+            doc.text(truncatedDescription, 45, yPosition);
+            doc.text(truncatedCategory, 110, yPosition);
+            doc.text(`R$ ${amount.toFixed(2).replace('.', ',')}`, 145, yPosition);
+            doc.text(paymentMethod, 170, yPosition);
+            
+            yPosition += 6;
+        }
+        
+        // Rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${pageCount}`, 190, 290, { align: 'right' });
+            doc.text('Nexus Gestão Financeira', 20, 290);
+        }
+        
+        // Salvar o PDF
+        const fileName = `Despesas_Ultimo_Mes_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+
+        showSuccessMessage(`PDF gerado com sucesso! ${monthlyExpenses.length} despesas encontradas.`);
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF das despesas:', error);
+        showInfoMessage('Erro ao gerar PDF das despesas: ' + error.message);
+    }
+}
+
+// Carregar categorias de despesas
+async function loadExpenseCategories() {
+    console.log('🔄 Iniciando carregamento de categorias de despesas...');
+    try {
+        const { data, error } = await supabase
+            .from('expense_categories')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
+            
+        if (error) {
+            console.error('❌ Erro na consulta do Supabase:', error);
+            throw error;
+        }
+        
+        console.log('✅ Dados recebidos do Supabase:', data);
+        expenseCategories = data || [];
+        console.log('📊 Categorias carregadas:', expenseCategories.length);
+        updateExpenseCategorySelect();
+        
+    } catch (error) {
+        console.error('❌ Erro ao carregar categorias de despesas:', error);
+        
+        // Tentar criar as categorias se a tabela não existir
+        const created = await createDefaultCategories();
+        if (created) {
+            console.log('✅ Categorias criadas com sucesso, tentando carregar novamente...');
+            // Tentar carregar novamente após criar
+            try {
+                const { data: retryData, error: retryError } = await supabase
+                    .from('expense_categories')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('name');
+                
+                if (!retryError && retryData) {
+                    expenseCategories = retryData;
+                    updateExpenseCategorySelect();
+                    return;
+                }
+            } catch (retryError) {
+                console.log('❌ Erro na segunda tentativa:', retryError);
+            }
+        }
+        
+        console.log('🔄 Usando categorias padrão locais...');
+        // Se não conseguir carregar, usar categorias padrão
+        expenseCategories = [
+            { id: 'default-alimentacao', name: 'Alimentação' },
+            { id: 'default-transporte', name: 'Transporte' },
+            { id: 'default-escritorio', name: 'Escritório' },
+            { id: 'default-marketing', name: 'Marketing' },
+            { id: 'default-outros', name: 'Outros' }
+        ];
+        updateExpenseCategorySelect();
+    }
+}
+
+// Atualizar select de categorias
+function updateExpenseCategorySelect() {
+    console.log('🔄 Atualizando select de categorias...');
+    const select = document.getElementById('expenseCategory');
+    if (!select) {
+        console.error('❌ Elemento expenseCategory não encontrado!');
+        return;
+    }
+    
+    console.log('📋 Select encontrado, limpando opções existentes...');
+    // Limpar opções existentes (exceto a primeira)
+    while (select.children.length > 1) {
+        select.removeChild(select.lastChild);
+    }
+    
+    console.log('📝 Adicionando', expenseCategories.length, 'categorias...');
+    // Adicionar categorias carregadas
+    expenseCategories.forEach(category => {
+        console.log('➕ Adicionando categoria:', category.name, '(ID:', category.id, ')');
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        select.appendChild(option);
+    });
+    
+    console.log('✅ Select de categorias atualizado com sucesso! Total de opções:', select.children.length);
+}
+
+// Função para forçar reload das categorias (pode ser chamada do console)
+window.reloadCategories = async function() {
+    console.log('🔄 Forçando reload das categorias...');
+    try {
+        await loadExpenseCategories();
+        console.log('✅ Categorias recarregadas com sucesso!');
+    } catch (error) {
+        console.error('❌ Erro ao recarregar categorias:', error);
+    }
+}
+
+// Função para testar conectividade com categorias
+async function testCategoriesConnection() {
+    console.log('🧪 Testando conectividade com tabela expense_categories...');
+    try {
+        // Primeiro, verificar se a tabela existe
+        const { data: tables, error: tablesError } = await supabase
+            .from('information_schema.tables')
+            .select('table_name')
+            .eq('table_schema', 'public')
+            .eq('table_name', 'expense_categories');
+            
+        if (tablesError) {
+            console.error('❌ Erro ao verificar tabelas:', tablesError);
+            return false;
+        }
+        
+        console.log('📋 Verificação de tabela:', tables);
+        
+        // Tentar consultar todas as categorias (sem filtro is_active)
+        const { data: allCategories, error: allError } = await supabase
+            .from('expense_categories')
+            .select('*');
+            
+        if (allError) {
+            console.error('❌ Erro ao consultar todas as categorias:', allError);
+            return false;
+        }
+        
+        console.log('📊 Todas as categorias encontradas:', allCategories);
+        
+        // Tentar consultar apenas categorias ativas
+        const { data: activeCategories, error: activeError } = await supabase
+            .from('expense_categories')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
+            
+        if (activeError) {
+            console.error('❌ Erro ao consultar categorias ativas:', activeError);
+            return false;
+        }
+        
+        console.log('✅ Categorias ativas encontradas:', activeCategories);
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Erro no teste de conectividade:', error);
+        return false;
+    }
+}
+
+// Função para criar categorias padrão se não existirem
+async function createDefaultCategories() {
+    console.log('🔄 Tentando criar categorias padrão...');
+    try {
+        // Tentar inserir categorias padrão (a tabela deve existir)
+        const defaultCategories = [
+            { name: 'Alimentação', description: 'Despesas com comida e bebidas', color: '#EF4444', icon: 'utensils' },
+            { name: 'Transporte', description: 'Despesas com locomoção', color: '#3B82F6', icon: 'car' },
+            { name: 'Escritório', description: 'Material de escritório e equipamentos', color: '#8B5CF6', icon: 'briefcase' },
+            { name: 'Marketing', description: 'Despesas com publicidade e marketing', color: '#F59E0B', icon: 'megaphone' },
+            { name: 'Tecnologia', description: 'Equipamentos e software', color: '#10B981', icon: 'laptop' },
+            { name: 'Saúde', description: 'Despesas médicas e farmácia', color: '#EC4899', icon: 'heart' },
+            { name: 'Educação', description: 'Cursos, livros e treinamentos', color: '#6366F1', icon: 'book' },
+            { name: 'Limpeza', description: 'Produtos de limpeza e higiene', color: '#14B8A6', icon: 'spray' },
+            { name: 'Manutenção', description: 'Reparos e manutenções', color: '#F97316', icon: 'wrench' },
+            { name: 'Outros', description: 'Despesas diversas', color: '#6B7280', icon: 'folder' }
+        ];
+        
+        // Tentar inserir uma categoria por vez para evitar conflitos
+        let insertedCount = 0;
+        for (const category of defaultCategories) {
+            try {
+                const { data, error } = await supabase
+                    .from('expense_categories')
+                    .insert([category])
+                    .select();
+                    
+                if (!error && data) {
+                    insertedCount++;
+                    console.log(`✅ Categoria "${category.name}" criada`);
+                } else if (error.code === '23505') {
+                    // Erro de duplicata - categoria já existe
+                    console.log(`ℹ️ Categoria "${category.name}" já existe`);
+                } else {
+                    console.log(`⚠️ Erro ao criar categoria "${category.name}":`, error);
+                }
+            } catch (catError) {
+                console.log(`❌ Erro ao processar categoria "${category.name}":`, catError);
+            }
+        }
+        
+        console.log(`📊 Processo concluído. ${insertedCount} categorias criadas.`);
+        return insertedCount > 0;
+        
+    } catch (error) {
+        console.error('❌ Erro ao criar categorias padrão:', error);
+        return false;
     }
 }

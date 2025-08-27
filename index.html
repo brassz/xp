@@ -10,6 +10,7 @@
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://ucarecdn.com/libs/widget/3.x/uploadcare.full.min.js"></script>
     <link rel="stylesheet" href="https://ucarecdn.com/libs/widget/3.x/uploadcare.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
     <style>
         :root {
             --primary: #1e40af;
@@ -127,6 +128,21 @@
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
         }
 
+        .form-select {
+            background: rgba(15, 23, 42, 0.8);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 8px;
+            padding: 12px 16px;
+            color: white;
+            transition: all 0.3s ease;
+        }
+
+        .form-select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+
         .modal-overlay {
             background: rgba(0, 0, 0, 0.8);
             backdrop-filter: blur(5px);
@@ -199,10 +215,8 @@
     <div id="loginPage" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
         <div class="glass-card p-8 rounded-2xl w-full max-w-md">
             <div class="text-center mb-8">
-                <div class="w-20 h-20 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-2xl flex items-center justify-center mx-auto mb-4">
-                    <svg class="w-10 h-10 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                    </svg>
+                <div class="w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                    <img src="assets/images/nexus-logo-circular.svg" alt="Nexus Logo" class="w-20 h-20 object-contain">
                 </div>
                 <h1 class="text-3xl font-bold text-white mb-2">Nexus</h1>
                 <p class="text-blue-200">Gestão Financeira</p>
@@ -233,13 +247,10 @@
         <!-- Sidebar -->
         <div class="fixed inset-y-0 left-0 w-64 bg-gray-800 border-r border-gray-700 z-40">
             <div class="flex items-center justify-center h-16 bg-gray-900 border-b border-gray-700">
-                <div class="flex items-center space-x-3">
-                    <div class="w-10 h-10 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-lg flex items-center justify-center">
-                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
-                        </svg>
+                <div class="flex items-center space-x-2">
+                    <div class="w-20 h-8 flex items-center justify-center">
+                        <img src="assets/images/nexus-logo-compact.svg" alt="Nexus Logo" class="w-full h-full object-contain">
                     </div>
-                    <span class="text-xl font-bold text-white">Nexus</span>
                 </div>
             </div>
             
@@ -280,18 +291,19 @@
                     <span>Empréstimos Quitados</span>
                 </a>
                 
-                <a href="#cancelledLoans" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                    </svg>
-                    <span>Empréstimos Cancelados</span>
-                </a>
-                
+
                 <a href="#reports" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
                     </svg>
                     <span>Relatórios</span>
+                </a>
+                
+                <a href="#expenses" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                    </svg>
+                    <span>Despesas</span>
                 </a>
                 
                 <a href="#history" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
@@ -422,19 +434,7 @@
                             </div>
                         </div>
                         
-                        <div class="metric-card p-6 rounded-xl">
-                            <div class="flex items-center justify-between">
-                                <div>
-                                    <p class="text-sm text-blue-300 mb-1">Empréstimos Cancelados</p>
-                                    <p class="text-2xl font-bold text-white" id="cancelledLoans">0</p>
-                                </div>
-                                <div class="w-12 h-12 bg-gray-500 rounded-lg flex items-center justify-center">
-                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                                    </svg>
-                                </div>
-                            </div>
-                        </div>
+
                     </div>
                     
                     <!-- Charts -->
@@ -501,9 +501,14 @@
                                 <h2 class="text-3xl font-bold text-white mb-2">Gestão de Empréstimos</h2>
                                 <p class="text-gray-400">Crie e gerencie empréstimos</p>
                             </div>
-                            <button id="newLoanBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
-                                Novo Empréstimo
-                            </button>
+                            <div class="flex gap-3">
+                                <button id="generatePdfBtn" class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold text-white transition-colors">
+                                    📄 PDF Último Mês
+                                </button>
+                                <button id="newLoanBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
+                                    Novo Empréstimo
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
@@ -596,38 +601,7 @@
                     </div>
                 </div>
 
-                <!-- Cancelled Loans Section -->
-                <div id="cancelledLoans" class="content-section hidden">
-                    <div class="mb-8">
-                        <h2 class="text-3xl font-bold text-white mb-2">Empréstimos Cancelados</h2>
-                        <p class="text-gray-400">Visualize todos os empréstimos que foram cancelados</p>
-                    </div>
-                    
-                    <div class="table-container">
-                        <div class="table-header px-6 py-4">
-                            <h3 class="text-lg font-semibold text-white">Empréstimos Cancelados</h3>
-                        </div>
-                        <div class="overflow-x-auto">
-                            <table class="w-full">
-                                <thead class="table-header">
-                                    <tr>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Cliente</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Original</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Juros</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data do Empréstimo</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data de Vencimento</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data de Cancelamento</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Motivo</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
-                                    </tr>
-                                </thead>
-                                <tbody id="cancelledLoansTableBody" class="divide-y divide-gray-700">
-                                    <!-- Cancelled loans will be populated here -->
-                                </tbody>
-                            </table>
-                        </div>
-                    </div>
-                </div>
+
 
                 <!-- Reports Section -->
                 <div id="reports" class="content-section hidden">
@@ -671,6 +645,111 @@
                     </div>
                 </div>
 
+                <!-- Expenses Section -->
+                <div id="expenses" class="content-section hidden">
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-white mb-2">Despesas</h2>
+                        <p class="text-gray-400">Gerencie suas despesas corporativas</p>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="mb-6 flex items-center space-x-4">
+                        <button id="newExpenseBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            <span>Nova Despesa</span>
+                        </button>
+                        <button id="generateExpensesPDFBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white flex items-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span>PDF do Último Mês</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Expenses Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="metric-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-blue-300 text-sm font-medium">Total do Mês</p>
+                                    <p class="text-white text-2xl font-bold" id="monthlyExpensesTotal">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-red-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-blue-300 text-sm font-medium">Despesas Este Ano</p>
+                                    <p class="text-white text-2xl font-bold" id="yearlyExpensesTotal">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-orange-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-orange-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-blue-300 text-sm font-medium">Total de Despesas</p>
+                                    <p class="text-white text-2xl font-bold" id="expensesCount">0</p>
+                                </div>
+                                <div class="w-12 h-12 bg-purple-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-purple-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Expenses Table -->
+                    <div class="glass-card p-6 rounded-xl">
+                        <div class="flex items-center justify-between mb-6">
+                            <h3 class="text-lg font-semibold text-white">Lista de Despesas</h3>
+                            <div class="flex items-center space-x-4">
+                                <input type="text" id="expenseSearchInput" placeholder="Buscar despesas..." class="form-input text-sm">
+                                <select id="expenseFilterSelect" class="form-input text-sm">
+                                    <option value="">Todas as categorias</option>
+                                    <option value="alimentacao">Alimentação</option>
+                                    <option value="transporte">Transporte</option>
+                                    <option value="escritorio">Escritório</option>
+                                    <option value="marketing">Marketing</option>
+                                    <option value="outros">Outros</option>
+                                </select>
+                            </div>
+                        </div>
+                        
+                        <div class="table-container">
+                            <table class="w-full">
+                                <thead class="table-header">
+                                    <tr>
+                                        <th class="px-6 py-4 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Descrição</th>
+                                        <th class="px-6 py-4 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Categoria</th>
+                                        <th class="px-6 py-4 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor</th>
+                                        <th class="px-6 py-4 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data</th>
+
+                                        <th class="px-6 py-4 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="expensesTableBody" class="divide-y divide-gray-700">
+                                    <!-- Expenses will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
                 <!-- History Section -->
                 <div id="history" class="content-section hidden">
                     <div class="mb-8">
@@ -681,13 +760,41 @@
                     <!-- Filtro de Cliente -->
                     <div class="glass-card p-6 rounded-xl mb-6">
                         <h3 class="text-lg font-semibold text-white mb-4">Selecionar Cliente</h3>
-                        <div class="flex items-center space-x-4">
-                            <select id="historyClientSelect" class="form-select flex-1">
-                                <option value="">Selecione um cliente para ver o histórico</option>
-                            </select>
-                            <button id="loadHistoryBtn" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
-                                Carregar Histórico
-                            </button>
+                        <div class="space-y-4">
+                            <!-- Campo de busca -->
+                            <div class="relative">
+                                <input 
+                                    type="text" 
+                                    id="historyClientSearch" 
+                                    class="form-input w-full pl-10" 
+                                    placeholder="Digite o nome do cliente para buscar..."
+                                    autocomplete="off"
+                                >
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <!-- Lista de resultados de busca -->
+                            <div id="historyClientResults" class="hidden">
+                                <div class="max-h-60 overflow-y-auto border border-gray-600 rounded-lg bg-gray-800">
+                                    <div id="historyClientResultsList" class="divide-y divide-gray-600">
+                                        <!-- Resultados aparecerão aqui -->
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Select tradicional (mantido como fallback) -->
+                            <div class="flex items-center space-x-4">
+                                <select id="historyClientSelect" class="form-select flex-1">
+                                    <option value="">Ou selecione da lista completa</option>
+                                </select>
+                                <button id="loadHistoryBtn" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
+                                    Carregar Histórico
+                                </button>
+                            </div>
                         </div>
                     </div>
                     
@@ -803,6 +910,17 @@
                         <div>
                             <label class="block text-sm font-medium text-blue-200 mb-2">Telefone</label>
                             <input type="tel" id="clientPhone" class="form-input w-full" placeholder="(00) 00000-0000" required>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">RG</label>
+                            <input type="text" id="clientRG" class="form-input w-full" placeholder="00.000.000-0">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data de Nascimento</label>
+                            <input type="date" id="clientBirthDate" class="form-input w-full">
                         </div>
                     </div>
                     
@@ -1009,6 +1127,17 @@
                         </div>
                     </div>
                     
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">RG</label>
+                            <input type="text" id="editClientRG" class="form-input w-full" placeholder="00.000.000-0">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data de Nascimento</label>
+                            <input type="date" id="editClientBirthDate" class="form-input w-full">
+                        </div>
+                    </div>
+                    
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-2">Endereço Completo</label>
                         <textarea id="editClientAddress" class="form-input w-full" rows="3" required></textarea>
@@ -1137,7 +1266,7 @@
                     <p class="text-sm text-gray-400 mb-6" id="confirmationMessage">Tem certeza que deseja excluir este item?</p>
                     <div class="flex justify-center space-x-4">
                         <button id="cancelConfirmationBtn" class="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
-                            Cancelar
+                            Fechar
                         </button>
                         <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
                             Excluir
@@ -1241,6 +1370,64 @@
                             Fechar
                         </button>
                     </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Expense Modal -->
+    <div id="newExpenseModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Nova Despesa</h3>
+                    <button id="closeExpenseModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="newExpenseForm" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Descrição</label>
+                            <input type="text" id="expenseDescription" class="form-input w-full" placeholder="Descrição da despesa" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Categoria</label>
+                            <select id="expenseCategory" class="form-input w-full" required>
+                                <option value="">Selecione uma categoria</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Valor (R$)</label>
+                            <input type="number" id="expenseAmount" class="form-input w-full" placeholder="0,00" step="0.01" min="0" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data</label>
+                            <input type="date" id="expenseDate" class="form-input w-full" required>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
+                        <textarea id="expenseNotes" class="form-input w-full" rows="3" placeholder="Observações adicionais (opcional)"></textarea>
+                    </div>
+                    
+
+                    
+                    <div class="flex space-x-4 pt-4">
+                        <button type="submit" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold text-white">
+                            Criar Despesa
+                        </button>
+                        <button type="button" id="cancelExpense" class="bg-gray-600 hover:bg-gray-500 flex-1 py-3 px-4 rounded-lg font-semibold text-white transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
             </div>
         </div>
     </div>
