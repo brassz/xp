@@ -1575,8 +1575,8 @@ function deleteLoan(loanId) {
     showConfirmationModal(
         'Cancelar Empréstimo',
         `Tem certeza que deseja cancelar o empréstimo de "${clientName}" no valor de R$ ${parseFloat(loan.amount).toFixed(2)} com juros de ${loan.interest_rate}% (Total: R$ ${total.toFixed(2)})${statusInfo}? Esta ação não pode ser desfeita.`,
-        () => cancelLoan(loanId),
-        'Cancelar'
+        () => performDeleteLoan(loanId),
+        'Excluir'
     );
 }
 
@@ -2533,6 +2533,9 @@ async function cancelLoan(loanId) {
         if (loanIndex > -1) {
             loans.splice(loanIndex, 1);
         }
+        
+        // Fechar modal de confirmação
+        hideModal(document.getElementById('confirmationModal'));
         
         // Mostrar mensagem de sucesso
         showSuccessMessage('Empréstimo cancelado com sucesso e movido para histórico de cancelamentos!');
