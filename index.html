@@ -27,7 +27,7 @@
         }
 
         .glass-card {
-            background: rgba(15, 23, 42, 0.7);
+            background: rgba(30, 41, 59, 0.95);
             backdrop-filter: blur(10px);
             border: 1px solid rgba(255, 255, 255, 0.1);
             box-shadow: 0 8px 32px 0 rgba(31, 38, 135, 0.37);
@@ -114,18 +114,24 @@
         }
 
         .form-input {
-            background: rgba(15, 23, 42, 0.8);
-            border: 1px solid rgba(59, 130, 246, 0.3);
+            background: rgba(30, 41, 59, 0.9);
+            border: 1px solid rgba(59, 130, 246, 0.2);
             border-radius: 8px;
             padding: 12px 16px;
             color: white;
             transition: all 0.3s ease;
+            font-size: 16px;
         }
 
         .form-input:focus {
             outline: none;
             border-color: #3b82f6;
             box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+            background: rgba(30, 41, 59, 1);
+        }
+
+        .form-input::placeholder {
+            color: rgba(148, 163, 184, 0.7);
         }
 
         .form-select {
@@ -213,32 +219,32 @@
 <body class="antialiased">
     <!-- Login Page -->
     <div id="loginPage" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
-        <div class="glass-card p-8 rounded-2xl w-full max-w-md">
+        <div class="glass-card p-8 rounded-2xl w-full max-w-md mx-4">
             <div class="text-center mb-8">
-                <div class="w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                    <img src="assets/images/nexus-logo-circular.svg" alt="Nexus Logo" class="w-20 h-20 object-contain">
+                <div class="w-24 h-24 flex items-center justify-center mx-auto mb-6">
+                    <img src="assets/images/nexus-logo-circular.svg" alt="Nexus Logo" class="w-full h-full object-contain">
                 </div>
                 <h1 class="text-3xl font-bold text-white mb-2">Nexus</h1>
-                <p class="text-blue-200">Gestão Financeira</p>
+                <p class="text-blue-200 text-lg">Gestão Financeira</p>
             </div>
             
-            <form id="loginForm" class="space-y-6">
+            <form id="loginForm" class="space-y-5">
                 <div>
                     <label class="block text-sm font-medium text-blue-200 mb-2">Email</label>
-                    <input type="email" id="loginEmail" class="form-input w-full" placeholder="seu@email.com" required>
+                    <input type="email" id="loginEmail" class="form-input w-full h-12" placeholder="seu@email.com" required>
                 </div>
                 <div>
                     <label class="block text-sm font-medium text-blue-200 mb-2">Senha</label>
-                    <input type="password" id="loginPassword" class="form-input w-full" placeholder="••••••••" required>
+                    <input type="password" id="loginPassword" class="form-input w-full h-12" placeholder="••••••••" required>
                 </div>
-                <button type="submit" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white">
+                <button type="submit" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white h-12 mt-6">
                     Entrar
                 </button>
             </form>
             
-                         <div class="mt-6 text-center">
-                 <p class="text-sm text-blue-300">Demo: admin@nexus.com / 1020</p>
-             </div>
+            <div class="mt-6 text-center">
+                <p class="text-sm text-blue-300">Demo: admin@nexus.com / 1020</p>
+            </div>
         </div>
     </div>
 
