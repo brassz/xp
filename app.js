@@ -2541,6 +2541,9 @@ async function cancelLoan(loanId) {
             loans.splice(loanIndex, 1);
         }
         
+        // Fechar modal de confirmação
+        hideModal(document.getElementById('confirmationModal'));
+        
         // Mostrar mensagem de sucesso
         showSuccessMessage('Empréstimo cancelado com sucesso e movido para histórico de cancelamentos!');
         
