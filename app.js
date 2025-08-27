@@ -1952,13 +1952,35 @@ function updateEditLoanSummary() {
     document.getElementById('editSummaryTotal').textContent = `R$ ${total.toFixed(2)}`;
 }
 
-function showConfirmationModal(title, message, onConfirm, confirmButtonText = 'Confirmar') {
+function showConfirmationModal(title, message, onConfirm, confirmButtonText = 'Confirmar', isPayment = false) {
     document.getElementById('confirmationTitle').textContent = title;
     document.getElementById('confirmationMessage').textContent = message;
     
     // Configurar o botão de confirmação
     const confirmBtn = document.getElementById('confirmDeleteBtn');
-    confirmBtn.onclick = onConfirm;
+    
+    // Configurar estilo do botão baseado no tipo de ação
+    if (isPayment) {
+        // Para marcar como quitado - botão verde
+        confirmBtn.className = 'px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors';
+    } else {
+        // Para outras ações - botão vermelho (padrão)
+        confirmBtn.className = 'px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors';
+    }
+    
+    // Configurar o onclick para fechar o modal automaticamente após a ação
+    confirmBtn.onclick = async () => {
+        try {
+            await onConfirm();
+            // Fechar o modal automaticamente após a ação
+            hideModal(document.getElementById('confirmationModal'));
+        } catch (error) {
+            console.error('Erro ao executar ação:', error);
+            // Ainda assim fechar o modal em caso de erro
+            hideModal(document.getElementById('confirmationModal'));
+        }
+    };
+    
     confirmBtn.textContent = confirmButtonText;
     
     showModal(document.getElementById('confirmationModal'));
@@ -2201,7 +2223,8 @@ async function markLoanAsPaid(loanId) {
                 await updateDashboard();
                 await updateCharts();
             },
-            'Marcar como Quitado'
+            'Marcar como Quitado',
+            true  // isPayment = true para usar botão verde
         );
         
     } catch (error) {
