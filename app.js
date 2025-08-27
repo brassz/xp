@@ -124,6 +124,27 @@ function setupEventListeners() {
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
     
+    // Campo de busca de clientes no histórico
+    document.getElementById('historyClientSearch').addEventListener('input', function(e) {
+        const searchTerm = e.target.value;
+        if (searchTerm.length >= 2) {
+            const results = searchHistoryClients(searchTerm);
+            renderHistorySearchResults(results);
+        } else {
+            document.getElementById('historyClientResults').classList.add('hidden');
+        }
+    });
+    
+    // Esconder resultados ao clicar fora
+    document.addEventListener('click', function(e) {
+        const searchInput = document.getElementById('historyClientSearch');
+        const resultsContainer = document.getElementById('historyClientResults');
+        
+        if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+            resultsContainer.classList.add('hidden');
+        }
+    });
+    
     // Formulários
     newClientForm.addEventListener('submit', handleNewClient);
     newLoanForm.addEventListener('submit', handleNewLoan);
@@ -261,6 +282,14 @@ function handleNavigation(e) {
             if (target === 'expenses') {
                 console.log('Seção de despesas ativada, carregando dados...');
                 loadExpenses();
+            }
+            
+            // Atualizar lista de clientes quando a seção de histórico for exibida
+            if (target === 'history') {
+                console.log('Seção de histórico ativada, atualizando lista de clientes...');
+                setTimeout(() => {
+                    populateHistoryClientSelect();
+                }, 100);
             }
         }
     });
@@ -2194,7 +2223,17 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para popular o select de clientes na aba de histórico
 function populateHistoryClientSelect() {
     const select = document.getElementById('historyClientSelect');
-    select.innerHTML = '<option value="">Selecione um cliente para ver o histórico</option>';
+    select.innerHTML = '<option value="">Ou selecione da lista completa</option>';
+    
+    if (!clients || clients.length === 0) {
+        console.log('Nenhum cliente carregado para o histórico');
+        const option = document.createElement('option');
+        option.value = "";
+        option.textContent = "Nenhum cliente encontrado";
+        option.disabled = true;
+        select.appendChild(option);
+        return;
+    }
     
     clients.forEach(client => {
         const option = document.createElement('option');
@@ -2202,6 +2241,70 @@ function populateHistoryClientSelect() {
         option.textContent = `${client.name} - ${client.cpf}`;
         select.appendChild(option);
     });
+}
+
+// Função para buscar clientes por nome
+function searchHistoryClients(searchTerm) {
+    if (!clients || clients.length === 0) {
+        return [];
+    }
+    
+    if (!searchTerm || searchTerm.trim().length < 2) {
+        return [];
+    }
+    
+    const term = searchTerm.toLowerCase().trim();
+    return clients.filter(client => 
+        client.name.toLowerCase().includes(term) ||
+        client.cpf.includes(term) ||
+        (client.email && client.email.toLowerCase().includes(term))
+    );
+}
+
+// Função para renderizar resultados da busca
+function renderHistorySearchResults(results) {
+    const resultsList = document.getElementById('historyClientResultsList');
+    const resultsContainer = document.getElementById('historyClientResults');
+    
+    if (!results || results.length === 0) {
+        resultsContainer.classList.add('hidden');
+        return;
+    }
+    
+    resultsList.innerHTML = '';
+    
+    results.forEach(client => {
+        const resultItem = document.createElement('div');
+        resultItem.className = 'p-3 hover:bg-gray-700 cursor-pointer transition-colors';
+        resultItem.innerHTML = `
+            <div class="text-white font-medium">${client.name}</div>
+            <div class="text-gray-400 text-sm">${client.cpf}</div>
+            ${client.email ? `<div class="text-gray-400 text-sm">${client.email}</div>` : ''}
+        `;
+        
+        resultItem.addEventListener('click', () => {
+            selectHistoryClient(client);
+        });
+        
+        resultsList.appendChild(resultItem);
+    });
+    
+    resultsContainer.classList.remove('hidden');
+}
+
+// Função para selecionar um cliente
+function selectHistoryClient(client) {
+    // Atualizar o campo de busca
+    document.getElementById('historyClientSearch').value = `${client.name} - ${client.cpf}`;
+    
+    // Atualizar o select
+    document.getElementById('historyClientSelect').value = client.id;
+    
+    // Esconder resultados
+    document.getElementById('historyClientResults').classList.add('hidden');
+    
+    // Carregar histórico automaticamente
+    loadClientHistory();
 }
 
 // Função para carregar o histórico completo de um cliente
