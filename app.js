@@ -97,7 +97,6 @@ function setupEventListeners() {
     newExpenseBtn.addEventListener('click', () => {
         showModal(newExpenseModal);
         setDefaultExpenseDate();
-        populateExpenseCategories();
     });
     
     // Fechar modais
@@ -281,7 +280,6 @@ async function loadData() {
         await Promise.all([
             loadClients(),
             loadLoans(),
-            loadExpenseCategories(),
             loadExpenses()
         ]);
         
@@ -2661,14 +2659,12 @@ async function handleNewExpense(e) {
 
         
         const expenseData = {
-            title: description, // Changed from 'description' to 'title' to match database schema
-            description: notes, // Notes go to description field
-            category_id: category, // Changed from 'category' to 'category_id'
+            description: description,
+            category: category,
             amount: amount,
-            expense_date: date, // Changed from 'date' to 'expense_date' to match database schema
-            user_id: currentUser.id,
-            created_by: currentUser.id, // Required by RLS policy
-            status: 'pending' // Default status
+            date: date,
+            notes: notes,
+            user_id: currentUser.id
         };
         
         // Inserir no banco de dados
@@ -2725,7 +2721,7 @@ async function loadExpenses() {
             .from('expenses')
             .select('*')
             .eq('user_id', currentUser.id)
-            .order('expense_date', { ascending: false });
+            .order('date', { ascending: false });
             
         if (error) throw error;
         
@@ -2764,20 +2760,20 @@ function displayExpenses() {
         <tr class="table-row">
             <td class="px-6 py-4">
                 <div>
-                    <p class="text-white font-medium">${expense.title}</p>
-                    ${expense.description ? `<p class="text-gray-400 text-sm">${expense.description}</p>` : ''}
+                    <p class="text-white font-medium">${expense.description}</p>
+                    ${expense.notes ? `<p class="text-gray-400 text-sm">${expense.notes}</p>` : ''}
                 </div>
             </td>
             <td class="px-6 py-4">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadge(expense.category_id)}">
-                    ${getCategoryName(expense.category_id)}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadge(expense.category)}">
+                    ${getCategoryName(expense.category)}
                 </span>
             </td>
             <td class="px-6 py-4">
                 <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
             </td>
             <td class="px-6 py-4">
-                <span class="text-gray-300">${formatDate(expense.expense_date)}</span>
+                <span class="text-gray-300">${formatDate(expense.date)}</span>
             </td>
 
             <td class="px-6 py-4">
@@ -2794,30 +2790,27 @@ function displayExpenses() {
 }
 
 // Obter classe CSS para badge da categoria
-function getCategoryBadge(categoryId) {
-    const category = expenseCategories.find(cat => cat.id === categoryId);
-    if (!category) return 'bg-gray-100 text-gray-800';
-    
-    // Gerar classe baseada na cor da categoria
-    const colorMap = {
-        '#EF4444': 'bg-red-100 text-red-800',
-        '#3B82F6': 'bg-blue-100 text-blue-800', 
-        '#8B5CF6': 'bg-purple-100 text-purple-800',
-        '#F59E0B': 'bg-yellow-100 text-yellow-800',
-        '#10B981': 'bg-green-100 text-green-800',
-        '#EC4899': 'bg-pink-100 text-pink-800',
-        '#6366F1': 'bg-indigo-100 text-indigo-800',
-        '#14B8A6': 'bg-teal-100 text-teal-800',
-        '#F97316': 'bg-orange-100 text-orange-800'
+function getCategoryBadge(category) {
+    const badges = {
+        alimentacao: 'bg-green-100 text-green-800',
+        transporte: 'bg-blue-100 text-blue-800',
+        escritorio: 'bg-purple-100 text-purple-800',
+        marketing: 'bg-yellow-100 text-yellow-800',
+        outros: 'bg-gray-100 text-gray-800'
     };
-    
-    return colorMap[category.color] || 'bg-gray-100 text-gray-800';
+    return badges[category] || badges.outros;
 }
 
 // Obter nome da categoria
-function getCategoryName(categoryId) {
-    const category = expenseCategories.find(cat => cat.id === categoryId);
-    return category ? category.name : 'Sem categoria';
+function getCategoryName(category) {
+    const names = {
+        alimentacao: 'Alimentação',
+        transporte: 'Transporte',
+        escritorio: 'Escritório',
+        marketing: 'Marketing',
+        outros: 'Outros'
+    };
+    return names[category] || 'Outros';
 }
 
 // Atualizar resumo de despesas
