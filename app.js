@@ -3073,16 +3073,11 @@ async function handleGenerateExpensesPdf(event) {
         // Buscar despesas do período selecionado
         const { data: expensesData, error } = await supabase
             .from('expenses')
-            .select(`
-                *,
-                expense_categories (
-                    name,
-                    color
-                )
-            `)
-            .gte('expense_date', `${year}-${month.toString().padStart(2, '0')}-01`)
-            .lt('expense_date', `${year}-${month === 12 ? year + 1 : year}-${month === 12 ? '01' : (month + 1).toString().padStart(2, '0')}-01`)
-            .order('expense_date', { ascending: true });
+            .select('*')
+            .gte('date', `${year}-${month.toString().padStart(2, '0')}-01`)
+            .lt('date', `${year}-${month === 12 ? year + 1 : year}-${month === 12 ? '01' : (month + 1).toString().padStart(2, '0')}-01`)
+            .eq('user_id', currentUser.id)
+            .order('date', { ascending: true });
 
         if (error) {
             throw error;
@@ -3147,7 +3142,7 @@ async function generateExpensesPdf(expensesData, month, year) {
     const totalPorCategoria = {};
     
     expensesData.forEach(expense => {
-        const categoryName = expense.expense_categories?.name || 'Sem categoria';
+        const categoryName = getCategoryName(expense.category);
         if (!totalPorCategoria[categoryName]) {
             totalPorCategoria[categoryName] = 0;
         }
@@ -3225,9 +3220,9 @@ async function generateExpensesPdf(expensesData, month, year) {
             doc.setFontSize(9);
         }
         
-        const date = new Date(expense.expense_date).toLocaleDateString('pt-BR');
+        const date = new Date(expense.date).toLocaleDateString('pt-BR');
         const description = expense.description || 'Sem descrição';
-        const category = expense.expense_categories?.name || 'Sem categoria';
+        const category = getCategoryName(expense.category);
         const amount = `R$ ${parseFloat(expense.amount).toFixed(2).replace('.', ',')}`;
         
         // Truncar descrição se muito longa
