@@ -390,7 +390,6 @@ async function loadLoans() {
         
         loans = data || [];
         await renderLoansTable();
-        await renderOverdueTable();
         
     } catch (error) {
         console.error('Erro ao carregar empréstimos:', error);
@@ -499,57 +498,7 @@ async function renderLoansTable() {
     tbody.innerHTML = tableHTML;
 }
 
-// Renderizar tabela de empréstimos vencidos
-async function renderOverdueTable() {
-    const overdueLoans = loans.filter(loan => {
-        const dueDate = new Date(loan.due_date);
-        const today = new Date();
-        return dueDate < today && loan.status !== 'paid';
-    });
-    
-    const tbody = document.getElementById('overdueTableBody');
-    
-    if (overdueLoans.length === 0) {
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
-                    Nenhum empréstimo vencido
-                </td>
-            </tr>
-        `;
-        return;
-    }
-    
-    // Renderizar linhas com valores atualizados
-    let tableHTML = '';
-    for (const loan of overdueLoans) {
-        const dueDate = new Date(loan.due_date);
-        const today = new Date();
-        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-        const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-        const remainingAmount = await calculateLoanRemainingAmount(loan.id);
-        
-        tableHTML += `
-            <tr class="table-row">
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${originalTotal.toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${remainingAmount.toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${daysOverdue} dias</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="showPaymentModal('${loan.id}')">💵</button>
-                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
-                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
-                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
-                </td>
-            </tr>
-        `;
-    }
-    
-    tbody.innerHTML = tableHTML;
-}
+
 
 // Renderizar tabela de empréstimos quitados
 async function renderPaidLoansTable() {
@@ -2230,7 +2179,6 @@ async function markLoanAsPaid(loanId) {
                 
                 // Atualizar interface imediatamente sem recarregar do banco
                 await renderLoansTable();
-                await renderOverdueTable();
                 await renderPaidLoansTable();
                 await updateDashboard();
                 await updateCharts();
@@ -2587,7 +2535,6 @@ async function cancelLoan(loanId) {
         
         // Atualizar interface imediatamente
         await renderLoansTable();
-        await renderOverdueTable();
         await updateDashboard();
         await updateCharts();
         
