@@ -1,0 +1,16 @@
+<svg width="120" height="40" viewBox="0 0 120 40" xmlns="http://www.w3.org/2000/svg">
+  <defs>
+    <!-- Text gradient for NEXUS -->
+    <linearGradient id="nexusTextGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00D4FF;stop-opacity:1" />
+      <stop offset="50%" style="stop-color:#00B8DD;stop-opacity:1" />
+      <stop offset="100%" style="stop-color:#0099BB;stop-opacity:1" />
+    </linearGradient>
+  </defs>
+  
+  <!-- NEXUS text -->
+  <text x="60" y="28" font-family="Inter, Arial, sans-serif" font-size="24" font-weight="bold" 
+        text-anchor="middle" fill="url(#nexusTextGradient)" letter-spacing="2px">
+    NEXUS
+  </text>
+</svg>
