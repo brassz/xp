@@ -2796,23 +2796,35 @@ async function handleNewExpense(e) {
 // Carregar despesas
 async function loadExpenses() {
     try {
-        const { data, error } = await supabase
+        // First, get the expenses
+        const { data: expensesData, error: expensesError } = await supabase
             .from('expenses')
-            .select(`
-                *,
-                expense_categories (
-                    id,
-                    name,
-                    color,
-                    icon
-                )
-            `)
+            .select('*')
             .eq('user_id', currentUser.id)
             .order('expense_date', { ascending: false });
             
-        if (error) throw error;
+        if (expensesError) throw expensesError;
         
-        expenses = data || [];
+        // Then, get all categories
+        const { data: categoriesData, error: categoriesError } = await supabase
+            .from('expense_categories')
+            .select('id, name, color, icon')
+            .eq('is_active', true);
+            
+        if (categoriesError) throw categoriesError;
+        
+        // Create a map of categories for quick lookup
+        const categoriesMap = {};
+        (categoriesData || []).forEach(category => {
+            categoriesMap[category.id] = category;
+        });
+        
+        // Join expenses with categories
+        expenses = (expensesData || []).map(expense => ({
+            ...expense,
+            expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null
+        }));
+        
         displayExpenses();
         updateExpensesSummary();
         
