@@ -314,6 +314,9 @@ async function loadData() {
     console.log('Iniciando carregamento de dados...');
     
     try {
+        // Primeiro, testar a conectividade com categorias
+        await testCategoriesConnection();
+        
         await Promise.all([
             loadClients(),
             loadLoans(),
@@ -3477,6 +3480,7 @@ async function generateMonthlyExpensesPDF() {
 
 // Carregar categorias de despesas
 async function loadExpenseCategories() {
+    console.log('🔄 Iniciando carregamento de categorias de despesas...');
     try {
         const { data, error } = await supabase
             .from('expense_categories')
@@ -3484,13 +3488,42 @@ async function loadExpenseCategories() {
             .eq('is_active', true)
             .order('name');
             
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro na consulta do Supabase:', error);
+            throw error;
+        }
         
+        console.log('✅ Dados recebidos do Supabase:', data);
         expenseCategories = data || [];
+        console.log('📊 Categorias carregadas:', expenseCategories.length);
         updateExpenseCategorySelect();
         
     } catch (error) {
-        console.error('Erro ao carregar categorias de despesas:', error);
+        console.error('❌ Erro ao carregar categorias de despesas:', error);
+        
+        // Tentar criar as categorias se a tabela não existir
+        const created = await createDefaultCategories();
+        if (created) {
+            console.log('✅ Categorias criadas com sucesso, tentando carregar novamente...');
+            // Tentar carregar novamente após criar
+            try {
+                const { data: retryData, error: retryError } = await supabase
+                    .from('expense_categories')
+                    .select('*')
+                    .eq('is_active', true)
+                    .order('name');
+                
+                if (!retryError && retryData) {
+                    expenseCategories = retryData;
+                    updateExpenseCategorySelect();
+                    return;
+                }
+            } catch (retryError) {
+                console.log('❌ Erro na segunda tentativa:', retryError);
+            }
+        }
+        
+        console.log('🔄 Usando categorias padrão locais...');
         // Se não conseguir carregar, usar categorias padrão
         expenseCategories = [
             { id: 'default-alimentacao', name: 'Alimentação' },
@@ -3505,19 +3538,140 @@ async function loadExpenseCategories() {
 
 // Atualizar select de categorias
 function updateExpenseCategorySelect() {
+    console.log('🔄 Atualizando select de categorias...');
     const select = document.getElementById('expenseCategory');
-    if (!select) return;
+    if (!select) {
+        console.error('❌ Elemento expenseCategory não encontrado!');
+        return;
+    }
     
+    console.log('📋 Select encontrado, limpando opções existentes...');
     // Limpar opções existentes (exceto a primeira)
     while (select.children.length > 1) {
         select.removeChild(select.lastChild);
     }
     
+    console.log('📝 Adicionando', expenseCategories.length, 'categorias...');
     // Adicionar categorias carregadas
     expenseCategories.forEach(category => {
+        console.log('➕ Adicionando categoria:', category.name, '(ID:', category.id, ')');
         const option = document.createElement('option');
         option.value = category.id;
         option.textContent = category.name;
         select.appendChild(option);
     });
+    
+    console.log('✅ Select de categorias atualizado com sucesso! Total de opções:', select.children.length);
+}
+
+// Função para forçar reload das categorias (pode ser chamada do console)
+window.reloadCategories = async function() {
+    console.log('🔄 Forçando reload das categorias...');
+    try {
+        await loadExpenseCategories();
+        console.log('✅ Categorias recarregadas com sucesso!');
+    } catch (error) {
+        console.error('❌ Erro ao recarregar categorias:', error);
+    }
+}
+
+// Função para testar conectividade com categorias
+async function testCategoriesConnection() {
+    console.log('🧪 Testando conectividade com tabela expense_categories...');
+    try {
+        // Primeiro, verificar se a tabela existe
+        const { data: tables, error: tablesError } = await supabase
+            .from('information_schema.tables')
+            .select('table_name')
+            .eq('table_schema', 'public')
+            .eq('table_name', 'expense_categories');
+            
+        if (tablesError) {
+            console.error('❌ Erro ao verificar tabelas:', tablesError);
+            return false;
+        }
+        
+        console.log('📋 Verificação de tabela:', tables);
+        
+        // Tentar consultar todas as categorias (sem filtro is_active)
+        const { data: allCategories, error: allError } = await supabase
+            .from('expense_categories')
+            .select('*');
+            
+        if (allError) {
+            console.error('❌ Erro ao consultar todas as categorias:', allError);
+            return false;
+        }
+        
+        console.log('📊 Todas as categorias encontradas:', allCategories);
+        
+        // Tentar consultar apenas categorias ativas
+        const { data: activeCategories, error: activeError } = await supabase
+            .from('expense_categories')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
+            
+        if (activeError) {
+            console.error('❌ Erro ao consultar categorias ativas:', activeError);
+            return false;
+        }
+        
+        console.log('✅ Categorias ativas encontradas:', activeCategories);
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Erro no teste de conectividade:', error);
+        return false;
+    }
+}
+
+// Função para criar categorias padrão se não existirem
+async function createDefaultCategories() {
+    console.log('🔄 Tentando criar categorias padrão...');
+    try {
+        // Tentar inserir categorias padrão (a tabela deve existir)
+        const defaultCategories = [
+            { name: 'Alimentação', description: 'Despesas com comida e bebidas', color: '#EF4444', icon: 'utensils' },
+            { name: 'Transporte', description: 'Despesas com locomoção', color: '#3B82F6', icon: 'car' },
+            { name: 'Escritório', description: 'Material de escritório e equipamentos', color: '#8B5CF6', icon: 'briefcase' },
+            { name: 'Marketing', description: 'Despesas com publicidade e marketing', color: '#F59E0B', icon: 'megaphone' },
+            { name: 'Tecnologia', description: 'Equipamentos e software', color: '#10B981', icon: 'laptop' },
+            { name: 'Saúde', description: 'Despesas médicas e farmácia', color: '#EC4899', icon: 'heart' },
+            { name: 'Educação', description: 'Cursos, livros e treinamentos', color: '#6366F1', icon: 'book' },
+            { name: 'Limpeza', description: 'Produtos de limpeza e higiene', color: '#14B8A6', icon: 'spray' },
+            { name: 'Manutenção', description: 'Reparos e manutenções', color: '#F97316', icon: 'wrench' },
+            { name: 'Outros', description: 'Despesas diversas', color: '#6B7280', icon: 'folder' }
+        ];
+        
+        // Tentar inserir uma categoria por vez para evitar conflitos
+        let insertedCount = 0;
+        for (const category of defaultCategories) {
+            try {
+                const { data, error } = await supabase
+                    .from('expense_categories')
+                    .insert([category])
+                    .select();
+                    
+                if (!error && data) {
+                    insertedCount++;
+                    console.log(`✅ Categoria "${category.name}" criada`);
+                } else if (error.code === '23505') {
+                    // Erro de duplicata - categoria já existe
+                    console.log(`ℹ️ Categoria "${category.name}" já existe`);
+                } else {
+                    console.log(`⚠️ Erro ao criar categoria "${category.name}":`, error);
+                }
+            } catch (catError) {
+                console.log(`❌ Erro ao processar categoria "${category.name}":`, catError);
+            }
+        }
+        
+        console.log(`📊 Processo concluído. ${insertedCount} categorias criadas.`);
+        return insertedCount > 0;
+        
+    } catch (error) {
+        console.error('❌ Erro ao criar categorias padrão:', error);
+        return false;
+    }
 }
