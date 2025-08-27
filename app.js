@@ -373,6 +373,8 @@ async function loadClients() {
 // Carregar empréstimos
 async function loadLoans() {
     try {
+        console.log('Iniciando carregamento de empréstimos...');
+        
         const { data, error } = await supabase
             .from('loans')
             .select(`
@@ -386,15 +388,43 @@ async function loadLoans() {
             `)
             .order('created_at', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+            console.error('Erro na consulta de empréstimos:', error);
+            throw error;
+        }
+        
+        console.log('Dados de empréstimos carregados:', data);
+        console.log('Número de empréstimos encontrados:', data ? data.length : 0);
         
         loans = data || [];
+        
+        console.log('Empréstimos armazenados globalmente:', loans.length);
+        
         await renderLoansTable();
         await renderOverdueTable();
         
     } catch (error) {
         console.error('Erro ao carregar empréstimos:', error);
         loans = [];
+        
+        // Exibir mensagem de erro para o usuário
+        const tbody = document.getElementById('loansTableBody');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="px-6 py-8 text-center text-red-400">
+                        <div class="space-y-4">
+                            <p class="text-lg">❌ Erro ao carregar empréstimos</p>
+                            <p class="text-sm">${error.message || 'Erro desconhecido'}</p>
+                            <button onclick="location.reload()" 
+                                    class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors">
+                                🔄 Recarregar Página
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }
     }
 }
 
@@ -444,16 +474,43 @@ function renderClientsTable() {
 
 // Renderizar tabela de empréstimos
 async function renderLoansTable() {
+    console.log('Iniciando renderização da tabela de empréstimos...');
+    console.log('Total de empréstimos na variável global:', loans.length);
+    
     const tbody = document.getElementById('loansTableBody');
+    if (!tbody) {
+        console.error('Elemento loansTableBody não encontrado!');
+        return;
+    }
     
     // Filtrar apenas empréstimos ativos (não quitados)
     const activeLoans = loans.filter(loan => loan.status !== 'paid');
+    console.log('Empréstimos ativos após filtro:', activeLoans.length);
     
     if (activeLoans.length === 0) {
+        console.log('Nenhum empréstimo ativo encontrado. Exibindo mensagem de lista vazia.');
         tbody.innerHTML = `
             <tr>
                 <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                    Nenhum empréstimo ativo
+                    <div class="space-y-4">
+                        <p class="text-lg">${loans.length === 0 ? 'Nenhum empréstimo cadastrado ainda' : 'Nenhum empréstimo ativo (todos estão quitados)'}</p>
+                        ${loans.length === 0 ? `
+                        <div class="space-y-2">
+                            <p class="text-sm text-gray-500">Crie seu primeiro empréstimo para começar</p>
+                            <button onclick="document.getElementById('newLoanBtn').click()" 
+                                    class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors">
+                                ➕ Criar Primeiro Empréstimo
+                            </button>
+                            <br>
+                            <button onclick="createTestLoan()" 
+                                    class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg text-white text-sm font-medium transition-colors">
+                                🧪 Criar Empréstimo de Teste
+                            </button>
+                        </div>
+                        ` : `
+                        <p class="text-sm text-gray-500">Todos os empréstimos foram quitados</p>
+                        `}
+                    </div>
                 </td>
             </tr>
         `;
@@ -496,7 +553,9 @@ async function renderLoansTable() {
         `;
     }
     
+    console.log('Finalizando renderização da tabela. HTML gerado para', activeLoans.length, 'empréstimos.');
     tbody.innerHTML = tableHTML;
+    console.log('Tabela de empréstimos renderizada com sucesso!');
 }
 
 // Renderizar tabela de empréstimos vencidos
@@ -4413,3 +4472,164 @@ installmentPaymentModal.addEventListener('click', function(e) {
 // ===================================================
 // FIM DAS FUNCIONALIDADES DE PARCELAMENTO
 // ===================================================
+
+// ===================================================
+// FUNÇÃO DE DEBUG TEMPORÁRIA
+// ===================================================
+async function debugDatabaseStatus() {
+    console.log('=== DEBUG: Status da Base de Dados ===');
+    
+    try {
+        // Verificar conectividade
+        console.log('1. Testando conectividade com Supabase...');
+        const { data: testData, error: testError } = await supabase
+            .from('loans')
+            .select('count')
+            .limit(1);
+        
+        if (testError) {
+            console.error('❌ Erro de conectividade:', testError);
+            return;
+        } else {
+            console.log('✅ Conectividade OK');
+        }
+        
+        // Contar empréstimos totais
+        console.log('2. Verificando dados na tabela loans...');
+        const { data: allLoans, error: loansError } = await supabase
+            .from('loans')
+            .select('*');
+            
+        if (loansError) {
+            console.error('❌ Erro ao buscar empréstimos:', loansError);
+        } else {
+            console.log(`📊 Total de empréstimos na tabela: ${allLoans.length}`);
+            if (allLoans.length > 0) {
+                console.log('Exemplo de empréstimo:', allLoans[0]);
+                
+                // Verificar status dos empréstimos
+                const statusCount = {};
+                allLoans.forEach(loan => {
+                    statusCount[loan.status || 'undefined'] = (statusCount[loan.status || 'undefined'] || 0) + 1;
+                });
+                console.log('Status dos empréstimos:', statusCount);
+            }
+        }
+        
+        // Contar empréstimos quitados
+        console.log('3. Verificando empréstimos quitados...');
+        const { data: paidLoans, error: paidError } = await supabase
+            .from('paid_loans')
+            .select('*');
+            
+        if (paidError) {
+            console.error('❌ Erro ao buscar empréstimos quitados:', paidError);
+        } else {
+            console.log(`📊 Total de empréstimos quitados: ${paidLoans.length}`);
+        }
+        
+        // Verificar clientes
+        console.log('4. Verificando clientes...');
+        const { data: allClients, error: clientsError } = await supabase
+            .from('clients')
+            .select('*');
+            
+        if (clientsError) {
+            console.error('❌ Erro ao buscar clientes:', clientsError);
+        } else {
+            console.log(`📊 Total de clientes: ${allClients.length}`);
+        }
+        
+        // Status das variáveis globais
+        console.log('5. Status das variáveis globais:');
+        console.log(`- loans array: ${loans.length} itens`);
+        console.log(`- clients array: ${clients.length} itens`);
+        
+    } catch (error) {
+        console.error('❌ Erro geral no debug:', error);
+    }
+    
+    console.log('=== FIM DEBUG ===');
+}
+
+// Função para criar empréstimo de teste
+async function createTestLoan() {
+    try {
+        console.log('🧪 Criando empréstimo de teste...');
+        
+        // Primeiro, verificar se há clientes
+        if (clients.length === 0) {
+            showInfoMessage('Criando cliente de teste primeiro...');
+            
+            // Criar cliente de teste
+            const { data: newClient, error: clientError } = await supabase
+                .from('clients')
+                .insert([{
+                    name: 'João Silva (TESTE)',
+                    cpf: '000.000.000-00',
+                    email: 'joao.teste@email.com',
+                    phone: '(11) 99999-9999',
+                    address: 'Rua de Teste, 123 - Centro',
+                    created_by: currentUser?.id || 'system'
+                }])
+                .select()
+                .single();
+                
+            if (clientError) throw clientError;
+            
+            // Adicionar à lista local
+            clients.push(newClient);
+            renderClientsTable();
+        }
+        
+        // Criar empréstimo de teste
+        const testClient = clients[0]; // Usar o primeiro cliente
+        const loanDate = new Date().toISOString().split('T')[0];
+        const dueDate = new Date();
+        dueDate.setMonth(dueDate.getMonth() + 1);
+        const dueDateStr = dueDate.toISOString().split('T')[0];
+        
+        const { data: newLoan, error: loanError } = await supabase
+            .from('loans')
+            .insert([{
+                client_id: testClient.id,
+                amount: 1000.00,
+                interest_rate: 10.0,
+                loan_date: loanDate,
+                due_date: dueDateStr,
+                status: 'active',
+                created_by: currentUser?.id || 'system'
+            }])
+            .select(`
+                *,
+                clients (
+                    name,
+                    cpf,
+                    email,
+                    phone
+                )
+            `)
+            .single();
+            
+        if (loanError) throw loanError;
+        
+        // Adicionar à lista local
+        loans.push(newLoan);
+        
+        // Atualizar interface
+        await renderLoansTable();
+        await updateDashboard();
+        
+        showSuccessMessage('✅ Empréstimo de teste criado com sucesso!\n\nCliente: João Silva (TESTE)\nValor: R$ 1.000,00\nJuros: 10%\nVencimento: ' + new Date(dueDateStr).toLocaleDateString('pt-BR'));
+        
+    } catch (error) {
+        console.error('Erro ao criar empréstimo de teste:', error);
+        showErrorMessage('Erro ao criar empréstimo de teste: ' + error.message);
+    }
+}
+
+// Chamar debug automaticamente após um delay
+setTimeout(() => {
+    console.log('🔍 Iniciando diagnóstico automático...');
+    debugDatabaseStatus();
+}, 3000);
