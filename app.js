@@ -2928,7 +2928,7 @@ async function generateContract(loanId) {
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("CLÁUSULA TERCEIRA - DOS ENCARGOS PELO EMPRÉSTIMO", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
-        const clausula3Text = `3.1. O mútuo será acrescido de juros de ${loan.interest_rate}% ao mês e multa de 10% sobre o valor da parcela vencida, além de correção monetária pelo IGPM/FGV.`;
+        const clausula3Text = `3.1. O mútuo será acrescido de juros de 1% ao mês e multa de 10% sobre o valor da parcela vencida, além de correção monetária pelo IGPM/FGV.`;
         yPosition = addWrappedText(clausula3Text, margin, yPosition, maxWidth) + 3;
 
         // Verificar se precisa de nova página (mais permissivo)
