@@ -2883,7 +2883,7 @@ function displayExpenses() {
 
             <td class="px-6 py-4">
                 <div class="flex space-x-2">
-                    <button onclick="deleteExpense(${expense.id})" class="text-red-400 hover:text-red-300 p-1">
+                    <button onclick="deleteExpense('${expense.id}')" class="text-red-400 hover:text-red-300 p-1" title="Excluir despesa">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                         </svg>
@@ -2950,22 +2950,76 @@ function updateExpensesSummary() {
 // Excluir despesa
 async function deleteExpense(expenseId) {
     try {
-        const expense = expenses.find(e => e.id === expenseId);
-        if (!expense) return;
+        console.log('deleteExpense chamada com ID:', expenseId, 'Tipo:', typeof expenseId);
         
-        if (!confirm(`Tem certeza que deseja excluir a despesa "${expense.description}"?`)) {
+        // Garantir que o ID seja uma string
+        const id = String(expenseId);
+        
+        const expense = expenses.find(e => String(e.id) === id);
+        if (!expense) {
+            console.error('Despesa não encontrada. ID procurado:', id);
+            console.log('Despesas disponíveis:', expenses.map(e => ({ id: e.id, title: e.title || e.description })));
+            showInfoMessage('Despesa não encontrada.');
             return;
         }
         
-        const { error } = await supabase
+        console.log('Despesa encontrada:', expense);
+        
+        // Usar modal de confirmação ao invés de confirm simples
+        const title = expense.title || expense.description || 'esta despesa';
+        showConfirmationModal(
+            'Excluir Despesa',
+            `Tem certeza que deseja excluir a despesa "${title}"? Esta ação não pode ser desfeita.`,
+            () => performDeleteExpense(id),
+            'Excluir'
+        );
+        
+    } catch (error) {
+        console.error('Erro ao excluir despesa:', error);
+        showInfoMessage('Erro ao excluir despesa: ' + error.message);
+    }
+}
+
+// Executar exclusão da despesa
+async function performDeleteExpense(expenseId) {
+    try {
+        console.log('Tentando excluir despesa com ID:', expenseId, 'Tipo:', typeof expenseId);
+        
+        // Garantir que o ID seja uma string
+        const id = String(expenseId);
+        
+        // Verificar se a despesa existe antes de tentar excluir
+        const expense = expenses.find(e => String(e.id) === id);
+        if (!expense) {
+            console.error('Despesa não encontrada para exclusão. ID:', id);
+            showErrorMessage('Despesa não encontrada.');
+            return;
+        }
+        
+        console.log('Excluindo despesa:', expense);
+        
+        const { data, error } = await supabase
             .from('expenses')
             .delete()
-            .eq('id', expenseId);
+            .eq('id', id)
+            .select();
             
-        if (error) throw error;
+        if (error) {
+            console.error('Erro do Supabase ao excluir despesa:', error);
+            throw error;
+        }
         
-        // Remover da lista local
-        expenses = expenses.filter(e => e.id !== expenseId);
+        console.log('Despesa excluída do banco de dados com sucesso. Dados retornados:', data);
+        
+        // Remover da lista local usando filter para garantir que funcione
+        const originalLength = expenses.length;
+        expenses = expenses.filter(e => String(e.id) !== id);
+        
+        if (expenses.length < originalLength) {
+            console.log('Despesa removida da lista local. Quantidade antes:', originalLength, 'Depois:', expenses.length);
+        } else {
+            console.warn('Despesa não foi removida da lista local. Pode haver problema com o ID.');
+        }
         
         // Atualizar interface
         displayExpenses();
@@ -2975,7 +3029,7 @@ async function deleteExpense(expenseId) {
         
     } catch (error) {
         console.error('Erro ao excluir despesa:', error);
-        showInfoMessage('Erro ao excluir despesa: ' + error.message);
+        showErrorMessage('Erro ao excluir despesa: ' + error.message);
     }
 }
 
