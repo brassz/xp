@@ -13,6 +13,7 @@ let currentUser = null;
 let clients = [];
 let loans = [];
 let expenses = [];
+let expenseCategories = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
@@ -95,8 +96,8 @@ function setupEventListeners() {
     newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
     newExpenseBtn.addEventListener('click', () => {
         showModal(newExpenseModal);
-
         setDefaultExpenseDate();
+        populateExpenseCategories();
     });
     
     // Fechar modais
@@ -280,6 +281,7 @@ async function loadData() {
         await Promise.all([
             loadClients(),
             loadLoans(),
+            loadExpenseCategories(),
             loadExpenses()
         ]);
         
@@ -2622,6 +2624,24 @@ function setDefaultExpenseDate() {
     document.getElementById('expenseDate').value = today;
 }
 
+// Preencher categorias de despesas no select
+function populateExpenseCategories() {
+    const select = document.getElementById('expenseCategory');
+    
+    // Limpar opções existentes (exceto a primeira)
+    const defaultOption = select.querySelector('option[value=""]');
+    select.innerHTML = '';
+    select.appendChild(defaultOption);
+    
+    // Adicionar categorias carregadas do banco
+    expenseCategories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        select.appendChild(option);
+    });
+}
+
 
 
 
@@ -2641,14 +2661,14 @@ async function handleNewExpense(e) {
 
         
         const expenseData = {
-            description: description,
-            category: category,
+            title: description, // Changed from 'description' to 'title' to match database schema
+            description: notes, // Notes go to description field
+            category_id: category, // Changed from 'category' to 'category_id'
             amount: amount,
-            date: date,
-            notes: notes,
-
-            created_at: new Date().toISOString(),
-            user_id: currentUser.id
+            expense_date: date, // Changed from 'date' to 'expense_date' to match database schema
+            user_id: currentUser.id,
+            created_by: currentUser.id, // Required by RLS policy
+            status: 'pending' // Default status
         };
         
         // Inserir no banco de dados
@@ -2679,6 +2699,25 @@ async function handleNewExpense(e) {
     }
 }
 
+// Carregar categorias de despesas
+async function loadExpenseCategories() {
+    try {
+        const { data, error } = await supabase
+            .from('expense_categories')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
+            
+        if (error) throw error;
+        
+        expenseCategories = data || [];
+        
+    } catch (error) {
+        console.error('Erro ao carregar categorias:', error);
+        showInfoMessage('Erro ao carregar categorias: ' + error.message);
+    }
+}
+
 // Carregar despesas
 async function loadExpenses() {
     try {
@@ -2686,7 +2725,7 @@ async function loadExpenses() {
             .from('expenses')
             .select('*')
             .eq('user_id', currentUser.id)
-            .order('date', { ascending: false });
+            .order('expense_date', { ascending: false });
             
         if (error) throw error;
         
@@ -2725,20 +2764,20 @@ function displayExpenses() {
         <tr class="table-row">
             <td class="px-6 py-4">
                 <div>
-                    <p class="text-white font-medium">${expense.description}</p>
-                    ${expense.notes ? `<p class="text-gray-400 text-sm">${expense.notes}</p>` : ''}
+                    <p class="text-white font-medium">${expense.title}</p>
+                    ${expense.description ? `<p class="text-gray-400 text-sm">${expense.description}</p>` : ''}
                 </div>
             </td>
             <td class="px-6 py-4">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadge(expense.category)}">
-                    ${getCategoryName(expense.category)}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadge(expense.category_id)}">
+                    ${getCategoryName(expense.category_id)}
                 </span>
             </td>
             <td class="px-6 py-4">
                 <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
             </td>
             <td class="px-6 py-4">
-                <span class="text-gray-300">${formatDate(expense.date)}</span>
+                <span class="text-gray-300">${formatDate(expense.expense_date)}</span>
             </td>
 
             <td class="px-6 py-4">
@@ -2755,27 +2794,30 @@ function displayExpenses() {
 }
 
 // Obter classe CSS para badge da categoria
-function getCategoryBadge(category) {
-    const badges = {
-        alimentacao: 'bg-green-100 text-green-800',
-        transporte: 'bg-blue-100 text-blue-800',
-        escritorio: 'bg-purple-100 text-purple-800',
-        marketing: 'bg-yellow-100 text-yellow-800',
-        outros: 'bg-gray-100 text-gray-800'
+function getCategoryBadge(categoryId) {
+    const category = expenseCategories.find(cat => cat.id === categoryId);
+    if (!category) return 'bg-gray-100 text-gray-800';
+    
+    // Gerar classe baseada na cor da categoria
+    const colorMap = {
+        '#EF4444': 'bg-red-100 text-red-800',
+        '#3B82F6': 'bg-blue-100 text-blue-800', 
+        '#8B5CF6': 'bg-purple-100 text-purple-800',
+        '#F59E0B': 'bg-yellow-100 text-yellow-800',
+        '#10B981': 'bg-green-100 text-green-800',
+        '#EC4899': 'bg-pink-100 text-pink-800',
+        '#6366F1': 'bg-indigo-100 text-indigo-800',
+        '#14B8A6': 'bg-teal-100 text-teal-800',
+        '#F97316': 'bg-orange-100 text-orange-800'
     };
-    return badges[category] || badges.outros;
+    
+    return colorMap[category.color] || 'bg-gray-100 text-gray-800';
 }
 
 // Obter nome da categoria
-function getCategoryName(category) {
-    const names = {
-        alimentacao: 'Alimentação',
-        transporte: 'Transporte',
-        escritorio: 'Escritório',
-        marketing: 'Marketing',
-        outros: 'Outros'
-    };
-    return names[category] || 'Outros';
+function getCategoryName(categoryId) {
+    const category = expenseCategories.find(cat => cat.id === categoryId);
+    return category ? category.name : 'Sem categoria';
 }
 
 // Atualizar resumo de despesas
