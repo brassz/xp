@@ -1,48 +1,56 @@
-<svg width="400" height="300" viewBox="0 0 400 300" xmlns="http://www.w3.org/2000/svg">
+<svg width="200" height="60" viewBox="0 0 200 60" xmlns="http://www.w3.org/2000/svg">
   <defs>
-    <!-- Background gradient -->
-    <radialGradient id="backgroundGradient" cx="50%" cy="50%" r="70%">
-      <stop offset="0%" style="stop-color:#8b5cf6;stop-opacity:0.3"/>
-      <stop offset="50%" style="stop-color:#3b82f6;stop-opacity:0.5"/>
-      <stop offset="100%" style="stop-color:#1e40af;stop-opacity:0.8"/>
+    <!-- Main brand gradient -->
+    <linearGradient id="brandGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#00d4aa"/>
+      <stop offset="50%" style="stop-color:#00b4d8"/>
+      <stop offset="100%" style="stop-color:#0077b6"/>
+    </linearGradient>
+    
+    <!-- Logo circle gradient -->
+    <radialGradient id="logoCircleGradient" cx="50%" cy="50%" r="50%">
+      <stop offset="0%" style="stop-color:#023e8a" stop-opacity="0.1"/>
+      <stop offset="100%" style="stop-color:#03045e" stop-opacity="0.2"/>
     </radialGradient>
     
-    <!-- Text gradient for NEXUS -->
-    <linearGradient id="nexusGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#3b82f6"/>
-      <stop offset="50%" style="stop-color:#8b5cf6"/>
-      <stop offset="100%" style="stop-color:#ec4899"/>
+    <!-- Text gradient -->
+    <linearGradient id="textGradient" x1="0%" y1="0%" x2="100%" y2="0%">
+      <stop offset="0%" style="stop-color:#ffffff"/>
+      <stop offset="100%" style="stop-color:#caf0f8"/>
     </linearGradient>
     
-    <!-- Text gradient for subtitle -->
-    <linearGradient id="subtitleGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-      <stop offset="0%" style="stop-color:#06b6d4"/>
-      <stop offset="100%" style="stop-color:#10b981"/>
-    </linearGradient>
+    <!-- Shadow filter -->
+    <filter id="textShadow" x="-50%" y="-50%" width="200%" height="200%">
+      <feDropShadow dx="0" dy="1" stdDeviation="2" flood-color="#000000" flood-opacity="0.3"/>
+    </filter>
   </defs>
   
-  <!-- Background -->
-  <rect width="400" height="300" fill="url(#backgroundGradient)"/>
+  <!-- Logo circle background -->
+  <circle cx="30" cy="30" r="28" fill="url(#logoCircleGradient)" stroke="url(#brandGradient)" stroke-width="2"/>
   
-  <!-- Light rays effect -->
-  <g opacity="0.6">
-    <line x1="200" y1="150" x2="50" y2="50" stroke="#f59e0b" stroke-width="2" opacity="0.3"/>
-    <line x1="200" y1="150" x2="100" y2="30" stroke="#f59e0b" stroke-width="1.5" opacity="0.4"/>
-    <line x1="200" y1="150" x2="300" y2="30" stroke="#ec4899" stroke-width="1.5" opacity="0.4"/>
-    <line x1="200" y1="150" x2="350" y2="50" stroke="#ec4899" stroke-width="2" opacity="0.3"/>
-    <line x1="200" y1="150" x2="370" y2="120" stroke="#8b5cf6" stroke-width="1" opacity="0.5"/>
-    <line x1="200" y1="150" x2="30" y2="120" stroke="#8b5cf6" stroke-width="1" opacity="0.5"/>
+  <!-- Letter N in circle -->
+  <g transform="translate(20, 18)">
+    <rect x="0" y="0" width="4" height="16" fill="url(#textGradient)" rx="1"/>
+    <rect x="12" y="0" width="4" height="16" fill="url(#textGradient)" rx="1"/>
+    <path d="M 4 13 L 4 3 L 12 13 L 12 16 L 9 16 Z" fill="url(#textGradient)"/>
   </g>
   
-  <!-- NEXUS text -->
-  <text x="200" y="180" font-family="Arial, sans-serif" font-size="48" font-weight="bold" 
-        text-anchor="middle" fill="url(#nexusGradient)" letter-spacing="2px">
-    NEXUS
-  </text>
+  <!-- Chart bars in circle -->
+  <g transform="translate(42, 22)">
+    <rect x="0" y="6" width="2" height="6" fill="url(#brandGradient)" rx="1"/>
+    <rect x="3" y="4" width="2" height="8" fill="url(#brandGradient)" rx="1"/>
+    <rect x="6" y="2" width="2" height="10" fill="url(#brandGradient)" rx="1"/>
+    <rect x="9" y="5" width="2" height="7" fill="url(#brandGradient)" rx="1"/>
+  </g>
+  
+  <!-- Brand text "NEXUS" -->
+  <text x="70" y="25" font-family="Inter, sans-serif" font-size="24" font-weight="700" fill="url(#textGradient)" filter="url(#textShadow)">NEXUS</text>
   
   <!-- Subtitle -->
-  <text x="200" y="210" font-family="Arial, sans-serif" font-size="16" font-weight="500" 
-        text-anchor="middle" fill="url(#subtitleGradient)" letter-spacing="3px">
-    CONTROLE FINANCEIRO
-  </text>
+  <text x="70" y="42" font-family="Inter, sans-serif" font-size="11" font-weight="400" fill="#48cae4" opacity="0.8">GESTÃO FINANCEIRA</text>
+  
+  <!-- Decorative elements -->
+  <circle cx="185" cy="15" r="1" fill="#48cae4" opacity="0.6"/>
+  <circle cx="190" cy="25" r="1.5" fill="#00b4d8" opacity="0.5"/>
+  <circle cx="185" cy="35" r="1" fill="#48cae4" opacity="0.6"/>
 </svg>
