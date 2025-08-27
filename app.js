@@ -41,6 +41,7 @@ const newExpenseModal = document.getElementById('newExpenseModal');
 const newClientBtn = document.getElementById('newClientBtn');
 const newLoanBtn = document.getElementById('newLoanBtn');
 const newExpenseBtn = document.getElementById('newExpenseBtn');
+const generatePdfBtn = document.getElementById('generatePdfBtn');
 
 // Formulários
 const newClientForm = document.getElementById('newClientForm');
@@ -98,6 +99,7 @@ function setupEventListeners() {
 
         setDefaultExpenseDate();
     });
+    generatePdfBtn.addEventListener('click', generateMonthlyLoansPDF);
     
     // Fechar modais
     document.getElementById('closeClientModal').addEventListener('click', () => hideModal(newClientModal));
@@ -3016,5 +3018,157 @@ async function generateContract(loanId) {
     } catch (error) {
         console.error('Erro ao gerar contrato:', error);
         showInfoMessage('Erro ao gerar contrato: ' + error.message);
+    }
+}
+
+// Função para gerar PDF dos empréstimos do último mês
+async function generateMonthlyLoansPDF() {
+    try {
+        // Calcular data de um mês atrás
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        
+        // Filtrar empréstimos do último mês
+        const monthlyLoans = loans.filter(loan => {
+            const loanDate = new Date(loan.created_at);
+            return loanDate >= oneMonthAgo;
+        });
+
+        if (monthlyLoans.length === 0) {
+            showInfoMessage('Nenhum empréstimo foi encontrado no último mês.');
+            return;
+        }
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO DE EMPRÉSTIMOS - ÚLTIMO MÊS', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const periodText = `Período: ${oneMonthAgo.toLocaleDateString('pt-BR')} a ${new Date().toLocaleDateString('pt-BR')}`;
+        doc.text(periodText, 105, 30, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 40);
+        
+        // Linha divisória
+        doc.line(20, 45, 190, 45);
+        
+        let yPosition = 55;
+        
+        // Resumo
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO', 20, yPosition);
+        yPosition += 10;
+        
+        const totalAmount = monthlyLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+        const totalInterest = monthlyLoans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
+        const totalWithInterest = totalAmount + totalInterest;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de empréstimos: ${monthlyLoans.length}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total emprestado: R$ ${totalAmount.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de juros: R$ ${totalInterest.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total com juros: R$ ${totalWithInterest.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 15;
+        
+        // Cabeçalho da tabela
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALHAMENTO DOS EMPRÉSTIMOS', 20, yPosition);
+        yPosition += 10;
+        
+        // Cabeçalhos das colunas
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Data', 20, yPosition);
+        doc.text('Cliente', 40, yPosition);
+        doc.text('Valor', 100, yPosition);
+        doc.text('Juros%', 130, yPosition);
+        doc.text('Total', 150, yPosition);
+        doc.text('Status', 175, yPosition);
+        yPosition += 5;
+        
+        // Linha divisória
+        doc.line(20, yPosition, 190, yPosition);
+        yPosition += 5;
+        
+        // Dados dos empréstimos
+        doc.setFont('helvetica', 'normal');
+        
+        for (const loan of monthlyLoans) {
+            // Verificar se precisa de nova página
+            if (yPosition > 270) {
+                doc.addPage();
+                yPosition = 20;
+                
+                // Repetir cabeçalho na nova página
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Data', 20, yPosition);
+                doc.text('Cliente', 40, yPosition);
+                doc.text('Valor', 100, yPosition);
+                doc.text('Juros%', 130, yPosition);
+                doc.text('Total', 150, yPosition);
+                doc.text('Status', 175, yPosition);
+                yPosition += 5;
+                doc.line(20, yPosition, 190, yPosition);
+                yPosition += 5;
+                doc.setFont('helvetica', 'normal');
+            }
+            
+            const loanDate = new Date(loan.created_at).toLocaleDateString('pt-BR');
+            const clientName = loan.clients ? loan.clients.name : 'Cliente não encontrado';
+            const amount = parseFloat(loan.amount);
+            const interestRate = parseFloat(loan.interest_rate);
+            const totalWithInterestLoan = amount + (amount * interestRate / 100);
+            
+            // Truncar nome do cliente se for muito longo
+            const truncatedName = clientName.length > 25 ? clientName.substring(0, 22) + '...' : clientName;
+            
+            doc.text(loanDate, 20, yPosition);
+            doc.text(truncatedName, 40, yPosition);
+            doc.text(`R$ ${amount.toFixed(2).replace('.', ',')}`, 100, yPosition);
+            doc.text(`${interestRate.toFixed(1)}%`, 130, yPosition);
+            doc.text(`R$ ${totalWithInterestLoan.toFixed(2).replace('.', ',')}`, 150, yPosition);
+            doc.text(loan.status === 'active' ? 'Ativo' : loan.status === 'paid' ? 'Pago' : 'Cancelado', 175, yPosition);
+            
+            yPosition += 6;
+        }
+        
+        // Rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${pageCount}`, 190, 290, { align: 'right' });
+            doc.text('Nexus Gestão Financeira', 20, 290);
+        }
+        
+        // Salvar o PDF
+        const fileName = `Emprestimos_Ultimo_Mes_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+
+        showSuccessMessage(`PDF gerado com sucesso! ${monthlyLoans.length} empréstimos encontrados.`);
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF dos empréstimos:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
 }
