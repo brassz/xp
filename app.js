@@ -3799,7 +3799,7 @@ async function loadOverdueLoansForInstallment() {
                 id,
                 client_id,
                 amount,
-                remaining_amount,
+                total_amount,
                 due_date,
                 clients (name)
             `)
@@ -3816,9 +3816,9 @@ async function loadOverdueLoansForInstallment() {
             const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
             const option = document.createElement('option');
             option.value = loan.id;
-            option.textContent = `${loan.clients.name} - R$ ${loan.remaining_amount.toFixed(2)} (${daysOverdue} dias vencido)`;
+            option.textContent = `${loan.clients.name} - R$ ${loan.total_amount.toFixed(2)} (${daysOverdue} dias vencido)`;
             option.dataset.clientName = loan.clients.name;
-            option.dataset.remainingAmount = loan.remaining_amount;
+            option.dataset.totalAmount = loan.total_amount;
             option.dataset.clientId = loan.client_id;
             loanSelect.appendChild(option);
         });
@@ -3834,7 +3834,7 @@ document.getElementById('installmentLoanId').addEventListener('change', function
     const selectedOption = this.options[this.selectedIndex];
     if (selectedOption.value) {
         document.getElementById('installmentClientName').value = selectedOption.dataset.clientName;
-        document.getElementById('installmentTotalAmount').value = selectedOption.dataset.remainingAmount;
+        document.getElementById('installmentTotalAmount').value = selectedOption.dataset.totalAmount;
     } else {
         document.getElementById('installmentClientName').value = '';
         document.getElementById('installmentTotalAmount').value = '';
@@ -3949,10 +3949,10 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
 
         if (paymentsError) throw paymentsError;
 
-        // Atualizar status do empréstimo para "parcelado" (assumindo que existe essa opção)
+        // Atualizar status do empréstimo para "partial_paid" (parcelamento ativo)
         const { error: loanUpdateError } = await supabase
             .from('loans')
-            .update({ status: 'installment' })
+            .update({ status: 'partial_paid' })
             .eq('id', loanId);
 
         if (loanUpdateError) {
@@ -4321,7 +4321,7 @@ async function loadOverdueLoansForInstallmentTable() {
                 id,
                 client_id,
                 amount,
-                remaining_amount,
+                total_amount,
                 due_date,
                 clients (name)
             `)
@@ -4353,7 +4353,7 @@ async function loadOverdueLoansForInstallmentTable() {
                 <tr class="table-row hover:bg-gray-700 transition-colors">
                     <td class="px-6 py-4 text-white">${loan.clients.name}</td>
                     <td class="px-6 py-4 text-white">R$ ${loan.amount.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-white">R$ ${loan.remaining_amount.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-white">R$ ${loan.total_amount.toFixed(2)}</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-900 text-red-300">
                             ${daysOverdue} dias
