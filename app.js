@@ -57,11 +57,37 @@ const paymentForm = document.getElementById('paymentForm');
 const newExpenseForm = document.getElementById('newExpenseForm');
 
 // Inicialização da aplicação
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
-    setupEventListeners();
-    setupUploadcare();
+document.addEventListener('DOMContentLoaded', async function() {
+    console.log('🚀 DOM carregado, inicializando aplicação...');
+    
+    try {
+        await initializeApp();
+        setupEventListeners();
+        setupUploadcare();
+        console.log('✅ Aplicação inicializada com sucesso');
+    } catch (error) {
+        console.error('❌ Erro na inicialização da aplicação:', error);
+    }
 });
+
+// Aguardar que elementos DOM críticos estejam disponíveis
+async function waitForDOM() {
+    return new Promise((resolve) => {
+        const checkElements = () => {
+            const loansTable = document.getElementById('loansTableBody');
+            const clientsTable = document.getElementById('clientsTableBody');
+            
+            if (loansTable && clientsTable) {
+                console.log('✅ Elementos DOM críticos encontrados');
+                resolve();
+            } else {
+                console.log('⏳ Aguardando elementos DOM...');
+                setTimeout(checkElements, 100);
+            }
+        };
+        checkElements();
+    });
+}
 
 // Inicializar aplicação
 async function initializeApp() {
@@ -74,10 +100,9 @@ async function initializeApp() {
             // Verificar e criar tabelas se necessário
             await createTablesIfNotExist();
             
-            // Aguardar um pouco para garantir que o DOM esteja pronto
-            setTimeout(async () => {
-                await loadData();
-            }, 100);
+            // Aguardar que o DOM esteja completamente pronto
+            await waitForDOM();
+            await loadData();
         } catch (error) {
             localStorage.removeItem('nexusUser');
             showLogin();
@@ -329,12 +354,11 @@ async function loadData() {
         // Primeiro, testar a conectividade com categorias
         await testCategoriesConnection();
         
-        await Promise.all([
-            loadClients(),
-            loadLoans(),
-            loadExpenses(),
-            loadExpenseCategories()
-        ]);
+        // Carregar dados sequencialmente para melhor controle de erros
+        await loadClients();
+        await loadLoans();
+        await loadExpenses();
+        await loadExpenseCategories();
         
         // Carregar empréstimos quitados separadamente
         await renderPaidLoansTable();
@@ -400,7 +424,7 @@ async function loadLoans() {
         
         console.log('Empréstimos armazenados globalmente:', loans.length);
         
-        await renderLoansTable();
+        await safeRenderLoansTable();
         await renderOverdueTable();
         
     } catch (error) {
@@ -424,6 +448,8 @@ async function loadLoans() {
                     </td>
                 </tr>
             `;
+        } else {
+            console.error('Elemento loansTableBody não encontrado! DOM pode não estar pronto.');
         }
     }
 }
@@ -479,7 +505,12 @@ async function renderLoansTable() {
     
     const tbody = document.getElementById('loansTableBody');
     if (!tbody) {
-        console.error('Elemento loansTableBody não encontrado!');
+        console.error('Elemento loansTableBody não encontrado! DOM pode não estar pronto.');
+        // Tentar novamente após um delay
+        setTimeout(() => {
+            console.log('Tentando renderizar tabela novamente...');
+            renderLoansTable();
+        }, 1000);
         return;
     }
     
@@ -4545,11 +4576,24 @@ async function debugDatabaseStatus() {
         console.log(`- loans array: ${loans.length} itens`);
         console.log(`- clients array: ${clients.length} itens`);
         
+        // Verificar elementos DOM críticos
+        console.log('6. Verificando elementos DOM:');
+        const loansTable = document.getElementById('loansTableBody');
+        const clientsTable = document.getElementById('clientsTableBody');
+        console.log(`- loansTableBody: ${loansTable ? 'Encontrado' : 'NÃO ENCONTRADO'}`);
+        console.log(`- clientsTableBody: ${clientsTable ? 'Encontrado' : 'NÃO ENCONTRADO'}`);
+        
     } catch (error) {
         console.error('❌ Erro geral no debug:', error);
     }
     
     console.log('=== FIM DEBUG ===');
+}
+
+// Função para forçar re-renderização segura da tabela
+async function safeRenderLoansTable() {
+    await waitForDOM();
+    await renderLoansTable();
 }
 
 // Função para criar empréstimo de teste
