@@ -13,6 +13,7 @@ let currentUser = null;
 let clients = [];
 let loans = [];
 let expenses = [];
+let expenseCategories = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
@@ -95,7 +96,6 @@ function setupEventListeners() {
     newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
     newExpenseBtn.addEventListener('click', () => {
         showModal(newExpenseModal);
-
         setDefaultExpenseDate();
     });
     
@@ -2622,6 +2622,24 @@ function setDefaultExpenseDate() {
     document.getElementById('expenseDate').value = today;
 }
 
+// Preencher categorias de despesas no select
+function populateExpenseCategories() {
+    const select = document.getElementById('expenseCategory');
+    
+    // Limpar opções existentes (exceto a primeira)
+    const defaultOption = select.querySelector('option[value=""]');
+    select.innerHTML = '';
+    select.appendChild(defaultOption);
+    
+    // Adicionar categorias carregadas do banco
+    expenseCategories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        select.appendChild(option);
+    });
+}
+
 
 
 
@@ -2646,8 +2664,6 @@ async function handleNewExpense(e) {
             amount: amount,
             date: date,
             notes: notes,
-
-            created_at: new Date().toISOString(),
             user_id: currentUser.id
         };
         
@@ -2676,6 +2692,25 @@ async function handleNewExpense(e) {
     } catch (error) {
         console.error('Erro ao criar despesa:', error);
         showInfoMessage('Erro ao criar despesa: ' + error.message);
+    }
+}
+
+// Carregar categorias de despesas
+async function loadExpenseCategories() {
+    try {
+        const { data, error } = await supabase
+            .from('expense_categories')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
+            
+        if (error) throw error;
+        
+        expenseCategories = data || [];
+        
+    } catch (error) {
+        console.error('Erro ao carregar categorias:', error);
+        showInfoMessage('Erro ao carregar categorias: ' + error.message);
     }
 }
 
