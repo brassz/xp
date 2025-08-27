@@ -13,6 +13,7 @@ let currentUser = null;
 let clients = [];
 let loans = [];
 let expenses = [];
+let expenseCategories = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
@@ -42,6 +43,7 @@ const newClientBtn = document.getElementById('newClientBtn');
 const newLoanBtn = document.getElementById('newLoanBtn');
 const newExpenseBtn = document.getElementById('newExpenseBtn');
 const generatePdfBtn = document.getElementById('generatePdfBtn');
+const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
 
 // Formulários
 const newClientForm = document.getElementById('newClientForm');
@@ -96,10 +98,14 @@ function setupEventListeners() {
     newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
     newExpenseBtn.addEventListener('click', () => {
         showModal(newExpenseModal);
-
         setDefaultExpenseDate();
     });
     generatePdfBtn.addEventListener('click', generateMonthlyLoansPDF);
+    
+    // Adicionar event listener para o botão de PDF das despesas
+    if (generateExpensesPDFBtn) {
+        generateExpensesPDFBtn.addEventListener('click', generateMonthlyExpensesPDF);
+    }
     
     // Fechar modais
     document.getElementById('closeClientModal').addEventListener('click', () => hideModal(newClientModal));
@@ -282,7 +288,8 @@ async function loadData() {
         await Promise.all([
             loadClients(),
             loadLoans(),
-            loadExpenses()
+            loadExpenses(),
+            loadExpenseCategories()
         ]);
         
         // Carregar empréstimos quitados separadamente
@@ -2643,14 +2650,16 @@ async function handleNewExpense(e) {
 
         
         const expenseData = {
+            title: description,
             description: description,
-            category: category,
+            category_id: category, // Este será o ID da categoria
             amount: amount,
-            date: date,
+            expense_date: date,
             notes: notes,
-
-            created_at: new Date().toISOString(),
-            user_id: currentUser.id
+            payment_method: 'cash', // valor padrão
+            status: 'pending',
+            user_id: currentUser.id,
+            created_by: currentUser.id
         };
         
         // Inserir no banco de dados
@@ -2686,9 +2695,17 @@ async function loadExpenses() {
     try {
         const { data, error } = await supabase
             .from('expenses')
-            .select('*')
+            .select(`
+                *,
+                expense_categories (
+                    id,
+                    name,
+                    color,
+                    icon
+                )
+            `)
             .eq('user_id', currentUser.id)
-            .order('date', { ascending: false });
+            .order('expense_date', { ascending: false });
             
         if (error) throw error;
         
@@ -2727,20 +2744,20 @@ function displayExpenses() {
         <tr class="table-row">
             <td class="px-6 py-4">
                 <div>
-                    <p class="text-white font-medium">${expense.description}</p>
+                    <p class="text-white font-medium">${expense.title || expense.description}</p>
                     ${expense.notes ? `<p class="text-gray-400 text-sm">${expense.notes}</p>` : ''}
                 </div>
             </td>
             <td class="px-6 py-4">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadge(expense.category)}">
-                    ${getCategoryName(expense.category)}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getCategoryBadge(expense.expense_categories?.name || 'outros')}">
+                    ${getCategoryName(expense.expense_categories?.name || 'outros')}
                 </span>
             </td>
             <td class="px-6 py-4">
                 <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
             </td>
             <td class="px-6 py-4">
-                <span class="text-gray-300">${formatDate(expense.date)}</span>
+                <span class="text-gray-300">${formatDate(expense.expense_date)}</span>
             </td>
 
             <td class="px-6 py-4">
@@ -2757,27 +2774,25 @@ function displayExpenses() {
 }
 
 // Obter classe CSS para badge da categoria
-function getCategoryBadge(category) {
+function getCategoryBadge(categoryName) {
     const badges = {
-        alimentacao: 'bg-green-100 text-green-800',
-        transporte: 'bg-blue-100 text-blue-800',
-        escritorio: 'bg-purple-100 text-purple-800',
-        marketing: 'bg-yellow-100 text-yellow-800',
-        outros: 'bg-gray-100 text-gray-800'
+        'Alimentação': 'bg-green-100 text-green-800',
+        'Transporte': 'bg-blue-100 text-blue-800',
+        'Escritório': 'bg-purple-100 text-purple-800',
+        'Marketing': 'bg-yellow-100 text-yellow-800',
+        'Tecnologia': 'bg-teal-100 text-teal-800',
+        'Saúde': 'bg-pink-100 text-pink-800',
+        'Educação': 'bg-indigo-100 text-indigo-800',
+        'Limpeza': 'bg-cyan-100 text-cyan-800',
+        'Manutenção': 'bg-orange-100 text-orange-800',
+        'Outros': 'bg-gray-100 text-gray-800'
     };
-    return badges[category] || badges.outros;
+    return badges[categoryName] || badges['Outros'];
 }
 
-// Obter nome da categoria
-function getCategoryName(category) {
-    const names = {
-        alimentacao: 'Alimentação',
-        transporte: 'Transporte',
-        escritorio: 'Escritório',
-        marketing: 'Marketing',
-        outros: 'Outros'
-    };
-    return names[category] || 'Outros';
+// Obter nome da categoria (retorna o próprio nome já que vem da tabela)
+function getCategoryName(categoryName) {
+    return categoryName || 'Outros';
 }
 
 // Atualizar resumo de despesas
@@ -2789,7 +2804,7 @@ function updateExpensesSummary() {
     // Total do mês atual
     const monthlyTotal = expenses
         .filter(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = new Date(expense.expense_date);
             return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
         })
         .reduce((sum, expense) => sum + expense.amount, 0);
@@ -2797,7 +2812,7 @@ function updateExpensesSummary() {
     // Total do ano atual
     const yearlyTotal = expenses
         .filter(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = new Date(expense.expense_date);
             return expenseDate.getFullYear() === currentYear;
         })
         .reduce((sum, expense) => sum + expense.amount, 0);
@@ -3171,4 +3186,220 @@ async function generateMonthlyLoansPDF() {
         console.error('Erro ao gerar PDF dos empréstimos:', error);
         showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
+}
+
+// Função para gerar PDF das despesas do último mês
+async function generateMonthlyExpensesPDF() {
+    try {
+        // Calcular data de um mês atrás
+        const oneMonthAgo = new Date();
+        oneMonthAgo.setMonth(oneMonthAgo.getMonth() - 1);
+        
+        // Filtrar despesas do último mês
+        const monthlyExpenses = expenses.filter(expense => {
+            const expenseDate = new Date(expense.expense_date);
+            return expenseDate >= oneMonthAgo;
+        });
+
+        if (monthlyExpenses.length === 0) {
+            showInfoMessage('Nenhuma despesa foi encontrada no último mês.');
+            return;
+        }
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO DE DESPESAS - ÚLTIMO MÊS', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const periodText = `Período: ${oneMonthAgo.toLocaleDateString('pt-BR')} a ${new Date().toLocaleDateString('pt-BR')}`;
+        doc.text(periodText, 105, 30, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 40);
+        
+        // Linha divisória
+        doc.line(20, 45, 190, 45);
+        
+        let yPosition = 55;
+        
+        // Resumo
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO', 20, yPosition);
+        yPosition += 10;
+        
+        const totalAmount = monthlyExpenses.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+        
+        // Agrupar por categoria
+        const categoryTotals = {};
+        monthlyExpenses.forEach(expense => {
+            const categoryName = expense.expense_categories?.name || 'Outros';
+            categoryTotals[categoryName] = (categoryTotals[categoryName] || 0) + parseFloat(expense.amount);
+        });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de despesas: ${monthlyExpenses.length}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total: R$ ${totalAmount.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor médio por despesa: R$ ${(totalAmount / monthlyExpenses.length).toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 10;
+        
+        // Resumo por categoria
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO POR CATEGORIA', 20, yPosition);
+        yPosition += 8;
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        Object.entries(categoryTotals).sort((a, b) => b[1] - a[1]).forEach(([category, total]) => {
+            const percentage = ((total / totalAmount) * 100).toFixed(1);
+            doc.text(`${category}: R$ ${total.toFixed(2).replace('.', ',')} (${percentage}%)`, 20, yPosition);
+            yPosition += 5;
+        });
+        
+        yPosition += 10;
+        
+        // Cabeçalho da tabela
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALHAMENTO DAS DESPESAS', 20, yPosition);
+        yPosition += 10;
+        
+        // Cabeçalhos das colunas
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Data', 20, yPosition);
+        doc.text('Descrição', 45, yPosition);
+        doc.text('Categoria', 110, yPosition);
+        doc.text('Valor', 145, yPosition);
+        doc.text('Método', 170, yPosition);
+        yPosition += 5;
+        
+        // Linha divisória
+        doc.line(20, yPosition, 190, yPosition);
+        yPosition += 5;
+        
+        // Dados das despesas
+        doc.setFont('helvetica', 'normal');
+        
+        for (const expense of monthlyExpenses) {
+            // Verificar se precisa de nova página
+            if (yPosition > 270) {
+                doc.addPage();
+                yPosition = 20;
+                
+                // Repetir cabeçalho na nova página
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Data', 20, yPosition);
+                doc.text('Descrição', 45, yPosition);
+                doc.text('Categoria', 110, yPosition);
+                doc.text('Valor', 145, yPosition);
+                doc.text('Método', 170, yPosition);
+                yPosition += 5;
+                doc.line(20, yPosition, 190, yPosition);
+                yPosition += 5;
+                doc.setFont('helvetica', 'normal');
+            }
+            
+            const expenseDate = new Date(expense.expense_date).toLocaleDateString('pt-BR');
+            const description = expense.title || expense.description || 'Sem descrição';
+            const categoryName = expense.expense_categories?.name || 'Outros';
+            const amount = parseFloat(expense.amount);
+            const paymentMethod = expense.payment_method || 'N/A';
+            
+            // Truncar descrição se for muito longa
+            const truncatedDescription = description.length > 30 ? description.substring(0, 27) + '...' : description;
+            const truncatedCategory = categoryName.length > 15 ? categoryName.substring(0, 12) + '...' : categoryName;
+            
+            doc.text(expenseDate, 20, yPosition);
+            doc.text(truncatedDescription, 45, yPosition);
+            doc.text(truncatedCategory, 110, yPosition);
+            doc.text(`R$ ${amount.toFixed(2).replace('.', ',')}`, 145, yPosition);
+            doc.text(paymentMethod, 170, yPosition);
+            
+            yPosition += 6;
+        }
+        
+        // Rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${pageCount}`, 190, 290, { align: 'right' });
+            doc.text('Nexus Gestão Financeira', 20, 290);
+        }
+        
+        // Salvar o PDF
+        const fileName = `Despesas_Ultimo_Mes_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+
+        showSuccessMessage(`PDF gerado com sucesso! ${monthlyExpenses.length} despesas encontradas.`);
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF das despesas:', error);
+        showInfoMessage('Erro ao gerar PDF das despesas: ' + error.message);
+    }
+}
+
+// Carregar categorias de despesas
+async function loadExpenseCategories() {
+    try {
+        const { data, error } = await supabase
+            .from('expense_categories')
+            .select('*')
+            .eq('is_active', true)
+            .order('name');
+            
+        if (error) throw error;
+        
+        expenseCategories = data || [];
+        updateExpenseCategorySelect();
+        
+    } catch (error) {
+        console.error('Erro ao carregar categorias de despesas:', error);
+        // Se não conseguir carregar, usar categorias padrão
+        expenseCategories = [
+            { id: 'default-alimentacao', name: 'Alimentação' },
+            { id: 'default-transporte', name: 'Transporte' },
+            { id: 'default-escritorio', name: 'Escritório' },
+            { id: 'default-marketing', name: 'Marketing' },
+            { id: 'default-outros', name: 'Outros' }
+        ];
+        updateExpenseCategorySelect();
+    }
+}
+
+// Atualizar select de categorias
+function updateExpenseCategorySelect() {
+    const select = document.getElementById('expenseCategory');
+    if (!select) return;
+    
+    // Limpar opções existentes (exceto a primeira)
+    while (select.children.length > 1) {
+        select.removeChild(select.lastChild);
+    }
+    
+    // Adicionar categorias carregadas
+    expenseCategories.forEach(category => {
+        const option = document.createElement('option');
+        option.value = category.id;
+        option.textContent = category.name;
+        select.appendChild(option);
+    });
 }
