@@ -2757,7 +2757,7 @@ async function handleNewExpense(e) {
             description: description,
             category_id: category, // Este será o ID da categoria
             amount: amount,
-            expense_date: date,
+            date: date,
             notes: notes,
             payment_method: 'cash', // valor padrão
             status: 'pending',
@@ -2801,7 +2801,7 @@ async function loadExpenses() {
             .from('expenses')
             .select('*')
             .eq('user_id', currentUser.id)
-            .order('expense_date', { ascending: false });
+            .order('date', { ascending: false });
             
         if (expensesError) throw expensesError;
         
@@ -2872,7 +2872,7 @@ function displayExpenses() {
                 <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
             </td>
             <td class="px-6 py-4">
-                <span class="text-gray-300">${formatDate(expense.expense_date)}</span>
+                <span class="text-gray-300">${formatDate(expense.date)}</span>
             </td>
 
             <td class="px-6 py-4">
@@ -2919,7 +2919,7 @@ function updateExpensesSummary() {
     // Total do mês atual
     const monthlyTotal = expenses
         .filter(expense => {
-            const expenseDate = new Date(expense.expense_date);
+            const expenseDate = new Date(expense.date);
             return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
         })
         .reduce((sum, expense) => sum + expense.amount, 0);
@@ -2927,7 +2927,7 @@ function updateExpensesSummary() {
     // Total do ano atual
     const yearlyTotal = expenses
         .filter(expense => {
-            const expenseDate = new Date(expense.expense_date);
+            const expenseDate = new Date(expense.date);
             return expenseDate.getFullYear() === currentYear;
         })
         .reduce((sum, expense) => sum + expense.amount, 0);
@@ -3312,7 +3312,7 @@ async function generateMonthlyExpensesPDF() {
         
         // Filtrar despesas do último mês
         const monthlyExpenses = expenses.filter(expense => {
-            const expenseDate = new Date(expense.expense_date);
+            const expenseDate = new Date(expense.date);
             return expenseDate >= oneMonthAgo;
         });
 
@@ -3431,7 +3431,7 @@ async function generateMonthlyExpensesPDF() {
                 doc.setFont('helvetica', 'normal');
             }
             
-            const expenseDate = new Date(expense.expense_date).toLocaleDateString('pt-BR');
+            const expenseDate = new Date(expense.date).toLocaleDateString('pt-BR');
             const description = expense.title || expense.description || 'Sem descrição';
             const categoryName = expense.expense_categories?.name || 'Outros';
             const amount = parseFloat(expense.amount);
