@@ -14,6 +14,8 @@ let clients = [];
 let loans = [];
 let expenses = [];
 let expenseCategories = [];
+let installments = [];
+let installmentPayments = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
@@ -37,6 +39,9 @@ const editLoanModal = document.getElementById('editLoanModal');
 const confirmationModal = document.getElementById('confirmationModal');
 const paymentHistoryModal = document.getElementById('paymentHistoryModal');
 const newExpenseModal = document.getElementById('newExpenseModal');
+const newInstallmentModal = document.getElementById('newInstallmentModal');
+const installmentDetailsModal = document.getElementById('installmentDetailsModal');
+const installmentPaymentModal = document.getElementById('installmentPaymentModal');
 
 // Botões
 const newClientBtn = document.getElementById('newClientBtn');
@@ -298,6 +303,13 @@ function handleNavigation(e) {
                 setTimeout(() => {
                     populateHistoryClientSelect();
                 }, 100);
+            }
+            
+            // Carregar dados dos parcelamentos quando a seção for exibida
+            if (target === 'installments') {
+                console.log('Seção de parcelamentos ativada, carregando dados...');
+                loadInstallments();
+                loadOverdueLoansForInstallmentTable();
             }
         }
     });
@@ -3729,3 +3741,652 @@ async function createDefaultCategories() {
         return false;
     }
 }
+
+// ===================================================
+// FUNCIONALIDADES DE PARCELAMENTO
+// ===================================================
+
+// Variáveis globais para parcelamento
+let currentInstallmentId = null;
+let currentInstallmentPaymentId = null;
+
+// Abrir modal de novo parcelamento
+function openInstallmentModal() {
+    // Limpar formulário
+    document.getElementById('newInstallmentForm').reset();
+    document.getElementById('installmentSummary').classList.add('hidden');
+    
+    // Carregar empréstimos vencidos
+    loadOverdueLoansForInstallment();
+    
+    // Definir data padrão como próximo mês
+    const nextMonth = new Date();
+    nextMonth.setMonth(nextMonth.getMonth() + 1);
+    document.getElementById('installmentFirstDueDate').value = nextMonth.toISOString().split('T')[0];
+    
+    newInstallmentModal.classList.remove('hidden');
+}
+
+// Carregar empréstimos vencidos para parcelamento
+async function loadOverdueLoansForInstallment() {
+    try {
+        const { data: overdueLoans, error } = await supabase
+            .from('loans')
+            .select(`
+                id,
+                client_id,
+                amount,
+                remaining_amount,
+                due_date,
+                clients (name)
+            `)
+            .lt('due_date', new Date().toISOString())
+            .eq('status', 'active')
+            .order('due_date', { ascending: true });
+
+        if (error) throw error;
+
+        const loanSelect = document.getElementById('installmentLoanId');
+        loanSelect.innerHTML = '<option value="">Selecione um empréstimo vencido</option>';
+
+        overdueLoans.forEach(loan => {
+            const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
+            const option = document.createElement('option');
+            option.value = loan.id;
+            option.textContent = `${loan.clients.name} - R$ ${loan.remaining_amount.toFixed(2)} (${daysOverdue} dias vencido)`;
+            option.dataset.clientName = loan.clients.name;
+            option.dataset.remainingAmount = loan.remaining_amount;
+            option.dataset.clientId = loan.client_id;
+            loanSelect.appendChild(option);
+        });
+
+    } catch (error) {
+        console.error('Erro ao carregar empréstimos vencidos:', error);
+        showNotification('Erro ao carregar empréstimos vencidos', 'error');
+    }
+}
+
+// Atualizar informações quando um empréstimo é selecionado
+document.getElementById('installmentLoanId').addEventListener('change', function() {
+    const selectedOption = this.options[this.selectedIndex];
+    if (selectedOption.value) {
+        document.getElementById('installmentClientName').value = selectedOption.dataset.clientName;
+        document.getElementById('installmentTotalAmount').value = selectedOption.dataset.remainingAmount;
+    } else {
+        document.getElementById('installmentClientName').value = '';
+        document.getElementById('installmentTotalAmount').value = '';
+    }
+    // Esconder o resumo quando os dados mudarem
+    document.getElementById('installmentSummary').classList.add('hidden');
+});
+
+// Calcular parcelamento
+document.getElementById('calculateInstallment').addEventListener('click', function() {
+    const totalAmount = parseFloat(document.getElementById('installmentTotalAmount').value);
+    const totalInstallments = parseInt(document.getElementById('installmentTotalInstallments').value);
+    const interestRate = parseFloat(document.getElementById('installmentInterestRate').value) || 0;
+
+    if (!totalAmount || !totalInstallments) {
+        showNotification('Preencha o valor total e número de parcelas', 'error');
+        return;
+    }
+
+    // Calcular com juros compostos
+    let installmentAmount, totalWithInterest, totalInterest;
+
+    if (interestRate > 0) {
+        const monthlyRate = interestRate / 100;
+        const factor = Math.pow(1 + monthlyRate, totalInstallments);
+        installmentAmount = totalAmount * (monthlyRate * factor) / (factor - 1);
+        totalWithInterest = installmentAmount * totalInstallments;
+        totalInterest = totalWithInterest - totalAmount;
+    } else {
+        installmentAmount = totalAmount / totalInstallments;
+        totalWithInterest = totalAmount;
+        totalInterest = 0;
+    }
+
+    // Atualizar resumo
+    document.getElementById('calculatedInstallmentAmount').textContent = `R$ ${installmentAmount.toFixed(2)}`;
+    document.getElementById('calculatedTotalWithInterest').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
+    document.getElementById('calculatedTotalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
+
+    // Mostrar resumo
+    document.getElementById('installmentSummary').classList.remove('hidden');
+});
+
+// Criar parcelamento
+document.getElementById('newInstallmentForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const loanId = document.getElementById('installmentLoanId').value;
+    const clientId = document.getElementById('installmentLoanId').options[document.getElementById('installmentLoanId').selectedIndex].dataset.clientId;
+    const totalAmount = parseFloat(document.getElementById('installmentTotalAmount').value);
+    const totalInstallments = parseInt(document.getElementById('installmentTotalInstallments').value);
+    const interestRate = parseFloat(document.getElementById('installmentInterestRate').value) || 0;
+    const firstDueDate = document.getElementById('installmentFirstDueDate').value;
+    const notes = document.getElementById('installmentNotes').value;
+
+    if (!loanId || !totalAmount || !totalInstallments || !firstDueDate) {
+        showNotification('Preencha todos os campos obrigatórios', 'error');
+        return;
+    }
+
+    try {
+        // Calcular valor da parcela
+        let installmentAmount;
+        if (interestRate > 0) {
+            const monthlyRate = interestRate / 100;
+            const factor = Math.pow(1 + monthlyRate, totalInstallments);
+            installmentAmount = totalAmount * (monthlyRate * factor) / (factor - 1);
+        } else {
+            installmentAmount = totalAmount / totalInstallments;
+        }
+
+        // Criar parcelamento
+        const { data: installmentData, error: installmentError } = await supabase
+            .from('installments')
+            .insert([
+                {
+                    loan_id: loanId,
+                    client_id: clientId,
+                    total_amount: totalAmount,
+                    total_installments: totalInstallments,
+                    installment_amount: installmentAmount,
+                    first_due_date: firstDueDate,
+                    interest_rate: interestRate,
+                    notes: notes,
+                    created_by: currentUser.id
+                }
+            ])
+            .select()
+            .single();
+
+        if (installmentError) throw installmentError;
+
+        // Criar parcelas individuais
+        const installmentPaymentsData = [];
+        const firstDate = new Date(firstDueDate);
+
+        for (let i = 1; i <= totalInstallments; i++) {
+            const dueDate = new Date(firstDate);
+            dueDate.setMonth(dueDate.getMonth() + (i - 1));
+
+            installmentPaymentsData.push({
+                installment_id: installmentData.id,
+                installment_number: i,
+                amount: installmentAmount,
+                due_date: dueDate.toISOString().split('T')[0]
+            });
+        }
+
+        const { error: paymentsError } = await supabase
+            .from('installment_payments')
+            .insert(installmentPaymentsData);
+
+        if (paymentsError) throw paymentsError;
+
+        // Atualizar status do empréstimo para "parcelado" (assumindo que existe essa opção)
+        const { error: loanUpdateError } = await supabase
+            .from('loans')
+            .update({ status: 'installment' })
+            .eq('id', loanId);
+
+        if (loanUpdateError) {
+            console.warn('Aviso: Não foi possível atualizar o status do empréstimo:', loanUpdateError);
+        }
+
+        closeInstallmentModal();
+        showNotification('Parcelamento criado com sucesso!', 'success');
+        loadInstallments();
+        
+    } catch (error) {
+        console.error('Erro ao criar parcelamento:', error);
+        showNotification('Erro ao criar parcelamento', 'error');
+    }
+});
+
+// Fechar modal de parcelamento
+function closeInstallmentModal() {
+    newInstallmentModal.classList.add('hidden');
+}
+
+// Carregar parcelamentos ativos
+async function loadInstallments() {
+    try {
+        const { data, error } = await supabase
+            .from('installments')
+            .select(`
+                *,
+                clients (name),
+                loans (amount, due_date),
+                installment_payments (status, due_date, paid_date)
+            `)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        installments = data || [];
+        renderInstallmentsTable();
+
+    } catch (error) {
+        console.error('Erro ao carregar parcelamentos:', error);
+        showNotification('Erro ao carregar parcelamentos', 'error');
+    }
+}
+
+// Renderizar tabela de parcelamentos ativos
+function renderInstallmentsTable() {
+    const tableBody = document.getElementById('activeInstallmentsTableBody');
+    
+    if (!tableBody) return;
+
+    if (installments.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="7" class="px-6 py-4 text-center text-gray-400">
+                    Nenhum parcelamento ativo encontrado
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tableBody.innerHTML = installments.map(installment => {
+        // Calcular próximo vencimento
+        const unpaidPayments = installment.installment_payments.filter(p => p.status === 'pending');
+        const nextDueDate = unpaidPayments.length > 0 
+            ? new Date(unpaidPayments[0].due_date).toLocaleDateString('pt-BR') 
+            : 'Todas pagas';
+
+        // Calcular progresso
+        const paidCount = installment.installment_payments.filter(p => p.status === 'paid').length;
+        const progress = `${paidCount}/${installment.total_installments}`;
+
+        const statusClass = installment.status === 'completed' ? 'bg-green-900 text-green-300' : 'bg-blue-900 text-blue-300';
+
+        return `
+            <tr class="table-row hover:bg-gray-700 transition-colors">
+                <td class="px-6 py-4 text-white">${installment.clients.name}</td>
+                <td class="px-6 py-4 text-white">R$ ${installment.total_amount.toFixed(2)}</td>
+                <td class="px-6 py-4 text-white">${progress}</td>
+                <td class="px-6 py-4 text-white">R$ ${installment.installment_amount.toFixed(2)}</td>
+                <td class="px-6 py-4 text-white">${nextDueDate}</td>
+                <td class="px-6 py-4">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full ${statusClass}">
+                        ${installment.status === 'completed' ? 'Concluído' : 'Ativo'}
+                    </span>
+                </td>
+                <td class="px-6 py-4">
+                    <button onclick="viewInstallmentDetails('${installment.id}')" 
+                            class="text-blue-400 hover:text-blue-300 text-sm font-medium mr-3">
+                        Ver Detalhes
+                    </button>
+                    <button onclick="cancelInstallment('${installment.id}')" 
+                            class="text-red-400 hover:text-red-300 text-sm font-medium">
+                        Cancelar
+                    </button>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Ver detalhes do parcelamento
+async function viewInstallmentDetails(installmentId) {
+    try {
+        const { data, error } = await supabase
+            .from('installments')
+            .select(`
+                *,
+                clients (name, cpf),
+                loans (amount, due_date),
+                installment_payments (*)
+            `)
+            .eq('id', installmentId)
+            .single();
+
+        if (error) throw error;
+
+        currentInstallmentId = installmentId;
+        populateInstallmentDetailsModal(data);
+        installmentDetailsModal.classList.remove('hidden');
+
+    } catch (error) {
+        console.error('Erro ao carregar detalhes do parcelamento:', error);
+        showNotification('Erro ao carregar detalhes do parcelamento', 'error');
+    }
+}
+
+// Preencher modal de detalhes do parcelamento
+function populateInstallmentDetailsModal(installmentData) {
+    const header = document.getElementById('installmentDetailsHeader');
+    
+    const paidCount = installmentData.installment_payments.filter(p => p.status === 'paid').length;
+    const totalPaid = installmentData.installment_payments
+        .filter(p => p.status === 'paid')
+        .reduce((sum, p) => sum + (p.paid_amount || 0), 0);
+
+    header.innerHTML = `
+        <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div>
+                <h4 class="text-lg font-semibold text-white mb-2">${installmentData.clients.name}</h4>
+                <p class="text-blue-300 text-sm">CPF: ${installmentData.clients.cpf}</p>
+            </div>
+            <div>
+                <p class="text-blue-300 text-sm">Valor Total</p>
+                <p class="text-white font-semibold">R$ ${installmentData.total_amount.toFixed(2)}</p>
+            </div>
+            <div>
+                <p class="text-blue-300 text-sm">Progresso</p>
+                <p class="text-white font-semibold">${paidCount}/${installmentData.total_installments} parcelas</p>
+            </div>
+            <div>
+                <p class="text-blue-300 text-sm">Total Pago</p>
+                <p class="text-white font-semibold">R$ ${totalPaid.toFixed(2)}</p>
+            </div>
+        </div>
+        ${installmentData.notes ? `<div class="mt-4"><p class="text-gray-300 text-sm"><strong>Observações:</strong> ${installmentData.notes}</p></div>` : ''}
+    `;
+
+    // Renderizar tabela de parcelas
+    const tableBody = document.getElementById('installmentPaymentsTableBody');
+    tableBody.innerHTML = installmentData.installment_payments.map(payment => {
+        const statusColors = {
+            'pending': 'bg-yellow-900 text-yellow-300',
+            'paid': 'bg-green-900 text-green-300',
+            'overdue': 'bg-red-900 text-red-300',
+            'partial': 'bg-orange-900 text-orange-300'
+        };
+
+        const statusLabels = {
+            'pending': 'Pendente',
+            'paid': 'Paga',
+            'overdue': 'Vencida',
+            'partial': 'Parcial'
+        };
+
+        // Verificar se está vencida
+        const isOverdue = payment.status === 'pending' && new Date(payment.due_date) < new Date();
+        const currentStatus = isOverdue ? 'overdue' : payment.status;
+
+        return `
+            <tr class="table-row hover:bg-gray-700 transition-colors">
+                <td class="px-6 py-4 text-white">${payment.installment_number}ª</td>
+                <td class="px-6 py-4 text-white">R$ ${payment.amount.toFixed(2)}</td>
+                <td class="px-6 py-4 text-white">${new Date(payment.due_date).toLocaleDateString('pt-BR')}</td>
+                <td class="px-6 py-4">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full ${statusColors[currentStatus]}">
+                        ${statusLabels[currentStatus]}
+                    </span>
+                </td>
+                <td class="px-6 py-4 text-white">${payment.paid_date ? new Date(payment.paid_date).toLocaleDateString('pt-BR') : '-'}</td>
+                <td class="px-6 py-4 text-white">${payment.paid_amount ? `R$ ${payment.paid_amount.toFixed(2)}` : '-'}</td>
+                <td class="px-6 py-4">
+                    ${payment.status !== 'paid' ? 
+                        `<button onclick="openInstallmentPaymentModal('${payment.id}')" 
+                                class="text-blue-400 hover:text-blue-300 text-sm font-medium">
+                            Pagar
+                        </button>` : 
+                        `<span class="text-gray-500 text-sm">Paga</span>`
+                    }
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Abrir modal de pagamento de parcela
+async function openInstallmentPaymentModal(paymentId) {
+    try {
+        const { data, error } = await supabase
+            .from('installment_payments')
+            .select(`
+                *,
+                installments (
+                    clients (name),
+                    installment_amount
+                )
+            `)
+            .eq('id', paymentId)
+            .single();
+
+        if (error) throw error;
+
+        currentInstallmentPaymentId = paymentId;
+
+        // Preencher informações da parcela
+        const paymentInfo = document.getElementById('installmentPaymentInfo');
+        paymentInfo.innerHTML = `
+            <h4 class="text-white font-semibold mb-2">${data.installments.clients.name}</h4>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-blue-300">Parcela:</span>
+                    <p class="text-white">${data.installment_number}ª de ${data.installments.total_installments}</p>
+                </div>
+                <div>
+                    <span class="text-blue-300">Valor:</span>
+                    <p class="text-white">R$ ${data.amount.toFixed(2)}</p>
+                </div>
+                <div>
+                    <span class="text-blue-300">Vencimento:</span>
+                    <p class="text-white">${new Date(data.due_date).toLocaleDateString('pt-BR')}</p>
+                </div>
+                <div>
+                    <span class="text-blue-300">Status:</span>
+                    <p class="text-white">${data.status === 'pending' ? 'Pendente' : data.status === 'overdue' ? 'Vencida' : data.status}</p>
+                </div>
+            </div>
+        `;
+
+        // Definir valor padrão
+        document.getElementById('installmentPaidAmount').value = data.amount.toFixed(2);
+        
+        // Definir data padrão como hoje
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('installmentPaidDate').value = today;
+
+        installmentPaymentModal.classList.remove('hidden');
+
+    } catch (error) {
+        console.error('Erro ao carregar dados da parcela:', error);
+        showNotification('Erro ao carregar dados da parcela', 'error');
+    }
+}
+
+// Registrar pagamento de parcela
+document.getElementById('installmentPaymentForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+
+    const paidAmount = parseFloat(document.getElementById('installmentPaidAmount').value);
+    const paidDate = document.getElementById('installmentPaidDate').value;
+    const paymentMethod = document.getElementById('installmentPaymentMethod').value;
+    const notes = document.getElementById('installmentPaymentNotes').value;
+
+    if (!paidAmount || !paidDate) {
+        showNotification('Preencha o valor pago e a data', 'error');
+        return;
+    }
+
+    try {
+        // Buscar dados da parcela para comparar valores
+        const { data: paymentData, error: fetchError } = await supabase
+            .from('installment_payments')
+            .select('amount')
+            .eq('id', currentInstallmentPaymentId)
+            .single();
+
+        if (fetchError) throw fetchError;
+
+        // Determinar status do pagamento
+        let paymentStatus = 'paid';
+        if (paidAmount < paymentData.amount) {
+            paymentStatus = 'partial';
+        }
+
+        // Atualizar pagamento
+        const { error } = await supabase
+            .from('installment_payments')
+            .update({
+                paid_amount: paidAmount,
+                paid_date: paidDate,
+                status: paymentStatus,
+                payment_method: paymentMethod,
+                notes: notes,
+                updated_at: new Date().toISOString()
+            })
+            .eq('id', currentInstallmentPaymentId);
+
+        if (error) throw error;
+
+        closeInstallmentPaymentModal();
+        showNotification('Pagamento registrado com sucesso!', 'success');
+        
+        // Recarregar detalhes do parcelamento
+        if (currentInstallmentId) {
+            viewInstallmentDetails(currentInstallmentId);
+        }
+        
+        loadInstallments();
+
+    } catch (error) {
+        console.error('Erro ao registrar pagamento:', error);
+        showNotification('Erro ao registrar pagamento', 'error');
+    }
+});
+
+// Fechar modais
+function closeInstallmentDetailsModal() {
+    installmentDetailsModal.classList.add('hidden');
+}
+
+function closeInstallmentPaymentModal() {
+    installmentPaymentModal.classList.add('hidden');
+    document.getElementById('installmentPaymentForm').reset();
+}
+
+// Cancelar parcelamento
+async function cancelInstallment(installmentId) {
+    if (!confirm('Tem certeza que deseja cancelar este parcelamento?')) {
+        return;
+    }
+
+    try {
+        const { error } = await supabase
+            .from('installments')
+            .update({ status: 'cancelled' })
+            .eq('id', installmentId);
+
+        if (error) throw error;
+
+        showNotification('Parcelamento cancelado com sucesso!', 'success');
+        loadInstallments();
+
+    } catch (error) {
+        console.error('Erro ao cancelar parcelamento:', error);
+        showNotification('Erro ao cancelar parcelamento', 'error');
+    }
+}
+
+// Carregar empréstimos vencidos para a tabela de parcelamento
+async function loadOverdueLoansForInstallmentTable() {
+    try {
+        const { data: overdueLoans, error } = await supabase
+            .from('loans')
+            .select(`
+                id,
+                client_id,
+                amount,
+                remaining_amount,
+                due_date,
+                clients (name)
+            `)
+            .lt('due_date', new Date().toISOString())
+            .eq('status', 'active')
+            .order('due_date', { ascending: true });
+
+        if (error) throw error;
+
+        const tableBody = document.getElementById('overdueForInstallmentTableBody');
+        
+        if (!tableBody) return;
+
+        if (overdueLoans.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="px-6 py-4 text-center text-gray-400">
+                        Nenhum empréstimo vencido encontrado
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tableBody.innerHTML = overdueLoans.map(loan => {
+            const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
+            
+            return `
+                <tr class="table-row hover:bg-gray-700 transition-colors">
+                    <td class="px-6 py-4 text-white">${loan.clients.name}</td>
+                    <td class="px-6 py-4 text-white">R$ ${loan.amount.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-white">R$ ${loan.remaining_amount.toFixed(2)}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-900 text-red-300">
+                            ${daysOverdue} dias
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">
+                        <button onclick="createInstallmentFromLoan('${loan.id}')" 
+                                class="text-blue-400 hover:text-blue-300 text-sm font-medium">
+                            Parcelar
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Erro ao carregar empréstimos vencidos:', error);
+        showNotification('Erro ao carregar empréstimos vencidos', 'error');
+    }
+}
+
+// Criar parcelamento a partir de um empréstimo específico
+function createInstallmentFromLoan(loanId) {
+    openInstallmentModal();
+    
+    // Aguardar um pouco para o modal carregar
+    setTimeout(() => {
+        const loanSelect = document.getElementById('installmentLoanId');
+        loanSelect.value = loanId;
+        
+        // Trigger change event para preencher dados automaticamente
+        const changeEvent = new Event('change');
+        loanSelect.dispatchEvent(changeEvent);
+    }, 100);
+}
+
+// Event listeners para modais
+document.getElementById('closeInstallmentModal').addEventListener('click', closeInstallmentModal);
+document.getElementById('cancelInstallment').addEventListener('click', closeInstallmentModal);
+document.getElementById('closeInstallmentDetailsModal').addEventListener('click', closeInstallmentDetailsModal);
+document.getElementById('closeInstallmentPaymentModal').addEventListener('click', closeInstallmentPaymentModal);
+document.getElementById('cancelInstallmentPayment').addEventListener('click', closeInstallmentPaymentModal);
+
+// Fechar modais ao clicar fora
+newInstallmentModal.addEventListener('click', function(e) {
+    if (e.target === this) closeInstallmentModal();
+});
+
+installmentDetailsModal.addEventListener('click', function(e) {
+    if (e.target === this) closeInstallmentDetailsModal();
+});
+
+installmentPaymentModal.addEventListener('click', function(e) {
+    if (e.target === this) closeInstallmentPaymentModal();
+});
+
+// ===================================================
+// FIM DAS FUNCIONALIDADES DE PARCELAMENTO
+// ===================================================

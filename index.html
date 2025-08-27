@@ -542,12 +542,48 @@
                 <div id="installments" class="content-section hidden">
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold text-white mb-2">Parcelamento</h2>
-                        <p class="text-gray-400">Gerencie pagamentos de empréstimos vencidos</p>
+                        <p class="text-gray-400">Gerencie pagamentos de empréstimos vencidos e crie novos parcelamentos</p>
+                    </div>
+
+                    <!-- Create New Installment Button -->
+                    <div class="mb-6">
+                        <button onclick="openInstallmentModal()" class="btn-primary px-6 py-3 rounded-lg text-white font-medium hover:scale-105 transition-all">
+                            <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Criar Novo Parcelamento
+                        </button>
+                    </div>
+
+                    <!-- Active Installments Table -->
+                    <div class="table-container mb-8">
+                        <div class="table-header px-6 py-4">
+                            <h3 class="text-lg font-semibold text-white">Parcelamentos Ativos</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="table-header">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Cliente</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Total</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Parcelas</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Parcela</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Próx. Vencimento</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="activeInstallmentsTableBody" class="divide-y divide-gray-700">
+                                    <!-- Active installments will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
                     
+                    <!-- Overdue Loans for Installment Creation -->
                     <div class="table-container">
                         <div class="table-header px-6 py-4">
-                            <h3 class="text-lg font-semibold text-white">Empréstimos Vencidos</h3>
+                            <h3 class="text-lg font-semibold text-white">Empréstimos Vencidos - Disponíveis para Parcelamento</h3>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full">
@@ -560,7 +596,7 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
                                     </tr>
                                 </thead>
-                                <tbody id="overdueTableBody" class="divide-y divide-gray-700">
+                                <tbody id="overdueForInstallmentTableBody" class="divide-y divide-gray-700">
                                     <!-- Overdue loans will be populated here -->
                                 </tbody>
                             </table>
@@ -1424,6 +1460,199 @@
                             Criar Despesa
                         </button>
                         <button type="button" id="cancelExpense" class="bg-gray-600 hover:bg-gray-500 flex-1 py-3 px-4 rounded-lg font-semibold text-white transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- New Installment Modal -->
+    <div id="newInstallmentModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-3xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Criar Novo Parcelamento</h3>
+                    <button id="closeInstallmentModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="newInstallmentForm" class="space-y-6">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Empréstimo</label>
+                            <select id="installmentLoanId" class="form-input w-full" required>
+                                <option value="">Selecione um empréstimo vencido</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Cliente</label>
+                            <input type="text" id="installmentClientName" class="form-input w-full" readonly placeholder="Cliente será preenchido automaticamente">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Valor Total a Parcelar (R$)</label>
+                            <input type="number" id="installmentTotalAmount" class="form-input w-full" step="0.01" placeholder="0.00" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Número de Parcelas</label>
+                            <input type="number" id="installmentTotalInstallments" class="form-input w-full" min="2" max="60" placeholder="Ex: 12" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Taxa de Juros (% ao mês)</label>
+                            <input type="number" id="installmentInterestRate" class="form-input w-full" step="0.01" min="0" placeholder="Ex: 2.5" value="0">
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data do Primeiro Vencimento</label>
+                            <input type="date" id="installmentFirstDueDate" class="form-input w-full" required>
+                        </div>
+                    </div>
+
+                    <!-- Calculation Summary -->
+                    <div id="installmentSummary" class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4 hidden">
+                        <h4 class="text-lg font-semibold text-white mb-3">Resumo do Parcelamento</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                            <div>
+                                <span class="text-blue-300">Valor da Parcela:</span>
+                                <p class="text-white font-semibold" id="calculatedInstallmentAmount">R$ 0,00</p>
+                            </div>
+                            <div>
+                                <span class="text-blue-300">Total com Juros:</span>
+                                <p class="text-white font-semibold" id="calculatedTotalWithInterest">R$ 0,00</p>
+                            </div>
+                            <div>
+                                <span class="text-blue-300">Total de Juros:</span>
+                                <p class="text-white font-semibold" id="calculatedTotalInterest">R$ 0,00</p>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
+                        <textarea id="installmentNotes" class="form-input w-full" rows="3" placeholder="Observações sobre o parcelamento (opcional)"></textarea>
+                    </div>
+                    
+                    <div class="flex space-x-4 pt-4">
+                        <button type="button" id="calculateInstallment" class="bg-blue-600 hover:bg-blue-500 py-3 px-6 rounded-lg font-semibold text-white transition-colors">
+                            Calcular Parcelas
+                        </button>
+                        <button type="submit" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold text-white">
+                            Criar Parcelamento
+                        </button>
+                        <button type="button" id="cancelInstallment" class="bg-gray-600 hover:bg-gray-500 py-3 px-4 rounded-lg font-semibold text-white transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Installment Details Modal -->
+    <div id="installmentDetailsModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-6xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Detalhes do Parcelamento</h3>
+                    <button id="closeInstallmentDetailsModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Installment Summary -->
+                <div id="installmentDetailsHeader" class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-6 mb-6">
+                    <!-- Will be populated by JavaScript -->
+                </div>
+                
+                <!-- Installment Payments Table -->
+                <div class="table-container">
+                    <div class="table-header px-6 py-4">
+                        <h4 class="text-lg font-semibold text-white">Parcelas</h4>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="table-header">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Parcela</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Vencimento</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data Pagamento</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Pago</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="installmentPaymentsTableBody" class="divide-y divide-gray-700">
+                                <!-- Installment payments will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Installment Payment Modal -->
+    <div id="installmentPaymentModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-md p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Registrar Pagamento da Parcela</h3>
+                    <button id="closeInstallmentPaymentModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="installmentPaymentForm" class="space-y-4">
+                    <div id="installmentPaymentInfo" class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4 mb-4">
+                        <!-- Payment info will be populated here -->
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Valor Pago (R$)</label>
+                        <input type="number" id="installmentPaidAmount" class="form-input w-full" step="0.01" placeholder="0.00" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Data do Pagamento</label>
+                        <input type="date" id="installmentPaidDate" class="form-input w-full" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Método de Pagamento</label>
+                        <select id="installmentPaymentMethod" class="form-input w-full">
+                            <option value="">Selecione o método</option>
+                            <option value="dinheiro">Dinheiro</option>
+                            <option value="pix">PIX</option>
+                            <option value="transferencia">Transferência</option>
+                            <option value="cartao_debito">Cartão de Débito</option>
+                            <option value="cartao_credito">Cartão de Crédito</option>
+                            <option value="boleto">Boleto</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
+                        <textarea id="installmentPaymentNotes" class="form-input w-full" rows="2" placeholder="Observações sobre o pagamento (opcional)"></textarea>
+                    </div>
+                    
+                    <div class="flex space-x-4 pt-4">
+                        <button type="submit" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold text-white">
+                            Registrar Pagamento
+                        </button>
+                        <button type="button" id="cancelInstallmentPayment" class="bg-gray-600 hover:bg-gray-500 py-3 px-4 rounded-lg font-semibold text-white transition-colors">
                             Cancelar
                         </button>
                     </div>
