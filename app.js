@@ -36,6 +36,7 @@ const editLoanModal = document.getElementById('editLoanModal');
 const confirmationModal = document.getElementById('confirmationModal');
 const paymentHistoryModal = document.getElementById('paymentHistoryModal');
 const newExpenseModal = document.getElementById('newExpenseModal');
+const generatePdfModal = document.getElementById('generatePdfModal');
 
 // Botões
 const newClientBtn = document.getElementById('newClientBtn');
@@ -99,6 +100,12 @@ function setupEventListeners() {
         setDefaultExpenseDate();
     });
     
+    // Botão para gerar PDF de despesas
+    document.getElementById('generateExpensesPdfBtn').addEventListener('click', () => {
+        populatePdfYearOptions();
+        showModal(generatePdfModal);
+    });
+    
     // Fechar modais
     document.getElementById('closeClientModal').addEventListener('click', () => hideModal(newClientModal));
     document.getElementById('closeLoanModal').addEventListener('click', () => hideModal(newLoanModal));
@@ -107,6 +114,7 @@ function setupEventListeners() {
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
+    document.getElementById('closePdfModal').addEventListener('click', () => hideModal(generatePdfModal));
     
     // Cancelar modais
     document.getElementById('cancelClientBtn').addEventListener('click', () => hideModal(newClientModal));
@@ -117,6 +125,7 @@ function setupEventListeners() {
     document.getElementById('cancelConfirmationBtn').addEventListener('click', () => hideModal(confirmationModal));
     document.getElementById('closePaymentHistoryBtn').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('cancelExpense').addEventListener('click', () => hideModal(newExpenseModal));
+    document.getElementById('cancelPdfGeneration').addEventListener('click', () => hideModal(generatePdfModal));
     
     // Botões do modal de histórico de pagamentos
     document.getElementById('newPaymentBtn').addEventListener('click', () => showNewPaymentFromHistory());
@@ -131,6 +140,7 @@ function setupEventListeners() {
     document.getElementById('editClientForm').addEventListener('submit', handleEditClient);
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
     newExpenseForm.addEventListener('submit', handleNewExpense);
+    document.getElementById('generatePdfForm').addEventListener('submit', handleGenerateExpensesPdf);
     
     // Assinatura
 
@@ -3017,4 +3027,254 @@ async function generateContract(loanId) {
         console.error('Erro ao gerar contrato:', error);
         showInfoMessage('Erro ao gerar contrato: ' + error.message);
     }
+}
+
+// GERAÇÃO DE PDF DE DESPESAS
+
+// Função para popular as opções de ano no modal
+function populatePdfYearOptions() {
+    const yearSelect = document.getElementById('pdfYear');
+    const currentYear = new Date().getFullYear();
+    
+    // Limpar opções existentes
+    yearSelect.innerHTML = '<option value="">Selecione o ano</option>';
+    
+    // Adicionar últimos 5 anos e próximos 2 anos
+    for (let year = currentYear - 5; year <= currentYear + 2; year++) {
+        const option = document.createElement('option');
+        option.value = year;
+        option.textContent = year;
+        if (year === currentYear) {
+            option.selected = true;
+        }
+        yearSelect.appendChild(option);
+    }
+    
+    // Definir o mês atual como padrão
+    const monthSelect = document.getElementById('pdfMonth');
+    const currentMonth = new Date().getMonth() + 1;
+    monthSelect.value = currentMonth;
+}
+
+// Função principal para gerar PDF das despesas
+async function handleGenerateExpensesPdf(event) {
+    event.preventDefault();
+    
+    const formData = new FormData(event.target);
+    const month = parseInt(formData.get('month'));
+    const year = parseInt(formData.get('year'));
+    
+    if (!month || !year) {
+        showInfoMessage('Por favor, selecione o mês e ano.');
+        return;
+    }
+    
+    try {
+        // Buscar despesas do período selecionado
+        const { data: expensesData, error } = await supabase
+            .from('expenses')
+            .select(`
+                *,
+                expense_categories (
+                    name,
+                    color
+                )
+            `)
+            .gte('expense_date', `${year}-${month.toString().padStart(2, '0')}-01`)
+            .lt('expense_date', `${year}-${month === 12 ? year + 1 : year}-${month === 12 ? '01' : (month + 1).toString().padStart(2, '0')}-01`)
+            .order('expense_date', { ascending: true });
+
+        if (error) {
+            throw error;
+        }
+
+        if (!expensesData || expensesData.length === 0) {
+            showInfoMessage('Nenhuma despesa encontrada para o período selecionado.');
+            return;
+        }
+
+        // Gerar o PDF
+        await generateExpensesPdf(expensesData, month, year);
+        
+        // Fechar modal
+        hideModal(generatePdfModal);
+        
+        showSuccessMessage('PDF das despesas gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF das despesas:', error);
+        showInfoMessage('Erro ao gerar PDF das despesas: ' + error.message);
+    }
+}
+
+// Função para gerar o PDF das despesas
+async function generateExpensesPdf(expensesData, month, year) {
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    // Configurações do documento
+    const margin = 20;
+    const pageWidth = doc.internal.pageSize.width;
+    const pageHeight = doc.internal.pageSize.height;
+    const maxWidth = pageWidth - (margin * 2);
+    let yPosition = margin;
+    
+    // Nomes dos meses
+    const monthNames = [
+        'Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho',
+        'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'
+    ];
+    
+    // Cabeçalho
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(18);
+    doc.text('RELATÓRIO DE DESPESAS', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 10;
+    
+    doc.setFontSize(14);
+    doc.text(`${monthNames[month - 1]} de ${year}`, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 15;
+    
+    // Data de geração
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    const currentDate = new Date().toLocaleDateString('pt-BR');
+    doc.text(`Gerado em: ${currentDate}`, pageWidth - margin, yPosition, { align: 'right' });
+    yPosition += 15;
+    
+    // Calcular totais
+    const totalGeral = expensesData.reduce((sum, expense) => sum + parseFloat(expense.amount), 0);
+    const totalPorCategoria = {};
+    
+    expensesData.forEach(expense => {
+        const categoryName = expense.expense_categories?.name || 'Sem categoria';
+        if (!totalPorCategoria[categoryName]) {
+            totalPorCategoria[categoryName] = 0;
+        }
+        totalPorCategoria[categoryName] += parseFloat(expense.amount);
+    });
+    
+    // Resumo
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(12);
+    doc.text('RESUMO', margin, yPosition);
+    yPosition += 8;
+    
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(10);
+    doc.text(`Total de despesas: ${expensesData.length}`, margin, yPosition);
+    yPosition += 6;
+    doc.text(`Valor total: R$ ${totalGeral.toFixed(2).replace('.', ',')}`, margin, yPosition);
+    yPosition += 10;
+    
+    // Total por categoria
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('TOTAL POR CATEGORIA:', margin, yPosition);
+    yPosition += 6;
+    
+    doc.setFont('helvetica', 'normal');
+    Object.entries(totalPorCategoria).forEach(([categoria, valor]) => {
+        doc.text(`${categoria}: R$ ${valor.toFixed(2).replace('.', ',')}`, margin + 10, yPosition);
+        yPosition += 5;
+    });
+    yPosition += 10;
+    
+    // Cabeçalho da tabela
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text('DETALHAMENTO DAS DESPESAS', margin, yPosition);
+    yPosition += 8;
+    
+    // Linha horizontal
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 5;
+    
+    // Cabeçalhos das colunas
+    doc.text('Data', margin, yPosition);
+    doc.text('Descrição', margin + 25, yPosition);
+    doc.text('Categoria', margin + 90, yPosition);
+    doc.text('Valor', margin + 130, yPosition);
+    yPosition += 3;
+    
+    // Linha horizontal
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 8;
+    
+    // Dados das despesas
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(9);
+    
+    expensesData.forEach((expense, index) => {
+        // Verificar se precisa de nova página
+        if (yPosition > pageHeight - 30) {
+            doc.addPage();
+            yPosition = margin;
+            
+            // Repetir cabeçalho da tabela
+            doc.setFont('helvetica', 'bold');
+            doc.setFontSize(10);
+            doc.text('Data', margin, yPosition);
+            doc.text('Descrição', margin + 25, yPosition);
+            doc.text('Categoria', margin + 90, yPosition);
+            doc.text('Valor', margin + 130, yPosition);
+            yPosition += 3;
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 8;
+            doc.setFont('helvetica', 'normal');
+            doc.setFontSize(9);
+        }
+        
+        const date = new Date(expense.expense_date).toLocaleDateString('pt-BR');
+        const description = expense.description || 'Sem descrição';
+        const category = expense.expense_categories?.name || 'Sem categoria';
+        const amount = `R$ ${parseFloat(expense.amount).toFixed(2).replace('.', ',')}`;
+        
+        // Truncar descrição se muito longa
+        const maxDescLength = 35;
+        const truncatedDesc = description.length > maxDescLength 
+            ? description.substring(0, maxDescLength) + '...' 
+            : description;
+        
+        doc.text(date, margin, yPosition);
+        doc.text(truncatedDesc, margin + 25, yPosition);
+        doc.text(category, margin + 90, yPosition);
+        doc.text(amount, margin + 130, yPosition);
+        
+        yPosition += 6;
+        
+        // Linha divisória a cada 5 itens
+        if ((index + 1) % 5 === 0) {
+            doc.setDrawColor(200, 200, 200);
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            doc.setDrawColor(0, 0, 0);
+            yPosition += 3;
+        }
+    });
+    
+    // Rodapé
+    yPosition += 10;
+    if (yPosition > pageHeight - 40) {
+        doc.addPage();
+        yPosition = margin;
+    }
+    
+    doc.line(margin, yPosition, pageWidth - margin, yPosition);
+    yPosition += 8;
+    
+    doc.setFont('helvetica', 'bold');
+    doc.setFontSize(10);
+    doc.text(`TOTAL GERAL: R$ ${totalGeral.toFixed(2).replace('.', ',')}`, pageWidth - margin, yPosition, { align: 'right' });
+    
+    // Informações da empresa no rodapé
+    yPosition = pageHeight - 30;
+    doc.setFont('helvetica', 'normal');
+    doc.setFontSize(8);
+    doc.text('NEXUS GESTÃO FINANCEIRA', pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 4;
+    doc.text('Sistema de Gestão de Empréstimos e Despesas', pageWidth / 2, yPosition, { align: 'center' });
+    
+    // Salvar o PDF
+    const fileName = `Relatorio_Despesas_${monthNames[month - 1]}_${year}.pdf`;
+    doc.save(fileName);
 }
