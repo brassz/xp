@@ -18,6 +18,8 @@ let installments = [];
 let installmentPayments = [];
 let cashTransactions = [];
 let cashSettings = null;
+let capitalRaisings = [];
+let raisingClients = [];
 
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
@@ -282,6 +284,7 @@ function handleNavigation(e) {
     e.preventDefault();
     
     const target = e.currentTarget.getAttribute('href').substring(1);
+    console.log('Navegando para:', target);
     
     // Atualizar navegação ativa
     navLinks.forEach(link => link.classList.remove('active'));
@@ -322,6 +325,16 @@ function handleNavigation(e) {
                 console.log('Seção de parcelamentos ativada, carregando dados...');
                 loadInstallments();
                 loadOverdueLoansForInstallmentTable();
+            }
+            
+            // Carregar dados dos levantamentos quando a seção for exibida
+            if (target === 'capitalRaising') {
+                console.log('Seção de levantamento de capital ativada, carregando dados...');
+                try {
+                    loadCapitalRaisings();
+                } catch (error) {
+                    console.error('Erro ao carregar levantamentos:', error);
+                }
             }
             
 
@@ -4953,53 +4966,48 @@ function filterCashTransactions() {
 // INÍCIO DO LEVANTAMENTO DE CAPITAL
 // ===================================================
 
-// Estado global para levantamentos de capital
-let capitalRaisings = [];
-let raisingClients = [];
-
-// Primeiro, adicionar na função handleNavigation
-const originalHandleNavigation = handleNavigation;
-function handleNavigation(e) {
-    originalHandleNavigation.call(this, e);
-    
-    const target = e.currentTarget.getAttribute('href').substring(1);
-    
-    // Carregar dados dos levantamentos quando a seção for exibida
-    if (target === 'capitalRaising') {
-        console.log('Seção de levantamento de capital ativada, carregando dados...');
-        loadCapitalRaisings();
-    }
-}
+// Funcionalidade de levantamento de capital integrada na navegação original
 
 // Função para carregar levantamentos de capital
 async function loadCapitalRaisings() {
     try {
         console.log('Carregando levantamentos de capital...');
         
-        const { data: raisingsData, error: raisingsError } = await supabase
-            .from('capital_raisings')
-            .select('*')
-            .order('created_at', { ascending: false });
-            
-        if (raisingsError) {
-            console.error('Erro ao carregar levantamentos:', raisingsError);
-            throw raisingsError;
-        }
+        // Inicializar arrays vazios caso as tabelas não existam ainda
+        capitalRaisings = [];
+        raisingClients = [];
         
-        capitalRaisings = raisingsData || [];
+        // Tentar carregar dados das tabelas
+        try {
+            const { data: raisingsData, error: raisingsError } = await supabase
+                .from('capital_raisings')
+                .select('*')
+                .order('created_at', { ascending: false });
+                
+            if (!raisingsError) {
+                capitalRaisings = raisingsData || [];
+            } else {
+                console.warn('Tabela capital_raisings não encontrada, execute o script capital-raising-setup.sql');
+            }
+        } catch (err) {
+            console.warn('Erro ao acessar capital_raisings:', err.message);
+        }
         
         // Carregar clientes dos levantamentos
-        const { data: clientsData, error: clientsError } = await supabase
-            .from('raising_clients')
-            .select('*')
-            .order('created_at', { ascending: false });
-            
-        if (clientsError) {
-            console.error('Erro ao carregar clientes dos levantamentos:', clientsError);
-            throw clientsError;
+        try {
+            const { data: clientsData, error: clientsError } = await supabase
+                .from('raising_clients')
+                .select('*')
+                .order('created_at', { ascending: false });
+                
+            if (!clientsError) {
+                raisingClients = clientsData || [];
+            } else {
+                console.warn('Tabela raising_clients não encontrada, execute o script capital-raising-setup.sql');
+            }
+        } catch (err) {
+            console.warn('Erro ao acessar raising_clients:', err.message);
         }
-        
-        raisingClients = clientsData || [];
         
         // Atualizar UI
         updateCapitalRaisingMetrics();
@@ -5009,7 +5017,10 @@ async function loadCapitalRaisings() {
         
     } catch (error) {
         console.error('Erro ao carregar levantamentos de capital:', error);
-        showInfoMessage('Erro ao carregar levantamentos de capital.');
+        // Não mostrar erro se for apenas porque as tabelas não existem
+        if (!error.message.includes('relation') && !error.message.includes('does not exist')) {
+            showInfoMessage('Erro ao carregar levantamentos de capital.');
+        }
     }
 }
 

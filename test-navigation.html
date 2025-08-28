@@ -1,0 +1,90 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Navegação - Levantamento de Capital</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .content-section {
+            display: none;
+        }
+        .content-section:not(.hidden) {
+            display: block;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white">
+    <div class="flex">
+        <!-- Sidebar de teste -->
+        <div class="w-64 bg-gray-800 h-screen p-4">
+            <nav>
+                <a href="#overview" class="nav-link block py-2 px-4 text-gray-300 hover:text-white rounded mb-2">Visão Geral</a>
+                <a href="#capitalRaising" class="nav-link block py-2 px-4 text-gray-300 hover:text-white rounded mb-2">Levantamento de Capital</a>
+                <a href="#test" class="nav-link block py-2 px-4 text-gray-300 hover:text-white rounded mb-2">Teste</a>
+            </nav>
+        </div>
+        
+        <!-- Conteúdo principal -->
+        <div class="flex-1 p-6">
+            <!-- Seção Overview -->
+            <div id="overview" class="content-section">
+                <h1 class="text-2xl font-bold mb-4">Visão Geral</h1>
+                <p>Esta é a seção de visão geral.</p>
+            </div>
+            
+            <!-- Seção Levantamento de Capital -->
+            <div id="capitalRaising" class="content-section hidden">
+                <h1 class="text-2xl font-bold mb-4">Levantamento de Capital</h1>
+                <p>Esta é a seção de levantamento de capital.</p>
+                
+                <div class="bg-gray-800 p-4 rounded mt-4">
+                    <h2 class="text-lg font-semibold mb-2">Teste de Funcionalidade</h2>
+                    <p>Se você pode ver esta mensagem, a navegação está funcionando!</p>
+                </div>
+            </div>
+            
+            <!-- Seção Teste -->
+            <div id="test" class="content-section hidden">
+                <h1 class="text-2xl font-bold mb-4">Seção de Teste</h1>
+                <p>Esta é uma seção de teste para verificar se a navegação funciona.</p>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Script de navegação simples para teste
+        document.addEventListener('DOMContentLoaded', function() {
+            const navLinks = document.querySelectorAll('.nav-link');
+            const contentSections = document.querySelectorAll('.content-section');
+            
+            function handleNavigation(e) {
+                e.preventDefault();
+                
+                const target = e.currentTarget.getAttribute('href').substring(1);
+                console.log('Navegando para:', target);
+                
+                // Atualizar navegação ativa
+                navLinks.forEach(link => link.classList.remove('bg-blue-600'));
+                e.currentTarget.classList.add('bg-blue-600');
+                
+                // Mostrar seção correspondente
+                contentSections.forEach(section => {
+                    section.classList.add('hidden');
+                    if (section.id === target) {
+                        section.classList.remove('hidden');
+                        console.log('Seção exibida:', target);
+                    }
+                });
+            }
+            
+            navLinks.forEach(link => {
+                link.addEventListener('click', handleNavigation);
+            });
+            
+            // Ativar primeira seção por padrão
+            document.querySelector('#overview').classList.remove('hidden');
+        });
+    </script>
+</body>
+</html>
