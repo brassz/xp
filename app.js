@@ -207,25 +207,73 @@ function setupEventListeners() {
     document.getElementById('capitalRaisingInterestRate').addEventListener('input', updateCapitalRaisingTotal);
 }
 
+// Variável para evitar configuração múltipla da navegação
+let navigationSetup = false;
+
 // Configurar navegação
 function setupNavigation() {
-    // Configurar navegação por hash
-    function updateActiveNavLink() {
-        const hash = window.location.hash || '#overview';
-        const navLinks = document.querySelectorAll('.nav-link');
+    if (navigationSetup) {
+        return; // Já foi configurado
+    }
+    navigationSetup = true;
+    // Função para mostrar uma seção específica
+    function showSection(sectionId) {
+        // Esconder todas as seções
+        const sections = document.querySelectorAll('.content-section');
+        sections.forEach(section => {
+            section.style.display = 'none';
+        });
         
+        // Mostrar a seção desejada
+        const targetSection = document.getElementById(sectionId);
+        if (targetSection) {
+            targetSection.style.display = 'block';
+        }
+        
+        // Atualizar links ativos
+        const navLinks = document.querySelectorAll('.nav-link');
         navLinks.forEach(link => {
             link.classList.remove('active');
-            if (link.getAttribute('href') === hash) {
+            if (link.getAttribute('href') === '#' + sectionId) {
                 link.classList.add('active');
             }
         });
+        
+        // Carregar dados específicos se necessário
+        if (sectionId === 'capitalRaising') {
+            setTimeout(() => {
+                if (typeof capitalRaisings !== 'undefined' && capitalRaisings.length === 0) {
+                    loadCapitalRaisings();
+                }
+            }, 100);
+        }
     }
     
-    // Atualizar link ativo quando hash mudar
+    // Configurar navegação por hash
+    function updateActiveNavLink() {
+        const hash = window.location.hash || '#overview';
+        const sectionId = hash.replace('#', '');
+        showSection(sectionId);
+    }
+    
+    // Event listeners
     window.addEventListener('hashchange', updateActiveNavLink);
     
-    // Configurar link ativo inicial
+    // Adicionar event listeners diretos nos links também
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(link => {
+        link.addEventListener('click', (e) => {
+            const href = link.getAttribute('href');
+            if (href && href.startsWith('#')) {
+                e.preventDefault();
+                const sectionId = href.replace('#', '');
+                window.location.hash = href;
+                showSection(sectionId);
+            }
+        });
+    });
+    
+    // Configurar navegação inicial
     updateActiveNavLink();
 }
 
@@ -991,6 +1039,11 @@ function showLogin() {
 function showDashboard() {
     loginPage.classList.add('hidden');
     dashboard.classList.remove('hidden');
+    
+    // Configurar navegação quando o dashboard for mostrado
+    setTimeout(() => {
+        setupNavigation();
+    }, 100);
 }
 
 function populateClientSelect() {
