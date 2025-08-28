@@ -192,6 +192,55 @@
             pointer-events: none;
         }
 
+        /* Responsive sidebar layout fixes */
+        @media (max-width: 1024px) {
+            .sidebar-fixed {
+                transform: translateX(-100%);
+                transition: transform 0.3s ease;
+            }
+            
+            .sidebar-fixed.show {
+                transform: translateX(0);
+            }
+            
+            .main-content {
+                margin-left: 0 !important;
+            }
+        }
+
+        /* Ensure proper spacing for main content */
+        .main-content {
+            margin-left: 16rem; /* 256px equivalent to w-64 */
+            min-width: 0;
+            flex: 1;
+        }
+
+        /* Mobile menu button */
+        .mobile-menu-btn {
+            display: none;
+        }
+
+        @media (max-width: 1024px) {
+            .mobile-menu-btn {
+                display: block;
+            }
+        }
+
+        /* Mobile menu backdrop */
+        .mobile-backdrop {
+            display: none;
+            position: fixed;
+            inset: 0;
+            background: rgba(0, 0, 0, 0.5);
+            z-index: 30;
+        }
+
+        @media (max-width: 1024px) {
+            .sidebar-fixed.show + .mobile-backdrop {
+                display: block;
+            }
+        }
+
         .chart-container {
             position: relative;
             width: 100%;
@@ -245,7 +294,7 @@
     <!-- Dashboard -->
     <div id="dashboard" class="hidden min-h-screen bg-gray-900">
         <!-- Sidebar -->
-        <div class="fixed inset-y-0 left-0 w-64 bg-gray-800 border-r border-gray-700 z-40">
+        <div class="sidebar-fixed fixed inset-y-0 left-0 w-64 bg-gray-800 border-r border-gray-700 z-40">
             <div class="flex items-center justify-center h-16 bg-gray-900 border-b border-gray-700">
                 <div class="flex items-center space-x-2">
                     <div class="w-20 h-8 flex items-center justify-center">
@@ -338,13 +387,23 @@
                 </button>
             </div>
         </div>
+        
+        <!-- Mobile backdrop -->
+        <div class="mobile-backdrop" id="mobileBackdrop"></div>
 
         <!-- Main Content -->
-        <div class="ml-64">
+        <div class="main-content min-h-screen">
             <!-- Header -->
             <header class="bg-gray-800 border-b border-gray-700 px-6 py-4">
                 <div class="flex items-center justify-between">
-                    <h1 class="text-2xl font-bold text-white">Dashboard</h1>
+                    <div class="flex items-center space-x-4">
+                        <button id="mobileMenuToggle" class="mobile-menu-btn text-white p-2 rounded-lg hover:bg-gray-700">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 6h16M4 12h16M4 18h16"></path>
+                            </svg>
+                        </button>
+                        <h1 class="text-2xl font-bold text-white">Dashboard</h1>
+                    </div>
                     <div class="flex items-center space-x-4">
                         <span class="text-gray-300">Bem-vindo, <span id="userName">Admin</span></span>
                         <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
@@ -355,9 +414,9 @@
             </header>
 
             <!-- Content Area -->
-            <main class="p-6">
+            <main class="p-6 w-full">
                 <!-- Overview Section -->
-                <div id="overview" class="content-section">
+                <div id="overview" class="content-section w-full max-w-full">
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold text-white mb-2">Visão Geral</h2>
                         <p class="text-gray-400">Resumo das operações financeiras</p>
@@ -471,7 +530,7 @@
                 </div>
 
                 <!-- Clients Section -->
-                <div id="clients" class="content-section hidden">
+                <div id="clients" class="content-section hidden w-full max-w-full">
                     <div class="mb-8">
                         <div class="flex items-center justify-between">
                             <div>
@@ -509,7 +568,7 @@
                 </div>
 
                 <!-- Loans Section -->
-                <div id="loans" class="content-section hidden">
+                <div id="loans" class="content-section hidden w-full max-w-full">
                     <div class="mb-8">
                         <div class="flex items-center justify-between">
                             <div>
@@ -554,7 +613,7 @@
                 </div>
 
                 <!-- Installments Section -->
-                <div id="installments" class="content-section hidden">
+                <div id="installments" class="content-section hidden w-full max-w-full">
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold text-white mb-2">Parcelamento</h2>
                         <p class="text-gray-400">Gerencie pagamentos de empréstimos vencidos e crie novos parcelamentos</p>
@@ -620,7 +679,7 @@
                 </div>
 
                 <!-- Paid Loans Section -->
-                <div id="paidLoans" class="content-section hidden">
+                <div id="paidLoans" class="content-section hidden w-full max-w-full">
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold text-white mb-2">Empréstimos Quitados</h2>
                         <p class="text-gray-400">Visualize todos os empréstimos que foram completamente pagos</p>
@@ -655,7 +714,7 @@
 
 
                 <!-- Reports Section -->
-                <div id="reports" class="content-section hidden">
+                <div id="reports" class="content-section hidden w-full max-w-full">
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold text-white mb-2">Relatórios e Métricas</h2>
                         <p class="text-gray-400">Análise detalhada das operações</p>
@@ -697,7 +756,7 @@
                 </div>
 
                 <!-- Expenses Section -->
-                <div id="expenses" class="content-section hidden">
+                <div id="expenses" class="content-section hidden w-full max-w-full">
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold text-white mb-2">Despesas</h2>
                         <p class="text-gray-400">Gerencie suas despesas corporativas</p>
@@ -802,7 +861,7 @@
                 </div>
 
                 <!-- Cash Management Section -->
-                <div id="cashManagement" class="content-section hidden">
+                <div id="cashManagement" class="content-section hidden w-full max-w-full">
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold text-white mb-2">Gestão de Caixa</h2>
                         <p class="text-gray-400">Gerencie entradas e saídas de dinheiro do seu caixa</p>
@@ -945,7 +1004,7 @@
                 </div>
 
                 <!-- History Section -->
-                <div id="history" class="content-section hidden">
+                <div id="history" class="content-section hidden w-full max-w-full">
                     <div class="mb-8">
                         <h2 class="text-3xl font-bold text-white mb-2">Histórico Completo</h2>
                         <p class="text-gray-400">Visualize todos os empréstimos e pagamentos de um cliente específico</p>
@@ -1069,7 +1128,7 @@
                 </div>
 
                 <!-- Capital Raising Section -->
-                <div id="capitalRaising" class="content-section hidden">
+                <div id="capitalRaising" class="content-section hidden w-full max-w-full">
                     <div class="mb-6">
                         <div class="flex items-center justify-between">
                             <div>
@@ -1083,7 +1142,7 @@
                     </div>
 
                     <!-- Caixa Levantado Metrics -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-4 mb-6">
+                    <div class="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4 mb-6 w-full">
                         <div class="metric-card rounded-lg p-4">
                             <div class="flex items-center">
                                 <div class="flex-shrink-0">

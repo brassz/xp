@@ -107,6 +107,28 @@ function setupEventListeners() {
         link.addEventListener('click', handleNavigation);
     });
     
+    // Mobile menu toggle
+    const mobileMenuToggle = document.getElementById('mobileMenuToggle');
+    const sidebar = document.querySelector('.sidebar-fixed');
+    const mobileBackdrop = document.getElementById('mobileBackdrop');
+    
+    if (mobileMenuToggle && sidebar) {
+        mobileMenuToggle.addEventListener('click', () => {
+            sidebar.classList.toggle('show');
+            if (mobileBackdrop) {
+                mobileBackdrop.style.display = sidebar.classList.contains('show') ? 'block' : 'none';
+            }
+        });
+    }
+    
+    // Close mobile menu when clicking backdrop
+    if (mobileBackdrop && sidebar) {
+        mobileBackdrop.addEventListener('click', () => {
+            sidebar.classList.remove('show');
+            mobileBackdrop.style.display = 'none';
+        });
+    }
+    
     // Botões
     newClientBtn.addEventListener('click', () => showModal(newClientModal));
     newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
