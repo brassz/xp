@@ -305,11 +305,7 @@
             }
         }
         
-        /* Otimizações adicionais */
-        .metric-card {
-            min-height: auto;
-        }
-        
+        /* Animação para seções */
         .content-section {
             animation: fadeIn 0.3s ease-in-out;
         }
@@ -1197,107 +1193,93 @@
 
                 <!-- Capital Raising Section -->
                 <div id="capitalRaising" class="content-section">
-                    <div class="mb-4">
-                        <div class="flex items-center justify-between">
-                            <div>
-                                <h2 class="text-2xl font-bold text-white mb-1">Levantamento de Capital</h2>
-                                <p class="text-gray-400 text-sm">Gerencie seus levantamentos de capital e distribuição</p>
-                            </div>
-                            <button id="newCapitalRaisingBtn" class="btn-primary px-4 py-2 rounded-lg font-semibold text-white text-sm">
-                                Adicionar Levantamento
-                            </button>
-                        </div>
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-white mb-2">Levantamento de Capital</h2>
+                        <p class="text-gray-400">Gerencie seus levantamentos de capital e distribuição</p>
                     </div>
 
-                    <!-- Caixa Levantado Metrics -->
-                    <div class="grid grid-cols-2 md:grid-cols-4 gap-3 mb-4">
-                        <div class="metric-card rounded-lg p-3">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <div class="w-6 h-6 bg-green-500 rounded-full flex items-center justify-center">
-                                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="ml-2">
-                                    <p class="text-xs font-medium text-green-300">Total Levantado</p>
-                                    <p class="text-lg font-semibold text-white" id="totalCapitalRaised">R$ 0,00</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="metric-card rounded-lg p-3">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <div class="w-6 h-6 bg-blue-500 rounded-full flex items-center justify-center">
-                                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="ml-2">
-                                    <p class="text-xs font-medium text-blue-300">Total de Clientes</p>
-                                    <p class="text-lg font-semibold text-white" id="totalCapitalClients">0</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="metric-card rounded-lg p-3">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <div class="w-6 h-6 bg-yellow-500 rounded-full flex items-center justify-center">
-                                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="ml-2">
-                                    <p class="text-xs font-medium text-yellow-300">Levantamentos Ativos</p>
-                                    <p class="text-lg font-semibold text-white" id="activeCapitalRaisings">0</p>
-                                </div>
-                            </div>
-                        </div>
-
-                        <div class="metric-card rounded-lg p-3">
-                            <div class="flex items-center">
-                                <div class="flex-shrink-0">
-                                    <div class="w-6 h-6 bg-purple-500 rounded-full flex items-center justify-center">
-                                        <svg class="w-3 h-3 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
-                                        </svg>
-                                    </div>
-                                </div>
-                                <div class="ml-2">
-                                    <p class="text-xs font-medium text-purple-300">Juros Médios</p>
-                                    <p class="text-lg font-semibold text-white" id="averageInterestRate">0%</p>
-                                </div>
-                            </div>
-                        </div>
+                    <!-- Create New Capital Raising Button -->
+                    <div class="mb-6">
+                        <button id="newCapitalRaisingBtn" class="btn-primary px-6 py-3 rounded-lg text-white font-medium hover:scale-105 transition-all">
+                            <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Adicionar Levantamento
+                        </button>
                     </div>
 
                     <!-- Capital Raisings Table -->
-                    <div class="table-container">
-                        <div class="table-header px-4 py-3">
-                            <h3 class="text-base font-semibold text-white">Lista de Levantamentos</h3>
+                    <div class="table-container mb-8">
+                        <div class="table-header px-6 py-4">
+                            <h3 class="text-lg font-semibold text-white">Lista de Levantamentos</h3>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full">
                                 <thead class="table-header">
                                     <tr>
-                                        <th class="px-4 py-2 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data</th>
-                                        <th class="px-4 py-2 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Bruto</th>
-                                        <th class="px-4 py-2 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Juros (%)</th>
-                                        <th class="px-4 py-2 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Total</th>
-                                        <th class="px-4 py-2 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Clientes</th>
-                                        <th class="px-4 py-2 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Status</th>
-                                        <th class="px-4 py-2 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Bruto</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Juros (%)</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Total</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Clientes</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody id="capitalRaisingsTableBody" class="divide-y divide-gray-700">
                                     <!-- Capital raisings will be populated here -->
                                 </tbody>
                             </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Capital Raising Summary -->
+                    <div class="table-container">
+                        <div class="table-header px-6 py-4">
+                            <h3 class="text-lg font-semibold text-white">Resumo Geral</h3>
+                        </div>
+                        <div class="p-6">
+                            <div class="grid grid-cols-2 md:grid-cols-4 gap-6">
+                                <div class="text-center">
+                                    <div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                        </svg>
+                                    </div>
+                                    <p class="text-sm font-medium text-green-300">Total Levantado</p>
+                                    <p class="text-xl font-bold text-white" id="totalCapitalRaised">R$ 0,00</p>
+                                </div>
+
+                                <div class="text-center">
+                                    <div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                    </div>
+                                    <p class="text-sm font-medium text-blue-300">Total de Clientes</p>
+                                    <p class="text-xl font-bold text-white" id="totalCapitalClients">0</p>
+                                </div>
+
+                                <div class="text-center">
+                                    <div class="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                        </svg>
+                                    </div>
+                                    <p class="text-sm font-medium text-yellow-300">Levantamentos Ativos</p>
+                                    <p class="text-xl font-bold text-white" id="activeCapitalRaisings">0</p>
+                                </div>
+
+                                <div class="text-center">
+                                    <div class="w-12 h-12 bg-purple-500 rounded-full flex items-center justify-center mx-auto mb-2">
+                                        <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+                                        </svg>
+                                    </div>
+                                    <p class="text-sm font-medium text-purple-300">Juros Médios</p>
+                                    <p class="text-xl font-bold text-white" id="averageInterestRate">0%</p>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
