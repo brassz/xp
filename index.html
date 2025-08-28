@@ -208,6 +208,21 @@
             width: 100% !important;
             height: 100% !important;
         }
+
+        /* Navegação por hash - mostrar seção target */
+        .content-section {
+            display: none;
+        }
+        
+        .content-section:target,
+        .content-section.active {
+            display: block;
+        }
+        
+        /* Se não há hash, mostrar overview por padrão */
+        #overview {
+            display: block;
+        }
     </style>
 </head>
 <body class="antialiased">

@@ -70,6 +70,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
     setupUploadcare();
+    setupNavigation();
 });
 
 // Inicializar aplicação
@@ -133,12 +134,19 @@ function setupEventListeners() {
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
-    document.getElementById('closeCapitalRaisingModal').addEventListener('click', () => hideModal(newCapitalRaisingModal));
+    document.getElementById('closeCapitalRaisingModal').addEventListener('click', () => {
+        resetCapitalRaisingForm();
+        hideModal(newCapitalRaisingModal);
+    });
     document.getElementById('closeCapitalRaisingClientsModal').addEventListener('click', () => hideModal(capitalRaisingClientsModal));
     
     // Cancelar modais
     document.getElementById('cancelClientBtn').addEventListener('click', () => hideModal(newClientModal));
     document.getElementById('cancelLoanBtn').addEventListener('click', () => hideModal(newLoanModal));
+    document.getElementById('cancelCapitalRaising').addEventListener('click', () => {
+        resetCapitalRaisingForm();
+        hideModal(newCapitalRaisingModal);
+    });
     document.getElementById('cancelPaymentBtn').addEventListener('click', () => hideModal(paymentModal));
     document.getElementById('cancelEditClientBtn').addEventListener('click', () => hideModal(editClientModal));
     document.getElementById('cancelEditLoanBtn').addEventListener('click', () => hideModal(editLoanModal));
@@ -197,6 +205,28 @@ function setupEventListeners() {
     // Cálculos em tempo real para levantamento de capital
     document.getElementById('capitalRaisingGrossAmount').addEventListener('input', updateCapitalRaisingTotal);
     document.getElementById('capitalRaisingInterestRate').addEventListener('input', updateCapitalRaisingTotal);
+}
+
+// Configurar navegação
+function setupNavigation() {
+    // Configurar navegação por hash
+    function updateActiveNavLink() {
+        const hash = window.location.hash || '#overview';
+        const navLinks = document.querySelectorAll('.nav-link');
+        
+        navLinks.forEach(link => {
+            link.classList.remove('active');
+            if (link.getAttribute('href') === hash) {
+                link.classList.add('active');
+            }
+        });
+    }
+    
+    // Atualizar link ativo quando hash mudar
+    window.addEventListener('hashchange', updateActiveNavLink);
+    
+    // Configurar link ativo inicial
+    updateActiveNavLink();
 }
 
 // Configurar Uploadcare
@@ -2129,6 +2159,38 @@ async function createTablesIfNotExist() {
             }
         } catch (error) {
             console.log('Erro ao verificar tabela expenses:', error);
+        }
+        
+        // Verificar se a tabela capital_raisings existe
+        try {
+            const { data: capitalRaisingsCheck, error: capitalRaisingsCheckError } = await supabase
+                .from('capital_raisings')
+                .select('id')
+                .limit(1);
+            
+            if (capitalRaisingsCheckError) {
+                console.log('Tabela capital_raisings não encontrada. Execute o script setup-capital-raising-tables.sql no Supabase.');
+            } else {
+                console.log('✓ Tabela capital_raisings encontrada');
+            }
+        } catch (error) {
+            console.log('Erro ao verificar tabela capital_raisings:', error);
+        }
+        
+        // Verificar se a tabela capital_raising_clients existe
+        try {
+            const { data: capitalRaisingClientsCheck, error: capitalRaisingClientsCheckError } = await supabase
+                .from('capital_raising_clients')
+                .select('id')
+                .limit(1);
+            
+            if (capitalRaisingClientsCheckError) {
+                console.log('Tabela capital_raising_clients não encontrada. Execute o script setup-capital-raising-tables.sql no Supabase.');
+            } else {
+                console.log('✓ Tabela capital_raising_clients encontrada');
+            }
+        } catch (error) {
+            console.log('Erro ao verificar tabela capital_raising_clients:', error);
         }
         
         console.log('Verificação de tabelas concluída!');
@@ -5080,6 +5142,24 @@ function updateCapitalRaisingTotal() {
     document.getElementById('capitalRaisingTotalAmount').value = totalAmount.toFixed(2);
 }
 
+// Resetar formulário de levantamento de capital
+function resetCapitalRaisingForm() {
+    const form = document.getElementById('newCapitalRaisingForm');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    
+    // Resetar o formulário
+    form.reset();
+    
+    // Restaurar texto do botão
+    submitBtn.textContent = 'Criar Levantamento';
+    
+    // Restaurar handler original se necessário
+    form.onsubmit = handleNewCapitalRaising;
+    
+    // Definir data padrão
+    setDefaultCapitalRaisingDate();
+}
+
 // Manipular novo levantamento de capital
 async function handleNewCapitalRaising(e) {
     e.preventDefault();
@@ -5298,8 +5378,76 @@ async function removeClientFromCapitalRaising(clientId) {
 
 // Editar levantamento de capital
 async function editCapitalRaising(raisingId) {
-    // Implementar funcionalidade de edição se necessário
-    showAlert('Funcionalidade de edição em desenvolvimento', 'info');
+    const raising = capitalRaisings.find(r => r.id === raisingId);
+    if (!raising) {
+        showAlert('Levantamento não encontrado', 'error');
+        return;
+    }
+    
+    // Preencher o formulário com os dados do levantamento
+    document.getElementById('capitalRaisingGrossAmount').value = raising.gross_amount;
+    document.getElementById('capitalRaisingInterestRate').value = raising.interest_rate;
+    document.getElementById('capitalRaisingTotalAmount').value = raising.total_amount;
+    document.getElementById('capitalRaisingDate').value = raising.raising_date;
+    document.getElementById('capitalRaisingNotes').value = raising.notes || '';
+    
+    // Alterar o formulário para modo de edição
+    const form = document.getElementById('newCapitalRaisingForm');
+    const submitBtn = form.querySelector('button[type="submit"]');
+    const originalText = submitBtn.textContent;
+    
+    submitBtn.textContent = 'Atualizar Levantamento';
+    
+    // Criar função temporária para atualizar em vez de criar
+    const originalHandler = form.onsubmit;
+    
+    form.onsubmit = async function(e) {
+        e.preventDefault();
+        
+        const grossAmount = parseFloat(document.getElementById('capitalRaisingGrossAmount').value);
+        const interestRate = parseFloat(document.getElementById('capitalRaisingInterestRate').value);
+        const totalAmount = parseFloat(document.getElementById('capitalRaisingTotalAmount').value);
+        const raisingDate = document.getElementById('capitalRaisingDate').value;
+        const notes = document.getElementById('capitalRaisingNotes').value;
+        
+        try {
+            const { data, error } = await supabase
+                .from('capital_raisings')
+                .update({
+                    gross_amount: grossAmount,
+                    interest_rate: interestRate,
+                    total_amount: totalAmount,
+                    raising_date: raisingDate,
+                    notes: notes
+                })
+                .eq('id', raisingId)
+                .select();
+            
+            if (error) throw error;
+            
+            console.log('Levantamento atualizado:', data);
+            
+            // Resetar formulário e fechar modal
+            form.reset();
+            hideModal(newCapitalRaisingModal);
+            
+            // Restaurar o formulário para o modo original
+            submitBtn.textContent = originalText;
+            form.onsubmit = originalHandler;
+            
+            // Recarregar dados
+            await loadCapitalRaisings();
+            
+            showAlert('Levantamento atualizado com sucesso!', 'success');
+            
+        } catch (error) {
+            console.error('Erro ao atualizar levantamento:', error);
+            showAlert('Erro ao atualizar levantamento. Tente novamente.', 'error');
+        }
+    };
+    
+    // Mostrar o modal
+    showModal(newCapitalRaisingModal);
 }
 
 // Excluir levantamento de capital
