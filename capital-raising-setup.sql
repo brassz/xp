@@ -11,6 +11,8 @@ CREATE TABLE IF NOT EXISTS capital_raising (
     data_criacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     data_atualizacao TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     ativo BOOLEAN DEFAULT TRUE,
+    data_baixa TIMESTAMP NULL,
+    motivo_baixa TEXT,
     observacoes TEXT,
     user_id VARCHAR(255) NOT NULL
 );
@@ -57,4 +59,6 @@ COMMENT ON COLUMN capital_raising.nome IS 'Nome/descrição do levantamento';
 COMMENT ON COLUMN capital_raising.valor_bruto IS 'Valor bruto inicial do levantamento';
 COMMENT ON COLUMN capital_raising.taxa_juros IS 'Taxa de juros aplicada (em percentual)';
 COMMENT ON COLUMN capital_raising.valor_total IS 'Valor total com juros aplicados';
+COMMENT ON COLUMN capital_raising.data_baixa IS 'Data em que o levantamento foi dado como baixa/encerrado';
+COMMENT ON COLUMN capital_raising.motivo_baixa IS 'Motivo pelo qual o levantamento foi dado como baixa';
 COMMENT ON COLUMN capital_raising_clients.valor_individual IS 'Valor que cada cliente deve contribuir';
