@@ -277,6 +277,59 @@ function setupNavigation() {
     updateActiveNavLink();
 }
 
+// Variável para evitar configuração múltipla do menu mobile
+let mobileMenuSetup = false;
+
+// Configurar menu mobile
+function setupMobileMenu() {
+    if (mobileMenuSetup) return; // Já foi configurado
+    
+    const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+    const closeSidebarBtn = document.getElementById('closeSidebarBtn');
+    const sidebar = document.getElementById('sidebar');
+    const mobileOverlay = document.getElementById('mobileOverlay');
+    
+    if (!mobileMenuBtn || !sidebar || !mobileOverlay) return;
+    
+    mobileMenuSetup = true;
+    
+    function closeMobileMenu() {
+        sidebar.classList.remove('open');
+        mobileOverlay.classList.remove('show');
+    }
+    
+    function openMobileMenu() {
+        sidebar.classList.add('open');
+        mobileOverlay.classList.add('show');
+    }
+    
+    // Toggle do menu mobile
+    mobileMenuBtn.addEventListener('click', () => {
+        if (sidebar.classList.contains('open')) {
+            closeMobileMenu();
+        } else {
+            openMobileMenu();
+        }
+    });
+    
+    // Botão de fechar na sidebar
+    if (closeSidebarBtn) {
+        closeSidebarBtn.addEventListener('click', closeMobileMenu);
+    }
+    
+    // Fechar menu ao clicar no overlay
+    mobileOverlay.addEventListener('click', closeMobileMenu);
+    
+    // Fechar menu ao clicar em um link
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(link => {
+        link.addEventListener('click', () => {
+            // Delay para permitir a navegação antes de fechar o menu
+            setTimeout(closeMobileMenu, 100);
+        });
+    });
+}
+
 // Configurar Uploadcare
 function setupUploadcare() {
     if (window.uploadcare) {
@@ -1043,6 +1096,7 @@ function showDashboard() {
     // Configurar navegação quando o dashboard for mostrado
     setTimeout(() => {
         setupNavigation();
+        setupMobileMenu();
     }, 100);
 }
 
