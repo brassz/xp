@@ -5006,35 +5006,35 @@ async function renderCapitalRaisingsTable() {
                           raising.status === 'completed' ? 'Concluído' : 'Cancelado';
         
         row.innerHTML = `
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
                 ${new Date(raising.raising_date).toLocaleDateString('pt-BR')}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">
                 R$ ${parseFloat(raising.gross_amount).toFixed(2).replace('.', ',')}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-400">
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-yellow-400">
                 ${parseFloat(raising.interest_rate).toFixed(2)}%
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-400">
+            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-green-400">
                 R$ ${parseFloat(raising.total_amount).toFixed(2).replace('.', ',')}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-400">
+            <td class="px-4 py-3 whitespace-nowrap text-sm text-blue-400">
                 ${clientsCount} cliente${clientsCount !== 1 ? 's' : ''}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm ${statusColor}">
+            <td class="px-4 py-3 whitespace-nowrap text-sm ${statusColor}">
                 ${statusText}
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm space-x-2">
+            <td class="px-4 py-3 whitespace-nowrap text-sm space-x-1">
                 <button onclick="openCapitalRaisingClientsModal('${raising.id}')" 
-                        class="text-blue-400 hover:text-blue-300 transition-colors">
+                        class="text-blue-400 hover:text-blue-300 transition-colors text-xs">
                     👥 Clientes
                 </button>
                 <button onclick="editCapitalRaising('${raising.id}')" 
-                        class="text-yellow-400 hover:text-yellow-300 transition-colors ml-2">
+                        class="text-yellow-400 hover:text-yellow-300 transition-colors text-xs">
                     ✏️ Editar
                 </button>
                 <button onclick="deleteCapitalRaising('${raising.id}')" 
-                        class="text-red-400 hover:text-red-300 transition-colors ml-2">
+                        class="text-red-400 hover:text-red-300 transition-colors text-xs">
                     🗑️ Excluir
                 </button>
             </td>
@@ -5181,16 +5181,16 @@ function renderCapitalRaisingClientsTable() {
         row.className = 'hover:bg-gray-700';
         
         row.innerHTML = `
-            <td class="px-4 py-3 text-sm text-white">${client.client_name}</td>
-            <td class="px-4 py-3 text-sm font-medium text-green-400">
+            <td class="px-3 py-2 text-sm text-white">${client.client_name}</td>
+            <td class="px-3 py-2 text-sm font-medium text-green-400">
                 R$ ${parseFloat(client.client_amount).toFixed(2).replace('.', ',')}
             </td>
-            <td class="px-4 py-3 text-sm text-gray-300">
+            <td class="px-3 py-2 text-sm text-gray-300">
                 ${new Date(client.created_at).toLocaleDateString('pt-BR')}
             </td>
-            <td class="px-4 py-3 text-sm">
+            <td class="px-3 py-2 text-sm">
                 <button onclick="removeClientFromCapitalRaising('${client.id}')" 
-                        class="text-red-400 hover:text-red-300 transition-colors">
+                        class="text-red-400 hover:text-red-300 transition-colors text-xs">
                     🗑️ Remover
                 </button>
             </td>
