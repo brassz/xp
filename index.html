@@ -2041,6 +2041,8 @@
                                     <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Telefone</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Email</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Individual</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Total Pago</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Saldo Devedor</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data</th>
                                     <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
                                 </tr>
@@ -2111,6 +2113,148 @@
                         </button>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Add Payment Modal -->
+    <div id="addPaymentModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold text-white">Adicionar Pagamento</h2>
+                    <button id="closePaymentModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="addPaymentForm" class="space-y-6">
+                    <div class="glass-card p-4 rounded-lg mb-4">
+                        <h3 class="text-lg font-semibold text-white mb-2">Cliente: <span id="paymentClientName"></span></h3>
+                        <p class="text-gray-300">Valor Individual: <span id="paymentClientValue" class="text-green-400"></span></p>
+                        <p class="text-gray-300">Total Pago: <span id="paymentClientTotalPaid" class="text-blue-400"></span></p>
+                        <p class="text-gray-300">Saldo Devedor: <span id="paymentClientBalance" class="text-yellow-400"></span></p>
+                    </div>
+
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Valor do Pagamento (R$)</label>
+                            <input type="number" id="paymentAmount" step="0.01" min="0.01" class="form-input w-full" placeholder="0,00" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data do Pagamento</label>
+                            <input type="date" id="paymentDate" class="form-input w-full" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Método de Pagamento</label>
+                            <select id="paymentMethod" class="form-input w-full">
+                                <option value="pix">PIX</option>
+                                <option value="transferencia">Transferência Bancária</option>
+                                <option value="ted">TED</option>
+                                <option value="doc">DOC</option>
+                                <option value="boleto">Boleto</option>
+                                <option value="cartao">Cartão</option>
+                                <option value="dinheiro">Dinheiro</option>
+                                <option value="outros">Outros</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Status</label>
+                            <select id="paymentStatus" class="form-input w-full">
+                                <option value="confirmado">Confirmado</option>
+                                <option value="pendente">Pendente</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data de Vencimento (opcional)</label>
+                            <input type="date" id="paymentDueDate" class="form-input w-full">
+                        </div>
+                        
+                        <div class="md:col-span-2">
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
+                            <textarea id="paymentNotes" class="form-input w-full" rows="2" placeholder="Observações sobre o pagamento (opcional)"></textarea>
+                        </div>
+                    </div>
+                    
+                    <div class="flex space-x-4 pt-4">
+                        <button type="submit" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold text-white">
+                            Adicionar Pagamento
+                        </button>
+                        <button type="button" id="cancelPayment" class="bg-gray-600 hover:bg-gray-500 py-3 px-4 rounded-lg font-semibold text-white transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment History Modal -->
+    <div id="paymentHistoryModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-5xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-2xl font-bold text-white">Histórico de Pagamentos</h2>
+                    <button id="closePaymentHistoryModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="glass-card p-4 rounded-lg mb-6">
+                    <h3 class="text-lg font-semibold text-white mb-2">Cliente: <span id="historyClientName"></span></h3>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                        <div>
+                            <p class="text-gray-300">Valor Individual: <span id="historyClientValue" class="text-green-400"></span></p>
+                        </div>
+                        <div>
+                            <p class="text-gray-300">Total Pago: <span id="historyClientTotalPaid" class="text-blue-400"></span></p>
+                        </div>
+                        <div>
+                            <p class="text-gray-300">Saldo Devedor: <span id="historyClientBalance" class="text-yellow-400"></span></p>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="mb-4">
+                    <button id="addNewPaymentBtn" class="btn-primary px-4 py-2 rounded-lg font-semibold text-white flex items-center space-x-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                        </svg>
+                        <span>Adicionar Pagamento</span>
+                    </button>
+                </div>
+
+                <div class="table-container">
+                    <div class="table-header px-6 py-4">
+                        <h3 class="text-lg font-semibold text-white">Pagamentos Realizados</h3>
+                    </div>
+                    <div class="overflow-x-auto">
+                        <table class="w-full">
+                            <thead class="table-header">
+                                <tr>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Método</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Status</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Vencimento</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Observações</th>
+                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentHistoryTableBody" class="divide-y divide-gray-700">
+                                <!-- Payments will be populated here -->
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
             </div>
         </div>
     </div>
