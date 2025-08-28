@@ -18,6 +18,8 @@ let installments = [];
 let installmentPayments = [];
 let cashTransactions = [];
 let cashSettings = null;
+let capitalRaisings = [];
+let capitalRaisingClients = [];
 
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
@@ -45,12 +47,16 @@ const newExpenseModal = document.getElementById('newExpenseModal');
 const newInstallmentModal = document.getElementById('newInstallmentModal');
 const installmentDetailsModal = document.getElementById('installmentDetailsModal');
 const installmentPaymentModal = document.getElementById('installmentPaymentModal');
+const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
+const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
+const addCapitalClientModal = document.getElementById('addCapitalClientModal');
 
 
 // Botões
 const newClientBtn = document.getElementById('newClientBtn');
 const newLoanBtn = document.getElementById('newLoanBtn');
 const newExpenseBtn = document.getElementById('newExpenseBtn');
+const newCapitalRaisingBtn = document.getElementById('newCapitalRaisingBtn');
 
 const generatePdfBtn = document.getElementById('generatePdfBtn');
 const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
@@ -60,6 +66,8 @@ const newClientForm = document.getElementById('newClientForm');
 const newLoanForm = document.getElementById('newLoanForm');
 const paymentForm = document.getElementById('paymentForm');
 const newExpenseForm = document.getElementById('newExpenseForm');
+const newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
+const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 
 // Inicialização da aplicação
@@ -111,6 +119,10 @@ function setupEventListeners() {
         showModal(newExpenseModal);
         setDefaultExpenseDate();
     });
+    
+    if (newCapitalRaisingBtn) {
+        newCapitalRaisingBtn.addEventListener('click', () => showModal(newCapitalRaisingModal));
+    }
 
     generatePdfBtn.addEventListener('click', generateMonthlyLoansPDF);
     
@@ -127,6 +139,17 @@ function setupEventListeners() {
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
+    
+    // Capital Raising modals
+    if (document.getElementById('closeCapitalRaisingModal')) {
+        document.getElementById('closeCapitalRaisingModal').addEventListener('click', () => hideModal(newCapitalRaisingModal));
+    }
+    if (document.getElementById('closeCapitalRaisingDetailsModal')) {
+        document.getElementById('closeCapitalRaisingDetailsModal').addEventListener('click', () => hideModal(capitalRaisingDetailsModal));
+    }
+    if (document.getElementById('closeCapitalClientModal')) {
+        document.getElementById('closeCapitalClientModal').addEventListener('click', () => hideModal(addCapitalClientModal));
+    }
 
     
     // Cancelar modais
@@ -138,6 +161,14 @@ function setupEventListeners() {
     document.getElementById('cancelConfirmationBtn').addEventListener('click', () => hideModal(confirmationModal));
     document.getElementById('closePaymentHistoryBtn').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('cancelExpense').addEventListener('click', () => hideModal(newExpenseModal));
+    
+    // Capital Raising cancel buttons
+    if (document.getElementById('cancelCapitalRaising')) {
+        document.getElementById('cancelCapitalRaising').addEventListener('click', () => hideModal(newCapitalRaisingModal));
+    }
+    if (document.getElementById('cancelCapitalClient')) {
+        document.getElementById('cancelCapitalClient').addEventListener('click', () => hideModal(addCapitalClientModal));
+    }
 
     
     // Botões do modal de histórico de pagamentos
@@ -174,6 +205,30 @@ function setupEventListeners() {
     document.getElementById('editClientForm').addEventListener('submit', handleEditClient);
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
     newExpenseForm.addEventListener('submit', handleNewExpense);
+    
+    // Capital Raising forms
+    if (newCapitalRaisingForm) {
+        newCapitalRaisingForm.addEventListener('submit', handleNewCapitalRaising);
+    }
+    if (addCapitalClientForm) {
+        addCapitalClientForm.addEventListener('submit', handleAddCapitalClient);
+    }
+    
+    // Auto-calculate total value for capital raising
+    const capitalRaisingAmount = document.getElementById('capitalRaisingAmount');
+    const capitalRaisingInterest = document.getElementById('capitalRaisingInterest');
+    const capitalRaisingTotal = document.getElementById('capitalRaisingTotal');
+    
+    if (capitalRaisingAmount && capitalRaisingInterest && capitalRaisingTotal) {
+        [capitalRaisingAmount, capitalRaisingInterest].forEach(input => {
+            input.addEventListener('input', () => {
+                const amount = parseFloat(capitalRaisingAmount.value) || 0;
+                const interest = parseFloat(capitalRaisingInterest.value) || 0;
+                const total = amount + (amount * interest / 100);
+                capitalRaisingTotal.value = total.toFixed(2);
+            });
+        });
+    }
 
     
     // Assinatura
@@ -350,6 +405,7 @@ async function loadData() {
             loadExpenseCategories(),
             loadCashTransactions(),
             loadCashSettings(),
+            loadCapitalRaisings(),
 
         ]);
         
@@ -2115,8 +2171,40 @@ async function createTablesIfNotExist() {
             console.log('Erro ao verificar tabela expenses:', error);
         }
         
+        // Verificar se a tabela capital_raising existe
+        try {
+            const { data: capitalRaisingCheck, error: capitalRaisingCheckError } = await supabase
+                .from('capital_raising')
+                .select('id')
+                .limit(1);
+            
+            if (capitalRaisingCheckError) {
+                console.log('Tabela capital_raising não encontrada. Execute o script capital-raising-setup.sql no Supabase.');
+            } else {
+                console.log('✓ Tabela capital_raising encontrada');
+            }
+        } catch (error) {
+            console.log('Erro ao verificar tabela capital_raising:', error);
+        }
+        
+        // Verificar se a tabela capital_raising_clients existe
+        try {
+            const { data: capitalClientsCheck, error: capitalClientsCheckError } = await supabase
+                .from('capital_raising_clients')
+                .select('id')
+                .limit(1);
+            
+            if (capitalClientsCheckError) {
+                console.log('Tabela capital_raising_clients não encontrada. Execute o script capital-raising-setup.sql no Supabase.');
+            } else {
+                console.log('✓ Tabela capital_raising_clients encontrada');
+            }
+        } catch (error) {
+            console.log('Erro ao verificar tabela capital_raising_clients:', error);
+        }
+        
         console.log('Verificação de tabelas concluída!');
-        console.log('Se alguma tabela não foi encontrada, execute o script database-setup.sql no SQL Editor do Supabase.');
+        console.log('Se alguma tabela não foi encontrada, execute os scripts SQL apropriados no SQL Editor do Supabase.');
         
     } catch (error) {
         console.log('Erro ao verificar tabelas:', error);
@@ -4914,4 +5002,417 @@ function filterCashTransactions() {
 
 // ===================================================
 // FIM DA GESTÃO DE CAIXA
+// ===================================================
+
+// ===================================================
+// INÍCIO DA GESTÃO DE LEVANTAMENTO DE CAPITAL
+// ===================================================
+
+// Carregar levantamentos de capital
+async function loadCapitalRaisings() {
+    try {
+        const { data, error } = await supabase
+            .from('capital_raising')
+            .select('*')
+            .eq('user_id', currentUser.email)
+            .order('data_criacao', { ascending: false });
+        
+        if (error) throw error;
+        
+        capitalRaisings = data || [];
+        renderCapitalRaisingsTable();
+        updateCapitalRaisingSummary();
+        
+    } catch (error) {
+        console.error('Erro ao carregar levantamentos de capital:', error);
+        capitalRaisings = [];
+    }
+}
+
+// Carregar clientes de levantamento de capital
+async function loadCapitalRaisingClients(capitalRaisingId = null) {
+    try {
+        let query = supabase
+            .from('capital_raising_clients')
+            .select('*')
+            .order('data_entrada', { ascending: false });
+            
+        if (capitalRaisingId) {
+            query = query.eq('capital_raising_id', capitalRaisingId);
+        }
+        
+        const { data, error } = await query;
+        
+        if (error) throw error;
+        
+        if (capitalRaisingId) {
+            return data || [];
+        } else {
+            capitalRaisingClients = data || [];
+        }
+        
+    } catch (error) {
+        console.error('Erro ao carregar clientes de levantamento de capital:', error);
+        return [];
+    }
+}
+
+// Renderizar tabela de levantamentos de capital
+function renderCapitalRaisingsTable() {
+    const tbody = document.getElementById('capitalRaisingsTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    // Aplicar filtros
+    const statusFilter = document.getElementById('capitalRaisingStatusFilter')?.value || '';
+    
+    let filteredRaisings = capitalRaisings;
+    
+    if (statusFilter) {
+        filteredRaisings = capitalRaisings.filter(raising => 
+            statusFilter === 'active' ? raising.ativo : !raising.ativo
+        );
+    }
+    
+    filteredRaisings.forEach(raising => {
+        const row = document.createElement('tr');
+        row.className = 'table-row';
+        
+        const formattedDate = new Date(raising.data_criacao).toLocaleDateString('pt-BR');
+        const statusClass = raising.ativo ? 'status-active' : 'status-pending';
+        const statusText = raising.ativo ? 'Ativo' : 'Inativo';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">${raising.nome}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                R$ ${parseFloat(raising.valor_bruto).toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-400">
+                ${parseFloat(raising.taxa_juros).toFixed(2)}%
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-green-400">
+                R$ ${parseFloat(raising.valor_total).toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-purple-400" id="clients-count-${raising.id}">
+                Carregando...
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formattedDate}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="status-badge ${statusClass}">${statusText}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                <div class="flex space-x-2">
+                    <button onclick="viewCapitalRaisingDetails(${raising.id})" class="text-blue-400 hover:text-blue-300">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="toggleCapitalRaisingStatus(${raising.id})" class="text-yellow-400 hover:text-yellow-300">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="deleteCapitalRaising(${raising.id})" class="text-red-400 hover:text-red-300">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+        
+        // Carregar contagem de clientes para este levantamento
+        loadCapitalRaisingClients(raising.id).then(clients => {
+            const countElement = document.getElementById(`clients-count-${raising.id}`);
+            if (countElement) {
+                countElement.textContent = clients.length;
+            }
+        });
+    });
+}
+
+// Atualizar resumo de levantamentos de capital
+function updateCapitalRaisingSummary() {
+    const activeRaisings = capitalRaisings.filter(r => r.ativo);
+    
+    const totalRaised = activeRaisings.reduce((sum, r) => sum + parseFloat(r.valor_bruto), 0);
+    const totalInterest = activeRaisings.reduce((sum, r) => sum + (parseFloat(r.valor_bruto) * parseFloat(r.taxa_juros) / 100), 0);
+    const activeCount = activeRaisings.length;
+    
+    const totalRaisedElement = document.getElementById('totalCapitalRaised');
+    const totalInterestElement = document.getElementById('totalCapitalInterest');
+    const activeRaisingsElement = document.getElementById('activeCapitalRaisings');
+    
+    if (totalRaisedElement) {
+        totalRaisedElement.textContent = `R$ ${totalRaised.toFixed(2).replace('.', ',')}`;
+    }
+    
+    if (totalInterestElement) {
+        totalInterestElement.textContent = `R$ ${totalInterest.toFixed(2).replace('.', ',')}`;
+    }
+    
+    if (activeRaisingsElement) {
+        activeRaisingsElement.textContent = activeCount;
+    }
+    
+    // Atualizar total de clientes
+    updateCapitalClientsCount();
+}
+
+// Atualizar contagem total de clientes
+async function updateCapitalClientsCount() {
+    try {
+        const { data, error } = await supabase
+            .from('capital_raising_clients')
+            .select('id')
+            .eq('ativo', true);
+            
+        if (error) throw error;
+        
+        const totalClientsElement = document.getElementById('totalCapitalClients');
+        if (totalClientsElement) {
+            totalClientsElement.textContent = (data || []).length;
+        }
+        
+    } catch (error) {
+        console.error('Erro ao contar clientes de capital:', error);
+    }
+}
+
+// Manipular novo levantamento de capital
+async function handleNewCapitalRaising(e) {
+    e.preventDefault();
+    
+    const nome = document.getElementById('capitalRaisingName').value;
+    const valorBruto = parseFloat(document.getElementById('capitalRaisingAmount').value);
+    const taxaJuros = parseFloat(document.getElementById('capitalRaisingInterest').value) || 0;
+    const valorTotal = parseFloat(document.getElementById('capitalRaisingTotal').value);
+    const observacoes = document.getElementById('capitalRaisingNotes').value;
+    
+    try {
+        const { data, error } = await supabase
+            .from('capital_raising')
+            .insert([{
+                nome,
+                valor_bruto: valorBruto,
+                taxa_juros: taxaJuros,
+                valor_total: valorTotal,
+                observacoes,
+                user_id: currentUser.email
+            }]);
+            
+        if (error) throw error;
+        
+        hideModal(newCapitalRaisingModal);
+        document.getElementById('newCapitalRaisingForm').reset();
+        
+        await loadCapitalRaisings();
+        
+        alert('Levantamento de capital criado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao criar levantamento de capital:', error);
+        alert('Erro ao criar levantamento de capital. Tente novamente.');
+    }
+}
+
+// Visualizar detalhes do levantamento de capital
+async function viewCapitalRaisingDetails(capitalRaisingId) {
+    const raising = capitalRaisings.find(r => r.id === capitalRaisingId);
+    if (!raising) return;
+    
+    // Atualizar título e informações
+    document.getElementById('capitalRaisingDetailsTitle').textContent = raising.nome;
+    document.getElementById('detailsValueBruto').textContent = `R$ ${parseFloat(raising.valor_bruto).toFixed(2).replace('.', ',')}`;
+    document.getElementById('detailsInterestRate').textContent = `${parseFloat(raising.taxa_juros).toFixed(2)}%`;
+    document.getElementById('detailsValueTotal').textContent = `R$ ${parseFloat(raising.valor_total).toFixed(2).replace('.', ',')}`;
+    
+    // Configurar botão de adicionar cliente
+    const addClientBtn = document.getElementById('addCapitalClientBtn');
+    addClientBtn.onclick = () => showAddCapitalClientModal(capitalRaisingId);
+    
+    // Carregar e renderizar clientes
+    const clients = await loadCapitalRaisingClients(capitalRaisingId);
+    renderCapitalClientsTable(clients, capitalRaisingId);
+    
+    showModal(capitalRaisingDetailsModal);
+}
+
+// Renderizar tabela de clientes do levantamento
+function renderCapitalClientsTable(clients, capitalRaisingId) {
+    const tbody = document.getElementById('capitalClientsTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    clients.forEach(client => {
+        const row = document.createElement('tr');
+        row.className = 'table-row';
+        
+        const formattedDate = new Date(client.data_entrada).toLocaleDateString('pt-BR');
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">${client.nome}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.cpf || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.telefone || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-green-400">
+                R$ ${parseFloat(client.valor_individual).toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formattedDate}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                <div class="flex space-x-2">
+                    <button onclick="editCapitalClient(${client.id})" class="text-blue-400 hover:text-blue-300">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="deleteCapitalClient(${client.id}, ${capitalRaisingId})" class="text-red-400 hover:text-red-300">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Mostrar modal para adicionar cliente ao levantamento
+function showAddCapitalClientModal(capitalRaisingId) {
+    // Armazenar o ID do levantamento para usar no submit
+    document.getElementById('addCapitalClientForm').dataset.capitalRaisingId = capitalRaisingId;
+    showModal(addCapitalClientModal);
+}
+
+// Manipular adição de cliente ao levantamento
+async function handleAddCapitalClient(e) {
+    e.preventDefault();
+    
+    const capitalRaisingId = e.target.dataset.capitalRaisingId;
+    const nome = document.getElementById('capitalClientName').value;
+    const cpf = document.getElementById('capitalClientCpf').value;
+    const telefone = document.getElementById('capitalClientPhone').value;
+    const email = document.getElementById('capitalClientEmail').value;
+    const valorIndividual = parseFloat(document.getElementById('capitalClientValue').value);
+    const observacoes = document.getElementById('capitalClientNotes').value;
+    
+    try {
+        const { data, error } = await supabase
+            .from('capital_raising_clients')
+            .insert([{
+                capital_raising_id: capitalRaisingId,
+                nome,
+                cpf,
+                telefone,
+                email,
+                valor_individual: valorIndividual,
+                observacoes
+            }]);
+            
+        if (error) throw error;
+        
+        hideModal(addCapitalClientModal);
+        document.getElementById('addCapitalClientForm').reset();
+        
+        // Recarregar detalhes do levantamento
+        await viewCapitalRaisingDetails(capitalRaisingId);
+        await updateCapitalClientsCount();
+        
+        alert('Participante adicionado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao adicionar participante:', error);
+        alert('Erro ao adicionar participante. Tente novamente.');
+    }
+}
+
+// Alternar status do levantamento de capital
+async function toggleCapitalRaisingStatus(capitalRaisingId) {
+    const raising = capitalRaisings.find(r => r.id === capitalRaisingId);
+    if (!raising) return;
+    
+    const newStatus = !raising.ativo;
+    const statusText = newStatus ? 'ativar' : 'desativar';
+    
+    if (!confirm(`Tem certeza que deseja ${statusText} este levantamento?`)) return;
+    
+    try {
+        const { error } = await supabase
+            .from('capital_raising')
+            .update({ ativo: newStatus })
+            .eq('id', capitalRaisingId);
+            
+        if (error) throw error;
+        
+        await loadCapitalRaisings();
+        
+    } catch (error) {
+        console.error('Erro ao alterar status do levantamento:', error);
+        alert('Erro ao alterar status. Tente novamente.');
+    }
+}
+
+// Excluir levantamento de capital
+async function deleteCapitalRaising(capitalRaisingId) {
+    if (!confirm('Tem certeza que deseja excluir este levantamento? Esta ação não pode ser desfeita.')) return;
+    
+    try {
+        const { error } = await supabase
+            .from('capital_raising')
+            .delete()
+            .eq('id', capitalRaisingId);
+            
+        if (error) throw error;
+        
+        await loadCapitalRaisings();
+        
+        alert('Levantamento excluído com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao excluir levantamento:', error);
+        alert('Erro ao excluir levantamento. Tente novamente.');
+    }
+}
+
+// Excluir cliente do levantamento
+async function deleteCapitalClient(clientId, capitalRaisingId) {
+    if (!confirm('Tem certeza que deseja remover este participante?')) return;
+    
+    try {
+        const { error } = await supabase
+            .from('capital_raising_clients')
+            .delete()
+            .eq('id', clientId);
+            
+        if (error) throw error;
+        
+        // Recarregar detalhes do levantamento
+        await viewCapitalRaisingDetails(capitalRaisingId);
+        await updateCapitalClientsCount();
+        
+        alert('Participante removido com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao remover participante:', error);
+        alert('Erro ao remover participante. Tente novamente.');
+    }
+}
+
+// Event listeners para filtros
+document.addEventListener('DOMContentLoaded', function() {
+    const statusFilter = document.getElementById('capitalRaisingStatusFilter');
+    if (statusFilter) {
+        statusFilter.addEventListener('change', renderCapitalRaisingsTable);
+    }
+});
+
+// ===================================================
+// FIM DA GESTÃO DE LEVANTAMENTO DE CAPITAL
 // ===================================================
