@@ -16,6 +16,8 @@ let expenses = [];
 let expenseCategories = [];
 let installments = [];
 let installmentPayments = [];
+let cashTransactions = [];
+let cashSettings = null;
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
@@ -333,7 +335,9 @@ async function loadData() {
             loadClients(),
             loadLoans(),
             loadExpenses(),
-            loadExpenseCategories()
+            loadExpenseCategories(),
+            loadCashTransactions(),
+            loadCashSettings()
         ]);
         
         // Carregar empréstimos quitados separadamente
@@ -4359,4 +4363,542 @@ installmentPaymentModal.addEventListener('click', function(e) {
 
 // ===================================================
 // FIM DAS FUNCIONALIDADES DE PARCELAMENTO
+// ===================================================
+
+// ===================================================
+// GESTÃO DE CAIXA
+// ===================================================
+
+// Carregar transações de caixa
+async function loadCashTransactions() {
+    try {
+        const { data, error } = await supabase
+            .from('cash_transactions')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        cashTransactions = data || [];
+        renderCashTransactionsTable();
+        updateCashSummary();
+        updateCashFlowChart();
+        
+    } catch (error) {
+        console.error('Erro ao carregar transações de caixa:', error);
+        cashTransactions = [];
+    }
+}
+
+// Carregar configurações de caixa
+async function loadCashSettings() {
+    try {
+        const { data, error } = await supabase
+            .from('cash_settings')
+            .select('*')
+            .limit(1);
+        
+        if (error) throw error;
+        
+        cashSettings = data && data.length > 0 ? data[0] : null;
+        updateCashBalance();
+        
+    } catch (error) {
+        console.error('Erro ao carregar configurações de caixa:', error);
+        cashSettings = null;
+    }
+}
+
+// Atualizar saldo do caixa na interface
+function updateCashBalance() {
+    const balanceElement = document.getElementById('currentCashBalance');
+    if (balanceElement && cashSettings) {
+        balanceElement.textContent = `R$ ${cashSettings.current_balance.toFixed(2).replace('.', ',')}`;
+    }
+}
+
+// Atualizar resumo mensal de caixa
+function updateCashSummary() {
+    const now = new Date();
+    const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+    
+    const monthlyTransactions = cashTransactions.filter(transaction => {
+        const transactionDate = new Date(transaction.created_at);
+        return transactionDate >= firstDayOfMonth;
+    });
+    
+    const monthlyDeposits = monthlyTransactions
+        .filter(t => t.transaction_type === 'deposit')
+        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    
+    const monthlyWithdrawals = monthlyTransactions
+        .filter(t => t.transaction_type === 'withdrawal')
+        .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+    
+    const depositsElement = document.getElementById('monthlyDeposits');
+    const withdrawalsElement = document.getElementById('monthlyWithdrawals');
+    
+    if (depositsElement) {
+        depositsElement.textContent = `R$ ${monthlyDeposits.toFixed(2).replace('.', ',')}`;
+    }
+    
+    if (withdrawalsElement) {
+        withdrawalsElement.textContent = `R$ ${monthlyWithdrawals.toFixed(2).replace('.', ',')}`;
+    }
+}
+
+// Renderizar tabela de transações de caixa
+function renderCashTransactionsTable() {
+    const tbody = document.getElementById('cashTransactionsTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (cashTransactions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                    Nenhuma transação encontrada
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    cashTransactions.forEach(transaction => {
+        const row = document.createElement('tr');
+        row.className = 'table-row hover:bg-gray-800/50';
+        
+        const date = new Date(transaction.created_at);
+        const formattedDate = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const typeColor = transaction.transaction_type === 'deposit' ? 'text-green-400' : 'text-red-400';
+        const typeIcon = transaction.transaction_type === 'deposit' ? '↗' : '↙';
+        const typeText = transaction.transaction_type === 'deposit' ? 'Entrada' : 'Saída';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formattedDate}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${typeColor}">
+                <span class="inline-flex items-center">
+                    <span class="mr-2">${typeIcon}</span>
+                    ${typeText}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${typeColor}">
+                R$ ${parseFloat(transaction.amount).toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-300">${transaction.description || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                R$ ${parseFloat(transaction.balance_after).toFixed(2).replace('.', ',')}
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Atualizar gráfico de fluxo de caixa
+function updateCashFlowChart() {
+    const ctx = document.getElementById('cashFlowChart');
+    if (!ctx) return;
+    
+    // Destruir gráfico existente se houver
+    if (charts.cashFlow) {
+        charts.cashFlow.destroy();
+    }
+    
+    // Preparar dados dos últimos 7 dias
+    const last7Days = [];
+    const today = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+        const date = new Date(today);
+        date.setDate(date.getDate() - i);
+        last7Days.push({
+            date: date.toISOString().split('T')[0],
+            label: date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })
+        });
+    }
+    
+    const dailyData = last7Days.map(day => {
+        const dayTransactions = cashTransactions.filter(transaction => {
+            const transactionDate = new Date(transaction.created_at);
+            return transactionDate.toISOString().split('T')[0] === day.date;
+        });
+        
+        const deposits = dayTransactions
+            .filter(t => t.transaction_type === 'deposit')
+            .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        
+        const withdrawals = dayTransactions
+            .filter(t => t.transaction_type === 'withdrawal')
+            .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        
+        return {
+            label: day.label,
+            deposits,
+            withdrawals,
+            net: deposits - withdrawals
+        };
+    });
+    
+    charts.cashFlow = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: dailyData.map(d => d.label),
+            datasets: [
+                {
+                    label: 'Entradas',
+                    data: dailyData.map(d => d.deposits),
+                    backgroundColor: 'rgba(34, 197, 94, 0.8)',
+                    borderColor: 'rgba(34, 197, 94, 1)',
+                    borderWidth: 1
+                },
+                {
+                    label: 'Saídas',
+                    data: dailyData.map(d => d.withdrawals),
+                    backgroundColor: 'rgba(239, 68, 68, 0.8)',
+                    borderColor: 'rgba(239, 68, 68, 1)',
+                    borderWidth: 1
+                }
+            ]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: {
+                        color: 'white'
+                    }
+                }
+            },
+            scales: {
+                x: {
+                    ticks: {
+                        color: 'white'
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                },
+                y: {
+                    ticks: {
+                        color: 'white',
+                        callback: function(value) {
+                            return 'R$ ' + value.toFixed(0);
+                        }
+                    },
+                    grid: {
+                        color: 'rgba(255, 255, 255, 0.1)'
+                    }
+                }
+            }
+        }
+    });
+}
+
+// Adicionar dinheiro ao caixa
+async function addMoney(amount, description) {
+    try {
+        const currentBalance = cashSettings ? parseFloat(cashSettings.current_balance) : 0;
+        const newBalance = currentBalance + parseFloat(amount);
+        
+        const { data, error } = await supabase
+            .from('cash_transactions')
+            .insert([{
+                transaction_type: 'deposit',
+                amount: parseFloat(amount),
+                description: description || 'Depósito manual',
+                reference_type: 'manual',
+                balance_after: newBalance,
+                created_by: currentUser?.id
+            }])
+            .select();
+        
+        if (error) throw error;
+        
+        // Atualizar dados locais
+        await loadCashTransactions();
+        await loadCashSettings();
+        
+        showInfoMessage('Dinheiro adicionado com sucesso!');
+        return true;
+        
+    } catch (error) {
+        console.error('Erro ao adicionar dinheiro:', error);
+        showInfoMessage('Erro ao adicionar dinheiro: ' + error.message);
+        return false;
+    }
+}
+
+// Retirar dinheiro do caixa
+async function withdrawMoney(amount, description) {
+    try {
+        const currentBalance = cashSettings ? parseFloat(cashSettings.current_balance) : 0;
+        
+        if (parseFloat(amount) > currentBalance) {
+            showInfoMessage('Saldo insuficiente para esta operação!');
+            return false;
+        }
+        
+        const newBalance = currentBalance - parseFloat(amount);
+        
+        const { data, error } = await supabase
+            .from('cash_transactions')
+            .insert([{
+                transaction_type: 'withdrawal',
+                amount: parseFloat(amount),
+                description: description || 'Saque manual',
+                reference_type: 'manual',
+                balance_after: newBalance,
+                created_by: currentUser?.id
+            }])
+            .select();
+        
+        if (error) throw error;
+        
+        // Atualizar dados locais
+        await loadCashTransactions();
+        await loadCashSettings();
+        
+        showInfoMessage('Dinheiro retirado com sucesso!');
+        return true;
+        
+    } catch (error) {
+        console.error('Erro ao retirar dinheiro:', error);
+        showInfoMessage('Erro ao retirar dinheiro: ' + error.message);
+        return false;
+    }
+}
+
+// Gerar extrato do último mês
+async function generateMonthlyStatement() {
+    try {
+        const now = new Date();
+        const firstDayOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const lastDayOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        
+        const monthlyTransactions = cashTransactions.filter(transaction => {
+            const transactionDate = new Date(transaction.created_at);
+            return transactionDate >= firstDayOfMonth && transactionDate <= lastDayOfMonth;
+        });
+        
+        if (monthlyTransactions.length === 0) {
+            showInfoMessage('Não há transações no mês atual para gerar extrato.');
+            return;
+        }
+        
+        // Calcular totais
+        const totalDeposits = monthlyTransactions
+            .filter(t => t.transaction_type === 'deposit')
+            .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        
+        const totalWithdrawals = monthlyTransactions
+            .filter(t => t.transaction_type === 'withdrawal')
+            .reduce((sum, t) => sum + parseFloat(t.amount), 0);
+        
+        const netBalance = totalDeposits - totalWithdrawals;
+        
+        // Preparar dados para o PDF
+        const monthName = now.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        
+        // Criar PDF usando jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Título
+        doc.setFontSize(18);
+        doc.text('EXTRATO DE CAIXA', 20, 20);
+        doc.setFontSize(14);
+        doc.text(`Período: ${monthName}`, 20, 30);
+        
+        // Resumo
+        doc.setFontSize(12);
+        doc.text('RESUMO DO MÊS:', 20, 45);
+        doc.text(`Total de Entradas: R$ ${totalDeposits.toFixed(2).replace('.', ',')}`, 20, 55);
+        doc.text(`Total de Saídas: R$ ${totalWithdrawals.toFixed(2).replace('.', ',')}`, 20, 65);
+        doc.text(`Saldo Líquido: R$ ${netBalance.toFixed(2).replace('.', ',')}`, 20, 75);
+        doc.text(`Saldo Atual: R$ ${(cashSettings?.current_balance || 0).toFixed(2).replace('.', ',')}`, 20, 85);
+        
+        // Linha separadora
+        doc.line(20, 95, 190, 95);
+        
+        // Cabeçalho da tabela
+        doc.text('DETALHAMENTO DAS TRANSAÇÕES:', 20, 105);
+        doc.setFontSize(10);
+        doc.text('Data/Hora', 20, 115);
+        doc.text('Tipo', 60, 115);
+        doc.text('Valor', 90, 115);
+        doc.text('Descrição', 120, 115);
+        
+        // Linha do cabeçalho
+        doc.line(20, 118, 190, 118);
+        
+        // Transações
+        let yPosition = 125;
+        monthlyTransactions.forEach((transaction, index) => {
+            if (yPosition > 270) { // Nova página se necessário
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            const date = new Date(transaction.created_at);
+            const formattedDate = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            const type = transaction.transaction_type === 'deposit' ? 'Entrada' : 'Saída';
+            const amount = `R$ ${parseFloat(transaction.amount).toFixed(2).replace('.', ',')}`;
+            const description = transaction.description || '-';
+            
+            doc.text(formattedDate, 20, yPosition);
+            doc.text(type, 60, yPosition);
+            doc.text(amount, 90, yPosition);
+            doc.text(description.substring(0, 25), 120, yPosition);
+            
+            yPosition += 8;
+        });
+        
+        // Rodapé
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.text(`Página ${i} de ${totalPages}`, 170, 285);
+            doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 20, 285);
+        }
+        
+        // Salvar o PDF
+        doc.save(`Extrato_Caixa_${monthName.replace(' ', '_')}.pdf`);
+        
+        showInfoMessage('Extrato gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar extrato:', error);
+        showInfoMessage('Erro ao gerar extrato: ' + error.message);
+    }
+}
+
+// Event listeners para os formulários de caixa
+document.addEventListener('DOMContentLoaded', function() {
+    // Formulário de adicionar dinheiro
+    const addMoneyForm = document.getElementById('addMoneyForm');
+    if (addMoneyForm) {
+        addMoneyForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const amount = document.getElementById('depositAmount').value;
+            const description = document.getElementById('depositDescription').value;
+            
+            if (!amount || parseFloat(amount) <= 0) {
+                showInfoMessage('Por favor, insira um valor válido.');
+                return;
+            }
+            
+            const success = await addMoney(amount, description);
+            if (success) {
+                addMoneyForm.reset();
+            }
+        });
+    }
+    
+    // Formulário de retirar dinheiro
+    const withdrawMoneyForm = document.getElementById('withdrawMoneyForm');
+    if (withdrawMoneyForm) {
+        withdrawMoneyForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const amount = document.getElementById('withdrawalAmount').value;
+            const description = document.getElementById('withdrawalDescription').value;
+            
+            if (!amount || parseFloat(amount) <= 0) {
+                showInfoMessage('Por favor, insira um valor válido.');
+                return;
+            }
+            
+            const success = await withdrawMoney(amount, description);
+            if (success) {
+                withdrawMoneyForm.reset();
+            }
+        });
+    }
+    
+    // Filtros da tabela de transações
+    const typeFilter = document.getElementById('transactionTypeFilter');
+    const dateFilter = document.getElementById('transactionDateFilter');
+    
+    if (typeFilter) {
+        typeFilter.addEventListener('change', filterCashTransactions);
+    }
+    
+    if (dateFilter) {
+        dateFilter.addEventListener('change', filterCashTransactions);
+    }
+});
+
+// Filtrar transações de caixa
+function filterCashTransactions() {
+    const typeFilter = document.getElementById('transactionTypeFilter')?.value;
+    const dateFilter = document.getElementById('transactionDateFilter')?.value;
+    
+    let filteredTransactions = [...cashTransactions];
+    
+    if (typeFilter) {
+        filteredTransactions = filteredTransactions.filter(t => t.transaction_type === typeFilter);
+    }
+    
+    if (dateFilter) {
+        filteredTransactions = filteredTransactions.filter(t => {
+            const transactionDate = new Date(t.created_at).toISOString().split('T')[0];
+            return transactionDate === dateFilter;
+        });
+    }
+    
+    // Renderizar tabela filtrada
+    const tbody = document.getElementById('cashTransactionsTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (filteredTransactions.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                    Nenhuma transação encontrada com os filtros aplicados
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    filteredTransactions.forEach(transaction => {
+        const row = document.createElement('tr');
+        row.className = 'table-row hover:bg-gray-800/50';
+        
+        const date = new Date(transaction.created_at);
+        const formattedDate = date.toLocaleDateString('pt-BR') + ' ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+        const typeColor = transaction.transaction_type === 'deposit' ? 'text-green-400' : 'text-red-400';
+        const typeIcon = transaction.transaction_type === 'deposit' ? '↗' : '↙';
+        const typeText = transaction.transaction_type === 'deposit' ? 'Entrada' : 'Saída';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formattedDate}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${typeColor}">
+                <span class="inline-flex items-center">
+                    <span class="mr-2">${typeIcon}</span>
+                    ${typeText}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium ${typeColor}">
+                R$ ${parseFloat(transaction.amount).toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 text-sm text-gray-300">${transaction.description || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                R$ ${parseFloat(transaction.balance_after).toFixed(2).replace('.', ',')}
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// ===================================================
+// FIM DA GESTÃO DE CAIXA
 // ===================================================
