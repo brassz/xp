@@ -5006,37 +5006,39 @@ async function renderCapitalRaisingsTable() {
                           raising.status === 'completed' ? 'Concluído' : 'Cancelado';
         
         row.innerHTML = `
-            <td class="px-4 py-3 whitespace-nowrap text-sm text-gray-300">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                 ${new Date(raising.raising_date).toLocaleDateString('pt-BR')}
             </td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-white">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                 R$ ${parseFloat(raising.gross_amount).toFixed(2).replace('.', ',')}
             </td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm text-yellow-400">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-yellow-400 font-medium">
                 ${parseFloat(raising.interest_rate).toFixed(2)}%
             </td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm font-medium text-green-400">
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-400">
                 R$ ${parseFloat(raising.total_amount).toFixed(2).replace('.', ',')}
             </td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm text-blue-400">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-400 font-medium">
                 ${clientsCount} cliente${clientsCount !== 1 ? 's' : ''}
             </td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm ${statusColor}">
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${statusColor} font-medium">
                 ${statusText}
             </td>
-            <td class="px-4 py-3 whitespace-nowrap text-sm space-x-1">
-                <button onclick="openCapitalRaisingClientsModal('${raising.id}')" 
-                        class="text-blue-400 hover:text-blue-300 transition-colors text-xs">
-                    👥 Clientes
-                </button>
-                <button onclick="editCapitalRaising('${raising.id}')" 
-                        class="text-yellow-400 hover:text-yellow-300 transition-colors text-xs">
-                    ✏️ Editar
-                </button>
-                <button onclick="deleteCapitalRaising('${raising.id}')" 
-                        class="text-red-400 hover:text-red-300 transition-colors text-xs">
-                    🗑️ Excluir
-                </button>
+            <td class="px-6 py-4 whitespace-nowrap text-sm">
+                <div class="flex space-x-2">
+                    <button onclick="openCapitalRaisingClientsModal('${raising.id}')" 
+                            class="text-blue-400 hover:text-blue-300 transition-colors text-xs px-2 py-1 bg-blue-500/10 rounded">
+                        👥 Clientes
+                    </button>
+                    <button onclick="editCapitalRaising('${raising.id}')" 
+                            class="text-yellow-400 hover:text-yellow-300 transition-colors text-xs px-2 py-1 bg-yellow-500/10 rounded">
+                        ✏️ Editar
+                    </button>
+                    <button onclick="deleteCapitalRaising('${raising.id}')" 
+                            class="text-red-400 hover:text-red-300 transition-colors text-xs px-2 py-1 bg-red-500/10 rounded">
+                        🗑️ Excluir
+                    </button>
+                </div>
             </td>
         `;
         
