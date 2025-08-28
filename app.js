@@ -20,6 +20,7 @@ let cashTransactions = [];
 let cashSettings = null;
 let capitalRaisings = [];
 let capitalRaisingClients = [];
+let capitalRaisingPayments = [];
 
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
@@ -50,6 +51,8 @@ const installmentPaymentModal = document.getElementById('installmentPaymentModal
 const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
 const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
 const addCapitalClientModal = document.getElementById('addCapitalClientModal');
+const addPaymentModal = document.getElementById('addPaymentModal');
+const paymentHistoryModal = document.getElementById('paymentHistoryModal');
 
 
 // Botões
@@ -150,6 +153,12 @@ function setupEventListeners() {
     if (document.getElementById('closeCapitalClientModal')) {
         document.getElementById('closeCapitalClientModal').addEventListener('click', () => hideModal(addCapitalClientModal));
     }
+    if (document.getElementById('closePaymentModal')) {
+        document.getElementById('closePaymentModal').addEventListener('click', () => hideModal(addPaymentModal));
+    }
+    if (document.getElementById('closePaymentHistoryModal')) {
+        document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
+    }
 
     
     // Cancelar modais
@@ -168,6 +177,9 @@ function setupEventListeners() {
     }
     if (document.getElementById('cancelCapitalClient')) {
         document.getElementById('cancelCapitalClient').addEventListener('click', () => hideModal(addCapitalClientModal));
+    }
+    if (document.getElementById('cancelPayment')) {
+        document.getElementById('cancelPayment').addEventListener('click', () => hideModal(addPaymentModal));
     }
 
     
@@ -212,6 +224,9 @@ function setupEventListeners() {
     }
     if (addCapitalClientForm) {
         addCapitalClientForm.addEventListener('submit', handleAddCapitalClient);
+    }
+    if (document.getElementById('addPaymentForm')) {
+        document.getElementById('addPaymentForm').addEventListener('submit', handleAddPayment);
     }
     
     // Auto-calculate total value for capital raising
@@ -5236,7 +5251,7 @@ async function viewCapitalRaisingDetails(capitalRaisingId) {
     addClientBtn.onclick = () => showAddCapitalClientModal(capitalRaisingId);
     
     // Carregar e renderizar clientes
-    const clients = await loadCapitalRaisingClients(capitalRaisingId);
+    const clients = await loadCapitalRaisingClientsWithPayments(capitalRaisingId);
     renderCapitalClientsTable(clients, capitalRaisingId);
     
     showModal(capitalRaisingDetailsModal);
@@ -5254,6 +5269,16 @@ function renderCapitalClientsTable(clients, capitalRaisingId) {
         row.className = 'table-row';
         
         const formattedDate = new Date(client.data_entrada).toLocaleDateString('pt-BR');
+        const valorTotalPago = parseFloat(client.valor_total_pago || 0);
+        const saldoDevedor = parseFloat(client.saldo_devedor || client.valor_individual);
+        
+        // Determinar cor do saldo devedor
+        let saldoClass = 'text-yellow-400';
+        if (saldoDevedor <= 0) {
+            saldoClass = 'text-green-400';
+        } else if (saldoDevedor >= parseFloat(client.valor_individual)) {
+            saldoClass = 'text-red-400';
+        }
         
         row.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">${client.nome}</td>
@@ -5263,15 +5288,31 @@ function renderCapitalClientsTable(clients, capitalRaisingId) {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-green-400">
                 R$ ${parseFloat(client.valor_individual).toFixed(2).replace('.', ',')}
             </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-blue-400">
+                R$ ${valorTotalPago.toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm ${saldoClass}">
+                R$ ${saldoDevedor.toFixed(2).replace('.', ',')}
+            </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formattedDate}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                 <div class="flex space-x-2">
-                    <button onclick="editCapitalClient(${client.id})" class="text-blue-400 hover:text-blue-300">
+                    <button onclick="showPaymentHistory(${client.id})" class="text-green-400 hover:text-green-300" title="Histórico de Pagamentos">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="showAddPayment(${client.id})" class="text-yellow-400 hover:text-yellow-300" title="Adicionar Pagamento">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                        </svg>
+                    </button>
+                    <button onclick="editCapitalClient(${client.id})" class="text-blue-400 hover:text-blue-300" title="Editar Cliente">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
                         </svg>
                     </button>
-                    <button onclick="deleteCapitalClient(${client.id}, ${capitalRaisingId})" class="text-red-400 hover:text-red-300">
+                    <button onclick="deleteCapitalClient(${client.id}, ${capitalRaisingId})" class="text-red-400 hover:text-red-300" title="Remover Cliente">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                         </svg>
@@ -5402,6 +5443,282 @@ async function deleteCapitalClient(clientId, capitalRaisingId) {
     } catch (error) {
         console.error('Erro ao remover participante:', error);
         alert('Erro ao remover participante. Tente novamente.');
+    }
+}
+
+// ===================================================
+// FUNÇÕES DE GERENCIAMENTO DE PAGAMENTOS DO LEVANTAMENTO DE CAPITAL
+
+// Carregar pagamentos de um cliente específico
+async function loadCapitalClientPayments(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('capital_raising_payments')
+            .select('*')
+            .eq('capital_raising_client_id', clientId)
+            .order('data_pagamento', { ascending: false });
+        
+        if (error) throw error;
+        
+        return data || [];
+        
+    } catch (error) {
+        console.error('Erro ao carregar pagamentos do cliente:', error);
+        return [];
+    }
+}
+
+// Mostrar modal para adicionar pagamento
+async function showAddPayment(clientId) {
+    try {
+        // Buscar dados do cliente
+        const { data: client, error } = await supabase
+            .from('capital_raising_clients')
+            .select('*')
+            .eq('id', clientId)
+            .single();
+            
+        if (error) throw error;
+        
+        // Preencher informações do cliente no modal
+        document.getElementById('paymentClientName').textContent = client.nome;
+        document.getElementById('paymentClientValue').textContent = `R$ ${parseFloat(client.valor_individual).toFixed(2).replace('.', ',')}`;
+        document.getElementById('paymentClientTotalPaid').textContent = `R$ ${parseFloat(client.valor_total_pago || 0).toFixed(2).replace('.', ',')}`;
+        document.getElementById('paymentClientBalance').textContent = `R$ ${parseFloat(client.saldo_devedor || client.valor_individual).toFixed(2).replace('.', ',')}`;
+        
+        // Configurar data padrão como hoje
+        document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+        
+        // Armazenar ID do cliente no formulário
+        document.getElementById('addPaymentForm').dataset.clientId = clientId;
+        
+        showModal(addPaymentModal);
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados do cliente:', error);
+        alert('Erro ao carregar dados do cliente. Tente novamente.');
+    }
+}
+
+// Manipular adição de pagamento
+async function handleAddPayment(e) {
+    e.preventDefault();
+    
+    const clientId = e.target.dataset.clientId;
+    const valorPagamento = parseFloat(document.getElementById('paymentAmount').value);
+    const dataPagamento = document.getElementById('paymentDate').value;
+    const metodoPagamento = document.getElementById('paymentMethod').value;
+    const statusPagamento = document.getElementById('paymentStatus').value;
+    const dataVencimento = document.getElementById('paymentDueDate').value || null;
+    const observacoes = document.getElementById('paymentNotes').value;
+    
+    try {
+        const { data, error } = await supabase
+            .from('capital_raising_payments')
+            .insert([{
+                capital_raising_client_id: clientId,
+                valor_pagamento: valorPagamento,
+                data_pagamento: dataPagamento,
+                data_vencimento: dataVencimento,
+                status_pagamento: statusPagamento,
+                metodo_pagamento: metodoPagamento,
+                observacoes
+            }]);
+            
+        if (error) throw error;
+        
+        hideModal(addPaymentModal);
+        document.getElementById('addPaymentForm').reset();
+        
+        // Recarregar dados se estiver no histórico de pagamentos
+        const paymentHistoryModal = document.getElementById('paymentHistoryModal');
+        if (paymentHistoryModal && !paymentHistoryModal.classList.contains('hidden')) {
+            await showPaymentHistory(clientId);
+        }
+        
+        // Recarregar detalhes do levantamento se estiver aberto
+        const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
+        if (capitalRaisingDetailsModal && !capitalRaisingDetailsModal.classList.contains('hidden')) {
+            // Buscar o capital_raising_id do cliente
+            const { data: client } = await supabase
+                .from('capital_raising_clients')
+                .select('capital_raising_id')
+                .eq('id', clientId)
+                .single();
+                
+            if (client) {
+                await viewCapitalRaisingDetails(client.capital_raising_id);
+            }
+        }
+        
+        alert('Pagamento adicionado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao adicionar pagamento:', error);
+        alert('Erro ao adicionar pagamento. Tente novamente.');
+    }
+}
+
+// Mostrar histórico de pagamentos de um cliente
+async function showPaymentHistory(clientId) {
+    try {
+        // Buscar dados do cliente
+        const { data: client, error: clientError } = await supabase
+            .from('capital_raising_clients')
+            .select('*')
+            .eq('id', clientId)
+            .single();
+            
+        if (clientError) throw clientError;
+        
+        // Carregar pagamentos
+        const payments = await loadCapitalClientPayments(clientId);
+        
+        // Preencher informações do cliente
+        document.getElementById('historyClientName').textContent = client.nome;
+        document.getElementById('historyClientValue').textContent = `R$ ${parseFloat(client.valor_individual).toFixed(2).replace('.', ',')}`;
+        document.getElementById('historyClientTotalPaid').textContent = `R$ ${parseFloat(client.valor_total_pago || 0).toFixed(2).replace('.', ',')}`;
+        document.getElementById('historyClientBalance').textContent = `R$ ${parseFloat(client.saldo_devedor || client.valor_individual).toFixed(2).replace('.', ',')}`;
+        
+        // Configurar botão de adicionar pagamento
+        const addNewPaymentBtn = document.getElementById('addNewPaymentBtn');
+        addNewPaymentBtn.onclick = () => {
+            hideModal(paymentHistoryModal);
+            showAddPayment(clientId);
+        };
+        
+        // Renderizar tabela de pagamentos
+        renderPaymentHistoryTable(payments, clientId);
+        
+        showModal(paymentHistoryModal);
+        
+    } catch (error) {
+        console.error('Erro ao carregar histórico de pagamentos:', error);
+        alert('Erro ao carregar histórico de pagamentos. Tente novamente.');
+    }
+}
+
+// Renderizar tabela de histórico de pagamentos
+function renderPaymentHistoryTable(payments, clientId) {
+    const tbody = document.getElementById('paymentHistoryTableBody');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (payments.length === 0) {
+        const row = document.createElement('tr');
+        row.innerHTML = `
+            <td colspan="7" class="px-6 py-8 text-center text-gray-400">
+                Nenhum pagamento encontrado
+            </td>
+        `;
+        tbody.appendChild(row);
+        return;
+    }
+    
+    payments.forEach(payment => {
+        const row = document.createElement('tr');
+        row.className = 'table-row';
+        
+        const formattedDate = new Date(payment.data_pagamento).toLocaleDateString('pt-BR');
+        const formattedDueDate = payment.data_vencimento ? new Date(payment.data_vencimento).toLocaleDateString('pt-BR') : '-';
+        
+        // Determinar cor do status
+        let statusClass = 'status-pending';
+        let statusText = payment.status_pagamento;
+        
+        switch (payment.status_pagamento) {
+            case 'confirmado':
+                statusClass = 'status-active';
+                statusText = 'Confirmado';
+                break;
+            case 'pendente':
+                statusClass = 'status-pending';
+                statusText = 'Pendente';
+                break;
+            case 'cancelado':
+                statusClass = 'status-inactive';
+                statusText = 'Cancelado';
+                break;
+        }
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-green-400">
+                R$ ${parseFloat(payment.valor_pagamento).toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formattedDate}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${payment.metodo_pagamento || '-'}</td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="status-badge ${statusClass}">${statusText}</span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formattedDueDate}</td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                ${payment.observacoes ? payment.observacoes.substring(0, 50) + (payment.observacoes.length > 50 ? '...' : '') : '-'}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                <div class="flex space-x-2">
+                    <button onclick="editPayment(${payment.id})" class="text-blue-400 hover:text-blue-300" title="Editar Pagamento">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="deletePayment(${payment.id}, ${clientId})" class="text-red-400 hover:text-red-300" title="Excluir Pagamento">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Excluir pagamento
+async function deletePayment(paymentId, clientId) {
+    if (!confirm('Tem certeza que deseja excluir este pagamento?')) return;
+    
+    try {
+        const { error } = await supabase
+            .from('capital_raising_payments')
+            .delete()
+            .eq('id', paymentId);
+            
+        if (error) throw error;
+        
+        // Recarregar histórico de pagamentos
+        await showPaymentHistory(clientId);
+        
+        alert('Pagamento excluído com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao excluir pagamento:', error);
+        alert('Erro ao excluir pagamento. Tente novamente.');
+    }
+}
+
+// Editar pagamento (função placeholder para futura implementação)
+function editPayment(paymentId) {
+    alert('Funcionalidade de edição de pagamento será implementada em breve.');
+}
+
+// Atualizar a função viewCapitalRaisingDetails para incluir os dados de pagamento
+async function loadCapitalRaisingClientsWithPayments(capitalRaisingId) {
+    try {
+        const { data, error } = await supabase
+            .from('capital_raising_clients')
+            .select('*')
+            .eq('capital_raising_id', capitalRaisingId)
+            .order('data_entrada', { ascending: false });
+            
+        if (error) throw error;
+        
+        return data || [];
+        
+    } catch (error) {
+        console.error('Erro ao carregar clientes com pagamentos:', error);
+        return [];
     }
 }
 
