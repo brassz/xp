@@ -5227,41 +5227,39 @@ function renderCapitalRaisings() {
         const row = document.createElement('tr');
         row.className = 'table-row';
         row.innerHTML = `
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                 ${new Date(raising.raised_date).toLocaleDateString('pt-BR')}
             </td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                 R$ ${parseFloat(raising.gross_amount).toFixed(2).replace('.', ',')}
             </td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                 ${parseFloat(raising.interest_rate).toFixed(2)}%
             </td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                 R$ ${parseFloat(raising.total_amount).toFixed(2).replace('.', ',')}
             </td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm text-gray-300">
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                 ${clientsCount} cliente${clientsCount !== 1 ? 's' : ''}
                 <div class="text-xs text-gray-500">
                     R$ ${distributedAmount.toFixed(2).replace('.', ',')} distribuído
                 </div>
             </td>
-            <td class="px-4 py-4 whitespace-nowrap">
+            <td class="px-6 py-4 whitespace-nowrap">
                 <span class="px-2 py-1 text-xs font-medium rounded-full ${getCapitalStatusColor(raising.status)}">
                     ${getCapitalStatusText(raising.status)}
                 </span>
             </td>
-            <td class="px-4 py-4 whitespace-nowrap text-sm font-medium">
-                <div class="flex flex-col space-y-1">
-                    <button onclick="viewCapitalDetails(${raising.id})" class="text-blue-400 hover:text-blue-300 text-xs">
-                        Ver Detalhes
-                    </button>
-                    <button onclick="editCapitalRaising(${raising.id})" class="text-yellow-400 hover:text-yellow-300 text-xs">
-                        Editar
-                    </button>
-                    <button onclick="deleteCapitalRaising(${raising.id})" class="text-red-400 hover:text-red-300 text-xs">
-                        Excluir
-                    </button>
-                </div>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <button onclick="viewCapitalDetails(${raising.id})" class="text-blue-400 hover:text-blue-300 mr-3">
+                    Ver Detalhes
+                </button>
+                <button onclick="editCapitalRaising(${raising.id})" class="text-yellow-400 hover:text-yellow-300 mr-3">
+                    Editar
+                </button>
+                <button onclick="deleteCapitalRaising(${raising.id})" class="text-red-400 hover:text-red-300">
+                    Excluir
+                </button>
             </td>
         `;
         tbody.appendChild(row);
