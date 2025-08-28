@@ -1170,6 +1170,23 @@ async function updateDashboard() {
     }
     document.getElementById('paidLoans').textContent = paidLoansCount;
     
+    // Calcular total em caixa
+    const totalCash = cashSettings ? parseFloat(cashSettings.current_balance) : 0;
+    document.getElementById('totalCash').textContent = `R$ ${totalCash.toFixed(2)}`;
+    
+    // Calcular total de empréstimos vencidos
+    const overdueLoans = loans.filter(loan => {
+        const dueDate = new Date(loan.due_date);
+        const today = new Date();
+        return dueDate < today && loan.status !== 'paid';
+    });
+    
+    let totalOverdue = 0;
+    for (const loan of overdueLoans) {
+        const remainingAmount = await calculateLoanRemainingAmount(loan.id);
+        totalOverdue += remainingAmount;
+    }
+    document.getElementById('overdueLoans').textContent = `R$ ${totalOverdue.toFixed(2)}`;
 
     
     // Atualizar informações do usuário no header
