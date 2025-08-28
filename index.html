@@ -321,6 +321,12 @@
                     <span>Histórico</span>
                 </a>
                 
+                <a href="#capitalRaising" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                    </svg>
+                    <span>Levantamento de Capital</span>
+                </a>
 
             </nav>
             
@@ -1063,6 +1069,93 @@
                     </div>
                 </div>
 
+                <!-- Capital Raising Section -->
+                <div id="capitalRaising" class="content-section hidden">
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-white mb-2">Levantamento de Capital</h2>
+                        <p class="text-gray-400">Gerencie seus levantamentos de capital e distribua valores entre clientes</p>
+                    </div>
+
+                    <!-- Caixa Levantado Card -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                        <div class="metric-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-blue-300 text-sm font-medium">Total Levantado</p>
+                                    <p class="text-2xl font-bold text-white" id="totalRaisedAmount">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-blue-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-green-300 text-sm font-medium">Total Distribuído</p>
+                                    <p class="text-2xl font-bold text-white" id="totalDistributedAmount">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-green-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="metric-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-yellow-300 text-sm font-medium">Saldo Disponível</p>
+                                    <p class="text-2xl font-bold text-white" id="availableBalance">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-yellow-500 rounded-full flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Botão Adicionar Levantamento -->
+                    <div class="mb-8">
+                        <button id="newCapitalRaisingBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
+                            <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                            </svg>
+                            Adicionar Levantamento
+                        </button>
+                    </div>
+
+                    <!-- Tabela de Levantamentos -->
+                    <div class="table-container">
+                        <div class="table-header px-6 py-4">
+                            <h3 class="text-lg font-semibold text-white">Lista de Levantamentos</h3>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="table-header">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Bruto</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Juros (%)</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor Total</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Clientes</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Status</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="capitalRaisingList" class="divide-y divide-gray-700">
+                                    <!-- Capital raising entries will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
 
             </main>
         </div>
@@ -1816,7 +1909,157 @@
         </div>
     </div>
 
+    <!-- New Capital Raising Modal -->
+    <div id="newCapitalRaisingModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-4xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Adicionar Levantamento de Capital</h3>
+                    <button id="closeCapitalRaisingModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="newCapitalRaisingForm" class="space-y-6">
+                    <!-- Dados Básicos do Levantamento -->
+                    <div class="bg-gray-800 p-4 rounded-lg">
+                        <h4 class="text-lg font-semibold text-white mb-4">Dados do Levantamento</h4>
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-blue-200 mb-2">Valor Bruto (R$)</label>
+                                <input type="number" id="capitalGrossAmount" class="form-input w-full" step="0.01" min="0" placeholder="10000.00" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-blue-200 mb-2">Taxa de Juros (%)</label>
+                                <input type="number" id="capitalInterestRate" class="form-input w-full" step="0.01" min="0" placeholder="20.00" required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-blue-200 mb-2">Data do Levantamento</label>
+                                <input type="date" id="capitalDate" class="form-input w-full" required>
+                            </div>
+                        </div>
+                        
+                        <!-- Resumo Calculado -->
+                        <div class="mt-4 p-4 bg-blue-900/20 border border-blue-700/30 rounded-lg">
+                            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm">
+                                <div>
+                                    <span class="text-blue-300">Valor Bruto:</span>
+                                    <span class="text-white ml-2 font-semibold" id="summaryGrossAmount">R$ 0,00</span>
+                                </div>
+                                <div>
+                                    <span class="text-blue-300">Valor Total com Juros:</span>
+                                    <span class="text-white ml-2 font-semibold" id="summaryTotalAmount">R$ 0,00</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
 
+                    <!-- Distribuição para Clientes -->
+                    <div class="bg-gray-800 p-4 rounded-lg">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-lg font-semibold text-white">Distribuição para Clientes</h4>
+                            <button type="button" id="addClientToCapital" class="btn-primary px-4 py-2 rounded-lg text-sm">
+                                Adicionar Cliente
+                            </button>
+                        </div>
+                        
+                        <!-- Lista de Clientes -->
+                        <div id="capitalClientsList" class="space-y-3">
+                            <!-- Clientes serão adicionados aqui dinamicamente -->
+                        </div>
+                        
+                        <!-- Resumo da Distribuição -->
+                        <div class="mt-4 p-4 bg-green-900/20 border border-green-700/30 rounded-lg">
+                            <div class="grid grid-cols-1 md:grid-cols-3 gap-4 text-sm">
+                                <div>
+                                    <span class="text-green-300">Total Distribuído:</span>
+                                    <span class="text-white ml-2 font-semibold" id="totalDistributed">R$ 0,00</span>
+                                </div>
+                                <div>
+                                    <span class="text-green-300">Saldo Disponível:</span>
+                                    <span class="text-white ml-2 font-semibold" id="balanceAvailable">R$ 0,00</span>
+                                </div>
+                                <div>
+                                    <span class="text-green-300">Clientes Cadastrados:</span>
+                                    <span class="text-white ml-2 font-semibold" id="totalClients">0</span>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Observações -->
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
+                        <textarea id="capitalNotes" class="form-input w-full" rows="3" placeholder="Observações sobre o levantamento (opcional)"></textarea>
+                    </div>
+                    
+                    <!-- Botões -->
+                    <div class="flex space-x-4 pt-4">
+                        <button type="submit" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold text-white">
+                            Criar Levantamento
+                        </button>
+                        <button type="button" id="cancelCapitalRaising" class="bg-gray-600 hover:bg-gray-500 py-3 px-4 rounded-lg font-semibold text-white transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Capital Client Modal -->
+    <div id="capitalClientModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-md p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Adicionar Cliente ao Levantamento</h3>
+                    <button id="closeCapitalClientModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="capitalClientForm" class="space-y-4">
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Nome do Cliente</label>
+                        <input type="text" id="capitalClientName" class="form-input w-full" placeholder="Nome completo do cliente" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Valor Individual (R$)</label>
+                        <input type="number" id="capitalClientAmount" class="form-input w-full" step="0.01" min="0" placeholder="1200.00" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Documento (CPF/RG)</label>
+                        <input type="text" id="capitalClientDocument" class="form-input w-full" placeholder="000.000.000-00">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Telefone</label>
+                        <input type="tel" id="capitalClientPhone" class="form-input w-full" placeholder="(00) 00000-0000">
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
+                        <textarea id="capitalClientNotes" class="form-input w-full" rows="2" placeholder="Observações sobre este cliente (opcional)"></textarea>
+                    </div>
+                    
+                    <div class="flex space-x-4 pt-4">
+                        <button type="submit" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold text-white">
+                            Adicionar Cliente
+                        </button>
+                        <button type="button" id="cancelCapitalClient" class="bg-gray-600 hover:bg-gray-500 py-3 px-4 rounded-lg font-semibold text-white transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
 
     <script src="app.js"></script>
 </body>

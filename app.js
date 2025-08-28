@@ -309,6 +309,12 @@ function handleNavigation(e) {
                 loadExpenses();
             }
             
+            // Inicializar levantamento de capital quando a seção for exibida
+            if (target === 'capitalRaising') {
+                console.log('Seção de levantamento de capital ativada, inicializando...');
+                initializeCapitalRaising();
+            }
+            
             // Atualizar lista de clientes quando a seção de histórico for exibida
             if (target === 'history') {
                 console.log('Seção de histórico ativada, atualizando lista de clientes...');
@@ -4914,4 +4920,452 @@ function filterCashTransactions() {
 
 // ===================================================
 // FIM DA GESTÃO DE CAIXA
+// ===================================================
+
+// ===================================================
+// LEVANTAMENTO DE CAPITAL
+// ===================================================
+
+// Estado global para levantamentos de capital
+let capitalRaisings = [];
+let currentCapitalClients = [];
+
+// Elementos DOM para levantamento de capital
+const newCapitalRaisingBtn = document.getElementById('newCapitalRaisingBtn');
+const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
+const capitalClientModal = document.getElementById('capitalClientModal');
+const newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
+const capitalClientForm = document.getElementById('capitalClientForm');
+
+// Event listeners para levantamento de capital
+if (newCapitalRaisingBtn) {
+    newCapitalRaisingBtn.addEventListener('click', () => showModal(newCapitalRaisingModal));
+}
+
+// Fechar modais
+document.getElementById('closeCapitalRaisingModal')?.addEventListener('click', () => hideModal(newCapitalRaisingModal));
+document.getElementById('closeCapitalClientModal')?.addEventListener('click', () => hideModal(capitalClientModal));
+document.getElementById('cancelCapitalRaising')?.addEventListener('click', () => hideModal(newCapitalRaisingModal));
+document.getElementById('cancelCapitalClient')?.addEventListener('click', () => hideModal(capitalClientModal));
+
+// Adicionar cliente ao levantamento
+document.getElementById('addClientToCapital')?.addEventListener('click', () => {
+    showModal(capitalClientModal);
+});
+
+// Formulário de levantamento de capital
+if (newCapitalRaisingForm) {
+    newCapitalRaisingForm.addEventListener('submit', handleNewCapitalRaising);
+}
+
+// Formulário de cliente do levantamento
+if (capitalClientForm) {
+    capitalClientForm.addEventListener('submit', handleAddCapitalClient);
+}
+
+// Event listeners para calcular valores automaticamente
+document.getElementById('capitalGrossAmount')?.addEventListener('input', updateCapitalSummary);
+document.getElementById('capitalInterestRate')?.addEventListener('input', updateCapitalSummary);
+
+// Função para criar tabelas de levantamento de capital se não existirem
+async function createCapitalRaisingTables() {
+    try {
+        // Tabela principal de levantamentos
+        const { error: createTableError } = await supabase.rpc('execute_sql', {
+            sql_query: `
+                CREATE TABLE IF NOT EXISTS capital_raising (
+                    id SERIAL PRIMARY KEY,
+                    gross_amount DECIMAL(15,2) NOT NULL,
+                    interest_rate DECIMAL(5,2) NOT NULL,
+                    total_amount DECIMAL(15,2) NOT NULL,
+                    raised_date DATE NOT NULL,
+                    status VARCHAR(20) DEFAULT 'active',
+                    notes TEXT,
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE TABLE IF NOT EXISTS capital_clients (
+                    id SERIAL PRIMARY KEY,
+                    capital_raising_id INTEGER REFERENCES capital_raising(id) ON DELETE CASCADE,
+                    client_name VARCHAR(255) NOT NULL,
+                    amount DECIMAL(15,2) NOT NULL,
+                    document VARCHAR(50),
+                    phone VARCHAR(20),
+                    notes TEXT,
+                    status VARCHAR(20) DEFAULT 'active',
+                    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+                    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+                );
+                
+                CREATE INDEX IF NOT EXISTS idx_capital_raising_date ON capital_raising(raised_date);
+                CREATE INDEX IF NOT EXISTS idx_capital_clients_capital_id ON capital_clients(capital_raising_id);
+            `
+        });
+
+        if (createTableError) {
+            console.error('Erro ao criar tabelas de levantamento de capital:', createTableError);
+            showNotification('Erro ao inicializar banco de dados de levantamento de capital', 'error');
+        } else {
+            console.log('Tabelas de levantamento de capital criadas com sucesso');
+        }
+    } catch (error) {
+        console.error('Erro ao criar tabelas de levantamento de capital:', error);
+    }
+}
+
+// Função para carregar levantamentos de capital
+async function loadCapitalRaisings() {
+    try {
+        const { data, error } = await supabase
+            .from('capital_raising')
+            .select(`
+                *,
+                capital_clients (
+                    id,
+                    client_name,
+                    amount,
+                    document,
+                    phone,
+                    notes,
+                    status
+                )
+            `)
+            .order('raised_date', { ascending: false });
+
+        if (error) {
+            console.error('Erro ao carregar levantamentos:', error);
+            showNotification('Erro ao carregar levantamentos de capital', 'error');
+            return;
+        }
+
+        capitalRaisings = data || [];
+        renderCapitalRaisings();
+        updateCapitalMetrics();
+        
+    } catch (error) {
+        console.error('Erro ao carregar levantamentos:', error);
+        showNotification('Erro ao carregar levantamentos de capital', 'error');
+    }
+}
+
+// Função para calcular valores do levantamento
+function updateCapitalSummary() {
+    const grossAmount = parseFloat(document.getElementById('capitalGrossAmount')?.value || 0);
+    const interestRate = parseFloat(document.getElementById('capitalInterestRate')?.value || 0);
+    
+    const totalAmount = grossAmount * (1 + interestRate / 100);
+    
+    document.getElementById('summaryGrossAmount').textContent = `R$ ${grossAmount.toFixed(2).replace('.', ',')}`;
+    document.getElementById('summaryTotalAmount').textContent = `R$ ${totalAmount.toFixed(2).replace('.', ',')}`;
+    
+    updateDistributionSummary();
+}
+
+// Função para atualizar resumo da distribuição
+function updateDistributionSummary() {
+    const totalAmount = parseFloat(document.getElementById('summaryTotalAmount')?.textContent?.replace('R$ ', '').replace(',', '.') || 0);
+    const distributedAmount = currentCapitalClients.reduce((sum, client) => sum + client.amount, 0);
+    const availableBalance = totalAmount - distributedAmount;
+    
+    document.getElementById('totalDistributed').textContent = `R$ ${distributedAmount.toFixed(2).replace('.', ',')}`;
+    document.getElementById('balanceAvailable').textContent = `R$ ${availableBalance.toFixed(2).replace('.', ',')}`;
+    document.getElementById('totalClients').textContent = currentCapitalClients.length.toString();
+}
+
+// Função para adicionar cliente ao levantamento
+async function handleAddCapitalClient(e) {
+    e.preventDefault();
+    
+    const clientData = {
+        client_name: document.getElementById('capitalClientName').value,
+        amount: parseFloat(document.getElementById('capitalClientAmount').value),
+        document: document.getElementById('capitalClientDocument').value,
+        phone: document.getElementById('capitalClientPhone').value,
+        notes: document.getElementById('capitalClientNotes').value
+    };
+    
+    // Adicionar à lista temporária
+    currentCapitalClients.push(clientData);
+    
+    // Renderizar lista de clientes
+    renderCapitalClientsList();
+    updateDistributionSummary();
+    
+    // Limpar formulário e fechar modal
+    capitalClientForm.reset();
+    hideModal(capitalClientModal);
+    
+    showNotification('Cliente adicionado ao levantamento', 'success');
+}
+
+// Função para renderizar lista de clientes no modal
+function renderCapitalClientsList() {
+    const container = document.getElementById('capitalClientsList');
+    if (!container) return;
+    
+    container.innerHTML = '';
+    
+    currentCapitalClients.forEach((client, index) => {
+        const clientDiv = document.createElement('div');
+        clientDiv.className = 'bg-gray-700 p-3 rounded-lg flex items-center justify-between';
+        clientDiv.innerHTML = `
+            <div class="flex-1">
+                <div class="text-white font-medium">${client.client_name}</div>
+                <div class="text-gray-400 text-sm">
+                    R$ ${client.amount.toFixed(2).replace('.', ',')}
+                    ${client.document ? ` • ${client.document}` : ''}
+                    ${client.phone ? ` • ${client.phone}` : ''}
+                </div>
+            </div>
+            <button onclick="removeCapitalClient(${index})" class="text-red-400 hover:text-red-300 p-1">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                </svg>
+            </button>
+        `;
+        container.appendChild(clientDiv);
+    });
+}
+
+// Função para remover cliente do levantamento
+function removeCapitalClient(index) {
+    currentCapitalClients.splice(index, 1);
+    renderCapitalClientsList();
+    updateDistributionSummary();
+}
+
+// Função para criar novo levantamento de capital
+async function handleNewCapitalRaising(e) {
+    e.preventDefault();
+    
+    const grossAmount = parseFloat(document.getElementById('capitalGrossAmount').value);
+    const interestRate = parseFloat(document.getElementById('capitalInterestRate').value);
+    const totalAmount = grossAmount * (1 + interestRate / 100);
+    const raisedDate = document.getElementById('capitalDate').value;
+    const notes = document.getElementById('capitalNotes').value;
+    
+    if (currentCapitalClients.length === 0) {
+        showNotification('Adicione pelo menos um cliente ao levantamento', 'error');
+        return;
+    }
+    
+    try {
+        // Criar levantamento principal
+        const { data: capitalData, error: capitalError } = await supabase
+            .from('capital_raising')
+            .insert([{
+                gross_amount: grossAmount,
+                interest_rate: interestRate,
+                total_amount: totalAmount,
+                raised_date: raisedDate,
+                notes: notes
+            }])
+            .select()
+            .single();
+
+        if (capitalError) {
+            console.error('Erro ao criar levantamento:', capitalError);
+            showNotification('Erro ao criar levantamento de capital', 'error');
+            return;
+        }
+
+        // Criar clientes do levantamento
+        const clientsToInsert = currentCapitalClients.map(client => ({
+            ...client,
+            capital_raising_id: capitalData.id
+        }));
+
+        const { error: clientsError } = await supabase
+            .from('capital_clients')
+            .insert(clientsToInsert);
+
+        if (clientsError) {
+            console.error('Erro ao criar clientes do levantamento:', clientsError);
+            showNotification('Erro ao criar clientes do levantamento', 'error');
+            return;
+        }
+
+        showNotification('Levantamento de capital criado com sucesso!', 'success');
+        
+        // Resetar formulário e variáveis
+        newCapitalRaisingForm.reset();
+        currentCapitalClients = [];
+        hideModal(newCapitalRaisingModal);
+        
+        // Recarregar dados
+        await loadCapitalRaisings();
+        
+    } catch (error) {
+        console.error('Erro ao criar levantamento:', error);
+        showNotification('Erro ao criar levantamento de capital', 'error');
+    }
+}
+
+// Função para renderizar tabela de levantamentos
+function renderCapitalRaisings() {
+    const tbody = document.getElementById('capitalRaisingList');
+    if (!tbody) return;
+    
+    tbody.innerHTML = '';
+    
+    if (capitalRaisings.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="7" class="px-6 py-8 text-center text-gray-400">
+                    Nenhum levantamento encontrado
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    capitalRaisings.forEach(raising => {
+        const distributedAmount = raising.capital_clients?.reduce((sum, client) => sum + parseFloat(client.amount), 0) || 0;
+        const clientsCount = raising.capital_clients?.length || 0;
+        
+        const row = document.createElement('tr');
+        row.className = 'table-row';
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                ${new Date(raising.raised_date).toLocaleDateString('pt-BR')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                R$ ${parseFloat(raising.gross_amount).toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                ${parseFloat(raising.interest_rate).toFixed(2)}%
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                R$ ${parseFloat(raising.total_amount).toFixed(2).replace('.', ',')}
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                ${clientsCount} cliente${clientsCount !== 1 ? 's' : ''}
+                <div class="text-xs text-gray-500">
+                    R$ ${distributedAmount.toFixed(2).replace('.', ',')} distribuído
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 py-1 text-xs font-medium rounded-full ${getCapitalStatusColor(raising.status)}">
+                    ${getCapitalStatusText(raising.status)}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                <button onclick="viewCapitalDetails(${raising.id})" class="text-blue-400 hover:text-blue-300 mr-3">
+                    Ver Detalhes
+                </button>
+                <button onclick="editCapitalRaising(${raising.id})" class="text-yellow-400 hover:text-yellow-300 mr-3">
+                    Editar
+                </button>
+                <button onclick="deleteCapitalRaising(${raising.id})" class="text-red-400 hover:text-red-300">
+                    Excluir
+                </button>
+            </td>
+        `;
+        tbody.appendChild(row);
+    });
+}
+
+// Função para obter cor do status
+function getCapitalStatusColor(status) {
+    switch (status) {
+        case 'active': return 'bg-green-100 text-green-800';
+        case 'completed': return 'bg-blue-100 text-blue-800';
+        case 'cancelled': return 'bg-red-100 text-red-800';
+        default: return 'bg-gray-100 text-gray-800';
+    }
+}
+
+// Função para obter texto do status
+function getCapitalStatusText(status) {
+    switch (status) {
+        case 'active': return 'Ativo';
+        case 'completed': return 'Finalizado';
+        case 'cancelled': return 'Cancelado';
+        default: return 'Desconhecido';
+    }
+}
+
+// Função para atualizar métricas do levantamento de capital
+function updateCapitalMetrics() {
+    const totalRaised = capitalRaisings.reduce((sum, raising) => sum + parseFloat(raising.total_amount), 0);
+    const totalDistributed = capitalRaisings.reduce((sum, raising) => {
+        const distributed = raising.capital_clients?.reduce((clientSum, client) => clientSum + parseFloat(client.amount), 0) || 0;
+        return sum + distributed;
+    }, 0);
+    const availableBalance = totalRaised - totalDistributed;
+    
+    const totalRaisedElement = document.getElementById('totalRaisedAmount');
+    const totalDistributedElement = document.getElementById('totalDistributedAmount');
+    const availableBalanceElement = document.getElementById('availableBalance');
+    
+    if (totalRaisedElement) {
+        totalRaisedElement.textContent = `R$ ${totalRaised.toFixed(2).replace('.', ',')}`;
+    }
+    if (totalDistributedElement) {
+        totalDistributedElement.textContent = `R$ ${totalDistributed.toFixed(2).replace('.', ',')}`;
+    }
+    if (availableBalanceElement) {
+        availableBalanceElement.textContent = `R$ ${availableBalance.toFixed(2).replace('.', ',')}`;
+    }
+}
+
+// Função para ver detalhes do levantamento
+function viewCapitalDetails(id) {
+    const raising = capitalRaisings.find(r => r.id === id);
+    if (!raising) return;
+    
+    alert(`Detalhes do levantamento:\n\nValor Bruto: R$ ${raising.gross_amount}\nJuros: ${raising.interest_rate}%\nValor Total: R$ ${raising.total_amount}\nData: ${new Date(raising.raised_date).toLocaleDateString('pt-BR')}\nClientes: ${raising.capital_clients?.length || 0}\n\nObservações: ${raising.notes || 'Nenhuma'}`);
+}
+
+// Função para editar levantamento
+function editCapitalRaising(id) {
+    showNotification('Funcionalidade de edição será implementada em breve', 'info');
+}
+
+// Função para excluir levantamento
+async function deleteCapitalRaising(id) {
+    if (!confirm('Tem certeza que deseja excluir este levantamento? Esta ação não pode ser desfeita.')) {
+        return;
+    }
+    
+    try {
+        const { error } = await supabase
+            .from('capital_raising')
+            .delete()
+            .eq('id', id);
+
+        if (error) {
+            console.error('Erro ao excluir levantamento:', error);
+            showNotification('Erro ao excluir levantamento', 'error');
+            return;
+        }
+
+        showNotification('Levantamento excluído com sucesso', 'success');
+        await loadCapitalRaisings();
+        
+    } catch (error) {
+        console.error('Erro ao excluir levantamento:', error);
+        showNotification('Erro ao excluir levantamento', 'error');
+    }
+}
+
+// Inicializar levantamento de capital quando a seção for carregada
+function initializeCapitalRaising() {
+    createCapitalRaisingTables();
+    loadCapitalRaisings();
+    
+    // Definir data padrão como hoje
+    const today = new Date().toISOString().split('T')[0];
+    const dateInput = document.getElementById('capitalDate');
+    if (dateInput) {
+        dateInput.value = today;
+    }
+    
+    // Limpar lista de clientes
+    currentCapitalClients = [];
+}
+
+// ===================================================
+// FIM DO LEVANTAMENTO DE CAPITAL
 // ===================================================
