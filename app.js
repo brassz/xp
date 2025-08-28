@@ -5389,7 +5389,7 @@ async function closeCapitalRaising(capitalRaisingId) {
     const motivo = prompt('Informe o motivo da baixa do levantamento:', '');
     if (motivo === null) return; // User cancelled
     
-    if (!confirm(`Tem certeza que deseja dar baixa no levantamento "${raising.nome}"?`)) return;
+    if (!confirm(`Tem certeza que deseja dar baixa no levantamento "${raising.nome}"?\n\nUm PDF será gerado automaticamente com os dados finais do levantamento.`)) return;
     
     try {
         const { error } = await supabase
@@ -5405,7 +5405,13 @@ async function closeCapitalRaising(capitalRaisingId) {
         
         await loadCapitalRaisings();
         
-        alert('Baixa do levantamento realizada com sucesso!');
+        // Gerar PDF automaticamente após dar baixa
+        alert('Baixa do levantamento realizada com sucesso!\n\nGenerando PDF automaticamente...');
+        
+        // Aguardar um pequeno delay para que os dados sejam atualizados
+        setTimeout(async () => {
+            await generateCapitalRaisingPDF(capitalRaisingId);
+        }, 500);
         
     } catch (error) {
         console.error('Erro ao dar baixa no levantamento:', error);
@@ -5494,8 +5500,18 @@ async function generateCapitalRaisingPDF(capitalRaisingId) {
         // Título
         doc.setFontSize(20);
         doc.setFont(undefined, 'bold');
-        doc.text('RELATÓRIO DE LEVANTAMENTO DE CAPITAL', pageWidth / 2, yPosition, { align: 'center' });
+        const titulo = raising.data_baixa ? 'RELATÓRIO FINAL DE LEVANTAMENTO DE CAPITAL' : 'RELATÓRIO DE LEVANTAMENTO DE CAPITAL';
+        doc.text(titulo, pageWidth / 2, yPosition, { align: 'center' });
         yPosition += 20;
+        
+        // Subtítulo se for baixa
+        if (raising.data_baixa) {
+            doc.setFontSize(14);
+            doc.setTextColor(220, 38, 127); // Rosa/vermelho para destacar
+            doc.text('(LEVANTAMENTO ENCERRADO)', pageWidth / 2, yPosition, { align: 'center' });
+            doc.setTextColor(0, 0, 0); // Voltar para preto
+            yPosition += 15;
+        }
         
         // Linha separadora
         doc.setLineWidth(0.5);
@@ -5539,6 +5555,45 @@ async function generateCapitalRaisingPDF(capitalRaisingId) {
         });
         
         yPosition += 10;
+        
+        // Seção de resumo final se for baixa
+        if (raising.data_baixa) {
+            checkPageBreak(25);
+            
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(220, 38, 127); // Rosa/vermelho para destacar
+            doc.text('RESUMO DO ENCERRAMENTO', margin, yPosition);
+            doc.setTextColor(0, 0, 0); // Voltar para preto
+            yPosition += 15;
+            
+            // Calcular totais para o resumo (usando os clientes já carregados)
+            const totalContribuido = clients.reduce((sum, client) => sum + parseFloat(client.valor_individual || 0), 0);
+            const percentualArrecadado = ((totalContribuido / parseFloat(raising.valor_total)) * 100).toFixed(2);
+            const diferenca = parseFloat(raising.valor_total) - totalContribuido;
+            
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'normal');
+            
+            const resumoInfo = [
+                ['Valor Meta:', `R$ ${parseFloat(raising.valor_total).toFixed(2).replace('.', ',')}`],
+                ['Valor Arrecadado:', `R$ ${totalContribuido.toFixed(2).replace('.', ',')}`],
+                ['Percentual Atingido:', `${percentualArrecadado}%`],
+                ['Diferença:', `R$ ${Math.abs(diferenca).toFixed(2).replace('.', ',')} ${diferenca >= 0 ? '(faltou)' : '(excedeu)'}`],
+                ['Total de Participantes:', `${clients.length}`]
+            ];
+            
+            resumoInfo.forEach(([label, value]) => {
+                checkPageBreak(8);
+                doc.setFont(undefined, 'bold');
+                doc.text(label, margin, yPosition);
+                doc.setFont(undefined, 'normal');
+                doc.text(value, margin + 60, yPosition);
+                yPosition += 8;
+            });
+            
+            yPosition += 10;
+        }
         
         // Participantes
         if (clients && clients.length > 0) {
@@ -5624,7 +5679,8 @@ async function generateCapitalRaisingPDF(capitalRaisingId) {
         doc.text(`Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPosition, { align: 'center' });
         
         // Salvar o PDF
-        const fileName = `levantamento_capital_${raising.nome.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().getTime()}.pdf`;
+        const prefix = raising.data_baixa ? 'FINAL_levantamento_capital' : 'levantamento_capital';
+        const fileName = `${prefix}_${raising.nome.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().getTime()}.pdf`;
         doc.save(fileName);
         
     } catch (error) {
