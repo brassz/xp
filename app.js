@@ -5080,8 +5080,18 @@ function renderCapitalRaisingsTable() {
         row.className = 'table-row';
         
         const formattedDate = new Date(raising.data_criacao).toLocaleDateString('pt-BR');
-        const statusClass = raising.ativo ? 'status-active' : 'status-pending';
-        const statusText = raising.ativo ? 'Ativo' : 'Inativo';
+        let statusClass, statusText;
+        
+        if (raising.data_baixa) {
+            statusClass = 'status-cancelled';
+            statusText = 'Baixa Dada';
+        } else if (raising.ativo) {
+            statusClass = 'status-active';
+            statusText = 'Ativo';
+        } else {
+            statusClass = 'status-pending';
+            statusText = 'Inativo';
+        }
         
         row.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">${raising.nome}</td>
@@ -5103,18 +5113,30 @@ function renderCapitalRaisingsTable() {
             </td>
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                 <div class="flex space-x-2">
-                    <button onclick="viewCapitalRaisingDetails(${raising.id})" class="text-blue-400 hover:text-blue-300">
+                    <button onclick="viewCapitalRaisingDetails(${raising.id})" class="text-blue-400 hover:text-blue-300" title="Visualizar detalhes">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z"></path>
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z"></path>
                         </svg>
                     </button>
-                    <button onclick="toggleCapitalRaisingStatus(${raising.id})" class="text-yellow-400 hover:text-yellow-300">
+                    <button onclick="generateCapitalRaisingPDF(${raising.id})" class="text-green-400 hover:text-green-300" title="Gerar PDF">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                    </button>
+                    ${raising.ativo && !raising.data_baixa ? `
+                    <button onclick="closeCapitalRaising(${raising.id})" class="text-orange-400 hover:text-orange-300" title="Dar baixa">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </button>
+                    ` : ''}
+                    <button onclick="toggleCapitalRaisingStatus(${raising.id})" class="text-yellow-400 hover:text-yellow-300" title="Alterar status">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
                         </svg>
                     </button>
-                    <button onclick="deleteCapitalRaising(${raising.id})" class="text-red-400 hover:text-red-300">
+                    <button onclick="deleteCapitalRaising(${raising.id})" class="text-red-400 hover:text-red-300" title="Excluir">
                         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
                         </svg>
@@ -5359,6 +5381,44 @@ async function toggleCapitalRaisingStatus(capitalRaisingId) {
     }
 }
 
+// Dar baixa no levantamento de capital
+async function closeCapitalRaising(capitalRaisingId) {
+    const raising = capitalRaisings.find(r => r.id === capitalRaisingId);
+    if (!raising) return;
+    
+    const motivo = prompt('Informe o motivo da baixa do levantamento:', '');
+    if (motivo === null) return; // User cancelled
+    
+    if (!confirm(`Tem certeza que deseja dar baixa no levantamento "${raising.nome}"?\n\nUm PDF será gerado automaticamente com os dados finais do levantamento.`)) return;
+    
+    try {
+        const { error } = await supabase
+            .from('capital_raising')
+            .update({ 
+                data_baixa: new Date().toISOString(),
+                motivo_baixa: motivo,
+                ativo: false
+            })
+            .eq('id', capitalRaisingId);
+            
+        if (error) throw error;
+        
+        await loadCapitalRaisings();
+        
+        // Gerar PDF automaticamente após dar baixa
+        alert('Baixa do levantamento realizada com sucesso!\n\nGenerando PDF automaticamente...');
+        
+        // Aguardar um pequeno delay para que os dados sejam atualizados
+        setTimeout(async () => {
+            await generateCapitalRaisingPDF(capitalRaisingId);
+        }, 500);
+        
+    } catch (error) {
+        console.error('Erro ao dar baixa no levantamento:', error);
+        alert('Erro ao dar baixa no levantamento. Tente novamente.');
+    }
+}
+
 // Excluir levantamento de capital
 async function deleteCapitalRaising(capitalRaisingId) {
     if (!confirm('Tem certeza que deseja excluir este levantamento? Esta ação não pode ser desfeita.')) return;
@@ -5402,6 +5462,230 @@ async function deleteCapitalClient(clientId, capitalRaisingId) {
     } catch (error) {
         console.error('Erro ao remover participante:', error);
         alert('Erro ao remover participante. Tente novamente.');
+    }
+}
+
+// Gerar PDF do levantamento de capital
+async function generateCapitalRaisingPDF(capitalRaisingId) {
+    const raising = capitalRaisings.find(r => r.id === capitalRaisingId);
+    if (!raising) {
+        alert('Levantamento não encontrado!');
+        return;
+    }
+    
+    try {
+        // Carregar clientes do levantamento
+        const clients = await loadCapitalRaisingClients(capitalRaisingId);
+        
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configurações
+        const margin = 20;
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+        let yPosition = margin;
+        
+        // Função para adicionar nova página se necessário
+        function checkPageBreak(neededHeight) {
+            if (yPosition + neededHeight > pageHeight - margin) {
+                doc.addPage();
+                yPosition = margin;
+                return true;
+            }
+            return false;
+        }
+        
+        // Título
+        doc.setFontSize(20);
+        doc.setFont(undefined, 'bold');
+        const titulo = raising.data_baixa ? 'RELATÓRIO FINAL DE LEVANTAMENTO DE CAPITAL' : 'RELATÓRIO DE LEVANTAMENTO DE CAPITAL';
+        doc.text(titulo, pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 20;
+        
+        // Subtítulo se for baixa
+        if (raising.data_baixa) {
+            doc.setFontSize(14);
+            doc.setTextColor(220, 38, 127); // Rosa/vermelho para destacar
+            doc.text('(LEVANTAMENTO ENCERRADO)', pageWidth / 2, yPosition, { align: 'center' });
+            doc.setTextColor(0, 0, 0); // Voltar para preto
+            yPosition += 15;
+        }
+        
+        // Linha separadora
+        doc.setLineWidth(0.5);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 15;
+        
+        // Informações do levantamento
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('INFORMAÇÕES GERAIS', margin, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(12);
+        doc.setFont(undefined, 'normal');
+        
+        const info = [
+            ['Nome:', raising.nome],
+            ['Valor Bruto:', `R$ ${parseFloat(raising.valor_bruto).toFixed(2).replace('.', ',')}`],
+            ['Taxa de Juros:', `${parseFloat(raising.taxa_juros).toFixed(2)}%`],
+            ['Valor Total:', `R$ ${parseFloat(raising.valor_total).toFixed(2).replace('.', ',')}`],
+            ['Data de Criação:', new Date(raising.data_criacao).toLocaleDateString('pt-BR')],
+            ['Status:', raising.ativo ? 'Ativo' : 'Inativo'],
+        ];
+        
+        if (raising.data_baixa) {
+            info.push(['Data da Baixa:', new Date(raising.data_baixa).toLocaleDateString('pt-BR')]);
+            info.push(['Motivo da Baixa:', raising.motivo_baixa || 'Não informado']);
+        }
+        
+        if (raising.observacoes) {
+            info.push(['Observações:', raising.observacoes]);
+        }
+        
+        info.forEach(([label, value]) => {
+            checkPageBreak(8);
+            doc.setFont(undefined, 'bold');
+            doc.text(label, margin, yPosition);
+            doc.setFont(undefined, 'normal');
+            doc.text(value, margin + 50, yPosition);
+            yPosition += 8;
+        });
+        
+        yPosition += 10;
+        
+        // Seção de resumo final se for baixa
+        if (raising.data_baixa) {
+            checkPageBreak(25);
+            
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.setTextColor(220, 38, 127); // Rosa/vermelho para destacar
+            doc.text('RESUMO DO ENCERRAMENTO', margin, yPosition);
+            doc.setTextColor(0, 0, 0); // Voltar para preto
+            yPosition += 15;
+            
+            // Calcular totais para o resumo (usando os clientes já carregados)
+            const totalContribuido = clients.reduce((sum, client) => sum + parseFloat(client.valor_individual || 0), 0);
+            const percentualArrecadado = ((totalContribuido / parseFloat(raising.valor_total)) * 100).toFixed(2);
+            const diferenca = parseFloat(raising.valor_total) - totalContribuido;
+            
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'normal');
+            
+            const resumoInfo = [
+                ['Valor Meta:', `R$ ${parseFloat(raising.valor_total).toFixed(2).replace('.', ',')}`],
+                ['Valor Arrecadado:', `R$ ${totalContribuido.toFixed(2).replace('.', ',')}`],
+                ['Percentual Atingido:', `${percentualArrecadado}%`],
+                ['Diferença:', `R$ ${Math.abs(diferenca).toFixed(2).replace('.', ',')} ${diferenca >= 0 ? '(faltou)' : '(excedeu)'}`],
+                ['Total de Participantes:', `${clients.length}`]
+            ];
+            
+            resumoInfo.forEach(([label, value]) => {
+                checkPageBreak(8);
+                doc.setFont(undefined, 'bold');
+                doc.text(label, margin, yPosition);
+                doc.setFont(undefined, 'normal');
+                doc.text(value, margin + 60, yPosition);
+                yPosition += 8;
+            });
+            
+            yPosition += 10;
+        }
+        
+        // Participantes
+        if (clients && clients.length > 0) {
+            checkPageBreak(30);
+            
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('PARTICIPANTES', margin, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'bold');
+            
+            // Cabeçalho da tabela
+            const headers = ['Nome', 'CPF', 'Telefone', 'Email', 'Valor Individual', 'Data Entrada'];
+            const columnWidths = [35, 25, 25, 40, 25, 25];
+            let xPosition = margin;
+            
+            headers.forEach((header, index) => {
+                doc.text(header, xPosition, yPosition);
+                xPosition += columnWidths[index];
+            });
+            
+            yPosition += 5;
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 5;
+            
+            // Dados dos participantes
+            doc.setFont(undefined, 'normal');
+            doc.setFontSize(9);
+            
+            let totalContribuido = 0;
+            
+            clients.forEach(client => {
+                checkPageBreak(10);
+                
+                xPosition = margin;
+                const data = [
+                    client.nome || '',
+                    client.cpf || '',
+                    client.telefone || '',
+                    client.email || '',
+                    `R$ ${parseFloat(client.valor_individual || 0).toFixed(2).replace('.', ',')}`,
+                    new Date(client.data_entrada).toLocaleDateString('pt-BR')
+                ];
+                
+                data.forEach((item, index) => {
+                    // Quebrar texto longo se necessário
+                    const splitText = doc.splitTextToSize(item, columnWidths[index] - 2);
+                    doc.text(splitText, xPosition, yPosition);
+                    xPosition += columnWidths[index];
+                });
+                
+                totalContribuido += parseFloat(client.valor_individual || 0);
+                yPosition += 8;
+            });
+            
+            // Linha separadora e total
+            yPosition += 5;
+            doc.line(margin, yPosition, pageWidth - margin, yPosition);
+            yPosition += 10;
+            
+            doc.setFont(undefined, 'bold');
+            doc.setFontSize(12);
+            doc.text(`Total de Participantes: ${clients.length}`, margin, yPosition);
+            yPosition += 8;
+            doc.text(`Total Contribuído: R$ ${totalContribuido.toFixed(2).replace('.', ',')}`, margin, yPosition);
+            yPosition += 8;
+            
+            const percentualArrecadado = ((totalContribuido / parseFloat(raising.valor_total)) * 100).toFixed(2);
+            doc.text(`Percentual Arrecadado: ${percentualArrecadado}%`, margin, yPosition);
+        } else {
+            checkPageBreak(20);
+            doc.setFontSize(12);
+            doc.setFont(undefined, 'normal');
+            doc.text('Nenhum participante cadastrado ainda.', margin, yPosition);
+        }
+        
+        // Rodapé
+        yPosition = pageHeight - 30;
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Relatório gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPosition, { align: 'center' });
+        
+        // Salvar o PDF
+        const prefix = raising.data_baixa ? 'FINAL_levantamento_capital' : 'levantamento_capital';
+        const fileName = `${prefix}_${raising.nome.replace(/[^a-zA-Z0-9]/g, '_')}_${new Date().getTime()}.pdf`;
+        doc.save(fileName);
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        alert('Erro ao gerar PDF. Tente novamente.');
     }
 }
 
