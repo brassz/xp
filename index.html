@@ -306,6 +306,14 @@
                     <span>Despesas</span>
                 </a>
                 
+                <a href="#cashManagement" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                    </svg>
+                    <span>Gestão de Caixa</span>
+                </a>
+                
                 <a href="#history" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
@@ -780,6 +788,141 @@
                                 </thead>
                                 <tbody id="expensesTableBody" class="divide-y divide-gray-700">
                                     <!-- Expenses will be populated here -->
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Cash Management Section -->
+                <div id="cashManagement" class="content-section hidden">
+                    <div class="mb-8">
+                        <h2 class="text-3xl font-bold text-white mb-2">Gestão de Caixa</h2>
+                        <p class="text-gray-400">Gerencie entradas e saídas de dinheiro do seu caixa</p>
+                    </div>
+
+                    <!-- Current Balance Card -->
+                    <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
+                        <div class="glass-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-white mb-2">Saldo Atual</h3>
+                                    <p id="currentCashBalance" class="text-3xl font-bold text-green-400">R$ 0,00</p>
+                                </div>
+                                <div class="bg-green-500/20 p-3 rounded-lg">
+                                    <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-white mb-2">Entradas do Mês</h3>
+                                    <p id="monthlyDeposits" class="text-3xl font-bold text-blue-400">R$ 0,00</p>
+                                </div>
+                                <div class="bg-blue-500/20 p-3 rounded-lg">
+                                    <svg class="w-8 h-8 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <h3 class="text-lg font-semibold text-white mb-2">Saídas do Mês</h3>
+                                    <p id="monthlyWithdrawals" class="text-3xl font-bold text-red-400">R$ 0,00</p>
+                                </div>
+                                <div class="bg-red-500/20 p-3 rounded-lg">
+                                    <svg class="w-8 h-8 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 17h8m0 0V9m0 8l-8-8-4 4-6-6"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+                        <div class="glass-card p-6 rounded-xl">
+                            <h3 class="text-xl font-semibold text-white mb-4">Adicionar Dinheiro</h3>
+                            <form id="addMoneyForm" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Valor</label>
+                                    <input type="number" id="depositAmount" step="0.01" min="0.01" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="0,00" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Descrição</label>
+                                    <input type="text" id="depositDescription" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="Ex: Depósito inicial, Recebimento, etc.">
+                                </div>
+                                <button type="submit" class="w-full btn-primary px-6 py-3 rounded-lg font-semibold text-white flex items-center justify-center space-x-2">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
+                                    </svg>
+                                    <span>Adicionar</span>
+                                </button>
+                            </form>
+                        </div>
+                        
+                        <div class="glass-card p-6 rounded-xl">
+                            <h3 class="text-xl font-semibold text-white mb-4">Retirar Dinheiro</h3>
+                            <form id="withdrawMoneyForm" class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Valor</label>
+                                    <input type="number" id="withdrawalAmount" step="0.01" min="0.01" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="0,00" required>
+                                </div>
+                                <div>
+                                    <label class="block text-sm font-medium text-gray-300 mb-2">Descrição</label>
+                                    <input type="text" id="withdrawalDescription" class="w-full px-4 py-3 bg-gray-800 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500" placeholder="Ex: Despesa, Saque, etc.">
+                                </div>
+                                <button type="submit" class="w-full bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold text-white flex items-center justify-center space-x-2 transition-all">
+                                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                    </svg>
+                                    <span>Retirar</span>
+                                </button>
+                            </form>
+                        </div>
+                    </div>
+
+                    <!-- Cash Flow Chart -->
+                    <div class="glass-card p-6 rounded-xl mb-8">
+                        <h3 class="text-xl font-semibold text-white mb-6">Fluxo de Caixa (Últimos 7 dias)</h3>
+                        <div style="height: 400px;">
+                            <canvas id="cashFlowChart"></canvas>
+                        </div>
+                    </div>
+
+                    <!-- Transaction History -->
+                    <div class="table-container">
+                        <div class="table-header px-6 py-4 flex items-center justify-between">
+                            <h3 class="text-lg font-semibold text-white">Histórico de Transações</h3>
+                            <div class="flex items-center space-x-4">
+                                <select id="transactionTypeFilter" class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm">
+                                    <option value="">Todos os tipos</option>
+                                    <option value="deposit">Entradas</option>
+                                    <option value="withdrawal">Saídas</option>
+                                </select>
+                                <input type="date" id="transactionDateFilter" class="px-3 py-2 bg-gray-800 border border-gray-600 rounded-lg text-white text-sm">
+                            </div>
+                        </div>
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="table-header">
+                                    <tr>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data/Hora</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Tipo</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Descrição</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Saldo Após</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="cashTransactionsTableBody" class="divide-y divide-gray-700">
+                                    <!-- Cash transactions will be populated here -->
                                 </tbody>
                             </table>
                         </div>

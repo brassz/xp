@@ -16,6 +16,8 @@ let expenses = [];
 let expenseCategories = [];
 let installments = [];
 let installmentPayments = [];
+let cashTransactions = [];
+let cashSettings = null;
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
