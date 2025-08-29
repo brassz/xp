@@ -206,6 +206,17 @@ function setupEventListeners() {
     // Botões do modal de histórico de pagamentos
     document.getElementById('newPaymentBtn').addEventListener('click', () => showNewPaymentFromHistory());
     
+    // Checkbox para alterar data de vencimento no modal de pagamento
+    document.getElementById('changeDueDateCheckbox').addEventListener('change', function() {
+        const container = document.getElementById('dueDateContainer');
+        if (this.checked) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+            document.getElementById('newDueDate').value = '';
+        }
+    });
+    
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
     
@@ -935,6 +946,10 @@ async function handlePayment(e) {
     const paymentNotes = document.getElementById('paymentNotes').value;
     const loanId = document.getElementById('paymentForm').dataset.loanId;
     
+    // Verificar se deve alterar a data de vencimento
+    const changeDueDate = document.getElementById('changeDueDateCheckbox').checked;
+    const newDueDate = changeDueDate ? document.getElementById('newDueDate').value : null;
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -1046,12 +1061,20 @@ async function handlePayment(e) {
                 newStatus = 'paid';
             }
             
+            // Preparar dados de atualização
+            let updateData = {
+                status: newStatus,
+                updated_at: new Date().toISOString()
+            };
+            
+            // Se deve alterar a data de vencimento
+            if (changeDueDate && newDueDate) {
+                updateData.due_date = newDueDate;
+            }
+            
             const { error: loanError } = await supabase
                 .from('loans')
-                .update({ 
-                    status: newStatus,
-                    updated_at: new Date().toISOString()
-                })
+                .update(updateData)
                 .eq('id', loanId);
             
             if (loanError) throw loanError;
@@ -1085,6 +1108,11 @@ async function handlePayment(e) {
         
         // Mostrar mensagem de sucesso com informações sobre a operação
         let successMessage = `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
+        
+        // Adicionar informação sobre alteração de data de vencimento
+        if (changeDueDate && newDueDate) {
+            successMessage += `\n\n📅 DATA DE VENCIMENTO ALTERADA!\n• Nova data: ${new Date(newDueDate).toLocaleDateString('pt-BR')}`;
+        }
         
         if (recalcInfo.shouldRecalculate) {
             if (recalcInfo.isInterestOnlyRenewal) {
@@ -1410,6 +1438,11 @@ function showPaymentModal(loanId) {
     document.getElementById('paymentAmount').value = '';
     document.getElementById('paymentType').value = 'partial';
     document.getElementById('paymentNotes').value = '';
+    
+    // Resetar campos de alteração de data de vencimento
+    document.getElementById('changeDueDateCheckbox').checked = false;
+    document.getElementById('dueDateContainer').classList.add('hidden');
+    document.getElementById('newDueDate').value = '';
     
     // Limpar validação anterior
     const feedbackDiv = document.getElementById('paymentValidationFeedback');

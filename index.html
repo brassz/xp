@@ -1416,25 +1416,25 @@
     <!-- Payment Modal -->
     <div id="paymentModal" class="modal-overlay fixed inset-0 z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-md p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-semibold text-white">Registrar Pagamento</h3>
+            <div class="modal-content w-full max-w-sm p-4">
+                <div class="flex items-center justify-between mb-4">
+                    <h3 class="text-lg font-semibold text-white">Registrar Pagamento</h3>
                     <button id="closePaymentModal" class="text-gray-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
                     </button>
                 </div>
                 
-                <form id="paymentForm" class="space-y-4">
+                <form id="paymentForm" class="space-y-3">
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-2">Cliente</label>
                         <p class="text-white" id="paymentClientName">-</p>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Detalhes do Empréstimo</label>
-                        <div class="bg-gray-800 p-4 rounded-lg space-y-2">
+                        <label class="block text-sm font-medium text-blue-200 mb-1">Detalhes do Empréstimo</label>
+                        <div class="bg-gray-800 p-3 rounded-lg space-y-1">
                             <div class="flex justify-between">
                                 <span class="text-gray-300">Capital:</span>
                                 <span class="text-white" id="paymentCapitalAmount">R$ 0,00</span>
@@ -1451,7 +1451,7 @@
                                 <span class="text-gray-300">Total com Juros:</span>
                                 <span class="text-white font-semibold" id="paymentTotalAmount">R$ 0,00</span>
                             </div>
-                            <div class="flex justify-between border-t border-gray-600 pt-2">
+                            <div class="flex justify-between border-t border-gray-600 pt-1">
                                 <span class="text-gray-300">Valor Restante:</span>
                                 <span class="text-yellow-400 font-semibold" id="paymentRemainingAmount">R$ 0,00</span>
                             </div>
@@ -1463,18 +1463,18 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Data do Pagamento</label>
+                        <label class="block text-sm font-medium text-blue-200 mb-1">Data do Pagamento</label>
                         <input type="date" id="paymentDate" class="form-input w-full" required>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Valor do Pagamento</label>
+                        <label class="block text-sm font-medium text-blue-200 mb-1">Valor do Pagamento</label>
                         <input type="number" id="paymentAmount" class="form-input w-full" step="0.01" min="0" required>
-                        <div id="paymentValidationFeedback" class="mt-2 text-sm hidden"></div>
+                        <div id="paymentValidationFeedback" class="mt-1 text-sm hidden"></div>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Tipo de Pagamento</label>
+                        <label class="block text-sm font-medium text-blue-200 mb-1">Tipo de Pagamento</label>
                         <select id="paymentType" class="form-input w-full" required>
                             <option value="partial">Parcial</option>
                             <option value="full">Total</option>
@@ -1484,11 +1484,23 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Notas/Observações</label>
-                        <textarea id="paymentNotes" class="form-input w-full" rows="3" placeholder="Observações sobre o pagamento..."></textarea>
+                        <label class="block text-sm font-medium text-blue-200 mb-1">Notas/Observações</label>
+                        <textarea id="paymentNotes" class="form-input w-full" rows="2" placeholder="Observações sobre o pagamento..."></textarea>
+                    </div>
+
+                    <!-- Optional Due Date Change -->
+                    <div class="border-t border-gray-600 pt-3">
+                        <div class="flex items-center mb-2">
+                            <input type="checkbox" id="changeDueDateCheckbox" class="mr-2">
+                            <label class="text-sm font-medium text-blue-200">Alterar data de vencimento (opcional)</label>
+                        </div>
+                        <div id="dueDateContainer" class="hidden">
+                            <label class="block text-sm font-medium text-blue-200 mb-1">Nova Data de Vencimento</label>
+                            <input type="date" id="newDueDate" class="form-input w-full">
+                        </div>
                     </div>
                     
-                    <div class="flex justify-end space-x-4 pt-4">
+                    <div class="flex justify-end space-x-4 pt-3">
                         <button type="button" id="cancelPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
                             Cancelar
                         </button>
@@ -1929,6 +1941,7 @@
             </div>
         </div>
     </div>
+
 
     <!-- New Expense Modal -->
     <div id="newExpenseModal" class="modal-overlay fixed inset-0 z-50 hidden">
