@@ -3309,20 +3309,39 @@ function openClientDocuments(clientId, clientName) {
 
 // Carregar documentos do cliente
 async function loadClientDocuments(clientId) {
+    console.log(`🔄 Carregando documentos para cliente: ${clientId}`);
+    
     try {
+        if (!clientId) {
+            throw new Error('ID do cliente não fornecido');
+        }
+        
         const { data, error } = await supabase
             .from('client_documents')
             .select('*')
             .eq('client_id', clientId)
             .order('created_at', { ascending: false });
         
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro do Supabase ao carregar documentos:', error);
+            throw error;
+        }
+        
+        console.log(`✅ Documentos carregados: ${data?.length || 0} encontrados`);
         
         clientDocuments = data || [];
         renderClientDocuments();
         
     } catch (error) {
-        console.error('Erro ao carregar documentos:', error);
+        console.error('❌ Erro ao carregar documentos:', error);
+        
+        // Mostrar erro específico se for problema de tabela
+        if (error.message.includes('relation "client_documents" does not exist')) {
+            alert('Erro: Tabela de documentos não existe. Execute o script setup-client-documents-table.sql');
+        } else if (error.message.includes('permission')) {
+            alert('Erro: Sem permissão para acessar documentos. Verifique as políticas RLS.');
+        }
+        
         clientDocuments = [];
         renderClientDocuments();
     }
@@ -3428,13 +3447,32 @@ function renderClientDocuments() {
 async function handleDocumentUpload(e) {
     e.preventDefault();
     
-    const name = document.getElementById('documentName').value;
+    console.log('🔄 Iniciando upload de documento...');
+    
+    // Capturar dados do formulário
+    const name = document.getElementById('documentName').value.trim();
     const category = document.getElementById('documentCategory').value;
     const file = document.getElementById('documentFile').files[0];
-    const notes = document.getElementById('documentNotes').value;
+    const notes = document.getElementById('documentNotes').value.trim();
+    
+    // Validações básicas
+    if (!name) {
+        alert('Por favor, informe o nome do documento');
+        return;
+    }
+    
+    if (!category) {
+        alert('Por favor, selecione uma categoria');
+        return;
+    }
     
     if (!file) {
         alert('Por favor, selecione um arquivo');
+        return;
+    }
+    
+    if (!currentClientId) {
+        alert('Erro: Cliente não identificado. Feche e abra novamente o modal.');
         return;
     }
     
@@ -3450,12 +3488,30 @@ async function handleDocumentUpload(e) {
         return;
     }
     
+    // Validar tipo de arquivo
+    const allowedTypes = ['application/pdf', 'image/jpeg', 'image/jpg', 'image/png', 'application/msword', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
+    if (!allowedTypes.includes(file.type)) {
+        alert('Tipo de arquivo não permitido. Use: PDF, JPG, PNG, DOC ou DOCX');
+        return;
+    }
+    
+    console.log(`📋 Dados do upload:`, {
+        clientId: currentClientId,
+        name: name,
+        category: category,
+        fileType: file.type,
+        fileSize: file.size,
+        fileName: file.name
+    });
+    
     try {
         // Mostrar loading
         const submitBtn = e.target.querySelector('button[type="submit"]');
         const originalText = submitBtn.textContent;
         submitBtn.textContent = 'Enviando...';
         submitBtn.disabled = true;
+        
+        console.log('📤 Iniciando upload para Uploadcare...');
         
         // Upload do arquivo para o Uploadcare
         const formData = new FormData();
@@ -3468,44 +3524,81 @@ async function handleDocumentUpload(e) {
         });
         
         if (!uploadResponse.ok) {
-            throw new Error('Erro no upload para Uploadcare');
+            const errorText = await uploadResponse.text();
+            console.error('❌ Erro no Uploadcare:', errorText);
+            throw new Error(`Erro no upload para Uploadcare: ${uploadResponse.status} - ${errorText}`);
         }
         
         const uploadResult = await uploadResponse.json();
+        console.log('✅ Upload Uploadcare concluído:', uploadResult);
+        
+        if (!uploadResult.file) {
+            throw new Error('Resposta inválida do Uploadcare: arquivo não encontrado');
+        }
+        
         const fileUrl = `https://ucarecdn.com/${uploadResult.file}/`;
+        console.log(`🔗 URL do arquivo: ${fileUrl}`);
+        
+        console.log('💾 Salvando no banco de dados...');
         
         // Salvar informações do documento no banco
+        const documentData = {
+            client_id: currentClientId,
+            name: name,
+            category: category,
+            file_path: fileUrl,
+            file_type: file.type,
+            file_size: file.size,
+            notes: notes || null
+        };
+        
+        console.log('📊 Dados para inserção:', documentData);
+        
         const { data, error } = await supabase
             .from('client_documents')
-            .insert([{
-                client_id: currentClientId,
-                name: name,
-                category: category,
-                file_path: fileUrl,
-                file_type: file.type,
-                file_size: file.size,
-                notes: notes || null
-            }])
+            .insert([documentData])
             .select();
         
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro do Supabase:', error);
+            throw new Error(`Erro ao salvar no banco: ${error.message}`);
+        }
+        
+        console.log('✅ Documento salvo no banco:', data);
         
         // Limpar formulário
         document.getElementById('uploadDocumentForm').reset();
         
         // Recarregar documentos
+        console.log('🔄 Recarregando lista de documentos...');
         await loadClientDocuments(currentClientId);
         
         showSuccessMessage('Documento enviado com sucesso!');
+        console.log('🎉 Upload concluído com sucesso!');
         
     } catch (error) {
-        console.error('Erro ao fazer upload:', error);
-        alert('Erro ao fazer upload do documento: ' + error.message);
+        console.error('❌ Erro completo no upload:', error);
+        
+        // Mensagem de erro mais específica
+        let errorMessage = 'Erro desconhecido ao fazer upload';
+        
+        if (error.message.includes('Uploadcare')) {
+            errorMessage = 'Erro no serviço de upload de arquivos. Tente novamente.';
+        } else if (error.message.includes('banco')) {
+            errorMessage = 'Erro ao salvar informações no banco de dados.';
+        } else if (error.message.includes('network') || error.message.includes('fetch')) {
+            errorMessage = 'Erro de conexão. Verifique sua internet e tente novamente.';
+        } else {
+            errorMessage = error.message;
+        }
+        
+        alert(`Erro ao fazer upload do documento: ${errorMessage}`);
+        
     } finally {
         // Restaurar botão
         const submitBtn = e.target.querySelector('button[type="submit"]');
         if (submitBtn) {
-            submitBtn.textContent = originalText;
+            submitBtn.textContent = originalText || 'Fazer Upload';
             submitBtn.disabled = false;
         }
     }
