@@ -2425,15 +2425,12 @@ function getLastNMonths(n) {
 function getLastNWeeks(n) {
     const weeks = [];
     const now = new Date();
-    const currentDayOfWeek = now.getDay();
-    const currentMonday = new Date(now);
-    currentMonday.setDate(now.getDate() - currentDayOfWeek + 1);
     
     for (let i = n - 1; i >= 0; i--) {
-        const weekStart = new Date(currentMonday);
-        weekStart.setDate(currentMonday.getDate() - (i * 7));
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
+        const weekEnd = new Date(now);
+        weekEnd.setDate(now.getDate() - (i * 7));
+        const weekStart = new Date(weekEnd);
+        weekStart.setDate(weekEnd.getDate() - 6);
         
         weeks.push({
             start: weekStart,
