@@ -1232,15 +1232,6 @@ function hideModal(modal) {
         document.getElementById('editLoanForm').reset();
     } else if (modal === newClientModal) {
         document.getElementById('newClientForm').reset();
-        // Limpar preview das fotos
-        document.getElementById('photosUploadPreview').classList.add('hidden');
-        document.getElementById('clientPhotos').value = '';
-        document.getElementById('photosPreviewGrid').innerHTML = '';
-        // Limpar widget do Uploadcare
-        if (window.uploadcare) {
-            const widget = uploadcare.Widget('#clientPhotosUploader');
-            widget.value(null);
-        }
     } else if (modal === newLoanModal) {
         document.getElementById('newLoanForm').reset();
     } else if (modal === paymentModal) {
