@@ -362,6 +362,28 @@ function setupUploadcare() {
     }
 }
 
+// Função para obter URL da foto do cliente (compatibilidade com versões antigas e novas)
+function getClientPhotoUrl(client) {
+    // Priorizar a nova estrutura de múltiplas fotos
+    if (client.photos) {
+        try {
+            const photoUrls = JSON.parse(client.photos);
+            if (Array.isArray(photoUrls) && photoUrls.length > 0) {
+                return photoUrls[0]; // Retorna a primeira foto
+            }
+        } catch (e) {
+            console.warn('Erro ao processar fotos do cliente:', e);
+        }
+    }
+    
+    // Fallback para a estrutura antiga de foto única
+    if (client.photo) {
+        return client.photo;
+    }
+    
+    return null;
+}
+
 // Função para mostrar preview de múltiplas fotos
 function showPhotosPreview(photoUrls, gridId, previewId) {
     const grid = document.getElementById(gridId);
@@ -643,8 +665,8 @@ function renderClientsTable() {
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                     <div class="flex-shrink-0 h-10 w-10">
-                        ${client.photo ? 
-                            `<img class="h-10 w-10 rounded-full object-cover" src="${client.photo}" alt="${client.name}">` :
+                        ${getClientPhotoUrl(client) ? 
+                            `<img class="h-10 w-10 rounded-full object-cover" src="${getClientPhotoUrl(client)}" alt="${client.name}">` :
                             `<div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
                                 <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
                             </div>`
@@ -872,6 +894,9 @@ async function renderPaidLoansTable() {
 async function handleNewClient(e) {
     e.preventDefault();
     
+    const photosValue = document.getElementById('clientPhotos').value;
+    console.log('Photos value before saving:', photosValue); // Debug log
+    
     const formData = {
         name: document.getElementById('clientName').value,
         cpf: document.getElementById('clientCPF').value,
@@ -880,18 +905,24 @@ async function handleNewClient(e) {
         address: document.getElementById('clientAddress').value,
         rg: document.getElementById('clientRG').value,
         birth_date: document.getElementById('clientBirthDate').value,
-        photos: document.getElementById('clientPhotos').value,
+        photos: photosValue,
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
     
     try {
+        console.log('Inserting client data:', formData); // Debug log
         const { data, error } = await supabase
             .from('clients')
             .insert([formData])
             .select();
         
-        if (error) throw error;
+        if (error) {
+            console.error('Database error:', error);
+            throw error;
+        }
+        
+        console.log('Client created successfully:', data); // Debug log
         
         hideModal(newClientModal);
         newClientForm.reset();
@@ -1139,6 +1170,9 @@ async function handleEditClient(e) {
     e.preventDefault();
     
     const clientId = document.getElementById('editClientId').value;
+    const photosValue = document.getElementById('editClientPhotos').value;
+    console.log('Photos value before updating:', photosValue); // Debug log
+    
     const formData = {
         name: document.getElementById('editClientName').value,
         cpf: document.getElementById('editClientCPF').value,
@@ -1147,18 +1181,24 @@ async function handleEditClient(e) {
         address: document.getElementById('editClientAddress').value,
         rg: document.getElementById('editClientRG').value,
         birth_date: document.getElementById('editClientBirthDate').value,
-        photos: document.getElementById('editClientPhotos').value,
+        photos: photosValue,
         updated_at: new Date().toISOString()
     };
     
     try {
+        console.log('Updating client data:', formData); // Debug log
         const { data, error } = await supabase
             .from('clients')
             .update(formData)
             .eq('id', clientId)
             .select();
         
-        if (error) throw error;
+        if (error) {
+            console.error('Database update error:', error);
+            throw error;
+        }
+        
+        console.log('Client updated successfully:', data); // Debug log
         
         hideModal(editClientModal);
         
