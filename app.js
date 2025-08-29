@@ -2426,16 +2426,22 @@ function getLastNWeeks(n) {
     const weeks = [];
     const now = new Date();
     
-    for (let i = n - 1; i >= 0; i--) {
+    for (let i = 0; i < n; i++) {
         const weekEnd = new Date(now);
         weekEnd.setDate(now.getDate() - (i * 7));
         const weekStart = new Date(weekEnd);
         weekStart.setDate(weekEnd.getDate() - 6);
         
-        weeks.push({
+        // Formatar as datas para o label
+        const startDay = weekStart.getDate().toString().padStart(2, '0');
+        const startMonth = (weekStart.getMonth() + 1).toString().padStart(2, '0');
+        const endDay = weekEnd.getDate().toString().padStart(2, '0');
+        const endMonth = (weekEnd.getMonth() + 1).toString().padStart(2, '0');
+        
+        weeks.unshift({
             start: weekStart,
             end: weekEnd,
-            label: `${weekStart.getDate()}/${weekStart.getMonth() + 1} - ${weekEnd.getDate()}/${weekEnd.getMonth() + 1}`
+            label: `${startDay}/${startMonth} - ${endDay}/${endMonth}`
         });
     }
     
