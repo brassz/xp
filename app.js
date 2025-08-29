@@ -421,7 +421,7 @@ function handleNavigation(e) {
                 console.log('Seção de relatórios ativada, atualizando gráficos...');
                 setTimeout(() => {
                     updateLoans7DaysChart();
-                    updateLoansMonthlyChart();
+                    updateOverdueLoansChart();
                     updateGrowthChart();
                     updateDistributionChart();
                 }, 100);
@@ -1869,7 +1869,7 @@ async function updateCharts() {
         updateLoans7DaysChart();
     }
     if (document.getElementById('loansMonthlyChart')) {
-        updateLoansMonthlyChart();
+        updateOverdueLoansChart();
     }
     
     updateFinancialSummary();
@@ -2222,50 +2222,75 @@ function updateLoans7DaysChart() {
     });
 }
 
-function updateLoansMonthlyChart() {
+function updateOverdueLoansChart() {
     const ctx = document.getElementById('loansMonthlyChart');
     if (!ctx) {
         console.log('Elemento loansMonthlyChart não encontrado');
         return;
     }
     
-    console.log('Atualizando gráfico mensal de empréstimos...');
+    console.log('Atualizando gráfico de empréstimos vencidos do último mês...');
     
     if (charts.loansMonthly) {
         charts.loansMonthly.destroy();
     }
     
-    const last12Months = getLast12Months();
-    const loansData = last12Months.map(month => {
-        const monthLoans = loans.filter(loan => {
-            const loanDate = new Date(loan.created_at);
-            return loanDate.getMonth() === month.getMonth() && 
-                   loanDate.getFullYear() === month.getFullYear();
+    // Obter os últimos 30 dias
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today.getTime() - (30 * 24 * 60 * 60 * 1000));
+    
+    // Gerar array com os últimos 30 dias
+    const last30Days = [];
+    for (let i = 29; i >= 0; i--) {
+        const date = new Date(today.getTime() - (i * 24 * 60 * 60 * 1000));
+        last30Days.push(date);
+    }
+    
+    // Filtrar empréstimos vencidos no último mês
+    const overdueLoansData = last30Days.map(day => {
+        const dayStr = day.toISOString().split('T')[0];
+        
+        // Contar empréstimos que venceram neste dia
+        const dayOverdueLoans = loans.filter(loan => {
+            if (!loan.due_date) return false;
+            const dueDate = new Date(loan.due_date);
+            const dueDateStr = dueDate.toISOString().split('T')[0];
+            return dueDateStr === dayStr && dueDate < today && (loan.status === 'active' || loan.status === 'overdue');
         });
+        
+        // Contar empréstimos que já estavam vencidos neste dia
+        const alreadyOverdueLoans = loans.filter(loan => {
+            if (!loan.due_date) return false;
+            const dueDate = new Date(loan.due_date);
+            return dueDate < day && (loan.status === 'active' || loan.status === 'overdue');
+        });
+        
         return {
-            month: month,
-            count: monthLoans.length,
-            total: monthLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0)
+            date: day,
+            newOverdue: dayOverdueLoans.length,
+            newOverdueValue: dayOverdueLoans.reduce((sum, loan) => sum + parseFloat(loan.total_amount || loan.amount), 0),
+            totalOverdue: alreadyOverdueLoans.length,
+            totalOverdueValue: alreadyOverdueLoans.reduce((sum, loan) => sum + parseFloat(loan.total_amount || loan.amount), 0)
         };
     });
     
     charts.loansMonthly = new Chart(ctx, {
         type: 'line',
         data: {
-            labels: last12Months.map(date => date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })),
+            labels: last30Days.map(date => date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })),
             datasets: [{
-                label: 'Quantidade de Empréstimos',
-                data: loansData.map(d => d.count),
-                borderColor: '#f59e0b',
-                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                label: 'Novos Vencimentos',
+                data: overdueLoansData.map(d => d.newOverdue),
+                borderColor: '#ef4444',
+                backgroundColor: 'rgba(239, 68, 68, 0.1)',
                 tension: 0.4,
                 fill: false,
                 yAxisID: 'y'
             }, {
-                label: 'Valor Total (R$)',
-                data: loansData.map(d => d.total),
-                borderColor: '#10b981',
-                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                label: 'Valor Novos Vencimentos (R$)',
+                data: overdueLoansData.map(d => d.newOverdueValue),
+                borderColor: '#f59e0b',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
                 tension: 0.4,
                 fill: true,
                 yAxisID: 'y1'
