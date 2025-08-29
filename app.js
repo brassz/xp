@@ -956,12 +956,26 @@ async function handlePayment(e) {
             if (loanError) throw loanError;
         }
         
-        hideModal(paymentModal);
-        paymentForm.reset();
-        
-        // Recarregar dados
+        // Recarregar dados primeiro
         await loadLoans();
         await updateDashboard();
+        
+        // Atualizar o modal com os novos valores antes de fechar (se estiver aberto)
+        if (!paymentModal.classList.contains('hidden')) {
+            await calculateAndShowRemainingAmount(loanId);
+            
+            // Adicionar feedback visual de que os valores foram atualizados
+            const feedbackDiv = document.getElementById('paymentValidationFeedback');
+            feedbackDiv.textContent = '✅ Pagamento processado! Valores atualizados.';
+            feedbackDiv.className = 'mt-2 text-sm text-green-400';
+            feedbackDiv.classList.remove('hidden');
+            
+            // Aguardar 2 segundos para o usuário ver os novos valores
+            await new Promise(resolve => setTimeout(resolve, 2000));
+        }
+        
+        hideModal(paymentModal);
+        paymentForm.reset();
         
         // Se o modal de histórico estiver aberto, recarregar os dados
         if (!paymentHistoryModal.classList.contains('hidden')) {
@@ -1193,6 +1207,8 @@ function validatePaymentAmount() {
     }
     
     // Obter valores do modal
+    const capitalText = document.getElementById('paymentCapitalAmount').textContent;
+    const interestText = document.getElementById('paymentInterestAmount').textContent;
     const remainingText = document.getElementById('paymentRemainingAmount').textContent;
     const minimumText = document.getElementById('paymentMinimumAmount').textContent;
     
@@ -1216,42 +1232,66 @@ function validatePaymentAmount() {
         return parseFloat(cleanText);
     }
     
+    const currentCapital = parseMonetaryValue(capitalText);
+    const currentInterestAmount = parseMonetaryValue(interestText);
     const remainingAmount = parseMonetaryValue(remainingText);
     const minimumAmount = parseMonetaryValue(minimumText);
+    
+    // Simular o que acontecerá após este pagamento
+    let newRemainingAmount = remainingAmount;
+    let feedbackText = '';
+    let feedbackColor = '';
     
     feedbackDiv.classList.remove('hidden');
     
     if (paymentAmount < minimumAmount) {
-        feedbackDiv.textContent = `⚠️ Valor abaixo do mínimo (R$ ${minimumAmount.toFixed(2)}). Pagamento não permitido.`;
-        feedbackDiv.className = 'mt-2 text-sm text-red-400';
+        feedbackText = `⚠️ Valor abaixo do mínimo (R$ ${minimumAmount.toFixed(2)}). Pagamento não permitido.`;
+        feedbackColor = 'text-red-400';
         document.getElementById('paymentAmount').classList.add('border-red-500');
     } else if (Math.abs(paymentAmount - minimumAmount) <= (minimumAmount * 0.01)) {
-        feedbackDiv.textContent = `🔄 PAGAMENTO DE JUROS: Capital permanece igual, empréstimo renovado por +30 dias.`;
-        feedbackDiv.className = 'mt-2 text-sm text-yellow-400';
+        // Pagamento apenas de juros - valor restante permanece igual
+        newRemainingAmount = currentCapital + currentInterestAmount;
+        feedbackText = `🔄 PAGAMENTO DE JUROS: Capital permanece R$ ${currentCapital.toFixed(2)}, próximo valor total: R$ ${newRemainingAmount.toFixed(2)}`;
+        feedbackColor = 'text-yellow-400';
         document.getElementById('paymentAmount').classList.remove('border-red-500');
         document.getElementById('paymentAmount').classList.add('border-yellow-500');
     } else if (paymentAmount < remainingAmount) {
-        const interestText = document.getElementById('paymentInterestAmount').textContent;
-        const interestAmount = parseMonetaryValue(interestText);
-        
-        if (paymentAmount > interestAmount) {
-            feedbackDiv.textContent = `💰 PAGAMENTO DE CAPITAL: Parte vai para juros, parte reduz o capital do empréstimo.`;
-            feedbackDiv.className = 'mt-2 text-sm text-blue-400';
+        if (paymentAmount > currentInterestAmount) {
+            // Pagamento de capital + juros
+            const paidCapital = paymentAmount - currentInterestAmount;
+            const newCapital = Math.max(0, currentCapital - paidCapital);
+            const interestRate = currentInterestAmount / currentCapital;
+            const newInterest = newCapital * interestRate;
+            newRemainingAmount = newCapital + newInterest;
+            
+            feedbackText = `💰 PAGAMENTO DE CAPITAL: Novo capital R$ ${newCapital.toFixed(2)}, próximo valor total: R$ ${newRemainingAmount.toFixed(2)}`;
+            feedbackColor = 'text-blue-400';
         } else {
-            feedbackDiv.textContent = `⚠️ PAGAMENTO PARCIAL DE JUROS: Juros pendentes acumularão para o próximo período.`;
-            feedbackDiv.className = 'mt-2 text-sm text-orange-400';
+            // Pagamento parcial de juros
+            const unpaidInterest = currentInterestAmount - paymentAmount;
+            const interestRate = currentInterestAmount / currentCapital;
+            const newInterest = currentCapital * interestRate;
+            newRemainingAmount = currentCapital + unpaidInterest + newInterest;
+            
+            feedbackText = `⚠️ PAGAMENTO PARCIAL DE JUROS: Juros pendentes R$ ${unpaidInterest.toFixed(2)}, próximo valor total: R$ ${newRemainingAmount.toFixed(2)}`;
+            feedbackColor = 'text-orange-400';
         }
         document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500');
         document.getElementById('paymentAmount').classList.add('border-blue-500');
     } else if (paymentAmount >= remainingAmount) {
-        feedbackDiv.textContent = `✅ Pagamento quitará o empréstimo completamente.`;
-        feedbackDiv.className = 'mt-2 text-sm text-green-400';
+        newRemainingAmount = 0;
+        feedbackText = `✅ Pagamento quitará o empréstimo completamente. Valor restante: R$ 0,00`;
+        feedbackColor = 'text-green-400';
         document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500');
         document.getElementById('paymentAmount').classList.add('border-green-500');
     } else {
         feedbackDiv.className = 'mt-2 text-sm hidden';
         document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+        return;
     }
+    
+    feedbackDiv.textContent = feedbackText;
+    feedbackDiv.className = `mt-2 text-sm ${feedbackColor}`;
 }
 
 function showPaymentModal(loanId) {
