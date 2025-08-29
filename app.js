@@ -16,6 +16,7 @@ let expenses = [];
 let expenseCategories = [];
 let installments = [];
 let installmentPayments = [];
+let guarantors = [];
 let cashTransactions = [];
 let cashSettings = null;
 let capitalRaisings = [];
@@ -50,6 +51,7 @@ const installmentPaymentModal = document.getElementById('installmentPaymentModal
 const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
 const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
 const addCapitalClientModal = document.getElementById('addCapitalClientModal');
+const guarantorModal = document.getElementById('guarantorModal');
 
 
 // Botões
@@ -139,6 +141,7 @@ function setupEventListeners() {
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
+    document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
     
     // Capital Raising modals
     if (document.getElementById('closeCapitalRaisingModal')) {
@@ -161,6 +164,7 @@ function setupEventListeners() {
     document.getElementById('cancelConfirmationBtn').addEventListener('click', () => hideModal(confirmationModal));
     document.getElementById('closePaymentHistoryBtn').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('cancelExpense').addEventListener('click', () => hideModal(newExpenseModal));
+    document.getElementById('cancelGuarantorBtn').addEventListener('click', () => hideModal(guarantorModal));
     
     // Capital Raising cancel buttons
     if (document.getElementById('cancelCapitalRaising')) {
@@ -205,6 +209,12 @@ function setupEventListeners() {
     document.getElementById('editClientForm').addEventListener('submit', handleEditClient);
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
     newExpenseForm.addEventListener('submit', handleNewExpense);
+    document.getElementById('guarantorForm').addEventListener('submit', handleGuarantorForm);
+    
+    // Botão de adicionar avalista
+    document.getElementById('addGuarantorBtn').addEventListener('click', () => {
+        openGuarantorModal();
+    });
     
     // Capital Raising forms
     if (newCapitalRaisingForm) {
@@ -302,6 +312,28 @@ function setupUploadcare() {
                 // Limpar quando arquivo for removido
                 document.getElementById('editClientPhoto').value = '';
                 document.getElementById('editPhotoUploadPreview').classList.add('hidden');
+            }
+        });
+        
+        // Widget para foto de avalista
+        const guarantorWidget = uploadcare.Widget('#guarantorPhotoUploader');
+        guarantorWidget.onChange(function(file) {
+            if (file) {
+                file.done(function(fileInfo) {
+                    // Armazenar URL no campo hidden
+                    document.getElementById('guarantorPhoto').value = fileInfo.cdnUrl;
+                    
+                    // Mostrar preview
+                    const previewDiv = document.getElementById('guarantorPhotoUploadPreview');
+                    const previewImg = document.getElementById('guarantorPhotoPreviewImg');
+                    
+                    previewImg.src = fileInfo.cdnUrl;
+                    previewDiv.classList.remove('hidden');
+                });
+            } else {
+                // Limpar quando arquivo for removido
+                document.getElementById('guarantorPhoto').value = '';
+                document.getElementById('guarantorPhotoUploadPreview').classList.add('hidden');
             }
         });
     } else {
@@ -432,6 +464,7 @@ async function loadData() {
             loadLoans(),
             loadExpenses(),
             loadExpenseCategories(),
+            loadGuarantors(),
             loadCashTransactions(),
             loadCashSettings(),
             loadCapitalRaisings(),
@@ -469,6 +502,43 @@ async function loadClients() {
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
         clients = [];
+    }
+}
+
+// Carregar avalistas
+async function loadGuarantors() {
+    try {
+        const { data, error } = await supabase
+            .from('guarantors')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        guarantors = data || [];
+        
+    } catch (error) {
+        console.error('Erro ao carregar avalistas:', error);
+        guarantors = [];
+    }
+}
+
+// Carregar avalistas de um cliente específico
+async function loadClientGuarantors(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('guarantors')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        return data || [];
+        
+    } catch (error) {
+        console.error('Erro ao carregar avalistas do cliente:', error);
+        return [];
     }
 }
 
@@ -2108,6 +2178,9 @@ function editClient(clientId) {
         document.getElementById('editPhotoUploadPreview').classList.add('hidden');
     }
     
+    // Carregar e exibir avalistas do cliente
+    loadAndDisplayClientGuarantors(clientId);
+    
     showModal(document.getElementById('editClientModal'));
     
     // Mostrar mensagem informativa
@@ -2231,6 +2304,241 @@ function showPaymentHistory(loanId) {
     
     // Mostrar mensagem informativa
     showInfoMessage(`Visualizando histórico de pagamentos de ${clientName}`);
+}
+
+// =====================================================
+// FUNÇÕES DE GERENCIAMENTO DE AVALISTAS
+// =====================================================
+
+// Carregar e exibir avalistas de um cliente
+async function loadAndDisplayClientGuarantors(clientId) {
+    try {
+        const clientGuarantors = await loadClientGuarantors(clientId);
+        renderGuarantorsList(clientGuarantors, clientId);
+    } catch (error) {
+        console.error('Erro ao carregar avalistas do cliente:', error);
+    }
+}
+
+// Renderizar lista de avalistas
+function renderGuarantorsList(clientGuarantors, clientId) {
+    const guarantorsList = document.getElementById('guarantorsList');
+    
+    if (clientGuarantors.length === 0) {
+        guarantorsList.innerHTML = `
+            <div class="text-center py-6 text-gray-400">
+                <p>Nenhum avalista cadastrado para este cliente.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const guarantorsHTML = clientGuarantors.map(guarantor => `
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-600">
+            <div class="flex items-start justify-between">
+                <div class="flex items-start space-x-4">
+                    ${guarantor.photo ? `
+                        <img src="${guarantor.photo}" alt="${guarantor.name}" class="w-12 h-12 rounded-full object-cover border-2 border-blue-500">
+                    ` : `
+                        <div class="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center border-2 border-gray-500">
+                            <span class="text-white font-semibold">${guarantor.name.charAt(0).toUpperCase()}</span>
+                        </div>
+                    `}
+                    <div class="flex-1">
+                        <h5 class="text-white font-semibold">${guarantor.name}</h5>
+                        <p class="text-gray-300 text-sm">CPF: ${guarantor.cpf}</p>
+                        <p class="text-gray-300 text-sm">Telefone: ${guarantor.phone}</p>
+                        ${guarantor.relationship ? `<p class="text-blue-300 text-sm">Relacionamento: ${getRelationshipText(guarantor.relationship)}</p>` : ''}
+                        ${guarantor.email ? `<p class="text-gray-400 text-xs">${guarantor.email}</p>` : ''}
+                    </div>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="editGuarantor('${guarantor.id}')" class="text-blue-400 hover:text-blue-300 p-1" title="Editar avalista">
+                        ✏️
+                    </button>
+                    <button onclick="deleteGuarantor('${guarantor.id}', '${guarantor.name}')" class="text-red-400 hover:text-red-300 p-1" title="Remover avalista">
+                        🗑️
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    guarantorsList.innerHTML = guarantorsHTML;
+}
+
+// Abrir modal para adicionar avalista
+function openGuarantorModal(guarantorId = null) {
+    const clientId = document.getElementById('editClientId').value;
+    if (!clientId) {
+        alert('Erro: ID do cliente não encontrado');
+        return;
+    }
+    
+    // Limpar formulário
+    document.getElementById('guarantorForm').reset();
+    document.getElementById('guarantorPhoto').value = '';
+    document.getElementById('guarantorPhotoUploadPreview').classList.add('hidden');
+    
+    // Configurar modal para adição ou edição
+    if (guarantorId) {
+        document.getElementById('guarantorModalTitle').textContent = 'Editar Avalista';
+        document.getElementById('guarantorId').value = guarantorId;
+        
+        // Carregar dados do avalista
+        const guarantor = guarantors.find(g => g.id === guarantorId);
+        if (guarantor) {
+            fillGuarantorForm(guarantor);
+        }
+    } else {
+        document.getElementById('guarantorModalTitle').textContent = 'Adicionar Avalista';
+        document.getElementById('guarantorId').value = '';
+    }
+    
+    document.getElementById('guarantorClientId').value = clientId;
+    showModal(guarantorModal);
+}
+
+// Preencher formulário de avalista com dados existentes
+function fillGuarantorForm(guarantor) {
+    document.getElementById('guarantorName').value = guarantor.name || '';
+    document.getElementById('guarantorCPF').value = guarantor.cpf || '';
+    document.getElementById('guarantorRG').value = guarantor.rg || '';
+    document.getElementById('guarantorBirthDate').value = guarantor.birth_date || '';
+    document.getElementById('guarantorEmail').value = guarantor.email || '';
+    document.getElementById('guarantorPhone').value = guarantor.phone || '';
+    document.getElementById('guarantorRelationship').value = guarantor.relationship || '';
+    document.getElementById('guarantorAddress').value = guarantor.address || '';
+    document.getElementById('guarantorPhoto').value = guarantor.photo || '';
+    
+    // Atualizar preview da foto se existir
+    if (guarantor.photo) {
+        const previewDiv = document.getElementById('guarantorPhotoUploadPreview');
+        const previewImg = document.getElementById('guarantorPhotoPreviewImg');
+        
+        previewImg.src = guarantor.photo;
+        previewDiv.classList.remove('hidden');
+        
+        // Configurar o widget com a foto atual se disponível
+        if (window.uploadcare) {
+            const guarantorWidget = uploadcare.Widget('#guarantorPhotoUploader');
+            guarantorWidget.value(guarantor.photo);
+        }
+    }
+}
+
+// Gerenciar formulário de avalista
+async function handleGuarantorForm(e) {
+    e.preventDefault();
+    
+    const guarantorId = document.getElementById('guarantorId').value;
+    const clientId = document.getElementById('guarantorClientId').value;
+    
+    const formData = {
+        client_id: clientId,
+        name: document.getElementById('guarantorName').value,
+        cpf: document.getElementById('guarantorCPF').value,
+        rg: document.getElementById('guarantorRG').value,
+        birth_date: document.getElementById('guarantorBirthDate').value || null,
+        email: document.getElementById('guarantorEmail').value || null,
+        phone: document.getElementById('guarantorPhone').value,
+        relationship: document.getElementById('guarantorRelationship').value || null,
+        address: document.getElementById('guarantorAddress').value || null,
+        photo: document.getElementById('guarantorPhoto').value || null,
+        updated_at: new Date().toISOString()
+    };
+    
+    try {
+        if (guarantorId) {
+            // Editar avalista existente
+            const { data, error } = await supabase
+                .from('guarantors')
+                .update(formData)
+                .eq('id', guarantorId)
+                .select();
+            
+            if (error) throw error;
+            
+            showSuccessMessage(`Avalista "${formData.name}" atualizado com sucesso!`);
+        } else {
+            // Criar novo avalista
+            formData.created_at = new Date().toISOString();
+            
+            const { data, error } = await supabase
+                .from('guarantors')
+                .insert([formData])
+                .select();
+            
+            if (error) throw error;
+            
+            showSuccessMessage(`Avalista "${formData.name}" adicionado com sucesso!`);
+        }
+        
+        // Fechar modal e recarregar dados
+        hideModal(guarantorModal);
+        await loadGuarantors();
+        await loadAndDisplayClientGuarantors(clientId);
+        
+    } catch (error) {
+        console.error('Erro ao salvar avalista:', error);
+        alert('Erro ao salvar avalista: ' + error.message);
+    }
+}
+
+// Editar avalista
+function editGuarantor(guarantorId) {
+    openGuarantorModal(guarantorId);
+}
+
+// Excluir avalista
+function deleteGuarantor(guarantorId, guarantorName) {
+    showConfirmationModal(
+        'Excluir Avalista',
+        `Tem certeza que deseja excluir o avalista "${guarantorName}"? Esta ação não pode ser desfeita.`,
+        () => performDeleteGuarantor(guarantorId),
+        'Excluir'
+    );
+}
+
+// Executar exclusão do avalista
+async function performDeleteGuarantor(guarantorId) {
+    try {
+        const { error } = await supabase
+            .from('guarantors')
+            .delete()
+            .eq('id', guarantorId);
+        
+        if (error) throw error;
+        
+        // Recarregar dados
+        await loadGuarantors();
+        const clientId = document.getElementById('editClientId').value;
+        if (clientId) {
+            await loadAndDisplayClientGuarantors(clientId);
+        }
+        
+        showSuccessMessage('Avalista excluído com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao excluir avalista:', error);
+        alert('Erro ao excluir avalista: ' + error.message);
+    }
+}
+
+// Obter texto do relacionamento
+function getRelationshipText(relationship) {
+    const relationships = {
+        'conjuge': 'Cônjuge',
+        'pai': 'Pai',
+        'mae': 'Mãe',
+        'filho': 'Filho(a)',
+        'irmao': 'Irmão/Irmã',
+        'parente': 'Parente',
+        'amigo': 'Amigo(a)',
+        'conhecido': 'Conhecido(a)',
+        'outro': 'Outro'
+    };
+    return relationships[relationship] || relationship;
 }
 
 function showNewPaymentFromHistory() {
