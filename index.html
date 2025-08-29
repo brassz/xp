@@ -1268,11 +1268,21 @@
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-2">Foto do Cliente</label>
                         <input type="hidden" id="clientPhoto" name="clientPhoto">
-                        <div id="photoUpload" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 transition-colors cursor-pointer">
-                            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                            </svg>
-                            <p class="text-gray-400">Clique para fazer upload da foto</p>
+                        <input 
+                            type="hidden" 
+                            role="uploadcare-uploader" 
+                            name="clientPhotoUploader"
+                            id="clientPhotoUploader"
+                            data-public-key="5bb6bf6b98f6d36060dc"
+                            data-tabs="file camera url facebook gdrive gphotos dropbox instagram"
+                            data-image-shrink="1024x1024"
+                            data-crop="1:1"
+                            data-effects="crop,rotate,enhance,grayscale"
+                            data-clearable="true"
+                        />
+                        <div id="photoUploadPreview" class="mt-4 hidden">
+                            <img id="photoPreviewImg" src="" alt="Preview" class="w-32 h-32 rounded-lg object-cover mx-auto border-2 border-blue-500">
+                            <p class="text-green-400 text-sm text-center mt-2">Foto carregada com sucesso!</p>
                         </div>
                     </div>
                     
@@ -1482,11 +1492,21 @@
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-2">Foto do Cliente</label>
                         <input type="hidden" id="editClientPhoto" name="editClientPhoto">
-                        <div id="editPhotoUpload" class="border-2 border-dashed border-gray-600 rounded-lg p-6 text-center hover:border-blue-500 transition-colors cursor-pointer">
-                            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-                            </svg>
-                            <p class="text-gray-400">Clique para fazer upload da foto</p>
+                        <input 
+                            type="hidden" 
+                            role="uploadcare-uploader" 
+                            name="editClientPhotoUploader"
+                            id="editClientPhotoUploader"
+                            data-public-key="5bb6bf6b98f6d36060dc"
+                            data-tabs="file camera url facebook gdrive gphotos dropbox instagram"
+                            data-image-shrink="1024x1024"
+                            data-crop="1:1"
+                            data-effects="crop,rotate,enhance,grayscale"
+                            data-clearable="true"
+                        />
+                        <div id="editPhotoUploadPreview" class="mt-4 hidden">
+                            <img id="editPhotoPreviewImg" src="" alt="Preview" class="w-32 h-32 rounded-lg object-cover mx-auto border-2 border-blue-500">
+                            <p class="text-green-400 text-sm text-center mt-2">Foto carregada com sucesso!</p>
                         </div>
                     </div>
                     

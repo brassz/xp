@@ -246,37 +246,63 @@ function setupEventListeners() {
 // Configurar Uploadcare
 function setupUploadcare() {
     if (window.uploadcare) {
+        // Configurar Uploadcare globalmente
+        uploadcare.start({
+            publicKey: UPLOADCARE_PUBLIC_KEY,
+            locale: 'pt',
+            tabs: 'file camera url facebook gdrive gphotos dropbox instagram',
+            multiple: false,
+            imageShrink: '1024x1024',
+            crop: '1:1',
+            effects: 'crop,rotate,enhance,grayscale',
+            clearable: true
+        });
+
         // Widget para novo cliente
-        const widget = window.uploadcare.Widget('#photoUpload');
+        const widget = uploadcare.Widget('#clientPhotoUploader');
         widget.onChange(function(file) {
             if (file) {
                 file.done(function(fileInfo) {
+                    // Armazenar URL no campo hidden
                     document.getElementById('clientPhoto').value = fileInfo.cdnUrl;
-                    document.getElementById('photoUpload').innerHTML = `
-                        <div class="text-center">
-                            <img src="${fileInfo.cdnUrl}" alt="Foto do cliente" class="w-20 h-20 rounded-lg mx-auto mb-2 object-cover">
-                            <p class="text-green-400 text-sm">Foto carregada com sucesso!</p>
-                        </div>
-                    `;
+                    
+                    // Mostrar preview
+                    const previewDiv = document.getElementById('photoUploadPreview');
+                    const previewImg = document.getElementById('photoPreviewImg');
+                    
+                    previewImg.src = fileInfo.cdnUrl;
+                    previewDiv.classList.remove('hidden');
                 });
+            } else {
+                // Limpar quando arquivo for removido
+                document.getElementById('clientPhoto').value = '';
+                document.getElementById('photoUploadPreview').classList.add('hidden');
             }
         });
         
         // Widget para edição de cliente
-        const editWidget = window.uploadcare.Widget('#editPhotoUpload');
+        const editWidget = uploadcare.Widget('#editClientPhotoUploader');
         editWidget.onChange(function(file) {
             if (file) {
                 file.done(function(fileInfo) {
+                    // Armazenar URL no campo hidden
                     document.getElementById('editClientPhoto').value = fileInfo.cdnUrl;
-                    document.getElementById('editPhotoUpload').innerHTML = `
-                        <div class="text-center">
-                            <img src="${fileInfo.cdnUrl}" alt="Foto do cliente" class="w-20 h-20 rounded-lg mx-auto mb-2 object-cover">
-                            <p class="text-green-400 text-sm">Foto atualizada com sucesso!</p>
-                        </div>
-                    `;
+                    
+                    // Mostrar preview
+                    const previewDiv = document.getElementById('editPhotoUploadPreview');
+                    const previewImg = document.getElementById('editPhotoPreviewImg');
+                    
+                    previewImg.src = fileInfo.cdnUrl;
+                    previewDiv.classList.remove('hidden');
                 });
+            } else {
+                // Limpar quando arquivo for removido
+                document.getElementById('editClientPhoto').value = '';
+                document.getElementById('editPhotoUploadPreview').classList.add('hidden');
             }
         });
+    } else {
+        console.warn('Uploadcare library not loaded');
     }
 }
 
@@ -956,22 +982,26 @@ function hideModal(modal) {
     // Limpar formulários específicos
     if (modal === editClientModal) {
         document.getElementById('editClientForm').reset();
-        document.getElementById('editPhotoUpload').innerHTML = `
-            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-            </svg>
-            <p class="text-gray-400">Clique para fazer upload da foto</p>
-        `;
+        // Limpar preview da foto de edição
+        document.getElementById('editPhotoUploadPreview').classList.add('hidden');
+        document.getElementById('editClientPhoto').value = '';
+        // Limpar widget do Uploadcare
+        if (window.uploadcare) {
+            const editWidget = uploadcare.Widget('#editClientPhotoUploader');
+            editWidget.value(null);
+        }
     } else if (modal === editLoanModal) {
         document.getElementById('editLoanForm').reset();
     } else if (modal === newClientModal) {
         document.getElementById('newClientForm').reset();
-        document.getElementById('photoUpload').innerHTML = `
-            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-            </svg>
-            <p class="text-gray-400">Clique para fazer upload da foto</p>
-        `;
+        // Limpar preview da foto
+        document.getElementById('photoUploadPreview').classList.add('hidden');
+        document.getElementById('clientPhoto').value = '';
+        // Limpar widget do Uploadcare
+        if (window.uploadcare) {
+            const widget = uploadcare.Widget('#clientPhotoUploader');
+            widget.value(null);
+        }
     } else if (modal === newLoanModal) {
         document.getElementById('newLoanForm').reset();
     } else if (modal === paymentModal) {
@@ -1531,21 +1561,22 @@ function editClient(clientId) {
     document.getElementById('editClientBirthDate').value = client.birth_date || '';
     document.getElementById('editClientPhoto').value = client.photo || '';
     
-    // Atualizar a área de upload de foto
+    // Atualizar preview da foto existente
     if (client.photo) {
-        document.getElementById('editPhotoUpload').innerHTML = `
-            <div class="text-center">
-                <img src="${client.photo}" alt="Foto do cliente" class="w-20 h-20 rounded-lg mx-auto mb-2 object-cover">
-                <p class="text-green-400 text-sm">Foto atual</p>
-            </div>
-        `;
+        const previewDiv = document.getElementById('editPhotoUploadPreview');
+        const previewImg = document.getElementById('editPhotoPreviewImg');
+        
+        previewImg.src = client.photo;
+        previewDiv.classList.remove('hidden');
+        
+        // Configurar o widget com a foto atual se disponível
+        if (window.uploadcare) {
+            const editWidget = uploadcare.Widget('#editClientPhotoUploader');
+            editWidget.value(client.photo);
+        }
     } else {
-        document.getElementById('editPhotoUpload').innerHTML = `
-            <svg class="w-12 h-12 text-gray-400 mx-auto mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"></path>
-            </svg>
-            <p class="text-gray-400">Clique para fazer upload da foto</p>
-        `;
+        // Se não há foto, manter preview oculto
+        document.getElementById('editPhotoUploadPreview').classList.add('hidden');
     }
     
     showModal(document.getElementById('editClientModal'));
