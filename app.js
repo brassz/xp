@@ -848,9 +848,6 @@ async function handleNewClient(e) {
         email: document.getElementById('clientEmail').value,
         phone: document.getElementById('clientPhone').value,
         address: document.getElementById('clientAddress').value,
-        rg: document.getElementById('clientRG').value,
-        birth_date: document.getElementById('clientBirthDate').value,
-        photos: photosValue,
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
@@ -1123,8 +1120,6 @@ async function handleEditClient(e) {
     e.preventDefault();
     
     const clientId = document.getElementById('editClientId').value;
-    const photosValue = document.getElementById('editClientPhotos').value;
-    console.log('Photos value before updating:', photosValue); // Debug log
     
     const formData = {
         name: document.getElementById('editClientName').value,
@@ -1132,9 +1127,6 @@ async function handleEditClient(e) {
         email: document.getElementById('editClientEmail').value,
         phone: document.getElementById('editClientPhone').value,
         address: document.getElementById('editClientAddress').value,
-        rg: document.getElementById('editClientRG').value,
-        birth_date: document.getElementById('editClientBirthDate').value,
-        photos: photosValue,
         updated_at: new Date().toISOString()
     };
     
@@ -1240,15 +1232,6 @@ function hideModal(modal) {
         document.getElementById('editLoanForm').reset();
     } else if (modal === newClientModal) {
         document.getElementById('newClientForm').reset();
-        // Limpar preview das fotos
-        document.getElementById('photosUploadPreview').classList.add('hidden');
-        document.getElementById('clientPhotos').value = '';
-        document.getElementById('photosPreviewGrid').innerHTML = '';
-        // Limpar widget do Uploadcare
-        if (window.uploadcare) {
-            const widget = uploadcare.Widget('#clientPhotosUploader');
-            widget.value(null);
-        }
     } else if (modal === newLoanModal) {
         document.getElementById('newLoanForm').reset();
     } else if (modal === paymentModal) {
