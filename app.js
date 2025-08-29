@@ -1329,8 +1329,37 @@ async function calculateAndShowRemainingAmount(loanId) {
             totalPaidThisCycle = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
         }
         
-        // Calcular quanto ainda deve
-        const remainingAmount = currentTotal - totalPaidThisCycle;
+        // Calcular quanto ainda deve baseado no tipo de pagamento feito
+        let remainingAmount;
+        
+        if (totalPaidThisCycle === 0) {
+            // Nenhum pagamento feito ainda neste ciclo
+            remainingAmount = currentTotal;
+        } else {
+            // Houve pagamentos, vamos analisar o que foi pago
+            const paidExactlyInterest = Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01);
+            const paidMoreThanInterest = totalPaidThisCycle > currentInterestAmount;
+            const paidLessThanInterest = totalPaidThisCycle < currentInterestAmount;
+            
+            if (paidExactlyInterest) {
+                // PAGOU APENAS JUROS: Capital permanece, próximo período terá mesmo valor total
+                remainingAmount = currentCapital + currentInterestAmount;
+            } else if (paidMoreThanInterest) {
+                // PAGOU CAPITAL + JUROS: Capital foi reduzido
+                const paidCapital = totalPaidThisCycle - currentInterestAmount;
+                const newCapital = Math.max(0, currentCapital - paidCapital);
+                const newInterest = newCapital * (finalInterestRate / 100);
+                remainingAmount = newCapital + newInterest;
+            } else if (paidLessThanInterest) {
+                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
+                const unpaidInterest = currentInterestAmount - totalPaidThisCycle;
+                const newInterest = currentCapital * (finalInterestRate / 100);
+                remainingAmount = currentCapital + unpaidInterest + newInterest;
+            } else {
+                // Fallback: lógica original
+                remainingAmount = currentTotal - totalPaidThisCycle;
+            }
+        }
         
         // O pagamento mínimo é sempre o valor dos juros atuais
         const minimumPayment = currentInterestAmount;
@@ -1342,7 +1371,12 @@ async function calculateAndShowRemainingAmount(loanId) {
             totalPaidThisCycle,
             remainingAmount,
             minimumPayment,
-            hasRenewal: !!lastRenewal
+            hasRenewal: !!lastRenewal,
+            paymentAnalysis: {
+                paidExactlyInterest: totalPaidThisCycle > 0 ? Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01) : false,
+                paidMoreThanInterest: totalPaidThisCycle > currentInterestAmount,
+                paidLessThanInterest: totalPaidThisCycle < currentInterestAmount && totalPaidThisCycle > 0
+            }
         });
         
         // Mostrar informações detalhadas
@@ -2358,10 +2392,36 @@ async function calculateLoanRemainingAmount(loanId) {
             totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
         }
         
-        // Calcular valor restante
-        const remainingAmount = totalWithInterest - totalPaid;
+        // Calcular valor restante usando a mesma lógica da função principal
+        let remainingAmount;
         
-        return Math.max(0, remainingAmount); // Não pode ser negativo
+        if (totalPaid === 0) {
+            remainingAmount = totalWithInterest;
+        } else {
+            const paidExactlyInterest = Math.abs(totalPaid - interestAmount) <= (interestAmount * 0.01);
+            const paidMoreThanInterest = totalPaid > interestAmount;
+            const paidLessThanInterest = totalPaid < interestAmount;
+            
+            if (paidExactlyInterest) {
+                // PAGOU APENAS JUROS: próximo período terá mesmo valor total
+                remainingAmount = capitalAmount + interestAmount;
+            } else if (paidMoreThanInterest) {
+                // PAGOU CAPITAL + JUROS: Capital foi reduzido
+                const paidCapital = totalPaid - interestAmount;
+                const newCapital = Math.max(0, capitalAmount - paidCapital);
+                const newInterest = newCapital * (interestRate / 100);
+                remainingAmount = newCapital + newInterest;
+            } else if (paidLessThanInterest) {
+                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
+                const unpaidInterest = interestAmount - totalPaid;
+                const newInterest = capitalAmount * (interestRate / 100);
+                remainingAmount = capitalAmount + unpaidInterest + newInterest;
+            } else {
+                remainingAmount = totalWithInterest - totalPaid;
+            }
+        }
+        
+        return Math.max(0, remainingAmount);
         
     } catch (error) {
         console.error('Erro ao calcular valor restante:', error);
