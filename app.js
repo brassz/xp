@@ -1345,11 +1345,32 @@ async function calculateAndShowRemainingAmount(loanId) {
                 // PAGOU APENAS JUROS: Capital permanece, próximo período terá mesmo valor total
                 remainingAmount = currentCapital + currentInterestAmount;
             } else if (paidMoreThanInterest) {
-                // PAGOU CAPITAL + JUROS: Capital foi reduzido
+                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
                 const paidCapital = totalPaidThisCycle - currentInterestAmount;
                 const newCapital = Math.max(0, currentCapital - paidCapital);
-                const newInterest = newCapital * (finalInterestRate / 100);
-                remainingAmount = newCapital + newInterest;
+                
+                console.log('Análise pagamento capital:', {
+                    totalPaidThisCycle,
+                    currentInterestAmount,
+                    currentCapital,
+                    paidCapital,
+                    newCapital
+                });
+                
+                if (newCapital <= 0) {
+                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
+                    remainingAmount = 0;
+                } else {
+                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
+                    const newInterest = newCapital * (finalInterestRate / 100);
+                    remainingAmount = newCapital + newInterest;
+                    
+                    console.log('Novo estado após pagamento parcial:', {
+                        newCapital,
+                        newInterest,
+                        remainingAmount
+                    });
+                }
             } else if (paidLessThanInterest) {
                 // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
                 const unpaidInterest = currentInterestAmount - totalPaidThisCycle;
@@ -2406,11 +2427,18 @@ async function calculateLoanRemainingAmount(loanId) {
                 // PAGOU APENAS JUROS: próximo período terá mesmo valor total
                 remainingAmount = capitalAmount + interestAmount;
             } else if (paidMoreThanInterest) {
-                // PAGOU CAPITAL + JUROS: Capital foi reduzido
+                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
                 const paidCapital = totalPaid - interestAmount;
                 const newCapital = Math.max(0, capitalAmount - paidCapital);
-                const newInterest = newCapital * (interestRate / 100);
-                remainingAmount = newCapital + newInterest;
+                
+                if (newCapital <= 0) {
+                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
+                    remainingAmount = 0;
+                } else {
+                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
+                    const newInterest = newCapital * (interestRate / 100);
+                    remainingAmount = newCapital + newInterest;
+                }
             } else if (paidLessThanInterest) {
                 // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
                 const unpaidInterest = interestAmount - totalPaid;
