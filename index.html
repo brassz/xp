@@ -1416,8 +1416,8 @@
     <!-- Payment Modal -->
     <div id="paymentModal" class="modal-overlay fixed inset-0 z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-sm p-4">
-                <div class="flex items-center justify-between mb-4">
+            <div class="modal-content w-full max-w-sm p-3">
+                <div class="flex items-center justify-between mb-3">
                     <h3 class="text-lg font-semibold text-white">Registrar Pagamento</h3>
                     <button id="closePaymentModal" class="text-gray-400 hover:text-white">
                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1426,15 +1426,15 @@
                     </button>
                 </div>
                 
-                <form id="paymentForm" class="space-y-3">
+                <form id="paymentForm" class="space-y-2">
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Cliente</label>
+                        <label class="block text-sm font-medium text-blue-200 mb-1">Cliente</label>
                         <p class="text-white" id="paymentClientName">-</p>
                     </div>
                     
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-1">Detalhes do Empréstimo</label>
-                        <div class="bg-gray-800 p-3 rounded-lg space-y-1">
+                        <div class="bg-gray-800 p-2 rounded-lg space-y-1 text-sm">
                             <div class="flex justify-between">
                                 <span class="text-gray-300">Capital:</span>
                                 <span class="text-white" id="paymentCapitalAmount">R$ 0,00</span>
@@ -1485,11 +1485,11 @@
                     
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-1">Notas/Observações</label>
-                        <textarea id="paymentNotes" class="form-input w-full" rows="2" placeholder="Observações sobre o pagamento..."></textarea>
+                        <textarea id="paymentNotes" class="form-input w-full text-sm" rows="1" placeholder="Observações sobre o pagamento..."></textarea>
                     </div>
 
                     <!-- Optional Due Date Change -->
-                    <div class="border-t border-gray-600 pt-3">
+                    <div class="border-t border-gray-600 pt-2">
                         <div class="flex items-center mb-2">
                             <input type="checkbox" id="changeDueDateCheckbox" class="mr-2">
                             <label class="text-sm font-medium text-blue-200">Alterar data de vencimento (opcional)</label>
@@ -1500,7 +1500,7 @@
                         </div>
                     </div>
                     
-                    <div class="flex justify-end space-x-4 pt-3">
+                    <div class="flex justify-end space-x-3 pt-2">
                         <button type="button" id="cancelPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
                             Cancelar
                         </button>
