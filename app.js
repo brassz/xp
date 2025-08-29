@@ -874,36 +874,55 @@ async function handlePayment(e) {
         
         // Se precisa recalcular, atualizar os valores do empréstimo
         if (recalcInfo.shouldRecalculate) {
+            // Preparar dados para atualização
+            let updateData = {
+                amount: recalcInfo.newAmount,
+                updated_at: new Date().toISOString(),
+                status: 'active' // Volta para ativo se for renovação
+            };
+            
+            // Se for renovação, também atualizar a data de vencimento
+            if (recalcInfo.isRenewal) {
+                updateData.due_date = recalcInfo.newDueDate;
+            }
+            
             const { error: loanUpdateError } = await supabase
                 .from('loans')
-                .update({ 
-                    amount: recalcInfo.newAmount,
-                    updated_at: new Date().toISOString(),
-                    status: 'partial_paid' // Manter como parcialmente pago até quitar totalmente
-                })
+                .update(updateData)
                 .eq('id', loanId);
             
             if (loanUpdateError) throw loanUpdateError;
             
-            // Registrar uma nota sobre o recálculo
-            const recalcNotes = `RECÁLCULO AUTOMÁTICO: Capital original: R$ ${recalcInfo.originalAmount.toFixed(2)} | ` +
-                              `Capital restante: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                              `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
-                              `Total pago até agora: R$ ${recalcInfo.paidAmount.toFixed(2)}`;
+            // Registrar nota sobre o recálculo/renovação
+            let actionNotes;
+            if (recalcInfo.isRenewal) {
+                actionNotes = `RENOVAÇÃO AUTOMÁTICA (Pagamento apenas de juros): ` +
+                            `Capital anterior: R$ ${recalcInfo.originalAmount.toFixed(2)} | ` +
+                            `Juros pagos: R$ ${recalcInfo.originalInterestAmount.toFixed(2)} | ` +
+                            `Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
+                            `Novo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)} | ` +
+                            `Nova data vencimento: ${recalcInfo.newDueDate}`;
+            } else {
+                actionNotes = `RECÁLCULO AUTOMÁTICO: Capital original: R$ ${recalcInfo.originalAmount.toFixed(2)} | ` +
+                            `Capital restante: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
+                            `Total pago até agora: R$ ${recalcInfo.paidAmount.toFixed(2)}`;
+            }
             
-            const { error: recalcNoteError } = await supabase
+            const { error: actionNoteError } = await supabase
                 .from('payments')
                 .insert([{
                     loan_id: loanId,
                     amount: 0,
                     payment_date: paymentDate,
-                    payment_type: 'adjustment',
-                    notes: recalcNotes,
+                    payment_type: recalcInfo.isRenewal ? 'renewal' : 'adjustment',
+                    notes: actionNotes,
                     created_by: currentUser.id,
                     created_at: new Date().toISOString()
                 }]);
             
-            if (recalcNoteError) console.warn('Erro ao registrar nota de recálculo:', recalcNoteError);
+            if (actionNoteError) console.warn('Erro ao registrar nota de ação:', actionNoteError);
         } else {
             // Atualizar status do empréstimo baseado no tipo de pagamento (lógica original)
             let newStatus = 'partial_paid';
@@ -934,10 +953,19 @@ async function handlePayment(e) {
             await loadPaymentHistory(loanId);
         }
         
-        // Mostrar mensagem de sucesso com informações sobre recálculo
+        // Mostrar mensagem de sucesso com informações sobre recálculo/renovação
         let successMessage = `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
         if (recalcInfo.shouldRecalculate) {
-            successMessage += ` O empréstimo foi recalculado automaticamente. Novo valor do capital: R$ ${recalcInfo.newAmount.toFixed(2)}`;
+            if (recalcInfo.isRenewal) {
+                successMessage += `\n\n🔄 EMPRÉSTIMO RENOVADO AUTOMATICAMENTE!\n` +
+                                `• Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
+                                `• Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
+                                `• Novo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}\n` +
+                                `• Nova data de vencimento: ${new Date(recalcInfo.newDueDate).toLocaleDateString('pt-BR')}`;
+            } else {
+                successMessage += `\n\n📊 Empréstimo recalculado automaticamente.\n` +
+                                `• Novo valor do capital: R$ ${recalcInfo.newAmount.toFixed(2)}`;
+            }
         }
         showSuccessMessage(successMessage);
         
@@ -1171,7 +1199,7 @@ function validatePaymentAmount() {
         feedbackDiv.className = 'mt-2 text-sm text-red-400';
         document.getElementById('paymentAmount').classList.add('border-red-500');
     } else if (Math.abs(paymentAmount - minimumAmount) <= (minimumAmount * 0.01)) {
-        feedbackDiv.textContent = `🔄 Pagamento mínimo detectado. O empréstimo será recalculado automaticamente.`;
+        feedbackDiv.textContent = `🔄 RENOVAÇÃO AUTOMÁTICA: Pagamento apenas de juros renovará o empréstimo por +30 dias com novo capital igual ao valor total anterior.`;
         feedbackDiv.className = 'mt-2 text-sm text-yellow-400';
         document.getElementById('paymentAmount').classList.remove('border-red-500');
         document.getElementById('paymentAmount').classList.add('border-yellow-500');
@@ -1354,7 +1382,13 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
         if (!loan) return { shouldRecalculate: false };
         
         const capitalAmount = parseFloat(loan.amount);
-        const interestRate = parseFloat(loan.interest_rate);
+        let interestRate = parseFloat(loan.interest_rate);
+        
+        // Ajustar taxa se necessário
+        if (interestRate > 100) {
+            interestRate = interestRate / 100;
+        }
+        
         const interestAmount = capitalAmount * (interestRate / 100);
         const totalWithInterest = capitalAmount + interestAmount;
         
@@ -1367,32 +1401,62 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
         if (error) throw error;
         
         const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        const remainingBeforePayment = totalWithInterest - totalPaid;
-        const minimumPayment = calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingBeforePayment);
+        const minimumPayment = calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, totalWithInterest - totalPaid);
         
-        // Verificar se o pagamento é apenas o mínimo (juros) ou próximo dele (tolerância de 1%)
-        const isMinimumPayment = Math.abs(paymentAmount - minimumPayment) <= (minimumPayment * 0.01);
+        // Verificar se o pagamento é apenas os juros (tolerância de 1%)
+        const isInterestOnlyPayment = Math.abs(paymentAmount - interestAmount) <= (interestAmount * 0.01);
         
-        // Verificar se é pagamento parcial que não cobre o total
-        const remainingAfterPayment = remainingBeforePayment - paymentAmount;
-        const isPartialPayment = remainingAfterPayment > 0 && paymentType !== 'full';
+        console.log('DEBUG - Verificação de Renovação:', {
+            paymentAmount,
+            interestAmount,
+            isInterestOnlyPayment,
+            tolerance: interestAmount * 0.01,
+            difference: Math.abs(paymentAmount - interestAmount)
+        });
         
-        // Só recalcula se for pagamento mínimo ou parcial E ainda houver saldo devedor
-        if ((isMinimumPayment || isPartialPayment) && remainingAfterPayment > 0) {
-            // Calcular novo valor baseado no capital restante + juros
-            const capitalPaidSoFar = Math.max(0, totalPaid + paymentAmount - interestAmount);
-            const remainingCapital = Math.max(0, capitalAmount - capitalPaidSoFar);
+        if (isInterestOnlyPayment) {
+            // RENOVAÇÃO: Quando paga apenas os juros, o empréstimo é renovado
+            // O novo capital será o valor total anterior (capital + juros)
+            const newCapital = totalWithInterest;
+            const newInterestAmount = newCapital * (interestRate / 100);
+            const newTotal = newCapital + newInterestAmount;
+            
+            // Calcular nova data de vencimento (+30 dias)
+            const currentDueDate = new Date(loan.due_date);
+            const newDueDate = new Date(currentDueDate);
+            newDueDate.setDate(newDueDate.getDate() + 30);
+            
+            return {
+                shouldRecalculate: true,
+                isRenewal: true,
+                newAmount: newCapital,
+                newInterestAmount: newInterestAmount,
+                newTotalAmount: newTotal,
+                newDueDate: newDueDate.toISOString().split('T')[0],
+                originalAmount: capitalAmount,
+                originalInterestAmount: interestAmount,
+                interestRate: interestRate,
+                paidAmount: paymentAmount
+            };
+        }
+        
+        // Verificar se é pagamento parcial (que não seja apenas juros)
+        const remainingAfterPayment = totalWithInterest - totalPaid - paymentAmount;
+        if (remainingAfterPayment > 0 && paymentType !== 'full' && !isInterestOnlyPayment) {
+            // PAGAMENTO PARCIAL: Recalcular baseado no que foi pago do capital
+            const capitalPaidTotal = Math.max(0, totalPaid + paymentAmount - interestAmount);
+            const remainingCapital = Math.max(0, capitalAmount - capitalPaidTotal);
             
             if (remainingCapital > 0) {
-                // Aplicar juros sobre o capital restante
                 const newInterestAmount = remainingCapital * (interestRate / 100);
-                const newTotalAmount = remainingCapital + newInterestAmount;
+                const newTotal = remainingCapital + newInterestAmount;
                 
                 return {
                     shouldRecalculate: true,
+                    isRenewal: false,
                     newAmount: remainingCapital,
                     newInterestAmount: newInterestAmount,
-                    newTotalAmount: newTotalAmount,
+                    newTotalAmount: newTotal,
                     originalAmount: capitalAmount,
                     interestRate: interestRate,
                     paidAmount: totalPaid + paymentAmount
@@ -2146,6 +2210,7 @@ function getPaymentTypeText(type) {
         case 'interest': return 'Apenas Juros';
         case 'principal': return 'Apenas Principal';
         case 'adjustment': return 'Ajuste/Recálculo';
+        case 'renewal': return '🔄 Renovação';
         default: return type;
     }
 }
