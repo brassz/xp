@@ -158,6 +158,7 @@ function setupEventListeners() {
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
+    document.getElementById('closeClientDocumentsModal').addEventListener('click', () => hideModal(document.getElementById('clientDocumentsModal')));
     
     // Capital Raising modals
     if (document.getElementById('closeCapitalRaisingModal')) {
@@ -226,6 +227,10 @@ function setupEventListeners() {
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
     newExpenseForm.addEventListener('submit', handleNewExpense);
     document.getElementById('guarantorForm').addEventListener('submit', handleGuarantorForm);
+    document.getElementById('uploadDocumentForm').addEventListener('submit', handleDocumentUpload);
+    
+    // Filtro de documentos
+    document.getElementById('documentFilter').addEventListener('change', renderClientDocuments);
     
     // Botão de adicionar avalista
     document.getElementById('addGuarantorBtn').addEventListener('click', () => {
@@ -288,29 +293,7 @@ function setupUploadcare() {
             clearable: true
         });
 
-        // Widget para novo cliente - múltiplas fotos
-        const widget = uploadcare.Widget('#clientPhotosUploader');
-        widget.onChange(function(group) {
-            if (group) {
-                group.done(function(groupInfo) {
-                    const photoUrls = [];
-                    groupInfo.files.forEach(function(fileInfo) {
-                        photoUrls.push(fileInfo.cdnUrl);
-                    });
-                    
-                    // Armazenar URLs no campo hidden como JSON
-                    document.getElementById('clientPhotos').value = JSON.stringify(photoUrls);
-                    
-                    // Mostrar preview das múltiplas fotos
-                    showPhotosPreview(photoUrls, 'photosPreviewGrid', 'photosUploadPreview');
-                });
-            } else {
-                // Limpar quando arquivos forem removidos
-                document.getElementById('clientPhotos').value = '';
-                document.getElementById('photosUploadPreview').classList.add('hidden');
-                document.getElementById('photosPreviewGrid').innerHTML = '';
-            }
-        });
+
         
         // Widget para edição de cliente - múltiplas fotos
         const editWidget = uploadcare.Widget('#editClientPhotosUploader');
@@ -362,53 +345,7 @@ function setupUploadcare() {
     }
 }
 
-// Função para obter URL da foto do cliente (compatibilidade com versões antigas e novas)
-function getClientPhotoUrl(client) {
-    // Priorizar a nova estrutura de múltiplas fotos
-    if (client.photos) {
-        try {
-            const photoUrls = JSON.parse(client.photos);
-            if (Array.isArray(photoUrls) && photoUrls.length > 0) {
-                return photoUrls[0]; // Retorna a primeira foto
-            }
-        } catch (e) {
-            console.warn('Erro ao processar fotos do cliente:', e);
-        }
-    }
-    
-    // Fallback para a estrutura antiga de foto única
-    if (client.photo) {
-        return client.photo;
-    }
-    
-    return null;
-}
 
-// Função para mostrar preview de múltiplas fotos
-function showPhotosPreview(photoUrls, gridId, previewId) {
-    const grid = document.getElementById(gridId);
-    const preview = document.getElementById(previewId);
-    
-    // Limpar grid existente
-    grid.innerHTML = '';
-    
-    // Adicionar cada foto ao grid
-    photoUrls.forEach((url, index) => {
-        const photoDiv = document.createElement('div');
-        photoDiv.className = 'relative group';
-        
-        photoDiv.innerHTML = `
-            <img src="${url}" alt="Foto ${index + 1}" 
-                 class="w-full h-24 object-cover rounded-lg border-2 border-blue-500 transition-transform group-hover:scale-105">
-            <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-all"></div>
-        `;
-        
-        grid.appendChild(photoDiv);
-    });
-    
-    // Mostrar o preview
-    preview.classList.remove('hidden');
-}
 
 // Handlers de autenticação
 async function handleLogin(e) {
@@ -665,12 +602,9 @@ function renderClientsTable() {
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                     <div class="flex-shrink-0 h-10 w-10">
-                        ${getClientPhotoUrl(client) ? 
-                            `<img class="h-10 w-10 rounded-full object-cover" src="${getClientPhotoUrl(client)}" alt="${client.name}">` :
-                            `<div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
-                                <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
-                            </div>`
-                        }
+                        <div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
+                            <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
+                        </div>
                     </div>
                     <div class="ml-4">
                         <div class="text-sm font-medium text-white">${client.name}</div>
@@ -683,6 +617,7 @@ function renderClientsTable() {
             <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')">✏️</button>
+                <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
                 <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">🗑️</button>
             </td>
         </tr>
@@ -894,8 +829,7 @@ async function renderPaidLoansTable() {
 async function handleNewClient(e) {
     e.preventDefault();
     
-    const photosValue = document.getElementById('clientPhotos').value;
-    console.log('Photos value before saving:', photosValue); // Debug log
+
     
     const formData = {
         name: document.getElementById('clientName').value,
@@ -3239,6 +3173,296 @@ async function performDeleteLoan(loanId) {
     } catch (error) {
         console.error('Erro ao excluir empréstimo:', error);
         alert('Erro ao excluir empréstimo: ' + error.message);
+    }
+}
+
+// ====== FUNÇÕES DE DOCUMENTOS DO CLIENTE ======
+
+// Variáveis globais para documentos
+let currentClientId = null;
+let clientDocuments = [];
+
+// Abrir modal de documentos do cliente
+function openClientDocuments(clientId, clientName) {
+    currentClientId = clientId;
+    document.getElementById('clientDocumentsName').textContent = clientName;
+    
+    // Limpar formulário
+    document.getElementById('uploadDocumentForm').reset();
+    
+    // Carregar documentos do cliente
+    loadClientDocuments(clientId);
+    
+    // Mostrar modal
+    showModal(document.getElementById('clientDocumentsModal'));
+}
+
+// Carregar documentos do cliente
+async function loadClientDocuments(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('client_documents')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        clientDocuments = data || [];
+        renderClientDocuments();
+        
+    } catch (error) {
+        console.error('Erro ao carregar documentos:', error);
+        clientDocuments = [];
+        renderClientDocuments();
+    }
+}
+
+// Renderizar lista de documentos
+function renderClientDocuments() {
+    const container = document.getElementById('documentsContainer');
+    const filter = document.getElementById('documentFilter').value;
+    const counter = document.getElementById('documentCounter');
+    const uploadForm = document.getElementById('uploadDocumentForm');
+    const submitBtn = uploadForm.querySelector('button[type="submit"]');
+    
+    // Atualizar contador
+    counter.textContent = `${clientDocuments.length}/15 documentos`;
+    
+    // Desabilitar formulário se atingir limite
+    if (clientDocuments.length >= 15) {
+        counter.classList.add('text-red-400');
+        counter.classList.remove('text-gray-400');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Limite de 15 documentos atingido';
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+        counter.classList.remove('text-red-400');
+        counter.classList.add('text-gray-400');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Fazer Upload';
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
+    
+    // Filtrar documentos se necessário
+    const filteredDocs = filter ? 
+        clientDocuments.filter(doc => doc.category === filter) : 
+        clientDocuments;
+    
+    if (filteredDocs.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-gray-400">
+                ${filter ? 'Nenhum documento encontrado nesta categoria' : 'Nenhum documento encontrado'}
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = filteredDocs.map(doc => {
+        const categoryNames = {
+            'identificacao': 'Identificação',
+            'comprovante_renda': 'Comprovante de Renda',
+            'comprovante_residencia': 'Comprovante de Residência',
+            'referencias': 'Referências',
+            'outros': 'Outros'
+        };
+        
+        const isImage = doc.file_type && doc.file_type.startsWith('image/');
+        const isPDF = doc.file_type === 'application/pdf';
+        
+        return `
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3 mb-2">
+                            <div class="flex-shrink-0">
+                                ${isImage ? '🖼️' : isPDF ? '📄' : '📎'}
+                            </div>
+                            <div>
+                                <h5 class="text-white font-medium">${doc.name}</h5>
+                                <p class="text-sm text-gray-400">${categoryNames[doc.category] || doc.category}</p>
+                            </div>
+                        </div>
+                        
+                        ${doc.notes ? `<p class="text-sm text-gray-300 mb-2">${doc.notes}</p>` : ''}
+                        
+                        <div class="text-xs text-gray-500">
+                            Enviado em: ${new Date(doc.created_at).toLocaleDateString('pt-BR')} às ${new Date(doc.created_at).toLocaleTimeString('pt-BR')}
+                        </div>
+                    </div>
+                    
+                    <div class="flex space-x-2 ml-4">
+                        <button onclick="viewDocument('${doc.id}')" 
+                                class="text-blue-400 hover:text-blue-300 px-3 py-1 rounded text-sm"
+                                title="Visualizar">
+                            👁️ Ver
+                        </button>
+                        <button onclick="downloadDocument('${doc.id}')" 
+                                class="text-green-400 hover:text-green-300 px-3 py-1 rounded text-sm"
+                                title="Baixar">
+                            ⬇️ Baixar
+                        </button>
+                        <button onclick="deleteDocument('${doc.id}')" 
+                                class="text-red-400 hover:text-red-300 px-3 py-1 rounded text-sm"
+                                title="Excluir">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Fazer upload de documento
+async function handleDocumentUpload(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('documentName').value;
+    const category = document.getElementById('documentCategory').value;
+    const file = document.getElementById('documentFile').files[0];
+    const notes = document.getElementById('documentNotes').value;
+    
+    if (!file) {
+        alert('Por favor, selecione um arquivo');
+        return;
+    }
+    
+    // Verificar limite de 15 documentos
+    if (clientDocuments.length >= 15) {
+        alert('Limite máximo de 15 documentos por cliente atingido');
+        return;
+    }
+    
+    // Validar tamanho do arquivo (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+        alert('O arquivo deve ter no máximo 10MB');
+        return;
+    }
+    
+    try {
+        // Mostrar loading
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Enviando...';
+        submitBtn.disabled = true;
+        
+        // Upload do arquivo para o Uploadcare
+        const formData = new FormData();
+        formData.append('UPLOADCARE_PUB_KEY', '5bb6bf6b98f6d36060dc');
+        formData.append('file', file);
+        
+        const uploadResponse = await fetch('https://upload.uploadcare.com/base/', {
+            method: 'POST',
+            body: formData
+        });
+        
+        if (!uploadResponse.ok) {
+            throw new Error('Erro no upload para Uploadcare');
+        }
+        
+        const uploadResult = await uploadResponse.json();
+        const fileUrl = `https://ucarecdn.com/${uploadResult.file}/`;
+        
+        // Salvar informações do documento no banco
+        const { data, error } = await supabase
+            .from('client_documents')
+            .insert([{
+                client_id: currentClientId,
+                name: name,
+                category: category,
+                file_path: fileUrl,
+                file_type: file.type,
+                file_size: file.size,
+                notes: notes || null
+            }])
+            .select();
+        
+        if (error) throw error;
+        
+        // Limpar formulário
+        document.getElementById('uploadDocumentForm').reset();
+        
+        // Recarregar documentos
+        await loadClientDocuments(currentClientId);
+        
+        showSuccessMessage('Documento enviado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao fazer upload:', error);
+        alert('Erro ao fazer upload do documento: ' + error.message);
+    } finally {
+        // Restaurar botão
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        if (submitBtn) {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
+    }
+}
+
+// Visualizar documento
+async function viewDocument(documentId) {
+    try {
+        const doc = clientDocuments.find(d => d.id === documentId);
+        if (!doc) return;
+        
+        // Abrir documento do Uploadcare em nova aba
+        window.open(doc.file_path, '_blank');
+        
+    } catch (error) {
+        console.error('Erro ao visualizar documento:', error);
+        alert('Erro ao visualizar documento: ' + error.message);
+    }
+}
+
+// Baixar documento
+async function downloadDocument(documentId) {
+    try {
+        const doc = clientDocuments.find(d => d.id === documentId);
+        if (!doc) return;
+        
+        // Baixar arquivo do Uploadcare
+        const response = await fetch(doc.file_path);
+        const blob = await response.blob();
+        
+        // Criar link para download
+        const url = URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.name + '.' + doc.file_path.split('.').pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+    } catch (error) {
+        console.error('Erro ao baixar documento:', error);
+        alert('Erro ao baixar documento: ' + error.message);
+    }
+}
+
+// Excluir documento
+async function deleteDocument(documentId) {
+    if (!confirm('Tem certeza que deseja excluir este documento?')) return;
+    
+    try {
+        // Excluir registro do banco
+        const { error } = await supabase
+            .from('client_documents')
+            .delete()
+            .eq('id', documentId);
+        
+        if (error) throw error;
+        
+        // Recarregar documentos
+        await loadClientDocuments(currentClientId);
+        
+        showSuccessMessage('Documento excluído com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao excluir documento:', error);
+        alert('Erro ao excluir documento: ' + error.message);
     }
 }
 
