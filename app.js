@@ -52,6 +52,7 @@ const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal')
 const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
 const addCapitalClientModal = document.getElementById('addCapitalClientModal');
 const guarantorModal = document.getElementById('guarantorModal');
+const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
 
 
 // Botões
@@ -158,6 +159,16 @@ function setupEventListeners() {
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
+    
+    // WhatsApp Summary modal
+    document.getElementById('cancelWhatsAppBtn').addEventListener('click', () => hideModal(whatsappSummaryModal));
+    document.getElementById('confirmWhatsAppBtn').addEventListener('click', () => {
+        hideModal(whatsappSummaryModal);
+        const loanId = whatsappSummaryModal.dataset.loanId;
+        if (loanId) {
+            sendLoanSummaryWhatsApp(loanId);
+        }
+    });
     
     // Capital Raising modals
     if (document.getElementById('closeCapitalRaisingModal')) {
@@ -938,6 +949,14 @@ async function handleNewLoan(e) {
         const generateContractNow = confirm('Empréstimo criado com sucesso! Deseja gerar o contrato agora?');
         if (generateContractNow && data && data[0]) {
             await generateContract(data[0].id);
+        }
+        
+        // Mostrar modal para enviar resumo via WhatsApp
+        if (data && data[0]) {
+            // Aguardar um pouco para garantir que os dados estejam atualizados
+            setTimeout(() => {
+                showWhatsAppSummaryModal(data[0].id);
+            }, 500);
         }
         
     } catch (error) {
@@ -2842,6 +2861,89 @@ function showNewPaymentFromHistory() {
     
     // Mostrar modal de pagamento
     showPaymentModal(loanId);
+}
+
+// Função para mostrar o modal de confirmação do WhatsApp
+function showWhatsAppSummaryModal(loanId) {
+    whatsappSummaryModal.dataset.loanId = loanId;
+    showModal(whatsappSummaryModal);
+}
+
+// Função para enviar resumo do empréstimo via WhatsApp (para novos empréstimos)
+async function sendLoanSummaryWhatsApp(loanId) {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showErrorMessage('Empréstimo não encontrado!');
+        return;
+    }
+
+    const client = loan.clients;
+    if (!client) {
+        showErrorMessage('Dados do cliente não encontrados!');
+        return;
+    }
+
+    // Verificar se o cliente tem telefone
+    if (!client.phone) {
+        showErrorMessage('Cliente não possui telefone cadastrado!');
+        return;
+    }
+
+    try {
+        // Calcular valores do empréstimo
+        const principalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = principalAmount * (interestRate / 100);
+        const totalAmount = principalAmount + interestAmount;
+        
+        // Formatar datas
+        const formattedLoanDate = formatDate(loan.loan_date);
+        const formattedDueDate = formatDate(loan.due_date);
+
+        // Montar mensagem do resumo do empréstimo
+        const message = `🎯 RESUMO DO EMPRÉSTIMO
+
+👤 CLIENTE: ${client.name}
+📅 DATA DO EMPRÉSTIMO: ${formattedLoanDate}
+📅 DATA DE VENCIMENTO: ${formattedDueDate}
+
+💰 VALORES:
+💵 Capital: R$ ${principalAmount.toFixed(2)}
+📈 Taxa de Juros: ${interestRate}%
+📊 Valor dos Juros: R$ ${interestAmount.toFixed(2)}
+💎 VALOR TOTAL: R$ ${totalAmount.toFixed(2)}
+
+📌 FORMAS DE PAGAMENTO:
+💳 PIX (CNPJ): 54413674000147
+🏦 Favorecido: Tuane Carla Mendes Tomaz
+🏢 Instituição: Stone Pagamento S.A
+
+⚠️ IMPORTANTE:
+• Pagamento deve ser realizado até a data de vencimento
+• Após vencimento: multa diária de R$ 50,00
+• Mantenha este comprovante para consulta
+
+Obrigado pela confiança! 🤝`;
+
+        // Limpar o número de telefone (remover caracteres especiais)
+        const cleanPhone = client.phone.replace(/\D/g, '');
+        
+        // Verificar se o número tem o código do país
+        const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+        // Criar URL do WhatsApp
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+        // Abrir WhatsApp em nova aba
+        window.open(whatsappUrl, '_blank');
+
+        // Mostrar mensagem de sucesso
+        showSuccessMessage(`Resumo do empréstimo enviado para ${client.name} (${client.phone})`);
+
+    } catch (error) {
+        console.error('Erro ao enviar resumo via WhatsApp:', error);
+        showErrorMessage('Erro ao preparar resumo do WhatsApp: ' + error.message);
+    }
 }
 
 // Função para enviar mensagem de cobrança via WhatsApp
