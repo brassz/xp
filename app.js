@@ -62,6 +62,9 @@ const newCapitalRaisingBtn = document.getElementById('newCapitalRaisingBtn');
 
 const generatePdfBtn = document.getElementById('generatePdfBtn');
 const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
+const generateTotalPDFBtn = document.getElementById('generateTotalPDFBtn');
+const generateWeeklyPDFBtn = document.getElementById('generateWeeklyPDFBtn');
+const generateMonthlyPDFBtn = document.getElementById('generateMonthlyPDFBtn');
 
 // Formulários
 const newClientForm = document.getElementById('newClientForm');
@@ -131,6 +134,19 @@ function setupEventListeners() {
     // Adicionar event listener para o botão de PDF das despesas
     if (generateExpensesPDFBtn) {
         generateExpensesPDFBtn.addEventListener('click', generateMonthlyExpensesPDF);
+    }
+    
+    // Event listeners para os novos botões de PDF de relatórios
+    if (generateTotalPDFBtn) {
+        generateTotalPDFBtn.addEventListener('click', generateTotalReportPDF);
+    }
+    
+    if (generateWeeklyPDFBtn) {
+        generateWeeklyPDFBtn.addEventListener('click', generateWeeklyReportPDF);
+    }
+    
+    if (generateMonthlyPDFBtn) {
+        generateMonthlyPDFBtn.addEventListener('click', generateMonthlyReportPDF);
     }
     
     // Fechar modais
@@ -445,6 +461,8 @@ function handleNavigation(e) {
             if (target === 'reports') {
                 console.log('Seção de relatórios ativada, atualizando gráficos...');
                 setTimeout(() => {
+                    updateLoans7DaysChart();
+                    updateLoansMonthlyChart();
                     updateGrowthChart();
                     updateDistributionChart();
                 }, 100);
@@ -1868,6 +1886,12 @@ async function updateCharts() {
     if (document.getElementById('distributionChart')) {
         updateDistributionChart();
     }
+    if (document.getElementById('loans7DaysChart')) {
+        updateLoans7DaysChart();
+    }
+    if (document.getElementById('loansMonthlyChart')) {
+        updateLoansMonthlyChart();
+    }
     
     updateFinancialSummary();
     
@@ -2122,11 +2146,212 @@ async function updateDistributionChart() {
     });
 }
 
+function updateLoans7DaysChart() {
+    const ctx = document.getElementById('loans7DaysChart');
+    if (!ctx) {
+        console.log('Elemento loans7DaysChart não encontrado');
+        return;
+    }
+    
+    console.log('Atualizando gráfico de empréstimos dos últimos 7 dias...');
+    
+    if (charts.loans7Days) {
+        charts.loans7Days.destroy();
+    }
+    
+    const last7Days = getLast7Days();
+    const loansData = last7Days.map(day => {
+        const dayLoans = loans.filter(loan => {
+            const loanDate = new Date(loan.created_at);
+            return loanDate.toDateString() === day.toDateString();
+        });
+        return {
+            date: day,
+            count: dayLoans.length,
+            total: dayLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0)
+        };
+    });
+    
+    charts.loans7Days = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: last7Days.map(date => date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })),
+            datasets: [{
+                label: 'Quantidade',
+                data: loansData.map(d => d.count),
+                backgroundColor: 'rgba(59, 130, 246, 0.6)',
+                borderColor: '#3b82f6',
+                borderWidth: 2,
+                yAxisID: 'y'
+            }, {
+                label: 'Valor Total (R$)',
+                data: loansData.map(d => d.total),
+                backgroundColor: 'rgba(34, 197, 94, 0.6)',
+                borderColor: '#22c55e',
+                borderWidth: 2,
+                type: 'line',
+                yAxisID: 'y1',
+                tension: 0.4
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#ffffff' }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#ffffff' },
+                    title: {
+                        display: true,
+                        text: 'Quantidade',
+                        color: '#ffffff'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    beginAtZero: true,
+                    grid: { drawOnChartArea: false },
+                    ticks: { 
+                        color: '#ffffff',
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Valor (R$)',
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#ffffff' }
+                }
+            }
+        }
+    });
+}
+
+function updateLoansMonthlyChart() {
+    const ctx = document.getElementById('loansMonthlyChart');
+    if (!ctx) {
+        console.log('Elemento loansMonthlyChart não encontrado');
+        return;
+    }
+    
+    console.log('Atualizando gráfico mensal de empréstimos...');
+    
+    if (charts.loansMonthly) {
+        charts.loansMonthly.destroy();
+    }
+    
+    const last12Months = getLast12Months();
+    const loansData = last12Months.map(month => {
+        const monthLoans = loans.filter(loan => {
+            const loanDate = new Date(loan.created_at);
+            return loanDate.getMonth() === month.getMonth() && 
+                   loanDate.getFullYear() === month.getFullYear();
+        });
+        return {
+            month: month,
+            count: monthLoans.length,
+            total: monthLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0)
+        };
+    });
+    
+    charts.loansMonthly = new Chart(ctx, {
+        type: 'line',
+        data: {
+            labels: last12Months.map(date => date.toLocaleDateString('pt-BR', { month: 'short', year: '2-digit' })),
+            datasets: [{
+                label: 'Quantidade de Empréstimos',
+                data: loansData.map(d => d.count),
+                borderColor: '#f59e0b',
+                backgroundColor: 'rgba(245, 158, 11, 0.1)',
+                tension: 0.4,
+                fill: false,
+                yAxisID: 'y'
+            }, {
+                label: 'Valor Total (R$)',
+                data: loansData.map(d => d.total),
+                borderColor: '#10b981',
+                backgroundColor: 'rgba(16, 185, 129, 0.1)',
+                tension: 0.4,
+                fill: true,
+                yAxisID: 'y1'
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#ffffff' }
+                }
+            },
+            scales: {
+                y: {
+                    type: 'linear',
+                    display: true,
+                    position: 'left',
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#ffffff' },
+                    title: {
+                        display: true,
+                        text: 'Quantidade',
+                        color: '#ffffff'
+                    }
+                },
+                y1: {
+                    type: 'linear',
+                    display: true,
+                    position: 'right',
+                    beginAtZero: true,
+                    grid: { drawOnChartArea: false },
+                    ticks: { 
+                        color: '#ffffff',
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Valor (R$)',
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#ffffff' }
+                }
+            }
+        }
+    });
+}
+
 function updateFinancialSummary() {
     const now = new Date();
+    const last7Days = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
     const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
     const last6Months = new Date(now.getFullYear(), now.getMonth() - 6, 1);
     const last12Months = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+    
+    const last7DaysTotal = loans.filter(loan => {
+        const loanDate = new Date(loan.created_at);
+        return loanDate >= last7Days;
+    }).reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
     
     const lastMonthTotal = loans.filter(loan => {
         const loanDate = new Date(loan.created_at);
@@ -2143,12 +2368,31 @@ function updateFinancialSummary() {
         return loanDate >= last12Months;
     }).reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
     
-    document.getElementById('lastMonthTotal').textContent = `R$ ${lastMonthTotal.toFixed(2)}`;
-    document.getElementById('last6MonthsTotal').textContent = `R$ ${last6MonthsTotal.toFixed(2)}`;
-    document.getElementById('last12MonthsTotal').textContent = `R$ ${last12MonthsTotal.toFixed(2)}`;
+    const last7DaysElement = document.getElementById('last7DaysTotal');
+    const lastMonthElement = document.getElementById('lastMonthTotal');
+    const last6MonthsElement = document.getElementById('last6MonthsTotal');
+    const last12MonthsElement = document.getElementById('last12MonthsTotal');
+    
+    if (last7DaysElement) last7DaysElement.textContent = `R$ ${last7DaysTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    if (lastMonthElement) lastMonthElement.textContent = `R$ ${lastMonthTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    if (last6MonthsElement) last6MonthsElement.textContent = `R$ ${last6MonthsTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
+    if (last12MonthsElement) last12MonthsElement.textContent = `R$ ${last12MonthsTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`;
 }
 
 // Funções auxiliares para datas
+function getLast7Days() {
+    const days = [];
+    const now = new Date();
+    
+    for (let i = 6; i >= 0; i--) {
+        const day = new Date(now);
+        day.setDate(now.getDate() - i);
+        days.push(day);
+    }
+    
+    return days;
+}
+
 function getLast6Months() {
     const months = [];
     const now = new Date();
@@ -6694,3 +6938,341 @@ document.addEventListener('DOMContentLoaded', function() {
 // ===================================================
 // FIM DA GESTÃO DE LEVANTAMENTO DE CAPITAL
 // ===================================================
+
+// ===================================================
+// FUNÇÕES DE GERAÇÃO DE PDF DOS RELATÓRIOS
+// ===================================================
+
+// Função para gerar PDF do resumo total de empréstimos
+async function generateTotalReportPDF() {
+    try {
+        if (loans.length === 0) {
+            showInfoMessage('Nenhum empréstimo foi encontrado.');
+            return;
+        }
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO TOTAL DE EMPRÉSTIMOS', 105, 20, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 35);
+        
+        // Linha divisória
+        doc.line(20, 40, 190, 40);
+        
+        let yPosition = 50;
+        
+        // Resumo geral
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO GERAL', 20, yPosition);
+        yPosition += 10;
+        
+        const totalAmount = loans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+        const totalInterest = loans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
+        const totalWithInterest = totalAmount + totalInterest;
+        
+        // Calcular estatísticas por período
+        const now = new Date();
+        const last7Days = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const last6Months = new Date(now.getFullYear(), now.getMonth() - 6, 1);
+        const last12Months = new Date(now.getFullYear(), now.getMonth() - 12, 1);
+        
+        const loans7Days = loans.filter(loan => new Date(loan.created_at) >= last7Days);
+        const loansMonth = loans.filter(loan => new Date(loan.created_at) >= lastMonth);
+        const loans6Months = loans.filter(loan => new Date(loan.created_at) >= last6Months);
+        const loans12Months = loans.filter(loan => new Date(loan.created_at) >= last12Months);
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de empréstimos: ${loans.length}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total emprestado: R$ ${totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de juros: R$ ${totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total com juros: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 15;
+        
+        // Estatísticas por período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('ESTATÍSTICAS POR PERÍODO', 20, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        const periods = [
+            { label: 'Últimos 7 dias', loans: loans7Days },
+            { label: 'Último mês', loans: loansMonth },
+            { label: 'Últimos 6 meses', loans: loans6Months },
+            { label: 'Últimos 12 meses', loans: loans12Months }
+        ];
+        
+        periods.forEach(period => {
+            const total = period.loans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+            doc.text(`${period.label}: ${period.loans.length} empréstimos - R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+            yPosition += 6;
+        });
+        
+        yPosition += 10;
+        
+        // Distribuição por status
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DISTRIBUIÇÃO POR STATUS', 20, yPosition);
+        yPosition += 10;
+        
+        const activeLoans = loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'active').length;
+        const overdueLoans = loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'overdue').length;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Empréstimos ativos: ${activeLoans}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Empréstimos vencidos: ${overdueLoans}`, 20, yPosition);
+        yPosition += 6;
+        
+        // Salvar o PDF
+        const fileName = `relatorio_total_emprestimos_${new Date().getTime()}.pdf`;
+        doc.save(fileName);
+        
+        showInfoMessage('Relatório total gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF do relatório total:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// Função para gerar PDF do relatório semanal
+async function generateWeeklyReportPDF() {
+    try {
+        const now = new Date();
+        const last7Days = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
+        
+        // Filtrar empréstimos dos últimos 7 dias
+        const weeklyLoans = loans.filter(loan => {
+            const loanDate = new Date(loan.created_at);
+            return loanDate >= last7Days;
+        });
+
+        if (weeklyLoans.length === 0) {
+            showInfoMessage('Nenhum empréstimo foi encontrado nos últimos 7 dias.');
+            return;
+        }
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO SEMANAL DE EMPRÉSTIMOS', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const periodText = `Período: ${last7Days.toLocaleDateString('pt-BR')} a ${now.toLocaleDateString('pt-BR')}`;
+        doc.text(periodText, 105, 30, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 40);
+        
+        // Linha divisória
+        doc.line(20, 45, 190, 45);
+        
+        let yPosition = 55;
+        
+        // Resumo semanal
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO DOS ÚLTIMOS 7 DIAS', 20, yPosition);
+        yPosition += 10;
+        
+        const totalAmount = weeklyLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+        const totalInterest = weeklyLoans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
+        const totalWithInterest = totalAmount + totalInterest;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de empréstimos: ${weeklyLoans.length}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total emprestado: R$ ${totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de juros: R$ ${totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total com juros: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 15;
+        
+        // Distribuição diária
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DISTRIBUIÇÃO DIÁRIA', 20, yPosition);
+        yPosition += 10;
+        
+        const dailyData = getLast7Days().map(day => {
+            const dayLoans = weeklyLoans.filter(loan => {
+                const loanDate = new Date(loan.created_at);
+                return loanDate.toDateString() === day.toDateString();
+            });
+            return {
+                date: day,
+                count: dayLoans.length,
+                total: dayLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0)
+            };
+        });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        dailyData.forEach(day => {
+            doc.text(`${day.date.toLocaleDateString('pt-BR')}: ${day.count} empréstimos - R$ ${day.total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+            yPosition += 6;
+        });
+        
+        // Salvar o PDF
+        const fileName = `relatorio_semanal_emprestimos_${new Date().getTime()}.pdf`;
+        doc.save(fileName);
+        
+        showInfoMessage('Relatório semanal gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF do relatório semanal:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// Função para gerar PDF do relatório mensal
+async function generateMonthlyReportPDF() {
+    try {
+        const now = new Date();
+        const currentMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        
+        // Filtrar empréstimos do mês atual
+        const monthlyLoans = loans.filter(loan => {
+            const loanDate = new Date(loan.created_at);
+            return loanDate >= currentMonth;
+        });
+
+        if (monthlyLoans.length === 0) {
+            showInfoMessage('Nenhum empréstimo foi encontrado no mês atual.');
+            return;
+        }
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO MENSAL DE EMPRÉSTIMOS', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const monthName = currentMonth.toLocaleDateString('pt-BR', { month: 'long', year: 'numeric' });
+        const periodText = `Período: ${monthName}`;
+        doc.text(periodText, 105, 30, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 40);
+        
+        // Linha divisória
+        doc.line(20, 45, 190, 45);
+        
+        let yPosition = 55;
+        
+        // Resumo mensal
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO DO MÊS ATUAL', 20, yPosition);
+        yPosition += 10;
+        
+        const totalAmount = monthlyLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+        const totalInterest = monthlyLoans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
+        const totalWithInterest = totalAmount + totalInterest;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de empréstimos: ${monthlyLoans.length}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total emprestado: R$ ${totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de juros: R$ ${totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Valor total com juros: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 15;
+        
+        // Comparação com mês anterior
+        const lastMonth = new Date(now.getFullYear(), now.getMonth() - 1, 1);
+        const lastMonthEnd = new Date(now.getFullYear(), now.getMonth(), 0);
+        const lastMonthLoans = loans.filter(loan => {
+            const loanDate = new Date(loan.created_at);
+            return loanDate >= lastMonth && loanDate <= lastMonthEnd;
+        });
+        
+        const lastMonthTotal = lastMonthLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+        const growth = lastMonthTotal > 0 ? ((totalAmount - lastMonthTotal) / lastMonthTotal * 100) : 0;
+        
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('COMPARAÇÃO COM MÊS ANTERIOR', 20, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Mês anterior: ${lastMonthLoans.length} empréstimos - R$ ${lastMonthTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Crescimento: ${growth > 0 ? '+' : ''}${growth.toFixed(1)}%`, 20, yPosition);
+        yPosition += 15;
+        
+        // Distribuição por status no mês
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DISTRIBUIÇÃO POR STATUS (MÊS ATUAL)', 20, yPosition);
+        yPosition += 10;
+        
+        const activeMonthly = monthlyLoans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'active').length;
+        const overdueMonthly = monthlyLoans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'overdue').length;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Empréstimos ativos: ${activeMonthly}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Empréstimos vencidos: ${overdueMonthly}`, 20, yPosition);
+        
+        // Salvar o PDF
+        const fileName = `relatorio_mensal_emprestimos_${monthName.replace(/\s/g, '_')}_${new Date().getTime()}.pdf`;
+        doc.save(fileName);
+        
+        showInfoMessage('Relatório mensal gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF do relatório mensal:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
