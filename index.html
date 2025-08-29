@@ -2444,6 +2444,47 @@
         </div>
     </div>
 
+    <!-- Change Due Date Modal -->
+    <div id="changeDueDateModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-md p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Alterar Data de Vencimento</h3>
+                    <button id="closeChangeDueDateModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="changeDueDateForm" class="space-y-4">
+                    <div id="changeDueDateInfo" class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4 mb-4">
+                        <!-- Payment info will be populated here -->
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Nova Data de Vencimento</label>
+                        <input type="date" id="newDueDate" class="form-input w-full" required>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Motivo da Alteração</label>
+                        <textarea id="changeDueDateReason" class="form-input w-full" rows="3" placeholder="Descreva o motivo da alteração da data de vencimento..." required></textarea>
+                    </div>
+                    
+                    <div class="flex space-x-4 pt-4">
+                        <button type="submit" class="btn-primary flex-1 py-3 px-4 rounded-lg font-semibold text-white">
+                            Alterar Data
+                        </button>
+                        <button type="button" id="cancelChangeDueDate" class="bg-gray-600 hover:bg-gray-500 py-3 px-4 rounded-lg font-semibold text-white transition-colors">
+                            Cancelar
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html> 
