@@ -293,29 +293,7 @@ function setupUploadcare() {
             clearable: true
         });
 
-        // Widget para novo cliente - múltiplas fotos
-        const widget = uploadcare.Widget('#clientPhotosUploader');
-        widget.onChange(function(group) {
-            if (group) {
-                group.done(function(groupInfo) {
-                    const photoUrls = [];
-                    groupInfo.files.forEach(function(fileInfo) {
-                        photoUrls.push(fileInfo.cdnUrl);
-                    });
-                    
-                    // Armazenar URLs no campo hidden como JSON
-                    document.getElementById('clientPhotos').value = JSON.stringify(photoUrls);
-                    
-                    // Mostrar preview das múltiplas fotos
-                    showPhotosPreview(photoUrls, 'photosPreviewGrid', 'photosUploadPreview');
-                });
-            } else {
-                // Limpar quando arquivos forem removidos
-                document.getElementById('clientPhotos').value = '';
-                document.getElementById('photosUploadPreview').classList.add('hidden');
-                document.getElementById('photosPreviewGrid').innerHTML = '';
-            }
-        });
+
         
         // Widget para edição de cliente - múltiplas fotos
         const editWidget = uploadcare.Widget('#editClientPhotosUploader');
@@ -367,53 +345,7 @@ function setupUploadcare() {
     }
 }
 
-// Função para obter URL da foto do cliente (compatibilidade com versões antigas e novas)
-function getClientPhotoUrl(client) {
-    // Priorizar a nova estrutura de múltiplas fotos
-    if (client.photos) {
-        try {
-            const photoUrls = JSON.parse(client.photos);
-            if (Array.isArray(photoUrls) && photoUrls.length > 0) {
-                return photoUrls[0]; // Retorna a primeira foto
-            }
-        } catch (e) {
-            console.warn('Erro ao processar fotos do cliente:', e);
-        }
-    }
-    
-    // Fallback para a estrutura antiga de foto única
-    if (client.photo) {
-        return client.photo;
-    }
-    
-    return null;
-}
 
-// Função para mostrar preview de múltiplas fotos
-function showPhotosPreview(photoUrls, gridId, previewId) {
-    const grid = document.getElementById(gridId);
-    const preview = document.getElementById(previewId);
-    
-    // Limpar grid existente
-    grid.innerHTML = '';
-    
-    // Adicionar cada foto ao grid
-    photoUrls.forEach((url, index) => {
-        const photoDiv = document.createElement('div');
-        photoDiv.className = 'relative group';
-        
-        photoDiv.innerHTML = `
-            <img src="${url}" alt="Foto ${index + 1}" 
-                 class="w-full h-24 object-cover rounded-lg border-2 border-blue-500 transition-transform group-hover:scale-105">
-            <div class="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-20 rounded-lg transition-all"></div>
-        `;
-        
-        grid.appendChild(photoDiv);
-    });
-    
-    // Mostrar o preview
-    preview.classList.remove('hidden');
-}
 
 // Handlers de autenticação
 async function handleLogin(e) {
@@ -670,12 +602,9 @@ function renderClientsTable() {
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
                     <div class="flex-shrink-0 h-10 w-10">
-                        ${getClientPhotoUrl(client) ? 
-                            `<img class="h-10 w-10 rounded-full object-cover" src="${getClientPhotoUrl(client)}" alt="${client.name}">` :
-                            `<div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
-                                <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
-                            </div>`
-                        }
+                        <div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
+                            <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
+                        </div>
                     </div>
                     <div class="ml-4">
                         <div class="text-sm font-medium text-white">${client.name}</div>
@@ -900,8 +829,7 @@ async function renderPaidLoansTable() {
 async function handleNewClient(e) {
     e.preventDefault();
     
-    const photosValue = document.getElementById('clientPhotos').value;
-    console.log('Photos value before saving:', photosValue); // Debug log
+
     
     const formData = {
         name: document.getElementById('clientName').value,
@@ -3294,6 +3222,27 @@ async function loadClientDocuments(clientId) {
 function renderClientDocuments() {
     const container = document.getElementById('documentsContainer');
     const filter = document.getElementById('documentFilter').value;
+    const counter = document.getElementById('documentCounter');
+    const uploadForm = document.getElementById('uploadDocumentForm');
+    const submitBtn = uploadForm.querySelector('button[type="submit"]');
+    
+    // Atualizar contador
+    counter.textContent = `${clientDocuments.length}/15 documentos`;
+    
+    // Desabilitar formulário se atingir limite
+    if (clientDocuments.length >= 15) {
+        counter.classList.add('text-red-400');
+        counter.classList.remove('text-gray-400');
+        submitBtn.disabled = true;
+        submitBtn.textContent = 'Limite de 15 documentos atingido';
+        submitBtn.classList.add('opacity-50', 'cursor-not-allowed');
+    } else {
+        counter.classList.remove('text-red-400');
+        counter.classList.add('text-gray-400');
+        submitBtn.disabled = false;
+        submitBtn.textContent = 'Fazer Upload';
+        submitBtn.classList.remove('opacity-50', 'cursor-not-allowed');
+    }
     
     // Filtrar documentos se necessário
     const filteredDocs = filter ? 
@@ -3379,6 +3328,12 @@ async function handleDocumentUpload(e) {
         return;
     }
     
+    // Verificar limite de 15 documentos
+    if (clientDocuments.length >= 15) {
+        alert('Limite máximo de 15 documentos por cliente atingido');
+        return;
+    }
+    
     // Validar tamanho do arquivo (10MB)
     if (file.size > 10 * 1024 * 1024) {
         alert('O arquivo deve ter no máximo 10MB');
@@ -3392,16 +3347,22 @@ async function handleDocumentUpload(e) {
         submitBtn.textContent = 'Enviando...';
         submitBtn.disabled = true;
         
-        // Gerar nome único para o arquivo
-        const fileExtension = file.name.split('.').pop();
-        const fileName = `${currentClientId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
+        // Upload do arquivo para o Uploadcare
+        const formData = new FormData();
+        formData.append('UPLOADCARE_PUB_KEY', '5bb6bf6b98f6d36060dc');
+        formData.append('file', file);
         
-        // Upload do arquivo para o Supabase Storage
-        const { data: uploadData, error: uploadError } = await supabase.storage
-            .from('client-documents')
-            .upload(fileName, file);
+        const uploadResponse = await fetch('https://upload.uploadcare.com/base/', {
+            method: 'POST',
+            body: formData
+        });
         
-        if (uploadError) throw uploadError;
+        if (!uploadResponse.ok) {
+            throw new Error('Erro no upload para Uploadcare');
+        }
+        
+        const uploadResult = await uploadResponse.json();
+        const fileUrl = `https://ucarecdn.com/${uploadResult.file}/`;
         
         // Salvar informações do documento no banco
         const { data, error } = await supabase
@@ -3410,7 +3371,7 @@ async function handleDocumentUpload(e) {
                 client_id: currentClientId,
                 name: name,
                 category: category,
-                file_path: fileName,
+                file_path: fileUrl,
                 file_type: file.type,
                 file_size: file.size,
                 notes: notes || null
@@ -3433,8 +3394,10 @@ async function handleDocumentUpload(e) {
     } finally {
         // Restaurar botão
         const submitBtn = e.target.querySelector('button[type="submit"]');
-        submitBtn.textContent = originalText;
-        submitBtn.disabled = false;
+        if (submitBtn) {
+            submitBtn.textContent = originalText;
+            submitBtn.disabled = false;
+        }
     }
 }
 
@@ -3444,17 +3407,8 @@ async function viewDocument(documentId) {
         const doc = clientDocuments.find(d => d.id === documentId);
         if (!doc) return;
         
-        // Obter URL pública do arquivo
-        const { data } = supabase.storage
-            .from('client-documents')
-            .getPublicUrl(doc.file_path);
-        
-        if (data && data.publicUrl) {
-            // Abrir em nova aba
-            window.open(data.publicUrl, '_blank');
-        } else {
-            alert('Erro ao obter URL do documento');
-        }
+        // Abrir documento do Uploadcare em nova aba
+        window.open(doc.file_path, '_blank');
         
     } catch (error) {
         console.error('Erro ao visualizar documento:', error);
@@ -3468,15 +3422,12 @@ async function downloadDocument(documentId) {
         const doc = clientDocuments.find(d => d.id === documentId);
         if (!doc) return;
         
-        // Baixar arquivo
-        const { data, error } = await supabase.storage
-            .from('client-documents')
-            .download(doc.file_path);
-        
-        if (error) throw error;
+        // Baixar arquivo do Uploadcare
+        const response = await fetch(doc.file_path);
+        const blob = await response.blob();
         
         // Criar link para download
-        const url = URL.createObjectURL(data);
+        const url = URL.createObjectURL(blob);
         const a = document.createElement('a');
         a.href = url;
         a.download = doc.name + '.' + doc.file_path.split('.').pop();
@@ -3496,18 +3447,6 @@ async function deleteDocument(documentId) {
     if (!confirm('Tem certeza que deseja excluir este documento?')) return;
     
     try {
-        const doc = clientDocuments.find(d => d.id === documentId);
-        if (!doc) return;
-        
-        // Excluir arquivo do storage
-        const { error: storageError } = await supabase.storage
-            .from('client-documents')
-            .remove([doc.file_path]);
-        
-        if (storageError) {
-            console.warn('Erro ao excluir arquivo do storage:', storageError);
-        }
-        
         // Excluir registro do banco
         const { error } = await supabase
             .from('client_documents')

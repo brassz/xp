@@ -1323,30 +1323,7 @@
                         <textarea id="clientAddress" class="form-input w-full" rows="3" required></textarea>
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Fotos do Cliente</label>
-                        <input type="hidden" id="clientPhotos" name="clientPhotos">
-                        <input 
-                            type="hidden" 
-                            role="uploadcare-uploader" 
-                            name="clientPhotosUploader"
-                            id="clientPhotosUploader"
-                            data-public-key="5bb6bf6b98f6d36060dc"
-                            data-tabs="file camera url facebook gdrive gphotos dropbox instagram"
-                            data-image-shrink="1024x1024"
-                            data-crop="1:1"
-                            data-effects="crop,rotate,enhance,grayscale"
-                            data-clearable="true"
-                            data-multiple="true"
-                            data-multiple-max="10"
-                        />
-                        <div id="photosUploadPreview" class="mt-4 hidden">
-                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" id="photosPreviewGrid">
-                                <!-- As imagens serão inseridas aqui dinamicamente -->
-                            </div>
-                            <p class="text-green-400 text-sm text-center mt-2">Fotos carregadas com sucesso!</p>
-                        </div>
-                    </div>
+
                     
                     <div class="flex justify-end space-x-4 pt-4">
                         <button type="button" id="cancelClientBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
@@ -1577,30 +1554,7 @@
                         <textarea id="editClientAddress" class="form-input w-full" rows="3" required></textarea>
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Fotos do Cliente</label>
-                        <input type="hidden" id="editClientPhotos" name="editClientPhotos">
-                        <input 
-                            type="hidden" 
-                            role="uploadcare-uploader" 
-                            name="editClientPhotosUploader"
-                            id="editClientPhotosUploader"
-                            data-public-key="5bb6bf6b98f6d36060dc"
-                            data-tabs="file camera url facebook gdrive gphotos dropbox instagram"
-                            data-image-shrink="1024x1024"
-                            data-crop="1:1"
-                            data-effects="crop,rotate,enhance,grayscale"
-                            data-clearable="true"
-                            data-multiple="true"
-                            data-multiple-max="10"
-                        />
-                        <div id="editPhotosUploadPreview" class="mt-4 hidden">
-                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" id="editPhotosPreviewGrid">
-                                <!-- As imagens serão inseridas aqui dinamicamente -->
-                            </div>
-                            <p class="text-green-400 text-sm text-center mt-2">Fotos carregadas com sucesso!</p>
-                        </div>
-                    </div>
+
 
                     <!-- Seção de Avalistas -->
                     <div class="border-t border-gray-600 pt-6 mt-6">
@@ -2391,7 +2345,10 @@
                 
                 <!-- Upload Section -->
                 <div class="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
-                    <h4 class="text-lg font-medium text-white mb-4">Adicionar Novo Documento</h4>
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-lg font-medium text-white">Adicionar Novo Documento</h4>
+                        <span id="documentCounter" class="text-sm text-gray-400">0/15 documentos</span>
+                    </div>
                     <form id="uploadDocumentForm" class="space-y-4">
                         <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                             <div>
