@@ -1487,6 +1487,18 @@
                         <label class="block text-sm font-medium text-blue-200 mb-2">Notas/Observações</label>
                         <textarea id="paymentNotes" class="form-input w-full" rows="3" placeholder="Observações sobre o pagamento..."></textarea>
                     </div>
+
+                    <!-- Optional Due Date Change -->
+                    <div class="border-t border-gray-600 pt-4">
+                        <div class="flex items-center mb-3">
+                            <input type="checkbox" id="changeDueDateCheckbox" class="mr-2">
+                            <label class="text-sm font-medium text-blue-200">Alterar data de vencimento (opcional)</label>
+                        </div>
+                        <div id="dueDateContainer" class="hidden">
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Nova Data de Vencimento</label>
+                            <input type="date" id="newDueDate" class="form-input w-full">
+                        </div>
+                    </div>
                     
                     <div class="flex justify-end space-x-4 pt-4">
                         <button type="button" id="cancelPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
@@ -1930,184 +1942,6 @@
         </div>
     </div>
 
-    <!-- Payment Management Modal -->
-    <div id="paymentManagementModal" class="modal-overlay fixed inset-0 z-50 hidden">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-4xl p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-semibold text-white">Gerenciar Pagamentos</h3>
-                    <button id="closePaymentManagementModal" class="text-gray-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-                
-                <!-- Loan Information -->
-                <div class="bg-blue-900/20 border border-blue-700/30 rounded-lg p-4 mb-6">
-                    <h4 class="text-lg font-semibold text-white mb-3">Informações do Empréstimo</h4>
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <span class="text-gray-300">Cliente:</span>
-                            <span class="text-white ml-2 font-semibold" id="pmClientName">-</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-300">Valor Original:</span>
-                            <span class="text-white ml-2" id="pmLoanAmount">R$ 0,00</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-300">Taxa de Juros:</span>
-                            <span class="text-white ml-2" id="pmInterestRate">0%</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-300">Data de Vencimento:</span>
-                            <span class="text-white ml-2" id="pmDueDate">-</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-300">Total com Juros:</span>
-                            <span class="text-white ml-2 font-semibold" id="pmTotalAmount">R$ 0,00</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-300">Valor Restante:</span>
-                            <span class="text-yellow-400 ml-2 font-semibold" id="pmRemainingAmount">R$ 0,00</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Action Buttons -->
-                <div class="flex gap-4 mb-6">
-                    <button id="addNewPaymentBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
-                        <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 6v6m0 0v6m0-6h6m-6 0H6"></path>
-                        </svg>
-                        Adicionar Novo Pagamento
-                    </button>
-                    <button id="changeDueDateBtn" class="bg-orange-600 hover:bg-orange-700 px-6 py-3 rounded-lg font-semibold text-white transition-colors">
-                        <svg class="w-5 h-5 inline-block mr-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z"></path>
-                        </svg>
-                        Alterar Data de Vencimento
-                    </button>
-                </div>
-
-                <!-- Payments History Table -->
-                <div class="table-container">
-                    <div class="table-header px-6 py-4">
-                        <h4 class="text-lg font-semibold text-white">Histórico de Pagamentos</h4>
-                    </div>
-                    <div class="overflow-x-auto">
-                        <table class="w-full">
-                            <thead class="table-header">
-                                <tr>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Data</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Valor</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Tipo</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Observações</th>
-                                    <th class="px-6 py-3 text-left text-xs font-medium text-blue-300 uppercase tracking-wider">Ações</th>
-                                </tr>
-                            </thead>
-                            <tbody id="pmPaymentsTableBody" class="divide-y divide-gray-700">
-                                <!-- Payments will be populated here -->
-                            </tbody>
-                        </table>
-                    </div>
-                </div>
-
-                <!-- Summary -->
-                <div class="mt-6 bg-gray-800/50 rounded-lg p-4">
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                        <div>
-                            <span class="text-gray-300">Total Pago:</span>
-                            <span class="text-green-400 ml-2 font-semibold" id="pmTotalPaid">R$ 0,00</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-300">Valor Restante:</span>
-                            <span class="text-yellow-400 ml-2 font-semibold" id="pmRemainingAmountSummary">R$ 0,00</span>
-                        </div>
-                        <div>
-                            <span class="text-gray-300">Status:</span>
-                            <span class="ml-2 font-semibold" id="pmStatus">-</span>
-                        </div>
-                    </div>
-                </div>
-
-                <!-- Close Button -->
-                <div class="flex justify-end mt-6">
-                    <button id="closePaymentManagementBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
-                        Fechar
-                    </button>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <!-- Add New Payment Modal -->
-    <div id="addNewPaymentModal" class="modal-overlay fixed inset-0 z-50 hidden">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-md p-6">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-semibold text-white">Adicionar Novo Pagamento</h3>
-                    <button id="closeAddNewPaymentModal" class="text-gray-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
-                    </button>
-                </div>
-                
-                <form id="addNewPaymentForm" class="space-y-4">
-                    <input type="hidden" id="newPaymentLoanId" value="">
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Data do Pagamento</label>
-                        <input type="date" id="newPaymentDate" class="form-input w-full" required>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Valor do Pagamento</label>
-                        <input type="number" id="newPaymentAmount" class="form-input w-full" step="0.01" min="0" required>
-                        <div id="newPaymentValidationFeedback" class="mt-2 text-sm hidden"></div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Tipo de Pagamento</label>
-                        <select id="newPaymentType" class="form-input w-full" required>
-                            <option value="">Selecione o tipo</option>
-                            <option value="cash">Dinheiro</option>
-                            <option value="pix">PIX</option>
-                            <option value="transfer">Transferência</option>
-                            <option value="card">Cartão</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
-                        <textarea id="newPaymentNotes" class="form-input w-full" rows="3" placeholder="Observações sobre o pagamento..."></textarea>
-                    </div>
-
-                    <!-- Optional Due Date Change -->
-                    <div class="border-t border-gray-600 pt-4">
-                        <div class="flex items-center mb-3">
-                            <input type="checkbox" id="changeDueDateCheckbox" class="mr-2">
-                            <label class="text-sm font-medium text-blue-200">Alterar data de vencimento (opcional)</label>
-                        </div>
-                        <div id="newDueDateContainer" class="hidden">
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Nova Data de Vencimento</label>
-                            <input type="date" id="newDueDate" class="form-input w-full">
-                        </div>
-                    </div>
-                    
-                    <div class="flex gap-3 pt-4">
-                        <button type="button" id="cancelNewPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
-                            Cancelar
-                        </button>
-                        <button type="submit" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
-                            Adicionar Pagamento
-                        </button>
-                    </div>
-                </form>
-            </div>
-        </div>
-    </div>
 
     <!-- New Expense Modal -->
     <div id="newExpenseModal" class="modal-overlay fixed inset-0 z-50 hidden">
