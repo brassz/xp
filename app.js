@@ -970,8 +970,8 @@ async function handlePayment(e) {
             feedbackDiv.className = 'mt-2 text-sm text-green-400';
             feedbackDiv.classList.remove('hidden');
             
-            // Aguardar 2 segundos para o usuário ver os novos valores
-            await new Promise(resolve => setTimeout(resolve, 2000));
+                    // Aguardar 3 segundos para o usuário ver os novos valores e logs
+        await new Promise(resolve => setTimeout(resolve, 3000));
         }
         
         hideModal(paymentModal);
@@ -1425,20 +1425,40 @@ async function calculateAndShowRemainingAmount(loanId) {
         // O pagamento mínimo é sempre o valor dos juros atuais
         const minimumPayment = currentInterestAmount;
         
-        console.log('Estado atual do empréstimo:', {
+        console.log('=== DEBUG DETALHADO DO EMPRÉSTIMO ===');
+        console.log('1. Estado atual do empréstimo:', {
+            loanId,
             currentCapital,
-            currentInterestAmount,
+            currentInterestAmount, 
             currentTotal,
-            totalPaidThisCycle,
-            remainingAmount,
-            minimumPayment,
-            hasRenewal: !!lastRenewal,
-            paymentAnalysis: {
-                paidExactlyInterest: totalPaidThisCycle > 0 ? Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01) : false,
-                paidMoreThanInterest: totalPaidThisCycle > currentInterestAmount,
-                paidLessThanInterest: totalPaidThisCycle < currentInterestAmount && totalPaidThisCycle > 0
-            }
+            finalInterestRate
         });
+        
+        console.log('2. Análise de pagamentos:', {
+            totalPayments: payments.length,
+            realPayments: realPayments.length,
+            lastRenewal: lastRenewal ? lastRenewal.created_at : 'nenhuma',
+            totalPaidThisCycle,
+            paymentsList: realPayments.map(p => ({
+                amount: p.amount,
+                type: p.payment_type,
+                date: p.created_at
+            }))
+        });
+        
+        console.log('3. Cálculo do valor restante:', {
+            remainingAmount,
+            logicUsed: totalPaidThisCycle === 0 ? 'sem_pagamentos' : 
+                      Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01) ? 'apenas_juros' :
+                      totalPaidThisCycle > currentInterestAmount ? 'capital_e_juros' : 'juros_parcial'
+        });
+        
+        console.log('4. Resultado final:', {
+            minimumPayment,
+            remainingAmount,
+            hasRenewal: !!lastRenewal
+        });
+        console.log('=== FIM DEBUG ===');
         
         // Mostrar informações detalhadas
         document.getElementById('paymentCapitalAmount').textContent = `R$ ${currentCapital.toFixed(2)}`;
@@ -1520,14 +1540,22 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
         const remainingCapital = Math.max(0, currentCapital - capitalPaidSoFar);
         const pendingInterest = Math.max(0, currentInterestAmount - Math.min(totalPaidSoFar, currentInterestAmount));
         
-        console.log('DEBUG - Estado atual:', {
+        console.log('=== DEBUG RECÁLCULO DO PAGAMENTO ===');
+        console.log('Estado antes do pagamento:', {
             currentCapital,
             currentInterestAmount,
+            currentTotal,
             totalPaidSoFar,
-            capitalPaidSoFar,
-            remainingCapital,
-            pendingInterest,
-            paymentAmount
+            paymentAmount,
+            paymentType
+        });
+        
+        console.log('Análise do que será pago:', {
+            isInterestOnlyPayment,
+            paidMoreThanInterest: paymentAmount > currentInterestAmount,
+            paidLessThanInterest: paymentAmount < currentInterestAmount,
+            tolerance: currentInterestAmount * 0.01,
+            difference: Math.abs(paymentAmount - currentInterestAmount)
         });
         
         // Verificar se o pagamento é apenas os juros pendentes (renovação)
@@ -1560,9 +1588,26 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
             const paidCapital = paymentAmount - currentInterestAmount;
             const newCapital = Math.max(0, currentCapital - paidCapital);
             
+            console.log('Processando pagamento de capital:', {
+                paymentAmount,
+                currentInterestAmount,
+                paidInterest,
+                paidCapital,
+                currentCapital,
+                newCapital,
+                willBeFullyPaid: newCapital <= 0
+            });
+            
             if (newCapital > 0) {
                 const newInterestAmount = newCapital * (interestRate / 100);
                 const newTotal = newCapital + newInterestAmount;
+                
+                console.log('Resultado do recálculo:', {
+                    newCapital,
+                    newInterestAmount,
+                    newTotal,
+                    interestRate
+                });
                 
                 return {
                     shouldRecalculate: true,
@@ -1578,6 +1623,7 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
                 };
             } else {
                 // Capital totalmente pago
+                console.log('Capital totalmente quitado!');
                 return { shouldRecalculate: false, isFullyPaid: true };
             }
         }
