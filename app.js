@@ -982,8 +982,8 @@ async function handlePayment(e) {
                 status: recalcInfo.isFullyPaid ? 'paid' : 'active'
             };
             
-            // Se for renovação de juros, atualizar data de vencimento
-            if (recalcInfo.isInterestOnlyRenewal) {
+            // Atualizar data de vencimento se houver nova data
+            if (recalcInfo.newDueDate) {
                 updateData.due_date = recalcInfo.newDueDate;
             }
             
@@ -1012,13 +1012,15 @@ async function handlePayment(e) {
                             `Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)} | ` +
                             `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
                             `Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                            `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+                            `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
+                            `Nova data vencimento: ${recalcInfo.newDueDate}`;
             } else if (recalcInfo.isPartialInterestPayment) {
                 actionType = 'partial_interest';
                 actionNotes = `PAGAMENTO PARCIAL DE JUROS: ` +
                             `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
                             `Juros pagos: R$ ${recalcInfo.paidAmount.toFixed(2)} | ` +
-                            `Novos juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+                            `Novos juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
+                            `Nova data vencimento: ${recalcInfo.newDueDate}`;
             } else {
                 actionType = 'adjustment';
                 actionNotes = `AJUSTE AUTOMÁTICO: ` +
@@ -1098,12 +1100,14 @@ async function handlePayment(e) {
                                 `• Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)}\n` +
                                 `• Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)}\n` +
                                 `• Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
-                                `• Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+                                `• Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
+                                `• Nova data de vencimento: ${new Date(recalcInfo.newDueDate).toLocaleDateString('pt-BR')}`;
             } else if (recalcInfo.isPartialInterestPayment) {
                 successMessage += `\n\n⚠️ PAGAMENTO PARCIAL DE JUROS!\n` +
                                 `• Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
                                 `• Juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
-                                `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}`;
+                                `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}\n` +
+                                `• Nova data de vencimento: ${new Date(recalcInfo.newDueDate).toLocaleDateString('pt-BR')}`;
             } else if (recalcInfo.isFullyPaid) {
                 successMessage += `\n\n✅ EMPRÉSTIMO QUITADO COMPLETAMENTE!`;
             }
@@ -1707,12 +1711,17 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
                     interestRate
                 });
                 
+                // PAGAMENTO PARCIAL DE CAPITAL: Adicionar 30 dias à data de vencimento
+                const newDueDateCapital = new Date(loan.due_date);
+                newDueDateCapital.setDate(newDueDateCapital.getDate() + 30);
+                
                 return {
                     shouldRecalculate: true,
                     isCapitalReduction: true,
                     newAmount: newCapital,
                     newInterestAmount: newInterestAmount,
                     newTotalAmount: newTotal,
+                    newDueDate: newDueDateCapital.toISOString().split('T')[0],
                     originalAmount: currentCapital,
                     paidCapital: paidCapital,
                     paidInterest: paidInterest,
@@ -1733,12 +1742,17 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
             const newInterestAmount = remainingInterest + (currentCapital * (interestRate / 100));
             const newTotal = currentCapital + newInterestAmount;
             
+            // PAGAMENTO PARCIAL DE JUROS: Adicionar 30 dias à data de vencimento
+            const newDueDatePartialInterest = new Date(loan.due_date);
+            newDueDatePartialInterest.setDate(newDueDatePartialInterest.getDate() + 30);
+            
             return {
                 shouldRecalculate: true,
                 isPartialInterestPayment: true,
                 newAmount: currentCapital, // Capital igual
                 newInterestAmount: newInterestAmount, // Juros antigos + novos
                 newTotalAmount: newTotal,
+                newDueDate: newDueDatePartialInterest.toISOString().split('T')[0],
                 originalAmount: currentCapital,
                 interestRate: interestRate,
                 paidAmount: paymentAmount
