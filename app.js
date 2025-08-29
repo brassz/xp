@@ -680,6 +680,7 @@ async function renderLoansTable() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                     <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
                     <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
+                    <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="openPaymentManagement('${loan.id}')" title="Gerenciar Pagamentos">💳</button>
                     <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
