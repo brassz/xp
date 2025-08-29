@@ -837,7 +837,17 @@ async function handlePayment(e) {
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
-        const minimumAmount = parseFloat(minimumText.replace('R$', '').replace('.', '').replace(',', '.').trim());
+        
+        // Função auxiliar para converter valor monetário brasileiro para número
+        function parseMonetaryValue(text) {
+            let cleanText = text.replace('R$', '').trim();
+            if (cleanText.includes(',')) {
+                cleanText = cleanText.replace(/\./g, '').replace(',', '.');
+            }
+            return parseFloat(cleanText);
+        }
+        
+        const minimumAmount = parseMonetaryValue(minimumText);
         
         if (paymentAmount < minimumAmount) {
             alert(`Valor do pagamento (R$ ${paymentAmount.toFixed(2)}) está abaixo do valor mínimo permitido (R$ ${minimumAmount.toFixed(2)})`);
@@ -1136,8 +1146,23 @@ function validatePaymentAmount() {
         return;
     }
     
-    const remainingAmount = parseFloat(remainingText.replace('R$', '').replace('.', '').replace(',', '.').trim());
-    const minimumAmount = parseFloat(minimumText.replace('R$', '').replace('.', '').replace(',', '.').trim());
+    // Função auxiliar para converter valor monetário brasileiro para número
+    function parseMonetaryValue(text) {
+        // Remove "R$" e espaços
+        let cleanText = text.replace('R$', '').trim();
+        
+        // Se tem vírgula, assume formato brasileiro (1.234,56)
+        if (cleanText.includes(',')) {
+            // Remove pontos (separadores de milhares) e substitui vírgula por ponto
+            cleanText = cleanText.replace(/\./g, '').replace(',', '.');
+        }
+        // Se não tem vírgula, assume que já está no formato correto (1234.56)
+        
+        return parseFloat(cleanText);
+    }
+    
+    const remainingAmount = parseMonetaryValue(remainingText);
+    const minimumAmount = parseMonetaryValue(minimumText);
     
     feedbackDiv.classList.remove('hidden');
     
@@ -1203,7 +1228,21 @@ async function calculateAndShowRemainingAmount(loanId) {
         
         const capitalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
-        const interestAmount = capitalAmount * (interestRate / 100);
+        
+        // Debug: verificar se a taxa de juros está em formato correto
+        console.log('DEBUG - Taxa de juros original:', loan.interest_rate, 'Tipo:', typeof loan.interest_rate);
+        console.log('DEBUG - Taxa de juros parseada:', interestRate);
+        
+        // Validação: se a taxa for muito alta, pode estar em formato incorreto
+        let finalInterestRate = interestRate;
+        if (interestRate > 100) {
+            console.warn('Taxa de juros muito alta (>100%), pode estar em formato incorreto:', interestRate);
+            // Se a taxa for muito alta, pode estar em formato decimal (ex: 1000 para 10%)
+            finalInterestRate = interestRate / 100;
+            console.log('Ajustando taxa de juros para:', finalInterestRate);
+        }
+        
+        const interestAmount = capitalAmount * (finalInterestRate / 100);
         const totalWithInterest = capitalAmount + interestAmount;
         
         // Buscar pagamentos já feitos
@@ -1223,9 +1262,31 @@ async function calculateAndShowRemainingAmount(loanId) {
         // Calcular pagamento mínimo baseado no valor restante
         const minimumPayment = calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingAmount);
         
+        // Debug: registrar valores no console
+        console.log('DEBUG - Cálculo de Pagamento:', {
+            capitalAmount,
+            interestRate: finalInterestRate,
+            interestAmount,
+            totalWithInterest,
+            totalPaid,
+            remainingAmount,
+            minimumPayment,
+            'minimumPayment === interestAmount': minimumPayment === interestAmount,
+            loanData: loan
+        });
+        
+        // Verificação extra: se o pagamento mínimo não for igual aos juros, algo está errado
+        if (Math.abs(minimumPayment - interestAmount) > 0.01) {
+            console.error('ERRO: Pagamento mínimo diferente dos juros!', {
+                minimumPayment,
+                interestAmount,
+                diferenca: minimumPayment - interestAmount
+            });
+        }
+        
         // Mostrar informações detalhadas
         document.getElementById('paymentCapitalAmount').textContent = `R$ ${capitalAmount.toFixed(2)}`;
-        document.getElementById('paymentInterestRate').textContent = `${interestRate.toFixed(2)}%`;
+        document.getElementById('paymentInterestRate').textContent = `${finalInterestRate.toFixed(2)}%`;
         document.getElementById('paymentInterestAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
         document.getElementById('paymentTotalAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
         document.getElementById('paymentRemainingAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
@@ -1237,12 +1298,19 @@ async function calculateAndShowRemainingAmount(loanId) {
         const loan = loans.find(l => l.id === loanId);
         if (loan) {
             const capitalAmount = parseFloat(loan.amount);
-            const interestRate = parseFloat(loan.interest_rate);
-            const interestAmount = capitalAmount * (interestRate / 100);
+            let interestRate = parseFloat(loan.interest_rate);
+            
+            // Aplicar mesma validação de taxa de juros
+            let finalInterestRate = interestRate;
+            if (interestRate > 100) {
+                finalInterestRate = interestRate / 100;
+            }
+            
+            const interestAmount = capitalAmount * (finalInterestRate / 100);
             const totalWithInterest = capitalAmount + interestAmount;
             
             document.getElementById('paymentCapitalAmount').textContent = `R$ ${capitalAmount.toFixed(2)}`;
-            document.getElementById('paymentInterestRate').textContent = `${interestRate.toFixed(2)}%`;
+            document.getElementById('paymentInterestRate').textContent = `${finalInterestRate.toFixed(2)}%`;
             document.getElementById('paymentInterestAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
             document.getElementById('paymentTotalAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
             document.getElementById('paymentRemainingAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
@@ -1253,20 +1321,29 @@ async function calculateAndShowRemainingAmount(loanId) {
 
 // Função para calcular o pagamento mínimo baseado no valor restante
 function calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingAmount) {
-    // Se ainda não pagou nada, o mínimo é o valor dos juros
-    if (totalPaid === 0) {
-        return interestAmount;
+    // O valor mínimo é sempre o valor dos juros originais do empréstimo
+    // Isso garante que pelo menos os juros sejam pagos
+    
+    // Validação de segurança para evitar valores incorretos
+    if (!interestAmount || interestAmount <= 0 || isNaN(interestAmount)) {
+        console.warn('Valor de juros inválido:', interestAmount);
+        return 0;
     }
     
-    // Se já pagou o valor dos juros, mas ainda deve capital, 
-    // o mínimo continua sendo proporcional aos juros do valor restante
-    if (remainingAmount <= capitalAmount) {
-        // Calcula o percentual de juros sobre o valor restante
-        const interestRate = interestAmount / capitalAmount;
-        return remainingAmount * interestRate;
+    // Se o valor dos juros for maior que o capital, algo está errado
+    if (interestAmount > capitalAmount) {
+        console.warn('Valor de juros maior que capital - possível erro de cálculo:', {
+            interestAmount,
+            capitalAmount
+        });
     }
     
-    // Caso padrão: valor dos juros original
+    console.log('Calculando pagamento mínimo:', {
+        capitalAmount,
+        interestAmount,
+        returnValue: interestAmount
+    });
+    
     return interestAmount;
 }
 
