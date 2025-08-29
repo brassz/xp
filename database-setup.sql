@@ -45,6 +45,7 @@ CREATE TABLE IF NOT EXISTS clients (
     phone TEXT NOT NULL,
     address TEXT NOT NULL,
     photo TEXT,
+    photos TEXT,
     created_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -57,7 +58,8 @@ COMMENT ON COLUMN clients.name IS 'Nome completo do cliente';
 COMMENT ON COLUMN clients.cpf IS 'CPF único do cliente';
 COMMENT ON COLUMN clients.email IS 'Email do cliente';
 COMMENT ON COLUMN clients.phone IS 'Telefone do cliente';
-COMMENT ON COLUMN clients.photo IS 'URL da foto do cliente (Uploadcare)';
+COMMENT ON COLUMN clients.photo IS 'URL da foto do cliente (Uploadcare) - versão legada para uma foto';
+COMMENT ON COLUMN clients.photos IS 'JSON array de URLs das fotos do cliente (Uploadcare) - suporta múltiplas fotos';
 COMMENT ON COLUMN clients.created_by IS 'Usuário que criou o cliente';
 COMMENT ON COLUMN clients.created_at IS 'Data de criação do registro';
 COMMENT ON COLUMN clients.updated_at IS 'Data da última atualização';
