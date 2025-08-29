@@ -1509,6 +1509,20 @@
                             <p class="text-green-400 text-sm text-center mt-2">Foto carregada com sucesso!</p>
                         </div>
                     </div>
+
+                    <!-- Seção de Avalistas -->
+                    <div class="border-t border-gray-600 pt-6 mt-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h4 class="text-lg font-semibold text-blue-200">Avalistas</h4>
+                            <button type="button" id="addGuarantorBtn" class="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg text-sm transition-colors">
+                                + Adicionar Avalista
+                            </button>
+                        </div>
+                        
+                        <div id="guarantorsList" class="space-y-4">
+                            <!-- Avalistas serão carregados aqui dinamicamente -->
+                        </div>
+                    </div>
                     
                     <div class="flex justify-end space-x-4 pt-4">
                         <button type="button" id="cancelEditClientBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
@@ -1516,6 +1530,111 @@
                         </button>
                         <button type="submit" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
                             Atualizar Cliente
+                        </button>
+                    </div>
+                </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Guarantor Modal -->
+    <div id="guarantorModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 id="guarantorModalTitle" class="text-xl font-semibold text-white">Adicionar Avalista</h3>
+                    <button id="closeGuarantorModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <form id="guarantorForm" class="space-y-4">
+                    <input type="hidden" id="guarantorId">
+                    <input type="hidden" id="guarantorClientId">
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Nome Completo</label>
+                            <input type="text" id="guarantorName" class="form-input w-full" required>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">CPF</label>
+                            <input type="text" id="guarantorCPF" class="form-input w-full" placeholder="000.000.000-00" required>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">RG</label>
+                            <input type="text" id="guarantorRG" class="form-input w-full" placeholder="00.000.000-0">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data de Nascimento</label>
+                            <input type="date" id="guarantorBirthDate" class="form-input w-full">
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Email</label>
+                            <input type="email" id="guarantorEmail" class="form-input w-full">
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Telefone</label>
+                            <input type="tel" id="guarantorPhone" class="form-input w-full" placeholder="(00) 00000-0000" required>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Relacionamento com o Cliente</label>
+                        <select id="guarantorRelationship" class="form-input w-full">
+                            <option value="">Selecione o relacionamento</option>
+                            <option value="conjuge">Cônjuge</option>
+                            <option value="pai">Pai</option>
+                            <option value="mae">Mãe</option>
+                            <option value="filho">Filho(a)</option>
+                            <option value="irmao">Irmão/Irmã</option>
+                            <option value="parente">Parente</option>
+                            <option value="amigo">Amigo(a)</option>
+                            <option value="conhecido">Conhecido(a)</option>
+                            <option value="outro">Outro</option>
+                        </select>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Endereço Completo</label>
+                        <textarea id="guarantorAddress" class="form-input w-full" rows="3"></textarea>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Foto do Avalista</label>
+                        <input type="hidden" id="guarantorPhoto" name="guarantorPhoto">
+                        <input 
+                            type="hidden" 
+                            role="uploadcare-uploader" 
+                            name="guarantorPhotoUploader"
+                            id="guarantorPhotoUploader"
+                            data-public-key="5bb6bf6b98f6d36060dc"
+                            data-tabs="file camera url facebook gdrive gphotos dropbox instagram"
+                            data-image-shrink="1024x1024"
+                            data-crop="1:1"
+                            data-effects="crop,rotate,enhance,grayscale"
+                            data-clearable="true"
+                        />
+                        <div id="guarantorPhotoUploadPreview" class="mt-4 hidden">
+                            <img id="guarantorPhotoPreviewImg" src="" alt="Preview" class="w-32 h-32 rounded-lg object-cover mx-auto border-2 border-blue-500">
+                            <p class="text-green-400 text-sm text-center mt-2">Foto carregada com sucesso!</p>
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end space-x-4 pt-4">
+                        <button type="button" id="cancelGuarantorBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
+                            Cancelar
+                        </button>
+                        <button type="submit" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
+                            Salvar Avalista
                         </button>
                     </div>
                 </form>
