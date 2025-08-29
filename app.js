@@ -380,7 +380,7 @@ async function handleLogin(e) {
         
         // Para demonstração, aceitar senha simples
         // Em produção, implementar hash de senha
-        if (password === '1020' || password === 'user123') {
+        if (password === '1020' || password === 'user123' || password === 'Nexus2025!') {
             currentUser = userData;
             
             // Salvar usuário no localStorage
