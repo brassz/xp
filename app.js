@@ -1257,17 +1257,10 @@ async function calculateAndShowRemainingAmount(loanId) {
         const capitalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
         
-        // Debug: verificar se a taxa de juros está em formato correto
-        console.log('DEBUG - Taxa de juros original:', loan.interest_rate, 'Tipo:', typeof loan.interest_rate);
-        console.log('DEBUG - Taxa de juros parseada:', interestRate);
-        
         // Validação: se a taxa for muito alta, pode estar em formato incorreto
         let finalInterestRate = interestRate;
         if (interestRate > 100) {
-            console.warn('Taxa de juros muito alta (>100%), pode estar em formato incorreto:', interestRate);
-            // Se a taxa for muito alta, pode estar em formato decimal (ex: 1000 para 10%)
             finalInterestRate = interestRate / 100;
-            console.log('Ajustando taxa de juros para:', finalInterestRate);
         }
         
         const interestAmount = capitalAmount * (finalInterestRate / 100);
@@ -1281,36 +1274,47 @@ async function calculateAndShowRemainingAmount(loanId) {
         
         if (error) throw error;
         
-        // Calcular total já pago
-        const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        // Verificar se houve renovações (ignora ajustes de R$ 0,00)
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        const hasRenewals = payments.some(p => p.payment_type === 'renewal');
+        
+        // Calcular total já pago (apenas pagamentos reais, não ajustes)
+        const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        
+
         
         // Calcular valor restante
-        const remainingAmount = totalWithInterest - totalPaid;
+        let remainingAmount;
+        
+        if (hasRenewals) {
+            // Se houve renovação, consideramos apenas pagamentos após a última renovação
+            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
+                // Encontrar pagamentos reais que vieram após a última renovação
+                const paymentIndex = payments.findIndex(p => p === payment);
+                return paymentIndex > lastRenewalIndex;
+            });
+            
+            const paidAfterRenewal = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            remainingAmount = totalWithInterest - paidAfterRenewal;
+            
+
+        } else {
+            // Lógica original para empréstimos sem renovação
+            remainingAmount = totalWithInterest - totalPaid;
+        }
         
         // Calcular pagamento mínimo baseado no valor restante
         const minimumPayment = calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingAmount);
         
-        // Debug: registrar valores no console
-        console.log('DEBUG - Cálculo de Pagamento:', {
-            capitalAmount,
-            interestRate: finalInterestRate,
-            interestAmount,
-            totalWithInterest,
-            totalPaid,
-            remainingAmount,
-            minimumPayment,
-            'minimumPayment === interestAmount': minimumPayment === interestAmount,
-            loanData: loan
+        // Log para debug se necessário
+        console.log('Valores calculados:', {
+            capital: capitalAmount,
+            juros: interestAmount,
+            total: totalWithInterest,
+            restante: remainingAmount,
+            temRenovacoes: hasRenewals
         });
-        
-        // Verificação extra: se o pagamento mínimo não for igual aos juros, algo está errado
-        if (Math.abs(minimumPayment - interestAmount) > 0.01) {
-            console.error('ERRO: Pagamento mínimo diferente dos juros!', {
-                minimumPayment,
-                interestAmount,
-                diferenca: minimumPayment - interestAmount
-            });
-        }
         
         // Mostrar informações detalhadas
         document.getElementById('paymentCapitalAmount').textContent = `R$ ${capitalAmount.toFixed(2)}`;
@@ -1352,25 +1356,9 @@ function calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remai
     // O valor mínimo é sempre o valor dos juros originais do empréstimo
     // Isso garante que pelo menos os juros sejam pagos
     
-    // Validação de segurança para evitar valores incorretos
     if (!interestAmount || interestAmount <= 0 || isNaN(interestAmount)) {
-        console.warn('Valor de juros inválido:', interestAmount);
         return 0;
     }
-    
-    // Se o valor dos juros for maior que o capital, algo está errado
-    if (interestAmount > capitalAmount) {
-        console.warn('Valor de juros maior que capital - possível erro de cálculo:', {
-            interestAmount,
-            capitalAmount
-        });
-    }
-    
-    console.log('Calculando pagamento mínimo:', {
-        capitalAmount,
-        interestAmount,
-        returnValue: interestAmount
-    });
     
     return interestAmount;
 }
@@ -2276,19 +2264,42 @@ async function calculateLoanRemainingAmount(loanId) {
         const loan = loans.find(l => l.id === loanId);
         if (!loan) return 0;
         
-        // Calcular total com juros
-        const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+        const capitalAmount = parseFloat(loan.amount);
+        let interestRate = parseFloat(loan.interest_rate);
+        
+        // Ajustar taxa se necessário
+        if (interestRate > 100) {
+            interestRate = interestRate / 100;
+        }
+        
+        const interestAmount = capitalAmount * (interestRate / 100);
+        const totalWithInterest = capitalAmount + interestAmount;
         
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount')
+            .select('amount, payment_type')
             .eq('loan_id', loanId);
         
         if (error) throw error;
         
-        // Calcular total já pago
-        const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        // Verificar se houve renovações
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        const hasRenewals = payments.some(p => p.payment_type === 'renewal');
+        
+        let totalPaid;
+        if (hasRenewals) {
+            // Se houve renovação, considerar apenas pagamentos após a última renovação
+            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
+                const paymentIndex = payments.findIndex(p => p === payment);
+                return paymentIndex > lastRenewalIndex;
+            });
+            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        } else {
+            // Lógica original
+            totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        }
         
         // Calcular valor restante
         const remainingAmount = totalWithInterest - totalPaid;
@@ -2300,7 +2311,12 @@ async function calculateLoanRemainingAmount(loanId) {
         // Em caso de erro, retornar valor total com juros
         const loan = loans.find(l => l.id === loanId);
         if (loan) {
-            return parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+            const capitalAmount = parseFloat(loan.amount);
+            let interestRate = parseFloat(loan.interest_rate);
+            if (interestRate > 100) {
+                interestRate = interestRate / 100;
+            }
+            return capitalAmount + (capitalAmount * (interestRate / 100));
         }
         return 0;
     }
