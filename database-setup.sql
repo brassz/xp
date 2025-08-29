@@ -101,7 +101,7 @@ CREATE TABLE IF NOT EXISTS payments (
     loan_id UUID NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
     amount DECIMAL(10,2) NOT NULL CHECK (amount > 0),
     payment_date DATE NOT NULL,
-    payment_type TEXT DEFAULT 'partial' CHECK (payment_type IN ('partial', 'full')),
+    payment_type TEXT DEFAULT 'partial' CHECK (payment_type IN ('partial', 'full', 'interest', 'principal')),
     notes TEXT,
     created_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -113,7 +113,7 @@ COMMENT ON COLUMN payments.id IS 'Identificador único do pagamento';
 COMMENT ON COLUMN payments.loan_id IS 'Referência ao empréstimo';
 COMMENT ON COLUMN payments.amount IS 'Valor do pagamento';
 COMMENT ON COLUMN payments.payment_date IS 'Data do pagamento';
-COMMENT ON COLUMN payments.payment_type IS 'Tipo do pagamento (parcial ou total)';
+COMMENT ON COLUMN payments.payment_type IS 'Tipo do pagamento (parcial, total, apenas juros ou apenas principal)';
 COMMENT ON COLUMN payments.notes IS 'Observações sobre o pagamento';
 COMMENT ON COLUMN payments.created_by IS 'Usuário que registrou o pagamento';
 COMMENT ON COLUMN payments.created_at IS 'Data de criação do registro';
