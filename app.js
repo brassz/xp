@@ -848,7 +848,6 @@ async function handleNewClient(e) {
         email: document.getElementById('clientEmail').value,
         phone: document.getElementById('clientPhone').value,
         address: document.getElementById('clientAddress').value,
-        photo: '', // Use 'photo' (singular) to match database schema
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
@@ -1121,8 +1120,6 @@ async function handleEditClient(e) {
     e.preventDefault();
     
     const clientId = document.getElementById('editClientId').value;
-    const photosValue = document.getElementById('editClientPhotos').value;
-    console.log('Photos value before updating:', photosValue); // Debug log
     
     const formData = {
         name: document.getElementById('editClientName').value,
@@ -1130,7 +1127,6 @@ async function handleEditClient(e) {
         email: document.getElementById('editClientEmail').value,
         phone: document.getElementById('editClientPhone').value,
         address: document.getElementById('editClientAddress').value,
-        photo: photosValue || '', // Use 'photo' (singular) to match database schema
         updated_at: new Date().toISOString()
     };
     
