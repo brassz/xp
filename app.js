@@ -240,6 +240,9 @@ function setupEventListeners() {
     document.getElementById('editLoanAmount').addEventListener('input', updateEditLoanSummary);
     document.getElementById('editLoanInterest').addEventListener('input', updateEditLoanSummary);
     
+    // Validação do valor de pagamento
+    document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
+    
 
 }
 
@@ -832,12 +835,34 @@ async function handlePayment(e) {
     const loanId = document.getElementById('paymentForm').dataset.loanId;
     
     try {
+        // Validar se o valor não está abaixo do mínimo
+        const minimumText = document.getElementById('paymentMinimumAmount').textContent;
+        
+        // Função auxiliar para converter valor monetário brasileiro para número
+        function parseMonetaryValue(text) {
+            let cleanText = text.replace('R$', '').trim();
+            if (cleanText.includes(',')) {
+                cleanText = cleanText.replace(/\./g, '').replace(',', '.');
+            }
+            return parseFloat(cleanText);
+        }
+        
+        const minimumAmount = parseMonetaryValue(minimumText);
+        
+        if (paymentAmount < minimumAmount) {
+            alert(`Valor do pagamento (R$ ${paymentAmount.toFixed(2)}) está abaixo do valor mínimo permitido (R$ ${minimumAmount.toFixed(2)})`);
+            return;
+        }
+        
+        // Verificar se é necessário recalcular o empréstimo antes de registrar o pagamento
+        const recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+        
         // Registrar o pagamento
-            const { error: paymentError } = await supabase
-                .from('payments')
-                .insert([{
-                    loan_id: loanId,
-                    amount: paymentAmount,
+        const { error: paymentError } = await supabase
+            .from('payments')
+            .insert([{
+                loan_id: loanId,
+                amount: paymentAmount,
                 payment_date: paymentDate,
                 payment_type: paymentType,
                 notes: paymentNotes,
@@ -847,36 +872,143 @@ async function handlePayment(e) {
         
         if (paymentError) throw paymentError;
         
-        // Atualizar status do empréstimo baseado no tipo de pagamento
-        let newStatus = 'partial_paid';
-        if (paymentType === 'full') {
-            newStatus = 'paid';
+        // Se precisa recalcular, atualizar os valores do empréstimo
+        if (recalcInfo.shouldRecalculate) {
+            // Preparar dados para atualização
+            let updateData = {
+                amount: recalcInfo.newAmount,
+                updated_at: new Date().toISOString(),
+                status: recalcInfo.isFullyPaid ? 'paid' : 'active'
+            };
+            
+            // Se for renovação de juros, atualizar data de vencimento
+            if (recalcInfo.isInterestOnlyRenewal) {
+                updateData.due_date = recalcInfo.newDueDate;
+            }
+            
+            const { error: loanUpdateError } = await supabase
+                .from('loans')
+                .update(updateData)
+                .eq('id', loanId);
+            
+            if (loanUpdateError) throw loanUpdateError;
+            
+            // Registrar nota sobre o tipo de operação
+            let actionNotes;
+            let actionType;
+            
+            if (recalcInfo.isInterestOnlyRenewal) {
+                actionType = 'interest_renewal';
+                actionNotes = `RENOVAÇÃO - PAGAMENTO APENAS DE JUROS: ` +
+                            `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Juros pagos: R$ ${recalcInfo.paidAmount.toFixed(2)} | ` +
+                            `Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
+                            `Nova data vencimento: ${recalcInfo.newDueDate}`;
+            } else if (recalcInfo.isCapitalReduction) {
+                actionType = 'capital_payment';
+                actionNotes = `PAGAMENTO DE CAPITAL: ` +
+                            `Capital anterior: R$ ${recalcInfo.originalAmount.toFixed(2)} | ` +
+                            `Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)} | ` +
+                            `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
+                            `Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+            } else if (recalcInfo.isPartialInterestPayment) {
+                actionType = 'partial_interest';
+                actionNotes = `PAGAMENTO PARCIAL DE JUROS: ` +
+                            `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Juros pagos: R$ ${recalcInfo.paidAmount.toFixed(2)} | ` +
+                            `Novos juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+            } else {
+                actionType = 'adjustment';
+                actionNotes = `AJUSTE AUTOMÁTICO: ` +
+                            `Capital: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+            }
+            
+            const { error: actionNoteError } = await supabase
+                .from('payments')
+                .insert([{
+                    loan_id: loanId,
+                    amount: 0,
+                    payment_date: paymentDate,
+                    payment_type: actionType,
+                    notes: actionNotes,
+                    created_by: currentUser.id,
+                    created_at: new Date().toISOString()
+                }]);
+            
+            if (actionNoteError) console.warn('Erro ao registrar nota de ação:', actionNoteError);
+        } else {
+            // Atualizar status do empréstimo baseado no tipo de pagamento (lógica original)
+            let newStatus = 'partial_paid';
+            if (paymentType === 'full') {
+                newStatus = 'paid';
+            }
+            
+            const { error: loanError } = await supabase
+                .from('loans')
+                .update({ 
+                    status: newStatus,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', loanId);
+            
+            if (loanError) throw loanError;
         }
         
-        const { error: loanError } = await supabase
-            .from('loans')
-            .update({ 
-                status: newStatus,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', loanId);
+        // Recarregar dados primeiro
+        await loadLoans();
+        await updateDashboard();
         
-        if (loanError) throw loanError;
+        // Atualizar o modal com os novos valores antes de fechar (se estiver aberto)
+        if (!paymentModal.classList.contains('hidden')) {
+            await calculateAndShowRemainingAmount(loanId);
+            
+            // Adicionar feedback visual de que os valores foram atualizados
+            const feedbackDiv = document.getElementById('paymentValidationFeedback');
+            feedbackDiv.textContent = '✅ Pagamento processado! Valores atualizados.';
+            feedbackDiv.className = 'mt-2 text-sm text-green-400';
+            feedbackDiv.classList.remove('hidden');
+            
+                    // Aguardar 3 segundos para o usuário ver os novos valores e logs
+        await new Promise(resolve => setTimeout(resolve, 3000));
+        }
         
         hideModal(paymentModal);
         paymentForm.reset();
-        
-        // Recarregar dados
-        await loadLoans();
-        await updateDashboard();
         
         // Se o modal de histórico estiver aberto, recarregar os dados
         if (!paymentHistoryModal.classList.contains('hidden')) {
             await loadPaymentHistory(loanId);
         }
         
-        // Mostrar mensagem de sucesso
-        showSuccessMessage(`Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`);
+        // Mostrar mensagem de sucesso com informações sobre a operação
+        let successMessage = `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
+        
+        if (recalcInfo.shouldRecalculate) {
+            if (recalcInfo.isInterestOnlyRenewal) {
+                successMessage += `\n\n🔄 RENOVAÇÃO POR PAGAMENTO DE JUROS!\n` +
+                                `• Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
+                                `• Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
+                                `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}\n` +
+                                `• Nova data de vencimento: ${new Date(recalcInfo.newDueDate).toLocaleDateString('pt-BR')}`;
+            } else if (recalcInfo.isCapitalReduction) {
+                successMessage += `\n\n💰 PAGAMENTO DE CAPITAL APLICADO!\n` +
+                                `• Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)}\n` +
+                                `• Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)}\n` +
+                                `• Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
+                                `• Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+            } else if (recalcInfo.isPartialInterestPayment) {
+                successMessage += `\n\n⚠️ PAGAMENTO PARCIAL DE JUROS!\n` +
+                                `• Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
+                                `• Juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
+                                `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}`;
+            } else if (recalcInfo.isFullyPaid) {
+                successMessage += `\n\n✅ EMPRÉSTIMO QUITADO COMPLETAMENTE!`;
+            }
+        }
+        
+        showSuccessMessage(successMessage);
         
     } catch (error) {
         alert('Erro ao registrar pagamento: ' + error.message);
@@ -1065,6 +1197,103 @@ function updateLoanSummary() {
     document.getElementById('summaryTotal').textContent = `R$ ${total.toFixed(2)}`;
 }
 
+function validatePaymentAmount() {
+    const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+    const feedbackDiv = document.getElementById('paymentValidationFeedback');
+    
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+        feedbackDiv.className = 'mt-2 text-sm hidden';
+        return;
+    }
+    
+    // Obter valores do modal
+    const capitalText = document.getElementById('paymentCapitalAmount').textContent;
+    const interestText = document.getElementById('paymentInterestAmount').textContent;
+    const remainingText = document.getElementById('paymentRemainingAmount').textContent;
+    const minimumText = document.getElementById('paymentMinimumAmount').textContent;
+    
+    if (!remainingText || !minimumText) {
+        feedbackDiv.className = 'mt-2 text-sm hidden';
+        return;
+    }
+    
+    // Função auxiliar para converter valor monetário brasileiro para número
+    function parseMonetaryValue(text) {
+        // Remove "R$" e espaços
+        let cleanText = text.replace('R$', '').trim();
+        
+        // Se tem vírgula, assume formato brasileiro (1.234,56)
+        if (cleanText.includes(',')) {
+            // Remove pontos (separadores de milhares) e substitui vírgula por ponto
+            cleanText = cleanText.replace(/\./g, '').replace(',', '.');
+        }
+        // Se não tem vírgula, assume que já está no formato correto (1234.56)
+        
+        return parseFloat(cleanText);
+    }
+    
+    const currentCapital = parseMonetaryValue(capitalText);
+    const currentInterestAmount = parseMonetaryValue(interestText);
+    const remainingAmount = parseMonetaryValue(remainingText);
+    const minimumAmount = parseMonetaryValue(minimumText);
+    
+    // Simular o que acontecerá após este pagamento
+    let newRemainingAmount = remainingAmount;
+    let feedbackText = '';
+    let feedbackColor = '';
+    
+    feedbackDiv.classList.remove('hidden');
+    
+    if (paymentAmount < minimumAmount) {
+        feedbackText = `⚠️ Valor abaixo do mínimo (R$ ${minimumAmount.toFixed(2)}). Pagamento não permitido.`;
+        feedbackColor = 'text-red-400';
+        document.getElementById('paymentAmount').classList.add('border-red-500');
+    } else if (Math.abs(paymentAmount - minimumAmount) <= (minimumAmount * 0.01)) {
+        // Pagamento apenas de juros - valor restante permanece igual
+        newRemainingAmount = currentCapital + currentInterestAmount;
+        feedbackText = `🔄 PAGAMENTO DE JUROS: Capital permanece R$ ${currentCapital.toFixed(2)}, próximo valor total: R$ ${newRemainingAmount.toFixed(2)}`;
+        feedbackColor = 'text-yellow-400';
+        document.getElementById('paymentAmount').classList.remove('border-red-500');
+        document.getElementById('paymentAmount').classList.add('border-yellow-500');
+    } else if (paymentAmount < remainingAmount) {
+        if (paymentAmount > currentInterestAmount) {
+            // Pagamento de capital + juros
+            const paidCapital = paymentAmount - currentInterestAmount;
+            const newCapital = Math.max(0, currentCapital - paidCapital);
+            const interestRate = currentInterestAmount / currentCapital;
+            const newInterest = newCapital * interestRate;
+            newRemainingAmount = newCapital + newInterest;
+            
+            feedbackText = `💰 PAGAMENTO DE CAPITAL: Novo capital R$ ${newCapital.toFixed(2)}, próximo valor total: R$ ${newRemainingAmount.toFixed(2)}`;
+            feedbackColor = 'text-blue-400';
+        } else {
+            // Pagamento parcial de juros
+            const unpaidInterest = currentInterestAmount - paymentAmount;
+            const interestRate = currentInterestAmount / currentCapital;
+            const newInterest = currentCapital * interestRate;
+            newRemainingAmount = currentCapital + unpaidInterest + newInterest;
+            
+            feedbackText = `⚠️ PAGAMENTO PARCIAL DE JUROS: Juros pendentes R$ ${unpaidInterest.toFixed(2)}, próximo valor total: R$ ${newRemainingAmount.toFixed(2)}`;
+            feedbackColor = 'text-orange-400';
+        }
+        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500');
+        document.getElementById('paymentAmount').classList.add('border-blue-500');
+    } else if (paymentAmount >= remainingAmount) {
+        newRemainingAmount = 0;
+        feedbackText = `✅ Pagamento quitará o empréstimo completamente. Valor restante: R$ 0,00`;
+        feedbackColor = 'text-green-400';
+        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500');
+        document.getElementById('paymentAmount').classList.add('border-green-500');
+    } else {
+        feedbackDiv.className = 'mt-2 text-sm hidden';
+        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+        return;
+    }
+    
+    feedbackDiv.textContent = feedbackText;
+    feedbackDiv.className = `mt-2 text-sm ${feedbackColor}`;
+}
+
 function showPaymentModal(loanId) {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
@@ -1084,6 +1313,11 @@ function showPaymentModal(loanId) {
     document.getElementById('paymentType').value = 'partial';
     document.getElementById('paymentNotes').value = '';
     
+    // Limpar validação anterior
+    const feedbackDiv = document.getElementById('paymentValidationFeedback');
+    feedbackDiv.className = 'mt-2 text-sm hidden';
+    document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+    
     // Armazenar ID do empréstimo
     document.getElementById('paymentForm').dataset.loanId = loanId;
     
@@ -1095,34 +1329,329 @@ async function calculateAndShowRemainingAmount(loanId) {
         const loan = loans.find(l => l.id === loanId);
         if (!loan) return;
         
-        // Calcular total com juros
-        const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+        const currentCapital = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        
+        // Validação: se a taxa for muito alta, pode estar em formato incorreto
+        let finalInterestRate = interestRate;
+        if (interestRate > 100) {
+            finalInterestRate = interestRate / 100;
+        }
+        
+        const currentInterestAmount = currentCapital * (finalInterestRate / 100);
+        const currentTotal = currentCapital + currentInterestAmount;
         
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount')
+            .select('amount, payment_type, created_at')
+            .eq('loan_id', loanId)
+            .order('created_at', { ascending: true });
+        
+        if (error) throw error;
+        
+        // Separar pagamentos reais de ajustes/notificações
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        
+        // Calcular estado atual baseado nos pagamentos
+        let totalPaidThisCycle = 0;
+        
+        // Verificar se existe uma renovação recente que resetou o ciclo
+        const lastRenewal = payments.filter(p => p.payment_type === 'interest_renewal').pop();
+        
+        if (lastRenewal) {
+            // Se houve renovação, considerar apenas pagamentos após ela
+            const renewalDate = new Date(lastRenewal.created_at);
+            const paymentsAfterRenewal = realPayments.filter(p => new Date(p.created_at) > renewalDate);
+            totalPaidThisCycle = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        } else {
+            // Primeira vez ou sem renovações, considerar todos os pagamentos
+            totalPaidThisCycle = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        }
+        
+        // Calcular quanto ainda deve baseado no tipo de pagamento feito
+        let remainingAmount;
+        
+        if (totalPaidThisCycle === 0) {
+            // Nenhum pagamento feito ainda neste ciclo
+            remainingAmount = currentTotal;
+        } else {
+            // Houve pagamentos, vamos analisar o que foi pago
+            const paidExactlyInterest = Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01);
+            const paidMoreThanInterest = totalPaidThisCycle > currentInterestAmount;
+            const paidLessThanInterest = totalPaidThisCycle < currentInterestAmount;
+            
+            if (paidExactlyInterest) {
+                // PAGOU APENAS JUROS: Capital permanece, próximo período terá mesmo valor total
+                remainingAmount = currentCapital + currentInterestAmount;
+            } else if (paidMoreThanInterest) {
+                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
+                const paidCapital = totalPaidThisCycle - currentInterestAmount;
+                const newCapital = Math.max(0, currentCapital - paidCapital);
+                
+                console.log('Análise pagamento capital:', {
+                    totalPaidThisCycle,
+                    currentInterestAmount,
+                    currentCapital,
+                    paidCapital,
+                    newCapital
+                });
+                
+                if (newCapital <= 0) {
+                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
+                    remainingAmount = 0;
+                } else {
+                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
+                    const newInterest = newCapital * (finalInterestRate / 100);
+                    remainingAmount = newCapital + newInterest;
+                    
+                    console.log('Novo estado após pagamento parcial:', {
+                        newCapital,
+                        newInterest,
+                        remainingAmount
+                    });
+                }
+            } else if (paidLessThanInterest) {
+                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
+                const unpaidInterest = currentInterestAmount - totalPaidThisCycle;
+                const newInterest = currentCapital * (finalInterestRate / 100);
+                remainingAmount = currentCapital + unpaidInterest + newInterest;
+            } else {
+                // Fallback: lógica original
+                remainingAmount = currentTotal - totalPaidThisCycle;
+            }
+        }
+        
+        // O pagamento mínimo é sempre o valor dos juros atuais
+        const minimumPayment = currentInterestAmount;
+        
+        console.log('=== DEBUG DETALHADO DO EMPRÉSTIMO ===');
+        console.log('1. Estado atual do empréstimo:', {
+            loanId,
+            currentCapital,
+            currentInterestAmount, 
+            currentTotal,
+            finalInterestRate
+        });
+        
+        console.log('2. Análise de pagamentos:', {
+            totalPayments: payments.length,
+            realPayments: realPayments.length,
+            lastRenewal: lastRenewal ? lastRenewal.created_at : 'nenhuma',
+            totalPaidThisCycle,
+            paymentsList: realPayments.map(p => ({
+                amount: p.amount,
+                type: p.payment_type,
+                date: p.created_at
+            }))
+        });
+        
+        console.log('3. Cálculo do valor restante:', {
+            remainingAmount,
+            logicUsed: totalPaidThisCycle === 0 ? 'sem_pagamentos' : 
+                      Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01) ? 'apenas_juros' :
+                      totalPaidThisCycle > currentInterestAmount ? 'capital_e_juros' : 'juros_parcial'
+        });
+        
+        console.log('4. Resultado final:', {
+            minimumPayment,
+            remainingAmount,
+            hasRenewal: !!lastRenewal
+        });
+        console.log('=== FIM DEBUG ===');
+        
+        // Mostrar informações detalhadas
+        document.getElementById('paymentCapitalAmount').textContent = `R$ ${currentCapital.toFixed(2)}`;
+        document.getElementById('paymentInterestRate').textContent = `${finalInterestRate.toFixed(2)}%`;
+        document.getElementById('paymentInterestAmount').textContent = `R$ ${currentInterestAmount.toFixed(2)}`;
+        document.getElementById('paymentTotalAmount').textContent = `R$ ${currentTotal.toFixed(2)}`;
+        document.getElementById('paymentRemainingAmount').textContent = `R$ ${Math.max(0, remainingAmount).toFixed(2)}`;
+        document.getElementById('paymentMinimumAmount').textContent = `R$ ${minimumPayment.toFixed(2)}`;
+        
+    } catch (error) {
+        console.error('Erro ao calcular valor restante:', error);
+        // Em caso de erro, mostrar valores básicos
+        const loan = loans.find(l => l.id === loanId);
+        if (loan) {
+            const capitalAmount = parseFloat(loan.amount);
+            let interestRate = parseFloat(loan.interest_rate);
+            
+            if (interestRate > 100) {
+                interestRate = interestRate / 100;
+            }
+            
+            const interestAmount = capitalAmount * (interestRate / 100);
+            const totalWithInterest = capitalAmount + interestAmount;
+            
+            document.getElementById('paymentCapitalAmount').textContent = `R$ ${capitalAmount.toFixed(2)}`;
+            document.getElementById('paymentInterestRate').textContent = `${interestRate.toFixed(2)}%`;
+            document.getElementById('paymentInterestAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
+            document.getElementById('paymentTotalAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
+            document.getElementById('paymentRemainingAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
+            document.getElementById('paymentMinimumAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
+        }
+    }
+}
+
+// Função para calcular o pagamento mínimo baseado no valor restante
+function calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingAmount) {
+    // O valor mínimo é sempre o valor dos juros originais do empréstimo
+    // Isso garante que pelo menos os juros sejam pagos
+    
+    if (!interestAmount || interestAmount <= 0 || isNaN(interestAmount)) {
+        return 0;
+    }
+    
+    return interestAmount;
+}
+
+// Função para verificar se o pagamento requer recálculo e aplicar juros
+async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
+    try {
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) return { shouldRecalculate: false };
+        
+        const currentCapital = parseFloat(loan.amount);
+        let interestRate = parseFloat(loan.interest_rate);
+        
+        // Ajustar taxa se necessário
+        if (interestRate > 100) {
+            interestRate = interestRate / 100;
+        }
+        
+        const currentInterestAmount = currentCapital * (interestRate / 100);
+        const currentTotal = currentCapital + currentInterestAmount;
+        
+        // Buscar pagamentos anteriores para entender o estado atual
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select('amount, payment_type, notes')
             .eq('loan_id', loanId);
         
         if (error) throw error;
         
-        // Calcular total já pago
-        const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        // Separar pagamentos reais de ajustes
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        const totalPaidSoFar = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
         
-        // Calcular valor restante
-        const remainingAmount = totalWithInterest - totalPaid;
+        // Calcular quanto foi pago de capital e quanto de juros até agora
+        // Se já pagou mais que os juros atuais, a diferença foi do capital
+        const capitalPaidSoFar = Math.max(0, totalPaidSoFar - currentInterestAmount);
+        const remainingCapital = Math.max(0, currentCapital - capitalPaidSoFar);
+        const pendingInterest = Math.max(0, currentInterestAmount - Math.min(totalPaidSoFar, currentInterestAmount));
         
-        // Mostrar valor restante
-        document.getElementById('paymentRemainingAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
+        console.log('=== DEBUG RECÁLCULO DO PAGAMENTO ===');
+        console.log('Estado antes do pagamento:', {
+            currentCapital,
+            currentInterestAmount,
+            currentTotal,
+            totalPaidSoFar,
+            paymentAmount,
+            paymentType
+        });
+        
+        console.log('Análise do que será pago:', {
+            isInterestOnlyPayment,
+            paidMoreThanInterest: paymentAmount > currentInterestAmount,
+            paidLessThanInterest: paymentAmount < currentInterestAmount,
+            tolerance: currentInterestAmount * 0.01,
+            difference: Math.abs(paymentAmount - currentInterestAmount)
+        });
+        
+        // Verificar se o pagamento é apenas os juros pendentes (renovação)
+        const isInterestOnlyPayment = Math.abs(paymentAmount - currentInterestAmount) <= (currentInterestAmount * 0.01);
+        
+        if (isInterestOnlyPayment) {
+            // PAGAMENTO APENAS DE JUROS: Capital permanece o mesmo
+            // Próximo mês: mesmo capital + novos juros
+            // Não há recálculo, apenas renovação da data
+            const newDueDate = new Date(loan.due_date);
+            newDueDate.setDate(newDueDate.getDate() + 30);
+            
+            return {
+                shouldRecalculate: true,
+                isInterestOnlyRenewal: true,
+                newAmount: currentCapital, // Capital permanece igual
+                newInterestAmount: currentInterestAmount, // Juros recalculados iguais
+                newTotalAmount: currentTotal, // Total permanece igual
+                newDueDate: newDueDate.toISOString().split('T')[0],
+                originalAmount: currentCapital,
+                interestRate: interestRate,
+                paidAmount: paymentAmount
+            };
+        }
+        
+        // Se pagou mais que apenas juros, parte foi do capital
+        if (paymentAmount > currentInterestAmount) {
+            // PAGAMENTO PARCIAL DE CAPITAL: Reduzir capital
+            const paidInterest = currentInterestAmount;
+            const paidCapital = paymentAmount - currentInterestAmount;
+            const newCapital = Math.max(0, currentCapital - paidCapital);
+            
+            console.log('Processando pagamento de capital:', {
+                paymentAmount,
+                currentInterestAmount,
+                paidInterest,
+                paidCapital,
+                currentCapital,
+                newCapital,
+                willBeFullyPaid: newCapital <= 0
+            });
+            
+            if (newCapital > 0) {
+                const newInterestAmount = newCapital * (interestRate / 100);
+                const newTotal = newCapital + newInterestAmount;
+                
+                console.log('Resultado do recálculo:', {
+                    newCapital,
+                    newInterestAmount,
+                    newTotal,
+                    interestRate
+                });
+                
+                return {
+                    shouldRecalculate: true,
+                    isCapitalReduction: true,
+                    newAmount: newCapital,
+                    newInterestAmount: newInterestAmount,
+                    newTotalAmount: newTotal,
+                    originalAmount: currentCapital,
+                    paidCapital: paidCapital,
+                    paidInterest: paidInterest,
+                    interestRate: interestRate,
+                    paidAmount: paymentAmount
+                };
+            } else {
+                // Capital totalmente pago
+                console.log('Capital totalmente quitado!');
+                return { shouldRecalculate: false, isFullyPaid: true };
+            }
+        }
+        
+        // Se pagou menos que os juros, mas mais que zero
+        if (paymentAmount < currentInterestAmount && paymentAmount > 0) {
+            // PAGAMENTO PARCIAL DE JUROS: Juros pendentes continuam acumulando
+            const remainingInterest = currentInterestAmount - paymentAmount;
+            const newInterestAmount = remainingInterest + (currentCapital * (interestRate / 100));
+            const newTotal = currentCapital + newInterestAmount;
+            
+            return {
+                shouldRecalculate: true,
+                isPartialInterestPayment: true,
+                newAmount: currentCapital, // Capital igual
+                newInterestAmount: newInterestAmount, // Juros antigos + novos
+                newTotalAmount: newTotal,
+                originalAmount: currentCapital,
+                interestRate: interestRate,
+                paidAmount: paymentAmount
+            };
+        }
+        
+        return { shouldRecalculate: false };
         
     } catch (error) {
-        console.error('Erro ao calcular valor restante:', error);
-        // Em caso de erro, mostrar valor total com juros
-        const loan = loans.find(l => l.id === loanId);
-        if (loan) {
-            const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-            document.getElementById('paymentRemainingAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
-        }
+        console.error('Erro ao verificar recálculo:', error);
+        return { shouldRecalculate: false };
     }
 }
 
@@ -1863,6 +2392,11 @@ function getPaymentTypeText(type) {
         case 'full': return 'Total';
         case 'interest': return 'Apenas Juros';
         case 'principal': return 'Apenas Principal';
+        case 'adjustment': return 'Ajuste/Recálculo';
+        case 'renewal': return '🔄 Renovação';
+        case 'interest_renewal': return '🔄 Renovação (Juros)';
+        case 'capital_payment': return '💰 Pagamento Capital';
+        case 'partial_interest': return '⚠️ Juros Parcial';
         default: return type;
     }
 }
@@ -1928,31 +2462,92 @@ async function calculateLoanRemainingAmount(loanId) {
         const loan = loans.find(l => l.id === loanId);
         if (!loan) return 0;
         
-        // Calcular total com juros
-        const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+        const capitalAmount = parseFloat(loan.amount);
+        let interestRate = parseFloat(loan.interest_rate);
+        
+        // Ajustar taxa se necessário
+        if (interestRate > 100) {
+            interestRate = interestRate / 100;
+        }
+        
+        const interestAmount = capitalAmount * (interestRate / 100);
+        const totalWithInterest = capitalAmount + interestAmount;
         
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount')
+            .select('amount, payment_type')
             .eq('loan_id', loanId);
         
         if (error) throw error;
         
-        // Calcular total já pago
-        const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        // Verificar se houve renovações
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        const hasRenewals = payments.some(p => p.payment_type === 'renewal');
         
-        // Calcular valor restante
-        const remainingAmount = totalWithInterest - totalPaid;
+        let totalPaid;
+        if (hasRenewals) {
+            // Se houve renovação, considerar apenas pagamentos após a última renovação
+            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
+                const paymentIndex = payments.findIndex(p => p === payment);
+                return paymentIndex > lastRenewalIndex;
+            });
+            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        } else {
+            // Lógica original
+            totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        }
         
-        return Math.max(0, remainingAmount); // Não pode ser negativo
+        // Calcular valor restante usando a mesma lógica da função principal
+        let remainingAmount;
+        
+        if (totalPaid === 0) {
+            remainingAmount = totalWithInterest;
+        } else {
+            const paidExactlyInterest = Math.abs(totalPaid - interestAmount) <= (interestAmount * 0.01);
+            const paidMoreThanInterest = totalPaid > interestAmount;
+            const paidLessThanInterest = totalPaid < interestAmount;
+            
+            if (paidExactlyInterest) {
+                // PAGOU APENAS JUROS: próximo período terá mesmo valor total
+                remainingAmount = capitalAmount + interestAmount;
+            } else if (paidMoreThanInterest) {
+                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
+                const paidCapital = totalPaid - interestAmount;
+                const newCapital = Math.max(0, capitalAmount - paidCapital);
+                
+                if (newCapital <= 0) {
+                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
+                    remainingAmount = 0;
+                } else {
+                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
+                    const newInterest = newCapital * (interestRate / 100);
+                    remainingAmount = newCapital + newInterest;
+                }
+            } else if (paidLessThanInterest) {
+                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
+                const unpaidInterest = interestAmount - totalPaid;
+                const newInterest = capitalAmount * (interestRate / 100);
+                remainingAmount = capitalAmount + unpaidInterest + newInterest;
+            } else {
+                remainingAmount = totalWithInterest - totalPaid;
+            }
+        }
+        
+        return Math.max(0, remainingAmount);
         
     } catch (error) {
         console.error('Erro ao calcular valor restante:', error);
         // Em caso de erro, retornar valor total com juros
         const loan = loans.find(l => l.id === loanId);
         if (loan) {
-            return parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+            const capitalAmount = parseFloat(loan.amount);
+            let interestRate = parseFloat(loan.interest_rate);
+            if (interestRate > 100) {
+                interestRate = interestRate / 100;
+            }
+            return capitalAmount + (capitalAmount * (interestRate / 100));
         }
         return 0;
     }
