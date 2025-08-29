@@ -1266,23 +1266,27 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Foto do Cliente</label>
-                        <input type="hidden" id="clientPhoto" name="clientPhoto">
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Fotos do Cliente</label>
+                        <input type="hidden" id="clientPhotos" name="clientPhotos">
                         <input 
                             type="hidden" 
                             role="uploadcare-uploader" 
-                            name="clientPhotoUploader"
-                            id="clientPhotoUploader"
+                            name="clientPhotosUploader"
+                            id="clientPhotosUploader"
                             data-public-key="5bb6bf6b98f6d36060dc"
                             data-tabs="file camera url facebook gdrive gphotos dropbox instagram"
                             data-image-shrink="1024x1024"
                             data-crop="1:1"
                             data-effects="crop,rotate,enhance,grayscale"
                             data-clearable="true"
+                            data-multiple="true"
+                            data-multiple-max="10"
                         />
-                        <div id="photoUploadPreview" class="mt-4 hidden">
-                            <img id="photoPreviewImg" src="" alt="Preview" class="w-32 h-32 rounded-lg object-cover mx-auto border-2 border-blue-500">
-                            <p class="text-green-400 text-sm text-center mt-2">Foto carregada com sucesso!</p>
+                        <div id="photosUploadPreview" class="mt-4 hidden">
+                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" id="photosPreviewGrid">
+                                <!-- As imagens serão inseridas aqui dinamicamente -->
+                            </div>
+                            <p class="text-green-400 text-sm text-center mt-2">Fotos carregadas com sucesso!</p>
                         </div>
                     </div>
                     
@@ -1516,23 +1520,27 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Foto do Cliente</label>
-                        <input type="hidden" id="editClientPhoto" name="editClientPhoto">
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Fotos do Cliente</label>
+                        <input type="hidden" id="editClientPhotos" name="editClientPhotos">
                         <input 
                             type="hidden" 
                             role="uploadcare-uploader" 
-                            name="editClientPhotoUploader"
-                            id="editClientPhotoUploader"
+                            name="editClientPhotosUploader"
+                            id="editClientPhotosUploader"
                             data-public-key="5bb6bf6b98f6d36060dc"
                             data-tabs="file camera url facebook gdrive gphotos dropbox instagram"
                             data-image-shrink="1024x1024"
                             data-crop="1:1"
                             data-effects="crop,rotate,enhance,grayscale"
                             data-clearable="true"
+                            data-multiple="true"
+                            data-multiple-max="10"
                         />
-                        <div id="editPhotoUploadPreview" class="mt-4 hidden">
-                            <img id="editPhotoPreviewImg" src="" alt="Preview" class="w-32 h-32 rounded-lg object-cover mx-auto border-2 border-blue-500">
-                            <p class="text-green-400 text-sm text-center mt-2">Foto carregada com sucesso!</p>
+                        <div id="editPhotosUploadPreview" class="mt-4 hidden">
+                            <div class="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4" id="editPhotosPreviewGrid">
+                                <!-- As imagens serão inseridas aqui dinamicamente -->
+                            </div>
+                            <p class="text-green-400 text-sm text-center mt-2">Fotos carregadas com sucesso!</p>
                         </div>
                     </div>
 
