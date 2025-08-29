@@ -2412,21 +2412,7 @@
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-blue-200 mb-2">Arquivo</label>
-                            <input type="hidden" id="documentFile" name="documentFile">
-                            <input 
-                                type="hidden" 
-                                role="uploadcare-uploader" 
-                                name="documentFileUploader"
-                                id="documentFileUploader"
-                                data-public-key="5bb6bf6b98f6d36060dc"
-                                data-tabs="file camera url"
-                                data-multiple="false"
-                                data-crop="disabled"
-                                data-image-shrink="1024x1024"
-                                data-preview-step="true"
-                                data-clearable="true"
-                                data-locale="pt"
-                            >
+                            <input type="file" id="documentFile" class="form-input w-full" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required>
                             <p class="text-sm text-gray-400 mt-1">Formatos aceitos: PDF, JPG, PNG, DOC, DOCX (máx. 10MB)</p>
                         </div>
                         <div>
