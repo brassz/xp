@@ -2373,6 +2373,85 @@
         </div>
     </div>
 
+    <!-- Client Documents Modal -->
+    <div id="clientDocumentsModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-xl font-semibold text-white">Documentos do Cliente</h3>
+                        <p id="clientDocumentsName" class="text-gray-400 text-sm"></p>
+                    </div>
+                    <button id="closeClientDocumentsModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Upload Section -->
+                <div class="mb-6 p-4 bg-gray-800 rounded-lg border border-gray-700">
+                    <h4 class="text-lg font-medium text-white mb-4">Adicionar Novo Documento</h4>
+                    <form id="uploadDocumentForm" class="space-y-4">
+                        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                            <div>
+                                <label class="block text-sm font-medium text-blue-200 mb-2">Nome do Documento</label>
+                                <input type="text" id="documentName" class="form-input w-full" placeholder="Ex: RG, CPF, Comprovante de Renda..." required>
+                            </div>
+                            <div>
+                                <label class="block text-sm font-medium text-blue-200 mb-2">Categoria</label>
+                                <select id="documentCategory" class="form-input w-full" required>
+                                    <option value="">Selecione uma categoria</option>
+                                    <option value="identificacao">Identificação</option>
+                                    <option value="comprovante_renda">Comprovante de Renda</option>
+                                    <option value="comprovante_residencia">Comprovante de Residência</option>
+                                    <option value="referencias">Referências</option>
+                                    <option value="outros">Outros</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Arquivo</label>
+                            <input type="file" id="documentFile" class="form-input w-full" accept=".pdf,.jpg,.jpeg,.png,.doc,.docx" required>
+                            <p class="text-sm text-gray-400 mt-1">Formatos aceitos: PDF, JPG, PNG, DOC, DOCX (máx. 10MB)</p>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Observações (opcional)</label>
+                            <textarea id="documentNotes" class="form-input w-full" rows="2" placeholder="Observações sobre o documento..."></textarea>
+                        </div>
+                        <button type="submit" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white">
+                            Fazer Upload
+                        </button>
+                    </form>
+                </div>
+                
+                <!-- Documents List -->
+                <div>
+                    <div class="flex items-center justify-between mb-4">
+                        <h4 class="text-lg font-medium text-white">Documentos Salvos</h4>
+                        <div class="flex space-x-2">
+                            <select id="documentFilter" class="form-input text-sm">
+                                <option value="">Todas as categorias</option>
+                                <option value="identificacao">Identificação</option>
+                                <option value="comprovante_renda">Comprovante de Renda</option>
+                                <option value="comprovante_residencia">Comprovante de Residência</option>
+                                <option value="referencias">Referências</option>
+                                <option value="outros">Outros</option>
+                            </select>
+                        </div>
+                    </div>
+                    
+                    <div id="documentsContainer" class="space-y-3">
+                        <!-- Documents will be loaded here -->
+                        <div class="text-center py-8 text-gray-400">
+                            Nenhum documento encontrado
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html> 

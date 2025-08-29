@@ -158,6 +158,7 @@ function setupEventListeners() {
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
+    document.getElementById('closeClientDocumentsModal').addEventListener('click', () => hideModal(document.getElementById('clientDocumentsModal')));
     
     // Capital Raising modals
     if (document.getElementById('closeCapitalRaisingModal')) {
@@ -226,6 +227,10 @@ function setupEventListeners() {
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
     newExpenseForm.addEventListener('submit', handleNewExpense);
     document.getElementById('guarantorForm').addEventListener('submit', handleGuarantorForm);
+    document.getElementById('uploadDocumentForm').addEventListener('submit', handleDocumentUpload);
+    
+    // Filtro de documentos
+    document.getElementById('documentFilter').addEventListener('change', renderClientDocuments);
     
     // Botão de adicionar avalista
     document.getElementById('addGuarantorBtn').addEventListener('click', () => {
@@ -683,6 +688,7 @@ function renderClientsTable() {
             <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')">✏️</button>
+                <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
                 <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">🗑️</button>
             </td>
         </tr>
@@ -3239,6 +3245,285 @@ async function performDeleteLoan(loanId) {
     } catch (error) {
         console.error('Erro ao excluir empréstimo:', error);
         alert('Erro ao excluir empréstimo: ' + error.message);
+    }
+}
+
+// ====== FUNÇÕES DE DOCUMENTOS DO CLIENTE ======
+
+// Variáveis globais para documentos
+let currentClientId = null;
+let clientDocuments = [];
+
+// Abrir modal de documentos do cliente
+function openClientDocuments(clientId, clientName) {
+    currentClientId = clientId;
+    document.getElementById('clientDocumentsName').textContent = clientName;
+    
+    // Limpar formulário
+    document.getElementById('uploadDocumentForm').reset();
+    
+    // Carregar documentos do cliente
+    loadClientDocuments(clientId);
+    
+    // Mostrar modal
+    showModal(document.getElementById('clientDocumentsModal'));
+}
+
+// Carregar documentos do cliente
+async function loadClientDocuments(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('client_documents')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        clientDocuments = data || [];
+        renderClientDocuments();
+        
+    } catch (error) {
+        console.error('Erro ao carregar documentos:', error);
+        clientDocuments = [];
+        renderClientDocuments();
+    }
+}
+
+// Renderizar lista de documentos
+function renderClientDocuments() {
+    const container = document.getElementById('documentsContainer');
+    const filter = document.getElementById('documentFilter').value;
+    
+    // Filtrar documentos se necessário
+    const filteredDocs = filter ? 
+        clientDocuments.filter(doc => doc.category === filter) : 
+        clientDocuments;
+    
+    if (filteredDocs.length === 0) {
+        container.innerHTML = `
+            <div class="text-center py-8 text-gray-400">
+                ${filter ? 'Nenhum documento encontrado nesta categoria' : 'Nenhum documento encontrado'}
+            </div>
+        `;
+        return;
+    }
+    
+    container.innerHTML = filteredDocs.map(doc => {
+        const categoryNames = {
+            'identificacao': 'Identificação',
+            'comprovante_renda': 'Comprovante de Renda',
+            'comprovante_residencia': 'Comprovante de Residência',
+            'referencias': 'Referências',
+            'outros': 'Outros'
+        };
+        
+        const isImage = doc.file_type && doc.file_type.startsWith('image/');
+        const isPDF = doc.file_type === 'application/pdf';
+        
+        return `
+            <div class="bg-gray-800 rounded-lg p-4 border border-gray-700">
+                <div class="flex items-start justify-between">
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-3 mb-2">
+                            <div class="flex-shrink-0">
+                                ${isImage ? '🖼️' : isPDF ? '📄' : '📎'}
+                            </div>
+                            <div>
+                                <h5 class="text-white font-medium">${doc.name}</h5>
+                                <p class="text-sm text-gray-400">${categoryNames[doc.category] || doc.category}</p>
+                            </div>
+                        </div>
+                        
+                        ${doc.notes ? `<p class="text-sm text-gray-300 mb-2">${doc.notes}</p>` : ''}
+                        
+                        <div class="text-xs text-gray-500">
+                            Enviado em: ${new Date(doc.created_at).toLocaleDateString('pt-BR')} às ${new Date(doc.created_at).toLocaleTimeString('pt-BR')}
+                        </div>
+                    </div>
+                    
+                    <div class="flex space-x-2 ml-4">
+                        <button onclick="viewDocument('${doc.id}')" 
+                                class="text-blue-400 hover:text-blue-300 px-3 py-1 rounded text-sm"
+                                title="Visualizar">
+                            👁️ Ver
+                        </button>
+                        <button onclick="downloadDocument('${doc.id}')" 
+                                class="text-green-400 hover:text-green-300 px-3 py-1 rounded text-sm"
+                                title="Baixar">
+                            ⬇️ Baixar
+                        </button>
+                        <button onclick="deleteDocument('${doc.id}')" 
+                                class="text-red-400 hover:text-red-300 px-3 py-1 rounded text-sm"
+                                title="Excluir">
+                            🗑️
+                        </button>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Fazer upload de documento
+async function handleDocumentUpload(e) {
+    e.preventDefault();
+    
+    const name = document.getElementById('documentName').value;
+    const category = document.getElementById('documentCategory').value;
+    const file = document.getElementById('documentFile').files[0];
+    const notes = document.getElementById('documentNotes').value;
+    
+    if (!file) {
+        alert('Por favor, selecione um arquivo');
+        return;
+    }
+    
+    // Validar tamanho do arquivo (10MB)
+    if (file.size > 10 * 1024 * 1024) {
+        alert('O arquivo deve ter no máximo 10MB');
+        return;
+    }
+    
+    try {
+        // Mostrar loading
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        const originalText = submitBtn.textContent;
+        submitBtn.textContent = 'Enviando...';
+        submitBtn.disabled = true;
+        
+        // Gerar nome único para o arquivo
+        const fileExtension = file.name.split('.').pop();
+        const fileName = `${currentClientId}/${Date.now()}_${Math.random().toString(36).substr(2, 9)}.${fileExtension}`;
+        
+        // Upload do arquivo para o Supabase Storage
+        const { data: uploadData, error: uploadError } = await supabase.storage
+            .from('client-documents')
+            .upload(fileName, file);
+        
+        if (uploadError) throw uploadError;
+        
+        // Salvar informações do documento no banco
+        const { data, error } = await supabase
+            .from('client_documents')
+            .insert([{
+                client_id: currentClientId,
+                name: name,
+                category: category,
+                file_path: fileName,
+                file_type: file.type,
+                file_size: file.size,
+                notes: notes || null
+            }])
+            .select();
+        
+        if (error) throw error;
+        
+        // Limpar formulário
+        document.getElementById('uploadDocumentForm').reset();
+        
+        // Recarregar documentos
+        await loadClientDocuments(currentClientId);
+        
+        showSuccessMessage('Documento enviado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao fazer upload:', error);
+        alert('Erro ao fazer upload do documento: ' + error.message);
+    } finally {
+        // Restaurar botão
+        const submitBtn = e.target.querySelector('button[type="submit"]');
+        submitBtn.textContent = originalText;
+        submitBtn.disabled = false;
+    }
+}
+
+// Visualizar documento
+async function viewDocument(documentId) {
+    try {
+        const doc = clientDocuments.find(d => d.id === documentId);
+        if (!doc) return;
+        
+        // Obter URL pública do arquivo
+        const { data } = supabase.storage
+            .from('client-documents')
+            .getPublicUrl(doc.file_path);
+        
+        if (data && data.publicUrl) {
+            // Abrir em nova aba
+            window.open(data.publicUrl, '_blank');
+        } else {
+            alert('Erro ao obter URL do documento');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao visualizar documento:', error);
+        alert('Erro ao visualizar documento: ' + error.message);
+    }
+}
+
+// Baixar documento
+async function downloadDocument(documentId) {
+    try {
+        const doc = clientDocuments.find(d => d.id === documentId);
+        if (!doc) return;
+        
+        // Baixar arquivo
+        const { data, error } = await supabase.storage
+            .from('client-documents')
+            .download(doc.file_path);
+        
+        if (error) throw error;
+        
+        // Criar link para download
+        const url = URL.createObjectURL(data);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = doc.name + '.' + doc.file_path.split('.').pop();
+        document.body.appendChild(a);
+        a.click();
+        document.body.removeChild(a);
+        URL.revokeObjectURL(url);
+        
+    } catch (error) {
+        console.error('Erro ao baixar documento:', error);
+        alert('Erro ao baixar documento: ' + error.message);
+    }
+}
+
+// Excluir documento
+async function deleteDocument(documentId) {
+    if (!confirm('Tem certeza que deseja excluir este documento?')) return;
+    
+    try {
+        const doc = clientDocuments.find(d => d.id === documentId);
+        if (!doc) return;
+        
+        // Excluir arquivo do storage
+        const { error: storageError } = await supabase.storage
+            .from('client-documents')
+            .remove([doc.file_path]);
+        
+        if (storageError) {
+            console.warn('Erro ao excluir arquivo do storage:', storageError);
+        }
+        
+        // Excluir registro do banco
+        const { error } = await supabase
+            .from('client_documents')
+            .delete()
+            .eq('id', documentId);
+        
+        if (error) throw error;
+        
+        // Recarregar documentos
+        await loadClientDocuments(currentClientId);
+        
+        showSuccessMessage('Documento excluído com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao excluir documento:', error);
+        alert('Erro ao excluir documento: ' + error.message);
     }
 }
 
