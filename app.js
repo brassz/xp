@@ -205,6 +205,7 @@ function setupEventListeners() {
     
     // Botões do modal de histórico de pagamentos
     document.getElementById('newPaymentBtn').addEventListener('click', () => showNewPaymentFromHistory());
+    document.getElementById('changeLoanDueDateBtn').addEventListener('click', () => openChangeLoanDueDateModal());
     
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
@@ -2843,6 +2844,90 @@ function showNewPaymentFromHistory() {
     
     // Mostrar modal de pagamento
     showPaymentModal(loanId);
+}
+
+// Abrir modal para alterar data de vencimento do empréstimo
+function openChangeLoanDueDateModal() {
+    const loanId = document.getElementById('paymentHistoryLoanId').value;
+    if (!loanId) {
+        showNotification('Erro: ID do empréstimo não encontrado', 'error');
+        return;
+    }
+    
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showNotification('Empréstimo não encontrado', 'error');
+        return;
+    }
+    
+    // Preencher informações do empréstimo
+    const changeLoanDueDateInfo = document.getElementById('changeLoanDueDateInfo');
+    changeLoanDueDateInfo.innerHTML = `
+        <h4 class="text-white font-semibold mb-2">${loan.clients?.name || 'Cliente não encontrado'}</h4>
+        <div class="grid grid-cols-2 gap-4 text-sm">
+            <div>
+                <span class="text-blue-300">Valor Principal:</span>
+                <p class="text-white">R$ ${parseFloat(loan.amount).toFixed(2)}</p>
+            </div>
+            <div>
+                <span class="text-blue-300">Taxa de Juros:</span>
+                <p class="text-white">${parseFloat(loan.interest_rate).toFixed(2)}%</p>
+            </div>
+            <div class="col-span-2">
+                <span class="text-blue-300">Data Atual de Vencimento:</span>
+                <p class="text-white">${formatDate(loan.due_date)}</p>
+            </div>
+        </div>
+    `;
+    
+    // Definir data mínima como hoje
+    const today = new Date().toISOString().split('T')[0];
+    document.getElementById('newLoanDueDate').min = today;
+    document.getElementById('newLoanDueDate').value = '';
+    
+    document.getElementById('changeLoanDueDateModal').classList.remove('hidden');
+}
+
+// Fechar modal de alterar data de vencimento do empréstimo
+function closeChangeLoanDueDateModal() {
+    document.getElementById('changeLoanDueDateModal').classList.add('hidden');
+    document.getElementById('changeLoanDueDateForm').reset();
+}
+
+// Alterar data de vencimento do empréstimo
+async function changeLoanDueDate(loanId, newDueDate, reason) {
+    try {
+        const { error } = await supabase
+            .from('loans')
+            .update({ 
+                due_date: newDueDate,
+                notes: reason 
+            })
+            .eq('id', loanId);
+
+        if (error) throw error;
+
+        showNotification('Data de vencimento alterada com sucesso!', 'success');
+        
+        // Recarregar dados
+        await loadLoans();
+        await renderLoansTable();
+        
+        // Atualizar modal de histórico se estiver aberto
+        const paymentHistoryLoanId = document.getElementById('paymentHistoryLoanId').value;
+        if (paymentHistoryLoanId === loanId) {
+            const updatedLoan = loans.find(l => l.id === loanId);
+            if (updatedLoan) {
+                document.getElementById('paymentHistoryLoanDueDate').textContent = formatDate(updatedLoan.due_date);
+            }
+        }
+        
+        closeChangeLoanDueDateModal();
+
+    } catch (error) {
+        console.error('Erro ao alterar data de vencimento:', error);
+        showNotification('Erro ao alterar data de vencimento', 'error');
+    }
 }
 
 // Função para mostrar o modal de confirmação do WhatsApp
@@ -5909,13 +5994,21 @@ function populateInstallmentDetailsModal(installmentData) {
                 <td class="px-6 py-4 text-white">${payment.paid_date ? new Date(payment.paid_date).toLocaleDateString('pt-BR') : '-'}</td>
                 <td class="px-6 py-4 text-white">${payment.paid_amount ? `R$ ${payment.paid_amount.toFixed(2)}` : '-'}</td>
                 <td class="px-6 py-4">
-                    ${payment.status !== 'paid' ? 
-                        `<button onclick="openInstallmentPaymentModal('${payment.id}')" 
-                                class="text-blue-400 hover:text-blue-300 text-sm font-medium">
-                            Pagar
-                        </button>` : 
-                        `<span class="text-gray-500 text-sm">Paga</span>`
-                    }
+                    <div class="flex space-x-3">
+                        ${payment.status !== 'paid' ? 
+                            `<button onclick="openInstallmentPaymentModal('${payment.id}')" 
+                                    class="text-blue-400 hover:text-blue-300 text-sm font-medium">
+                                Pagar
+                            </button>` : 
+                            `<span class="text-gray-500 text-sm">Paga</span>`
+                        }
+                        ${payment.status !== 'paid' ? 
+                            `<button onclick="openChangeDueDateModal('${payment.id}', '${payment.due_date}')" 
+                                    class="text-green-400 hover:text-green-300 text-sm font-medium">
+                                Alterar Data
+                            </button>` : ''
+                        }
+                    </div>
                 </td>
             </tr>
         `;
@@ -6051,6 +6144,93 @@ function closeInstallmentPaymentModal() {
     document.getElementById('installmentPaymentForm').reset();
 }
 
+// Abrir modal para alterar data de vencimento
+async function openChangeDueDateModal(paymentId, currentDueDate) {
+    try {
+        const { data, error } = await supabase
+            .from('installment_payments')
+            .select(`
+                *,
+                installments (
+                    clients (name),
+                    total_installments
+                )
+            `)
+            .eq('id', paymentId)
+            .single();
+
+        if (error) throw error;
+
+        currentInstallmentPaymentId = paymentId;
+
+        // Preencher informações da parcela
+        const changeDueDateInfo = document.getElementById('changeDueDateInfo');
+        changeDueDateInfo.innerHTML = `
+            <h4 class="text-white font-semibold mb-2">${data.installments.clients.name}</h4>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                    <span class="text-blue-300">Parcela:</span>
+                    <p class="text-white">${data.installment_number}ª de ${data.installments.total_installments}</p>
+                </div>
+                <div>
+                    <span class="text-blue-300">Valor:</span>
+                    <p class="text-white">R$ ${data.amount.toFixed(2)}</p>
+                </div>
+                <div class="col-span-2">
+                    <span class="text-blue-300">Data Atual de Vencimento:</span>
+                    <p class="text-white">${new Date(data.due_date).toLocaleDateString('pt-BR')}</p>
+                </div>
+            </div>
+        `;
+
+        // Definir data mínima como hoje
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('newDueDate').min = today;
+        document.getElementById('newDueDate').value = '';
+        
+        document.getElementById('changeDueDateModal').classList.remove('hidden');
+
+    } catch (error) {
+        console.error('Erro ao carregar dados da parcela:', error);
+        showNotification('Erro ao carregar dados da parcela', 'error');
+    }
+}
+
+// Fechar modal de alterar data de vencimento
+function closeChangeDueDateModal() {
+    document.getElementById('changeDueDateModal').classList.add('hidden');
+    document.getElementById('changeDueDateForm').reset();
+}
+
+// Alterar data de vencimento
+async function changeDueDate(paymentId, newDueDate, reason) {
+    try {
+        const { error } = await supabase
+            .from('installment_payments')
+            .update({ 
+                due_date: newDueDate,
+                notes: reason 
+            })
+            .eq('id', paymentId);
+
+        if (error) throw error;
+
+        showNotification('Data de vencimento alterada com sucesso!', 'success');
+        
+        // Recarregar detalhes do parcelamento se estiver aberto
+        if (currentInstallmentId) {
+            viewInstallmentDetails(currentInstallmentId);
+        }
+        
+        loadInstallments();
+        closeChangeDueDateModal();
+
+    } catch (error) {
+        console.error('Erro ao alterar data de vencimento:', error);
+        showNotification('Erro ao alterar data de vencimento', 'error');
+    }
+}
+
 // Cancelar parcelamento
 async function cancelInstallment(installmentId) {
     if (!confirm('Tem certeza que deseja cancelar este parcelamento?')) {
@@ -6158,6 +6338,10 @@ document.getElementById('cancelInstallment').addEventListener('click', closeInst
 document.getElementById('closeInstallmentDetailsModal').addEventListener('click', closeInstallmentDetailsModal);
 document.getElementById('closeInstallmentPaymentModal').addEventListener('click', closeInstallmentPaymentModal);
 document.getElementById('cancelInstallmentPayment').addEventListener('click', closeInstallmentPaymentModal);
+document.getElementById('closeChangeDueDateModal').addEventListener('click', closeChangeDueDateModal);
+document.getElementById('cancelChangeDueDate').addEventListener('click', closeChangeDueDateModal);
+document.getElementById('closeChangeLoanDueDateModal').addEventListener('click', closeChangeLoanDueDateModal);
+document.getElementById('cancelChangeLoanDueDate').addEventListener('click', closeChangeLoanDueDateModal);
 
 // Fechar modais ao clicar fora
 newInstallmentModal.addEventListener('click', function(e) {
@@ -6170,6 +6354,45 @@ installmentDetailsModal.addEventListener('click', function(e) {
 
 installmentPaymentModal.addEventListener('click', function(e) {
     if (e.target === this) closeInstallmentPaymentModal();
+});
+
+document.getElementById('changeDueDateModal').addEventListener('click', function(e) {
+    if (e.target === this) closeChangeDueDateModal();
+});
+
+document.getElementById('changeLoanDueDateModal').addEventListener('click', function(e) {
+    if (e.target === this) closeChangeLoanDueDateModal();
+});
+
+// Event listener para formulário de alteração de data
+document.getElementById('changeDueDateForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const newDueDate = document.getElementById('newDueDate').value;
+    const reason = document.getElementById('changeDueDateReason').value.trim();
+    
+    if (!newDueDate || !reason) {
+        showNotification('Por favor, preencha todos os campos', 'error');
+        return;
+    }
+    
+    await changeDueDate(currentInstallmentPaymentId, newDueDate, reason);
+});
+
+// Event listener para formulário de alteração de data do empréstimo
+document.getElementById('changeLoanDueDateForm').addEventListener('submit', async function(e) {
+    e.preventDefault();
+    
+    const loanId = document.getElementById('paymentHistoryLoanId').value;
+    const newDueDate = document.getElementById('newLoanDueDate').value;
+    const reason = document.getElementById('changeLoanDueDateReason').value.trim();
+    
+    if (!newDueDate || !reason) {
+        showNotification('Por favor, preencha todos os campos', 'error');
+        return;
+    }
+    
+    await changeLoanDueDate(loanId, newDueDate, reason);
 });
 
 // ===================================================
