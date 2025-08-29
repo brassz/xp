@@ -486,7 +486,12 @@ function handleNavigation(e) {
             if (target === 'installments') {
                 console.log('Seção de parcelamentos ativada, carregando dados...');
                 loadInstallments();
-                loadOverdueLoansForInstallmentTable();
+            }
+            
+            // Carregar dados dos empréstimos vencidos quando a seção for exibida
+            if (target === 'overdueLoans') {
+                console.log('Seção de empréstimos vencidos ativada, carregando dados...');
+                loadOverdueLoans();
             }
             
 
@@ -5702,6 +5707,132 @@ installmentPaymentModal.addEventListener('click', function(e) {
 
 // ===================================================
 // FIM DAS FUNCIONALIDADES DE PARCELAMENTO
+// ===================================================
+
+// ===================================================
+// FUNCIONALIDADES DE EMPRÉSTIMOS VENCIDOS
+// ===================================================
+
+// Carregar empréstimos vencidos para a aba dedicada
+async function loadOverdueLoans() {
+    try {
+        const { data: overdueLoans, error } = await supabase
+            .from('loans')
+            .select(`
+                id,
+                client_id,
+                amount,
+                total_amount,
+                due_date,
+                interest_rate,
+                created_at,
+                clients (name, phone)
+            `)
+            .lt('due_date', new Date().toISOString())
+            .eq('status', 'active')
+            .order('due_date', { ascending: true });
+
+        if (error) throw error;
+
+        const tableBody = document.getElementById('overdueLoansTableBody');
+        
+        if (!tableBody) return;
+
+        if (overdueLoans.length === 0) {
+            tableBody.innerHTML = `
+                <tr>
+                    <td colspan="7" class="px-6 py-4 text-center text-gray-400">
+                        Nenhum empréstimo vencido encontrado
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+
+        tableBody.innerHTML = overdueLoans.map(loan => {
+            const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
+            const dailyInterestRate = (loan.interest_rate || 0) / 30; // Juros diário aproximado
+            const accumulatedInterest = (loan.total_amount * dailyInterestRate * daysOverdue) / 100;
+            
+            return `
+                <tr class="table-row hover:bg-gray-700 transition-colors">
+                    <td class="px-6 py-4 text-white">
+                        <div>
+                            <div class="font-medium">${loan.clients.name}</div>
+                            <div class="text-sm text-gray-400">${loan.clients.phone || ''}</div>
+                        </div>
+                    </td>
+                    <td class="px-6 py-4 text-white">R$ ${loan.amount.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-white">R$ ${loan.total_amount.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-white">${new Date(loan.due_date).toLocaleDateString('pt-BR')}</td>
+                    <td class="px-6 py-4">
+                        <span class="px-2 py-1 text-xs font-medium rounded-full ${
+                            daysOverdue <= 30 ? 'bg-yellow-900 text-yellow-300' : 
+                            daysOverdue <= 60 ? 'bg-orange-900 text-orange-300' : 
+                            'bg-red-900 text-red-300'
+                        }">
+                            ${daysOverdue} dias
+                        </span>
+                    </td>
+                    <td class="px-6 py-4 text-white">R$ ${accumulatedInterest.toFixed(2)}</td>
+                    <td class="px-6 py-4">
+                        <div class="flex space-x-2">
+                            <button onclick="sendToInstallment('${loan.id}')" 
+                                    class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
+                                Parcelar
+                            </button>
+                            <button onclick="contactClient('${loan.client_id}', '${loan.clients.phone || ''}')" 
+                                    class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
+                                Contatar
+                            </button>
+                        </div>
+                    </td>
+                </tr>
+            `;
+        }).join('');
+
+    } catch (error) {
+        console.error('Erro ao carregar empréstimos vencidos:', error);
+        showNotification('Erro ao carregar empréstimos vencidos', 'error');
+    }
+}
+
+// Enviar empréstimo vencido para a aba de parcelamento
+function sendToInstallment(loanId) {
+    // Navegar para a aba de parcelamentos
+    const installmentsLink = document.querySelector('a[href="#installments"]');
+    if (installmentsLink) {
+        installmentsLink.click();
+    }
+    
+    // Aguardar um pouco para a aba carregar e abrir o modal de parcelamento
+    setTimeout(() => {
+        createInstallmentFromLoan(loanId);
+        showNotification('Empréstimo selecionado para parcelamento', 'success');
+    }, 300);
+}
+
+// Função para contatar cliente (pode abrir WhatsApp ou mostrar informações)
+function contactClient(clientId, phone) {
+    if (phone && phone.trim()) {
+        // Remover caracteres não numéricos do telefone
+        const cleanPhone = phone.replace(/\D/g, '');
+        
+        // Criar mensagem padrão
+        const message = encodeURIComponent('Olá! Entramos em contato sobre seu empréstimo em atraso. Podemos conversar sobre as opções de pagamento?');
+        
+        // Abrir WhatsApp
+        const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${message}`;
+        window.open(whatsappUrl, '_blank');
+        
+        showNotification('Abrindo WhatsApp para contato', 'success');
+    } else {
+        showNotification('Telefone não cadastrado para este cliente', 'error');
+    }
+}
+
+// ===================================================
+// FIM DAS FUNCIONALIDADES DE EMPRÉSTIMOS VENCIDOS
 // ===================================================
 
 // ===================================================
