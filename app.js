@@ -240,6 +240,9 @@ function setupEventListeners() {
     document.getElementById('editLoanAmount').addEventListener('input', updateEditLoanSummary);
     document.getElementById('editLoanInterest').addEventListener('input', updateEditLoanSummary);
     
+    // Validação do valor de pagamento
+    document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
+    
 
 }
 
@@ -832,12 +835,24 @@ async function handlePayment(e) {
     const loanId = document.getElementById('paymentForm').dataset.loanId;
     
     try {
+        // Validar se o valor não está abaixo do mínimo
+        const minimumText = document.getElementById('paymentMinimumAmount').textContent;
+        const minimumAmount = parseFloat(minimumText.replace('R$', '').replace('.', '').replace(',', '.').trim());
+        
+        if (paymentAmount < minimumAmount) {
+            alert(`Valor do pagamento (R$ ${paymentAmount.toFixed(2)}) está abaixo do valor mínimo permitido (R$ ${minimumAmount.toFixed(2)})`);
+            return;
+        }
+        
+        // Verificar se é necessário recalcular o empréstimo antes de registrar o pagamento
+        const recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+        
         // Registrar o pagamento
-            const { error: paymentError } = await supabase
-                .from('payments')
-                .insert([{
-                    loan_id: loanId,
-                    amount: paymentAmount,
+        const { error: paymentError } = await supabase
+            .from('payments')
+            .insert([{
+                loan_id: loanId,
+                amount: paymentAmount,
                 payment_date: paymentDate,
                 payment_type: paymentType,
                 notes: paymentNotes,
@@ -847,21 +862,55 @@ async function handlePayment(e) {
         
         if (paymentError) throw paymentError;
         
-        // Atualizar status do empréstimo baseado no tipo de pagamento
-        let newStatus = 'partial_paid';
-        if (paymentType === 'full') {
-            newStatus = 'paid';
+        // Se precisa recalcular, atualizar os valores do empréstimo
+        if (recalcInfo.shouldRecalculate) {
+            const { error: loanUpdateError } = await supabase
+                .from('loans')
+                .update({ 
+                    amount: recalcInfo.newAmount,
+                    updated_at: new Date().toISOString(),
+                    status: 'partial_paid' // Manter como parcialmente pago até quitar totalmente
+                })
+                .eq('id', loanId);
+            
+            if (loanUpdateError) throw loanUpdateError;
+            
+            // Registrar uma nota sobre o recálculo
+            const recalcNotes = `RECÁLCULO AUTOMÁTICO: Capital original: R$ ${recalcInfo.originalAmount.toFixed(2)} | ` +
+                              `Capital restante: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                              `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
+                              `Total pago até agora: R$ ${recalcInfo.paidAmount.toFixed(2)}`;
+            
+            const { error: recalcNoteError } = await supabase
+                .from('payments')
+                .insert([{
+                    loan_id: loanId,
+                    amount: 0,
+                    payment_date: paymentDate,
+                    payment_type: 'adjustment',
+                    notes: recalcNotes,
+                    created_by: currentUser.id,
+                    created_at: new Date().toISOString()
+                }]);
+            
+            if (recalcNoteError) console.warn('Erro ao registrar nota de recálculo:', recalcNoteError);
+        } else {
+            // Atualizar status do empréstimo baseado no tipo de pagamento (lógica original)
+            let newStatus = 'partial_paid';
+            if (paymentType === 'full') {
+                newStatus = 'paid';
+            }
+            
+            const { error: loanError } = await supabase
+                .from('loans')
+                .update({ 
+                    status: newStatus,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', loanId);
+            
+            if (loanError) throw loanError;
         }
-        
-        const { error: loanError } = await supabase
-            .from('loans')
-            .update({ 
-                status: newStatus,
-                updated_at: new Date().toISOString()
-            })
-            .eq('id', loanId);
-        
-        if (loanError) throw loanError;
         
         hideModal(paymentModal);
         paymentForm.reset();
@@ -875,8 +924,12 @@ async function handlePayment(e) {
             await loadPaymentHistory(loanId);
         }
         
-        // Mostrar mensagem de sucesso
-        showSuccessMessage(`Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`);
+        // Mostrar mensagem de sucesso com informações sobre recálculo
+        let successMessage = `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
+        if (recalcInfo.shouldRecalculate) {
+            successMessage += ` O empréstimo foi recalculado automaticamente. Novo valor do capital: R$ ${recalcInfo.newAmount.toFixed(2)}`;
+        }
+        showSuccessMessage(successMessage);
         
     } catch (error) {
         alert('Erro ao registrar pagamento: ' + error.message);
@@ -1065,6 +1118,54 @@ function updateLoanSummary() {
     document.getElementById('summaryTotal').textContent = `R$ ${total.toFixed(2)}`;
 }
 
+function validatePaymentAmount() {
+    const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+    const feedbackDiv = document.getElementById('paymentValidationFeedback');
+    
+    if (isNaN(paymentAmount) || paymentAmount <= 0) {
+        feedbackDiv.className = 'mt-2 text-sm hidden';
+        return;
+    }
+    
+    // Obter valores do modal
+    const remainingText = document.getElementById('paymentRemainingAmount').textContent;
+    const minimumText = document.getElementById('paymentMinimumAmount').textContent;
+    
+    if (!remainingText || !minimumText) {
+        feedbackDiv.className = 'mt-2 text-sm hidden';
+        return;
+    }
+    
+    const remainingAmount = parseFloat(remainingText.replace('R$', '').replace('.', '').replace(',', '.').trim());
+    const minimumAmount = parseFloat(minimumText.replace('R$', '').replace('.', '').replace(',', '.').trim());
+    
+    feedbackDiv.classList.remove('hidden');
+    
+    if (paymentAmount < minimumAmount) {
+        feedbackDiv.textContent = `⚠️ Valor abaixo do mínimo (R$ ${minimumAmount.toFixed(2)}). Pagamento não permitido.`;
+        feedbackDiv.className = 'mt-2 text-sm text-red-400';
+        document.getElementById('paymentAmount').classList.add('border-red-500');
+    } else if (Math.abs(paymentAmount - minimumAmount) <= (minimumAmount * 0.01)) {
+        feedbackDiv.textContent = `🔄 Pagamento mínimo detectado. O empréstimo será recalculado automaticamente.`;
+        feedbackDiv.className = 'mt-2 text-sm text-yellow-400';
+        document.getElementById('paymentAmount').classList.remove('border-red-500');
+        document.getElementById('paymentAmount').classList.add('border-yellow-500');
+    } else if (paymentAmount < remainingAmount) {
+        feedbackDiv.textContent = `🔄 Pagamento parcial. O empréstimo será recalculado se necessário.`;
+        feedbackDiv.className = 'mt-2 text-sm text-blue-400';
+        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500');
+        document.getElementById('paymentAmount').classList.add('border-blue-500');
+    } else if (paymentAmount >= remainingAmount) {
+        feedbackDiv.textContent = `✅ Pagamento quitará o empréstimo completamente.`;
+        feedbackDiv.className = 'mt-2 text-sm text-green-400';
+        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500');
+        document.getElementById('paymentAmount').classList.add('border-green-500');
+    } else {
+        feedbackDiv.className = 'mt-2 text-sm hidden';
+        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+    }
+}
+
 function showPaymentModal(loanId) {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
@@ -1084,6 +1185,11 @@ function showPaymentModal(loanId) {
     document.getElementById('paymentType').value = 'partial';
     document.getElementById('paymentNotes').value = '';
     
+    // Limpar validação anterior
+    const feedbackDiv = document.getElementById('paymentValidationFeedback');
+    feedbackDiv.className = 'mt-2 text-sm hidden';
+    document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+    
     // Armazenar ID do empréstimo
     document.getElementById('paymentForm').dataset.loanId = loanId;
     
@@ -1095,13 +1201,15 @@ async function calculateAndShowRemainingAmount(loanId) {
         const loan = loans.find(l => l.id === loanId);
         if (!loan) return;
         
-        // Calcular total com juros
-        const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+        const capitalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = capitalAmount * (interestRate / 100);
+        const totalWithInterest = capitalAmount + interestAmount;
         
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount')
+            .select('amount, payment_type')
             .eq('loan_id', loanId);
         
         if (error) throw error;
@@ -1112,17 +1220,114 @@ async function calculateAndShowRemainingAmount(loanId) {
         // Calcular valor restante
         const remainingAmount = totalWithInterest - totalPaid;
         
-        // Mostrar valor restante
+        // Calcular pagamento mínimo baseado no valor restante
+        const minimumPayment = calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingAmount);
+        
+        // Mostrar informações detalhadas
+        document.getElementById('paymentCapitalAmount').textContent = `R$ ${capitalAmount.toFixed(2)}`;
+        document.getElementById('paymentInterestRate').textContent = `${interestRate.toFixed(2)}%`;
+        document.getElementById('paymentInterestAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
+        document.getElementById('paymentTotalAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
         document.getElementById('paymentRemainingAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
+        document.getElementById('paymentMinimumAmount').textContent = `R$ ${minimumPayment.toFixed(2)}`;
         
     } catch (error) {
         console.error('Erro ao calcular valor restante:', error);
         // Em caso de erro, mostrar valor total com juros
         const loan = loans.find(l => l.id === loanId);
         if (loan) {
-            const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+            const capitalAmount = parseFloat(loan.amount);
+            const interestRate = parseFloat(loan.interest_rate);
+            const interestAmount = capitalAmount * (interestRate / 100);
+            const totalWithInterest = capitalAmount + interestAmount;
+            
+            document.getElementById('paymentCapitalAmount').textContent = `R$ ${capitalAmount.toFixed(2)}`;
+            document.getElementById('paymentInterestRate').textContent = `${interestRate.toFixed(2)}%`;
+            document.getElementById('paymentInterestAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
+            document.getElementById('paymentTotalAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
             document.getElementById('paymentRemainingAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
+            document.getElementById('paymentMinimumAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
         }
+    }
+}
+
+// Função para calcular o pagamento mínimo baseado no valor restante
+function calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingAmount) {
+    // Se ainda não pagou nada, o mínimo é o valor dos juros
+    if (totalPaid === 0) {
+        return interestAmount;
+    }
+    
+    // Se já pagou o valor dos juros, mas ainda deve capital, 
+    // o mínimo continua sendo proporcional aos juros do valor restante
+    if (remainingAmount <= capitalAmount) {
+        // Calcula o percentual de juros sobre o valor restante
+        const interestRate = interestAmount / capitalAmount;
+        return remainingAmount * interestRate;
+    }
+    
+    // Caso padrão: valor dos juros original
+    return interestAmount;
+}
+
+// Função para verificar se o pagamento requer recálculo e aplicar juros
+async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
+    try {
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) return { shouldRecalculate: false };
+        
+        const capitalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = capitalAmount * (interestRate / 100);
+        const totalWithInterest = capitalAmount + interestAmount;
+        
+        // Buscar pagamentos anteriores
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select('amount, payment_type')
+            .eq('loan_id', loanId);
+        
+        if (error) throw error;
+        
+        const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const remainingBeforePayment = totalWithInterest - totalPaid;
+        const minimumPayment = calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingBeforePayment);
+        
+        // Verificar se o pagamento é apenas o mínimo (juros) ou próximo dele (tolerância de 1%)
+        const isMinimumPayment = Math.abs(paymentAmount - minimumPayment) <= (minimumPayment * 0.01);
+        
+        // Verificar se é pagamento parcial que não cobre o total
+        const remainingAfterPayment = remainingBeforePayment - paymentAmount;
+        const isPartialPayment = remainingAfterPayment > 0 && paymentType !== 'full';
+        
+        // Só recalcula se for pagamento mínimo ou parcial E ainda houver saldo devedor
+        if ((isMinimumPayment || isPartialPayment) && remainingAfterPayment > 0) {
+            // Calcular novo valor baseado no capital restante + juros
+            const capitalPaidSoFar = Math.max(0, totalPaid + paymentAmount - interestAmount);
+            const remainingCapital = Math.max(0, capitalAmount - capitalPaidSoFar);
+            
+            if (remainingCapital > 0) {
+                // Aplicar juros sobre o capital restante
+                const newInterestAmount = remainingCapital * (interestRate / 100);
+                const newTotalAmount = remainingCapital + newInterestAmount;
+                
+                return {
+                    shouldRecalculate: true,
+                    newAmount: remainingCapital,
+                    newInterestAmount: newInterestAmount,
+                    newTotalAmount: newTotalAmount,
+                    originalAmount: capitalAmount,
+                    interestRate: interestRate,
+                    paidAmount: totalPaid + paymentAmount
+                };
+            }
+        }
+        
+        return { shouldRecalculate: false };
+        
+    } catch (error) {
+        console.error('Erro ao verificar recálculo:', error);
+        return { shouldRecalculate: false };
     }
 }
 
@@ -1863,6 +2068,7 @@ function getPaymentTypeText(type) {
         case 'full': return 'Total';
         case 'interest': return 'Apenas Juros';
         case 'principal': return 'Apenas Principal';
+        case 'adjustment': return 'Ajuste/Recálculo';
         default: return type;
     }
 }
