@@ -638,7 +638,7 @@ function renderClientsTable() {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email}</td>
             <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')" title="Editar Cliente">✏️</button>
+                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="alert('Clique detectado! ID: ${client.id}'); editClient('${client.id}')" title="Editar Cliente">✏️</button>
                 <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
                 <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">🗑️</button>
             </td>
@@ -1230,13 +1230,26 @@ async function handleEditLoan(e) {
 
 // Funções auxiliares
 function showModal(modal) {
+    console.log('=== showModal chamado ===');
+    console.log('Modal recebido:', modal);
+    
     if (!modal) {
         console.error('Modal não encontrado!');
         return;
     }
     
+    console.log('Classes antes:', modal.classList.toString());
+    console.log('Display antes:', modal.style.display);
+    
+    // Remover hidden e adicionar fade-in
     modal.classList.remove('hidden');
     modal.classList.add('fade-in');
+    
+    // Forçar display como fallback
+    modal.style.display = 'flex';
+    
+    console.log('Classes depois:', modal.classList.toString());
+    console.log('Display depois:', modal.style.display);
     
     // Preencher dados se necessário
     if (modal === newLoanModal) {
@@ -1248,6 +1261,7 @@ function showModal(modal) {
 function hideModal(modal) {
     modal.classList.add('hidden');
     modal.classList.remove('fade-in');
+    modal.style.display = 'none';
     
     // Limpar formulários específicos
     if (modal === editClientModal) {
@@ -2461,17 +2475,54 @@ function getLast12Months() {
     return months;
 }
 
+// Função de teste para debug
+function testModal() {
+    console.log('=== TESTE MODAL ===');
+    const modal = document.getElementById('editClientModal');
+    console.log('Modal encontrado:', modal);
+    if (modal) {
+        console.log('Tentando abrir modal...');
+        modal.style.display = 'flex';
+        modal.style.zIndex = '9999';
+        modal.style.position = 'fixed';
+        modal.style.top = '0';
+        modal.style.left = '0';
+        modal.style.width = '100%';
+        modal.style.height = '100%';
+        modal.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+        modal.classList.remove('hidden');
+        modal.classList.add('fade-in');
+        console.log('Modal deveria estar visível agora');
+        
+        // Preencher com dados de teste
+        document.getElementById('editClientName').value = 'TESTE';
+        
+        setTimeout(() => {
+            console.log('Computed style:', window.getComputedStyle(modal).display);
+        }, 100);
+    }
+}
+
 // Funções de edição e exclusão
 function editClient(clientId) {
+    console.log('=== INÍCIO editClient ===');
+    console.log('ClientId recebido:', clientId, 'tipo:', typeof clientId);
+    
+    // Teste simples primeiro
+    alert('Função editClient chamada com ID: ' + clientId);
+    
     // Verificar se o modal existe
     const modal = document.getElementById('editClientModal');
+    console.log('Modal encontrado:', modal);
     if (!modal) {
         console.error('Modal de edição não encontrado no DOM!');
         alert('Erro: Modal de edição não encontrado. Recarregue a página.');
         return;
     }
     
+    console.log('Array de clientes:', clients);
     const client = clients.find(c => c.id == clientId);
+    console.log('Cliente encontrado:', client);
     
     if (!client) {
         console.error('Cliente não encontrado com ID:', clientId);
@@ -2481,14 +2532,28 @@ function editClient(clientId) {
     
     // Preencher o formulário de edição
     try {
-        document.getElementById('editClientId').value = client.id;
-        document.getElementById('editClientName').value = client.name;
-        document.getElementById('editClientCPF').value = client.cpf;
-        document.getElementById('editClientEmail').value = client.email;
-        document.getElementById('editClientPhone').value = client.phone;
-        document.getElementById('editClientAddress').value = client.address;
-        document.getElementById('editClientRG').value = client.rg || '';
-        document.getElementById('editClientBirthDate').value = client.birth_date || '';
+        console.log('Preenchendo formulário...');
+        const elements = {
+            'editClientId': client.id,
+            'editClientName': client.name,
+            'editClientCPF': client.cpf,
+            'editClientEmail': client.email,
+            'editClientPhone': client.phone,
+            'editClientAddress': client.address,
+            'editClientRG': client.rg || '',
+            'editClientBirthDate': client.birth_date || ''
+        };
+        
+        for (const [elementId, value] of Object.entries(elements)) {
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.value = value;
+                console.log(`${elementId}: OK`);
+            } else {
+                console.error(`Elemento ${elementId} não encontrado!`);
+            }
+        }
+        console.log('Formulário preenchido com sucesso');
     } catch (error) {
         console.error('Erro ao preencher formulário de edição:', error);
         alert('Erro ao carregar dados do cliente para edição.');
@@ -2528,11 +2593,31 @@ function editClient(clientId) {
         document.getElementById('editPhotosUploadPreview').classList.add('hidden');
     }
     
-    // Carregar e exibir avalistas do cliente
-    loadAndDisplayClientGuarantors(clientId);
+    // Abrir o modal - método direto
+    console.log('Abrindo modal diretamente...');
+    modal.style.display = 'flex';
+    modal.style.zIndex = '9999';
+    modal.style.position = 'fixed';
+    modal.style.top = '0';
+    modal.style.left = '0';
+    modal.style.width = '100%';
+    modal.style.height = '100%';
+    modal.style.backgroundColor = 'rgba(0, 0, 0, 0.8)';
+    modal.classList.remove('hidden');
+    modal.classList.add('fade-in');
+    console.log('Modal aberto diretamente');
     
-    // Abrir o modal
-    showModal(modal);
+    // Verificar se o modal está realmente visível
+    setTimeout(() => {
+        const computedStyle = window.getComputedStyle(modal);
+        console.log('Computed display:', computedStyle.display);
+        console.log('Computed visibility:', computedStyle.visibility);
+        console.log('Computed opacity:', computedStyle.opacity);
+        console.log('Modal dimensions:', modal.getBoundingClientRect());
+    }, 100);
+    
+    // Carregar e exibir avalistas do cliente (após abrir modal)
+    loadAndDisplayClientGuarantors(clientId);
     
     // Mostrar mensagem informativa
     showInfoMessage(`Editando cliente: ${client.name}`);
@@ -4083,10 +4168,10 @@ function updateUserInfo() {
 }
 
 // Inicializar tabelas quando necessário
-document.addEventListener('DOMContentLoaded', function() {
-    // Tentar criar tabelas se necessário
-    createTablesIfNotExist();
-});
+// document.addEventListener('DOMContentLoaded', function() {
+//     // Tentar criar tabelas se necessário
+//     createTablesIfNotExist();
+// });
 
 // Função para popular o select de clientes na aba de histórico
 function populateHistoryClientSelect() {
