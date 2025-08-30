@@ -638,7 +638,7 @@ function renderClientsTable() {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email}</td>
             <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')">✏️</button>
+                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')" title="Editar Cliente">✏️</button>
                 <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
                 <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">🗑️</button>
             </td>
@@ -1230,6 +1230,11 @@ async function handleEditLoan(e) {
 
 // Funções auxiliares
 function showModal(modal) {
+    if (!modal) {
+        console.error('Modal não encontrado!');
+        return;
+    }
+    
     modal.classList.remove('hidden');
     modal.classList.add('fade-in');
     
@@ -2458,18 +2463,37 @@ function getLast12Months() {
 
 // Funções de edição e exclusão
 function editClient(clientId) {
-    const client = clients.find(c => c.id === clientId);
-    if (!client) return;
+    // Verificar se o modal existe
+    const modal = document.getElementById('editClientModal');
+    if (!modal) {
+        console.error('Modal de edição não encontrado no DOM!');
+        alert('Erro: Modal de edição não encontrado. Recarregue a página.');
+        return;
+    }
+    
+    const client = clients.find(c => c.id == clientId);
+    
+    if (!client) {
+        console.error('Cliente não encontrado com ID:', clientId);
+        alert('Cliente não encontrado!');
+        return;
+    }
     
     // Preencher o formulário de edição
-    document.getElementById('editClientId').value = client.id;
-    document.getElementById('editClientName').value = client.name;
-    document.getElementById('editClientCPF').value = client.cpf;
-    document.getElementById('editClientEmail').value = client.email;
-    document.getElementById('editClientPhone').value = client.phone;
-    document.getElementById('editClientAddress').value = client.address;
-    document.getElementById('editClientRG').value = client.rg || '';
-    document.getElementById('editClientBirthDate').value = client.birth_date || '';
+    try {
+        document.getElementById('editClientId').value = client.id;
+        document.getElementById('editClientName').value = client.name;
+        document.getElementById('editClientCPF').value = client.cpf;
+        document.getElementById('editClientEmail').value = client.email;
+        document.getElementById('editClientPhone').value = client.phone;
+        document.getElementById('editClientAddress').value = client.address;
+        document.getElementById('editClientRG').value = client.rg || '';
+        document.getElementById('editClientBirthDate').value = client.birth_date || '';
+    } catch (error) {
+        console.error('Erro ao preencher formulário de edição:', error);
+        alert('Erro ao carregar dados do cliente para edição.');
+        return;
+    }
     // Configurar fotos (compatibilidade com versão antiga e nova)
     let photosToSet = '';
     if (client.photos) {
@@ -2507,7 +2531,8 @@ function editClient(clientId) {
     // Carregar e exibir avalistas do cliente
     loadAndDisplayClientGuarantors(clientId);
     
-    showModal(document.getElementById('editClientModal'));
+    // Abrir o modal
+    showModal(modal);
     
     // Mostrar mensagem informativa
     showInfoMessage(`Editando cliente: ${client.name}`);
