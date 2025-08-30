@@ -2462,47 +2462,30 @@ function editClient(clientId) {
     if (!client) return;
     
     // Preencher o formulário de edição
-    document.getElementById('editClientId').value = client.id;
-    document.getElementById('editClientName').value = client.name;
-    document.getElementById('editClientCPF').value = client.cpf;
-    document.getElementById('editClientEmail').value = client.email;
-    document.getElementById('editClientPhone').value = client.phone;
-    document.getElementById('editClientAddress').value = client.address;
-    document.getElementById('editClientRG').value = client.rg || '';
-    document.getElementById('editClientBirthDate').value = client.birth_date || '';
-    // Configurar fotos (compatibilidade com versão antiga e nova)
-    let photosToSet = '';
-    if (client.photos) {
-        // Nova versão com múltiplas fotos
-        photosToSet = client.photos;
-    } else if (client.photo) {
-        // Versão antiga com uma foto apenas - converter para array
-        photosToSet = JSON.stringify([client.photo]);
-    }
-    document.getElementById('editClientPhotos').value = photosToSet;
+    const editClientId = document.getElementById('editClientId');
+    const editClientName = document.getElementById('editClientName');
+    const editClientCPF = document.getElementById('editClientCPF');
+    const editClientEmail = document.getElementById('editClientEmail');
+    const editClientPhone = document.getElementById('editClientPhone');
+    const editClientAddress = document.getElementById('editClientAddress');
+    const editClientRG = document.getElementById('editClientRG');
+    const editClientBirthDate = document.getElementById('editClientBirthDate');
     
-    // Atualizar preview das fotos existentes
-    if (photosToSet) {
-        try {
-            const photoUrls = JSON.parse(photosToSet);
-            if (photoUrls && photoUrls.length > 0) {
-                showPhotosPreview(photoUrls, 'editPhotosPreviewGrid', 'editPhotosUploadPreview');
-                
-                // Configurar o widget com as fotos atuais se disponível
-                if (window.uploadcare) {
-                    const editWidget = uploadcare.Widget('#editClientPhotosUploader');
-                    // Para múltiplas fotos, vamos deixar o widget vazio para novas seleções
-                    editWidget.value(null);
-                }
-            }
-        } catch (e) {
-            console.warn('Erro ao processar fotos do cliente:', e);
-            document.getElementById('editPhotosUploadPreview').classList.add('hidden');
-        }
-    } else {
-        // Se não há fotos, manter preview oculto
-        document.getElementById('editPhotosUploadPreview').classList.add('hidden');
+    // Verificar se todos os elementos existem antes de definir valores
+    if (!editClientId || !editClientName || !editClientCPF || !editClientEmail || 
+        !editClientPhone || !editClientAddress || !editClientRG || !editClientBirthDate) {
+        console.error('Erro: Alguns elementos do formulário de edição não foram encontrados');
+        return;
     }
+    
+    editClientId.value = client.id;
+    editClientName.value = client.name;
+    editClientCPF.value = client.cpf;
+    editClientEmail.value = client.email;
+    editClientPhone.value = client.phone;
+    editClientAddress.value = client.address;
+    editClientRG.value = client.rg || '';
+    editClientBirthDate.value = client.birth_date || '';
     
     // Carregar e exibir avalistas do cliente
     loadAndDisplayClientGuarantors(clientId);
