@@ -36,44 +36,21 @@ const logoutBtn = document.getElementById('logoutBtn');
 const navLinks = document.querySelectorAll('.nav-link');
 const contentSections = document.querySelectorAll('.content-section');
 
-// Modais
-const newClientModal = document.getElementById('newClientModal');
-const newLoanModal = document.getElementById('newLoanModal');
-const paymentModal = document.getElementById('paymentModal');
-const editClientModal = document.getElementById('editClientModal');
-const editLoanModal = document.getElementById('editLoanModal');
-const confirmationModal = document.getElementById('confirmationModal');
-const paymentHistoryModal = document.getElementById('paymentHistoryModal');
-const newExpenseModal = document.getElementById('newExpenseModal');
-const newInstallmentModal = document.getElementById('newInstallmentModal');
-const installmentDetailsModal = document.getElementById('installmentDetailsModal');
-const installmentPaymentModal = document.getElementById('installmentPaymentModal');
-const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
-const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
-const addCapitalClientModal = document.getElementById('addCapitalClientModal');
-const guarantorModal = document.getElementById('guarantorModal');
-const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
+// Modais (serão inicializados após o DOM carregar)
+let newClientModal, newLoanModal, paymentModal, editClientModal, editLoanModal;
+let confirmationModal, paymentHistoryModal, newExpenseModal, newInstallmentModal;
+let installmentDetailsModal, installmentPaymentModal, newCapitalRaisingModal;
+let capitalRaisingDetailsModal, addCapitalClientModal, guarantorModal, whatsappSummaryModal;
 
 
-// Botões
-const newClientBtn = document.getElementById('newClientBtn');
-const newLoanBtn = document.getElementById('newLoanBtn');
-const newExpenseBtn = document.getElementById('newExpenseBtn');
-const newCapitalRaisingBtn = document.getElementById('newCapitalRaisingBtn');
+// Botões (serão inicializados após o DOM carregar)
+let newClientBtn, newLoanBtn, newExpenseBtn, newCapitalRaisingBtn;
+let generatePdfBtn, generateExpensesPDFBtn, generateTotalPDFBtn;
+let generateWeeklyPDFBtn, generateMonthlyPDFBtn;
 
-const generatePdfBtn = document.getElementById('generatePdfBtn');
-const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
-const generateTotalPDFBtn = document.getElementById('generateTotalPDFBtn');
-const generateWeeklyPDFBtn = document.getElementById('generateWeeklyPDFBtn');
-const generateMonthlyPDFBtn = document.getElementById('generateMonthlyPDFBtn');
-
-// Formulários
-const newClientForm = document.getElementById('newClientForm');
-const newLoanForm = document.getElementById('newLoanForm');
-const paymentForm = document.getElementById('paymentForm');
-const newExpenseForm = document.getElementById('newExpenseForm');
-const newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
-const addCapitalClientForm = document.getElementById('addCapitalClientForm');
+// Formulários (serão inicializados após o DOM carregar)
+let newClientForm, newLoanForm, paymentForm, newExpenseForm;
+let newCapitalRaisingForm, addCapitalClientForm;
 
 
 // Inicialização da aplicação
@@ -108,7 +85,56 @@ async function initializeApp() {
 }
 
 // Configurar event listeners
+function initializeDOMElements() {
+    // Inicializar todas as referências dos modais
+    newClientModal = document.getElementById('newClientModal');
+    newLoanModal = document.getElementById('newLoanModal');
+    paymentModal = document.getElementById('paymentModal');
+    editClientModal = document.getElementById('editClientModal');
+    editLoanModal = document.getElementById('editLoanModal');
+    confirmationModal = document.getElementById('confirmationModal');
+    paymentHistoryModal = document.getElementById('paymentHistoryModal');
+    newExpenseModal = document.getElementById('newExpenseModal');
+    newInstallmentModal = document.getElementById('newInstallmentModal');
+    installmentDetailsModal = document.getElementById('installmentDetailsModal');
+    installmentPaymentModal = document.getElementById('installmentPaymentModal');
+    newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
+    capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
+    addCapitalClientModal = document.getElementById('addCapitalClientModal');
+    guarantorModal = document.getElementById('guarantorModal');
+    whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
+    
+    // Inicializar botões
+    newClientBtn = document.getElementById('newClientBtn');
+    newLoanBtn = document.getElementById('newLoanBtn');
+    newExpenseBtn = document.getElementById('newExpenseBtn');
+    newCapitalRaisingBtn = document.getElementById('newCapitalRaisingBtn');
+    generatePdfBtn = document.getElementById('generatePdfBtn');
+    generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
+    generateTotalPDFBtn = document.getElementById('generateTotalPDFBtn');
+    generateWeeklyPDFBtn = document.getElementById('generateWeeklyPDFBtn');
+    generateMonthlyPDFBtn = document.getElementById('generateMonthlyPDFBtn');
+    
+    // Inicializar formulários
+    newClientForm = document.getElementById('newClientForm');
+    newLoanForm = document.getElementById('newLoanForm');
+    paymentForm = document.getElementById('paymentForm');
+    newExpenseForm = document.getElementById('newExpenseForm');
+    newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
+    addCapitalClientForm = document.getElementById('addCapitalClientForm');
+    
+    console.log('🔍 Elementos DOM inicializados:', {
+        editClientModal: !!editClientModal,
+        newClientModal: !!newClientModal,
+        newLoanModal: !!newLoanModal,
+        newClientBtn: !!newClientBtn
+    });
+}
+
 function setupEventListeners() {
+    // Inicializar elementos DOM primeiro
+    initializeDOMElements();
+    
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
@@ -1230,6 +1256,11 @@ async function handleEditLoan(e) {
 
 // Funções auxiliares
 function showModal(modal) {
+    if (!modal) {
+        console.error('❌ Modal não encontrado!');
+        return;
+    }
+    
     modal.classList.remove('hidden');
     modal.classList.add('fade-in');
     
@@ -2459,7 +2490,12 @@ function getLast12Months() {
 // Funções de edição e exclusão
 function editClient(clientId) {
     const client = clients.find(c => c.id === clientId);
-    if (!client) return;
+    
+    if (!client) {
+        console.error('❌ Cliente não encontrado com ID:', clientId);
+        showErrorMessage('Cliente não encontrado!');
+        return;
+    }
     
     // Preencher o formulário de edição
     document.getElementById('editClientId').value = client.id;
@@ -2504,10 +2540,16 @@ function editClient(clientId) {
         document.getElementById('editPhotosUploadPreview').classList.add('hidden');
     }
     
-    // Carregar e exibir avalistas do cliente
-    loadAndDisplayClientGuarantors(clientId);
+    if (!editClientModal) {
+        console.error('❌ Modal editClientModal não encontrado no DOM!');
+        showErrorMessage('Erro: Modal de edição não encontrado!');
+        return;
+    }
     
-    showModal(document.getElementById('editClientModal'));
+    showModal(editClientModal);
+    
+    // Carregar e exibir avalistas do cliente após abrir o modal
+    loadAndDisplayClientGuarantors(clientId);
     
     // Mostrar mensagem informativa
     showInfoMessage(`Editando cliente: ${client.name}`);
@@ -2643,6 +2685,8 @@ async function loadAndDisplayClientGuarantors(clientId) {
         renderGuarantorsList(clientGuarantors, clientId);
     } catch (error) {
         console.error('Erro ao carregar avalistas do cliente:', error);
+        // Não deixar que este erro impeça a abertura do modal
+        renderGuarantorsList([], clientId);
     }
 }
 
@@ -2650,7 +2694,12 @@ async function loadAndDisplayClientGuarantors(clientId) {
 function renderGuarantorsList(clientGuarantors, clientId) {
     const guarantorsList = document.getElementById('guarantorsList');
     
-    if (clientGuarantors.length === 0) {
+    if (!guarantorsList) {
+        console.error('❌ Elemento guarantorsList não encontrado no DOM!');
+        return;
+    }
+    
+    if (!clientGuarantors || clientGuarantors.length === 0) {
         guarantorsList.innerHTML = `
             <div class="text-center py-6 text-gray-400">
                 <p>Nenhum avalista cadastrado para este cliente.</p>
