@@ -259,6 +259,18 @@ function setupEventListeners() {
         openGuarantorModal();
     });
     
+    // Checkbox para incluir avalista no novo cliente
+    document.getElementById('includeGuarantor').addEventListener('change', function() {
+        const guarantorSection = document.getElementById('guarantorSection');
+        if (this.checked) {
+            guarantorSection.classList.remove('hidden');
+        } else {
+            guarantorSection.classList.add('hidden');
+            // Limpar campos do avalista quando desmarcado
+            clearNewClientGuarantorForm();
+        }
+    });
+    
     // Capital Raising forms
     if (newCapitalRaisingForm) {
         newCapitalRaisingForm.addEventListener('submit', handleNewCapitalRaising);
@@ -360,6 +372,28 @@ function setupUploadcare() {
                 // Limpar quando arquivo for removido
                 document.getElementById('guarantorPhoto').value = '';
                 document.getElementById('guarantorPhotoUploadPreview').classList.add('hidden');
+            }
+        });
+        
+        // Widget para foto de avalista no novo cliente
+        const newClientGuarantorWidget = uploadcare.Widget('#newClientGuarantorPhotoUploader');
+        newClientGuarantorWidget.onChange(function(file) {
+            if (file) {
+                file.done(function(fileInfo) {
+                    // Armazenar URL no campo hidden
+                    document.getElementById('newClientGuarantorPhoto').value = fileInfo.cdnUrl;
+                    
+                    // Mostrar preview
+                    const previewDiv = document.getElementById('newClientGuarantorPhotoUploadPreview');
+                    const previewImg = document.getElementById('newClientGuarantorPhotoPreviewImg');
+                    
+                    previewImg.src = fileInfo.cdnUrl;
+                    previewDiv.classList.remove('hidden');
+                });
+            } else {
+                // Limpar quando arquivo for removido
+                document.getElementById('newClientGuarantorPhoto').value = '';
+                document.getElementById('newClientGuarantorPhotoUploadPreview').classList.add('hidden');
             }
         });
     } else {
@@ -863,6 +897,36 @@ async function handleNewClient(e) {
         created_at: new Date().toISOString()
     };
     
+    // Verificar se deve incluir avalista
+    const includeGuarantor = document.getElementById('includeGuarantor').checked;
+    let guarantorData = null;
+    
+    if (includeGuarantor) {
+        const guarantorName = document.getElementById('newClientGuarantorName').value.trim();
+        const guarantorCPF = document.getElementById('newClientGuarantorCPF').value.trim();
+        const guarantorPhone = document.getElementById('newClientGuarantorPhone').value.trim();
+        
+        // Validar campos obrigatórios do avalista
+        if (!guarantorName || !guarantorCPF || !guarantorPhone) {
+            alert('Por favor, preencha pelo menos o nome, CPF e telefone do avalista.');
+            return;
+        }
+        
+        guarantorData = {
+            name: guarantorName,
+            cpf: guarantorCPF,
+            rg: document.getElementById('newClientGuarantorRG').value.trim(),
+            email: document.getElementById('newClientGuarantorEmail').value.trim(),
+            phone: guarantorPhone,
+            address: document.getElementById('newClientGuarantorAddress').value.trim(),
+            birth_date: document.getElementById('newClientGuarantorBirthDate').value || null,
+            relationship: document.getElementById('newClientGuarantorRelationship').value,
+            photo: document.getElementById('newClientGuarantorPhoto').value,
+            created_by: currentUser.id,
+            created_at: new Date().toISOString()
+        };
+    }
+    
     try {
         console.log('Inserting client data:', formData); // Debug log
         const { data, error } = await supabase
@@ -877,13 +941,44 @@ async function handleNewClient(e) {
         
         console.log('Client created successfully:', data); // Debug log
         
+        const newClient = data[0];
+        
+        // Se incluir avalista, criar o registro do avalista
+        if (includeGuarantor && guarantorData && newClient) {
+            guarantorData.client_id = newClient.id;
+            
+            console.log('Inserting guarantor data:', guarantorData); // Debug log
+            const { data: guarantorResult, error: guarantorError } = await supabase
+                .from('guarantors')
+                .insert([guarantorData])
+                .select();
+            
+            if (guarantorError) {
+                console.error('Guarantor database error:', guarantorError);
+                // Não falhar a criação do cliente se o avalista falhar
+                console.warn('Cliente criado, mas houve erro ao criar avalista:', guarantorError.message);
+            } else {
+                console.log('Guarantor created successfully:', guarantorResult);
+            }
+        }
+        
         hideModal(newClientModal);
         newClientForm.reset();
         
+        // Resetar seção de avalista
+        document.getElementById('includeGuarantor').checked = false;
+        document.getElementById('guarantorSection').classList.add('hidden');
+        document.getElementById('newClientGuarantorPhoto').value = '';
+        document.getElementById('newClientGuarantorPhotoUploadPreview').classList.add('hidden');
+        
         await loadClients();
+        await loadGuarantors();
         await updateDashboard();
         
-        showSuccessMessage('Cliente criado com sucesso!');
+        const successMessage = includeGuarantor && guarantorData ? 
+            'Cliente e avalista criados com sucesso!' : 
+            'Cliente criado com sucesso!';
+        showSuccessMessage(successMessage);
         
     } catch (error) {
         alert('Erro ao criar cliente: ' + error.message);
@@ -1260,6 +1355,10 @@ function hideModal(modal) {
         document.getElementById('editLoanForm').reset();
     } else if (modal === newClientModal) {
         document.getElementById('newClientForm').reset();
+        // Resetar seção de avalista
+        document.getElementById('includeGuarantor').checked = false;
+        document.getElementById('guarantorSection').classList.add('hidden');
+        clearNewClientGuarantorForm();
     } else if (modal === newLoanModal) {
         document.getElementById('newLoanForm').reset();
     } else if (modal === paymentModal) {
@@ -2691,6 +2790,28 @@ function renderGuarantorsList(clientGuarantors, clientId) {
     `).join('');
     
     guarantorsList.innerHTML = guarantorsHTML;
+}
+
+// Limpar formulário de avalista no novo cliente
+function clearNewClientGuarantorForm() {
+    document.getElementById('newClientGuarantorName').value = '';
+    document.getElementById('newClientGuarantorCPF').value = '';
+    document.getElementById('newClientGuarantorEmail').value = '';
+    document.getElementById('newClientGuarantorPhone').value = '';
+    document.getElementById('newClientGuarantorRG').value = '';
+    document.getElementById('newClientGuarantorBirthDate').value = '';
+    document.getElementById('newClientGuarantorRelationship').value = '';
+    document.getElementById('newClientGuarantorAddress').value = '';
+    document.getElementById('newClientGuarantorPhoto').value = '';
+    document.getElementById('newClientGuarantorPhotoUploadPreview').classList.add('hidden');
+    
+    // Limpar widget do Uploadcare se existir
+    if (window.uploadcare) {
+        const widget = uploadcare.Widget('#newClientGuarantorPhotoUploader');
+        if (widget) {
+            widget.value(null);
+        }
+    }
 }
 
 // Abrir modal para adicionar avalista
