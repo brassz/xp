@@ -5119,7 +5119,7 @@ async function generateContract(loanId) {
         }
 
         // Encerramento
-        const encerramentoText = "E por estarem assim justos e contratados, firmam o presente instrumento em duas vias de igual teor e forma, na presença de duas testemunhas, para que produza seus jurídicos e legais efeitos.";
+        const encerramentoText = "E por estarem assim justos e contratados, firmam o presente instrumento em duas vias de igual teor e forma, para que produza seus jurídicos e legais efeitos.";
         yPosition = addWrappedText(encerramentoText, margin, yPosition, maxWidth) + 6;
 
         // Data e local
@@ -5166,13 +5166,7 @@ async function generateContract(loanId) {
             doc.text("Avalista", margin, yPosition);
         }
 
-        // Testemunha
-        yPosition += 8;
-        doc.setFont('helvetica', 'normal');
-        const testemunhaText = "Testemunha: Inove Porcelanataria e Marmoraria LTDA";
-        yPosition = addWrappedText(testemunhaText, margin, yPosition, maxWidth);
-        const cnpjText = "CNPJ: 50.485.843/0001-01";
-        yPosition = addWrappedText(cnpjText, margin, yPosition, maxWidth);
+
 
         // Salvar o PDF
         const hasGuarantor = clientGuarantors && clientGuarantors.length > 0;
