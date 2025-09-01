@@ -475,12 +475,15 @@ function handleNavigation(e) {
             // Atualizar gráficos apenas quando a seção de relatórios for exibida
             if (target === 'reports') {
                 console.log('Seção de relatórios ativada, atualizando gráficos...');
-                setTimeout(() => {
-                    updateLoans7DaysChart();
-                    updateOverdueLoansChart();
-                    updateGrowthChart();
-                    updateDistributionChart();
-                }, 100);
+                loadInstallmentPayments().then(() => {
+                    setTimeout(() => {
+                        updateWeeklyPaymentsChart();
+                        updateLoans7DaysChart();
+                        updateOverdueLoansChart();
+                        updateGrowthChart();
+                        updateDistributionChart();
+                    }, 100);
+                });
             }
             
             // Carregar dados das despesas quando a seção for exibida
@@ -1986,6 +1989,11 @@ async function updateDashboard() {
 async function updateCharts() {
     console.log('Atualizando gráficos...');
     
+    // Carregar dados de pagamentos se necessário para relatórios
+    if (document.getElementById('weeklyPaymentsChart')) {
+        await loadInstallmentPayments();
+    }
+    
     // Verificar se os elementos existem antes de tentar criar os gráficos
     if (document.getElementById('clientsChart')) {
         updateClientsChart();
@@ -1998,6 +2006,9 @@ async function updateCharts() {
     }
     if (document.getElementById('distributionChart')) {
         updateDistributionChart();
+    }
+    if (document.getElementById('weeklyPaymentsChart')) {
+        updateWeeklyPaymentsChart();
     }
     if (document.getElementById('loans7DaysChart')) {
         updateLoans7DaysChart();
@@ -2136,6 +2147,158 @@ function updateLoansChart() {
             }
         }
     });
+}
+
+function updateWeeklyPaymentsChart() {
+    const ctx = document.getElementById('weeklyPaymentsChart');
+    if (!ctx) {
+        console.log('Elemento weeklyPaymentsChart não encontrado');
+        return;
+    }
+    
+    console.log('Atualizando gráfico de pagamentos semanais...');
+    
+    if (charts.weeklyPayments) {
+        charts.weeklyPayments.destroy();
+    }
+    
+    // Obter os dias da semana atual (segunda a domingo)
+    const currentWeekDays = getCurrentWeekDays();
+    
+    // Calcular dados de pagamentos por dia da semana
+    const paymentsData = currentWeekDays.map(day => {
+        const dayStr = day.toISOString().split('T')[0];
+        
+        // Filtrar pagamentos realizados neste dia
+        const dayPayments = installmentPayments.filter(payment => {
+            if (!payment.paid_date || payment.status !== 'paid') return false;
+            const paidDate = new Date(payment.paid_date);
+            const paidDateStr = paidDate.toISOString().split('T')[0];
+            return paidDateStr === dayStr;
+        });
+        
+        // Calcular totais
+        const totalPayments = dayPayments.reduce((sum, payment) => sum + parseFloat(payment.paid_amount || payment.amount), 0);
+        
+        // Para calcular juros e capital, precisamos buscar os dados do parcelamento
+        let totalInterest = 0;
+        let totalCapital = 0;
+        
+        dayPayments.forEach(payment => {
+            const installment = installments.find(inst => inst.id === payment.installment_id);
+            if (installment) {
+                const paymentAmount = parseFloat(payment.paid_amount || payment.amount);
+                const interestRate = parseFloat(installment.interest_rate || 0) / 100;
+                const originalAmount = parseFloat(installment.total_amount) / (1 + interestRate);
+                
+                // Calcular proporção de juros e capital neste pagamento
+                const interestPortion = paymentAmount * (interestRate / (1 + interestRate));
+                const capitalPortion = paymentAmount - interestPortion;
+                
+                totalInterest += interestPortion;
+                totalCapital += capitalPortion;
+            } else {
+                // Se não encontrar o parcelamento, assumir que é todo capital
+                totalCapital += parseFloat(payment.paid_amount || payment.amount);
+            }
+        });
+        
+        return {
+            date: day,
+            totalPayments: totalPayments,
+            totalInterest: totalInterest,
+            totalCapital: totalCapital,
+            count: dayPayments.length
+        };
+    });
+    
+    charts.weeklyPayments = new Chart(ctx, {
+        type: 'bar',
+        data: {
+            labels: currentWeekDays.map(date => {
+                const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+                return `${dayNames[date.getDay()]} ${date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' })}`;
+            }),
+            datasets: [{
+                label: 'Total de Pagamentos (R$)',
+                data: paymentsData.map(d => d.totalPayments),
+                backgroundColor: 'rgba(34, 197, 94, 0.7)',
+                borderColor: '#22c55e',
+                borderWidth: 2
+            }, {
+                label: 'Juros (R$)',
+                data: paymentsData.map(d => d.totalInterest),
+                backgroundColor: 'rgba(239, 68, 68, 0.7)',
+                borderColor: '#ef4444',
+                borderWidth: 2
+            }, {
+                label: 'Capital (R$)',
+                data: paymentsData.map(d => d.totalCapital),
+                backgroundColor: 'rgba(59, 130, 246, 0.7)',
+                borderColor: '#3b82f6',
+                borderWidth: 2
+            }]
+        },
+        options: {
+            responsive: true,
+            maintainAspectRatio: false,
+            plugins: {
+                legend: {
+                    labels: { color: '#ffffff' }
+                },
+                tooltip: {
+                    callbacks: {
+                        label: function(context) {
+                            const value = context.parsed.y;
+                            return context.dataset.label + ': R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                        }
+                    }
+                }
+            },
+            scales: {
+                y: {
+                    beginAtZero: true,
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { 
+                        color: '#ffffff',
+                        callback: function(value) {
+                            return 'R$ ' + value.toLocaleString('pt-BR', { minimumFractionDigits: 2 });
+                        }
+                    },
+                    title: {
+                        display: true,
+                        text: 'Valor (R$)',
+                        color: '#ffffff'
+                    }
+                },
+                x: {
+                    grid: { color: 'rgba(255, 255, 255, 0.1)' },
+                    ticks: { color: '#ffffff' }
+                }
+            }
+        }
+    });
+}
+
+// Função auxiliar para obter os dias da semana atual (segunda a domingo)
+function getCurrentWeekDays() {
+    const today = new Date();
+    const currentDay = today.getDay(); // 0 = domingo, 1 = segunda, etc.
+    
+    // Calcular quantos dias voltar para chegar na segunda-feira
+    const daysToMonday = currentDay === 0 ? 6 : currentDay - 1;
+    
+    const monday = new Date(today);
+    monday.setDate(today.getDate() - daysToMonday);
+    
+    const weekDays = [];
+    for (let i = 0; i < 7; i++) {
+        const day = new Date(monday);
+        day.setDate(monday.getDate() + i);
+        weekDays.push(day);
+    }
+    
+    return weekDays;
 }
 
 function updateGrowthChart() {
@@ -5871,6 +6034,31 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
 // Fechar modal de parcelamento
 function closeInstallmentModal() {
     newInstallmentModal.classList.add('hidden');
+}
+
+// Carregar todos os pagamentos de parcelas para relatórios
+async function loadInstallmentPayments() {
+    try {
+        const { data, error } = await supabase
+            .from('installment_payments')
+            .select(`
+                *,
+                installments (
+                    total_amount,
+                    interest_rate,
+                    clients (name)
+                )
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        installmentPayments = data || [];
+        console.log('Pagamentos de parcelas carregados:', installmentPayments.length);
+
+    } catch (error) {
+        console.error('Erro ao carregar pagamentos de parcelas:', error);
+    }
 }
 
 // Carregar parcelamentos ativos
