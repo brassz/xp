@@ -4984,6 +4984,9 @@ async function generateContract(loanId) {
             return;
         }
 
+        // Buscar avalistas do cliente
+        const clientGuarantors = await loadClientGuarantors(loan.client_id);
+
         // Criar novo documento PDF
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
@@ -5030,7 +5033,19 @@ async function generateContract(loanId) {
         yPosition = addWrappedText("MUTUÁRIO:", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
         const mutuarioText = `${client.name}, brasileiro, portador do CPF nº ${client.cpf}, RG nº ${client.rg || 'N/A'}, residente e domiciliada à ${client.address || 'Endereço não informado'}.`;
-        yPosition = addWrappedText(mutuarioText, margin, yPosition, maxWidth) + 5;
+        yPosition = addWrappedText(mutuarioText, margin, yPosition, maxWidth) + 3;
+
+        // Avalista (se existir)
+        if (clientGuarantors && clientGuarantors.length > 0) {
+            const guarantor = clientGuarantors[0]; // Usando o primeiro avalista
+            doc.setFont('helvetica', 'bold');
+            yPosition = addWrappedText("AVALISTA:", margin, yPosition, maxWidth);
+            doc.setFont('helvetica', 'normal');
+            const avalistaText = `${guarantor.name}, brasileiro, portador do CPF nº ${guarantor.cpf}, RG nº ${guarantor.rg || 'N/A'}, residente e domiciliado à ${guarantor.address || 'Endereço não informado'}, que neste ato assume a responsabilidade solidária pelo pagamento da dívida.`;
+            yPosition = addWrappedText(avalistaText, margin, yPosition, maxWidth) + 5;
+        } else {
+            yPosition += 2;
+        }
 
         // Acordo
         const acordoText = "Têm entre si justo e acordado o presente contrato de mútuo, que se regerá pelas seguintes cláusulas e condições:";
@@ -5076,6 +5091,12 @@ async function generateContract(loanId) {
         doc.setFont('helvetica', 'normal');
         const clausula5Text = "5.1. O contrato é título executivo extrajudicial, conforme artigo 784, III do CPC, podendo o MUTUANTE requerer judicialmente a penhora de bens do MUTUÁRIO em caso de inadimplência.";
         yPosition = addWrappedText(clausula5Text, margin, yPosition, maxWidth) + 3;
+
+        // Adicionar cláusula sobre avalista se existir
+        if (clientGuarantors && clientGuarantors.length > 0) {
+            const clausula5_2Text = "5.2. O AVALISTA assume responsabilidade solidária pelo pagamento integral da dívida, juros, multa e demais encargos, podendo ser executado diretamente pelo MUTUANTE em caso de inadimplemento do MUTUÁRIO, independentemente de ordem de preferência ou benefício de ordem.";
+            yPosition = addWrappedText(clausula5_2Text, margin, yPosition, maxWidth) + 3;
+        }
 
         // Cláusula Sexta
         doc.setFont('helvetica', 'bold');
@@ -5125,6 +5146,26 @@ async function generateContract(loanId) {
         yPosition += 4;
         doc.text("Mutuário", 120, yPosition);
 
+        // Espaço para assinatura do avalista (se existir)
+        if (clientGuarantors && clientGuarantors.length > 0) {
+            const guarantor = clientGuarantors[0];
+            yPosition += 12;
+            
+            // Verificar se precisa de nova página para assinatura do avalista
+            if (yPosition > 260) {
+                doc.addPage();
+                yPosition = 20;
+                doc.setFont('helvetica', 'bold');
+                yPosition = addWrappedText("Assinaturas (continuação):", margin, yPosition, maxWidth) + 8;
+            }
+            
+            doc.line(margin, yPosition, 90, yPosition);
+            yPosition += 4;
+            doc.text(guarantor.name, margin, yPosition);
+            yPosition += 4;
+            doc.text("Avalista", margin, yPosition);
+        }
+
         // Testemunha
         yPosition += 8;
         doc.setFont('helvetica', 'normal');
@@ -5134,10 +5175,15 @@ async function generateContract(loanId) {
         yPosition = addWrappedText(cnpjText, margin, yPosition, maxWidth);
 
         // Salvar o PDF
-        const fileName = `Contrato_${client.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        const hasGuarantor = clientGuarantors && clientGuarantors.length > 0;
+        const guarantorInfo = hasGuarantor ? '_com_avalista' : '';
+        const fileName = `Contrato_${client.name.replace(/\s+/g, '_')}${guarantorInfo}_${new Date().toISOString().split('T')[0]}.pdf`;
         doc.save(fileName);
 
-        showSuccessMessage('Contrato gerado com sucesso!');
+        const successMessage = hasGuarantor ? 
+            'Contrato gerado com sucesso! Inclui dados e assinatura do avalista.' : 
+            'Contrato gerado com sucesso!';
+        showSuccessMessage(successMessage);
 
     } catch (error) {
         console.error('Erro ao gerar contrato:', error);
