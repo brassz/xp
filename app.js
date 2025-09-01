@@ -66,6 +66,7 @@ const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn')
 const generateTotalPDFBtn = document.getElementById('generateTotalPDFBtn');
 const generateWeeklyPDFBtn = document.getElementById('generateWeeklyPDFBtn');
 const generateMonthlyPDFBtn = document.getElementById('generateMonthlyPDFBtn');
+const generateWeeklyPaymentsPDFBtn = document.getElementById('generateWeeklyPaymentsPDFBtn');
 
 // Formulários
 const newClientForm = document.getElementById('newClientForm');
@@ -148,6 +149,10 @@ function setupEventListeners() {
     
     if (generateMonthlyPDFBtn) {
         generateMonthlyPDFBtn.addEventListener('click', generateMonthlyReportPDF);
+    }
+    
+    if (generateWeeklyPaymentsPDFBtn) {
+        generateWeeklyPaymentsPDFBtn.addEventListener('click', generateWeeklyPaymentsPDF);
     }
     
     // Fechar modais
@@ -8188,6 +8193,292 @@ async function generateMonthlyReportPDF() {
         
     } catch (error) {
         console.error('Erro ao gerar PDF do relatório mensal:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// Função para gerar PDF dos pagamentos semanais
+async function generateWeeklyPaymentsPDF() {
+    try {
+        // Obter os últimos 7 dias (segunda a domingo)
+        const today = new Date();
+        const dayOfWeek = today.getDay(); // 0 = domingo, 1 = segunda, etc.
+        const mondayOffset = dayOfWeek === 0 ? 6 : dayOfWeek - 1; // Calcular offset para segunda-feira
+        
+        const monday = new Date(today);
+        monday.setDate(today.getDate() - mondayOffset);
+        monday.setHours(0, 0, 0, 0);
+        
+        const sunday = new Date(monday);
+        sunday.setDate(monday.getDate() + 6);
+        sunday.setHours(23, 59, 59, 999);
+        
+        // Buscar pagamentos da semana atual
+        const { data: payments, error } = await supabase
+            .from('installment_payments')
+            .select(`
+                *,
+                installments (
+                    id,
+                    interest_rate,
+                    total_amount,
+                    total_installments,
+                    clients (name),
+                    loans (amount, due_date)
+                )
+            `)
+            .eq('status', 'paid')
+            .gte('paid_date', monday.toISOString().split('T')[0])
+            .lte('paid_date', sunday.toISOString().split('T')[0])
+            .order('paid_date', { ascending: true });
+            
+        if (error) {
+            console.error('Erro ao buscar pagamentos:', error);
+            showInfoMessage('Erro ao buscar dados de pagamentos: ' + error.message);
+            return;
+        }
+        
+        if (!payments || payments.length === 0) {
+            showInfoMessage('Nenhum pagamento foi encontrado na semana atual (segunda a domingo).');
+            return;
+        }
+        
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO DE PAGAMENTOS SEMANAIS', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const periodText = `Período: ${monday.toLocaleDateString('pt-BR')} a ${sunday.toLocaleDateString('pt-BR')}`;
+        doc.text(periodText, 105, 30, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 40);
+        
+        // Linha divisória
+        doc.line(20, 45, 190, 45);
+        
+        let yPosition = 55;
+        
+        // Calcular totais gerais
+        let totalPayments = 0;
+        let totalInterest = 0;
+        let totalPrincipal = 0;
+        
+        const processedPayments = payments.map(payment => {
+            const installment = payment.installments;
+            const paidAmount = parseFloat(payment.paid_amount || payment.amount);
+            let interestAmount = 0;
+            let principalAmount = paidAmount;
+            
+            if (installment && installment.interest_rate > 0) {
+                // Calcular juros aproximado baseado na taxa do parcelamento
+                const interestRate = parseFloat(installment.interest_rate) / 100;
+                principalAmount = paidAmount / (1 + interestRate);
+                interestAmount = paidAmount - principalAmount;
+            }
+            
+            totalPayments += paidAmount;
+            totalInterest += interestAmount;
+            totalPrincipal += principalAmount;
+            
+            return {
+                ...payment,
+                paidAmount,
+                interestAmount,
+                principalAmount,
+                clientName: installment?.clients?.name || 'N/A'
+            };
+        });
+        
+        // Resumo geral
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO GERAL DA SEMANA', 20, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de pagamentos recebidos: ${payments.length}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de pagamentos: R$ ${totalPayments.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de juros: R$ ${totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de capital: R$ ${totalPrincipal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 15;
+        
+        // Resumo por dia da semana
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO POR DIA DA SEMANA', 20, yPosition);
+        yPosition += 10;
+        
+        const dayNames = ['Dom', 'Seg', 'Ter', 'Qua', 'Qui', 'Sex', 'Sáb'];
+        const dailySummary = {};
+        
+        // Inicializar todos os dias da semana
+        for (let i = 0; i < 7; i++) {
+            const day = new Date(monday);
+            day.setDate(monday.getDate() + i);
+            const dayKey = day.toISOString().split('T')[0];
+            dailySummary[dayKey] = {
+                date: day,
+                dayName: dayNames[day.getDay()],
+                count: 0,
+                totalPayments: 0,
+                totalInterest: 0,
+                totalPrincipal: 0
+            };
+        }
+        
+        // Agrupar pagamentos por dia
+        processedPayments.forEach(payment => {
+            const paymentDate = payment.paid_date;
+            if (dailySummary[paymentDate]) {
+                dailySummary[paymentDate].count++;
+                dailySummary[paymentDate].totalPayments += payment.paidAmount;
+                dailySummary[paymentDate].totalInterest += payment.interestAmount;
+                dailySummary[paymentDate].totalPrincipal += payment.principalAmount;
+            }
+        });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        Object.values(dailySummary).forEach(day => {
+            const dateStr = `${day.dayName} (${day.date.toLocaleDateString('pt-BR')})`;
+            doc.text(`${dateStr}: ${day.count} pagamentos`, 20, yPosition);
+            yPosition += 5;
+            doc.text(`  Total: R$ ${day.totalPayments.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 25, yPosition);
+            yPosition += 5;
+            doc.text(`  Juros: R$ ${day.totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 25, yPosition);
+            yPosition += 5;
+            doc.text(`  Capital: R$ ${day.totalPrincipal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 25, yPosition);
+            yPosition += 8;
+        });
+        
+        yPosition += 5;
+        
+        // Verificar se precisa de nova página
+        if (yPosition > 250) {
+            doc.addPage();
+            yPosition = 20;
+        }
+        
+        // Detalhamento de todos os pagamentos
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALHAMENTO DOS PAGAMENTOS', 20, yPosition);
+        yPosition += 10;
+        
+        // Cabeçalho da tabela
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'bold');
+        doc.text('Data', 20, yPosition);
+        doc.text('Cliente', 40, yPosition);
+        doc.text('Parcela', 80, yPosition);
+        doc.text('Total Pago', 100, yPosition);
+        doc.text('Juros', 125, yPosition);
+        doc.text('Capital', 145, yPosition);
+        doc.text('Método', 165, yPosition);
+        yPosition += 5;
+        
+        // Linha do cabeçalho
+        doc.line(20, yPosition, 190, yPosition);
+        yPosition += 5;
+        
+        // Dados dos pagamentos
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(7);
+        
+        processedPayments.forEach((payment, index) => {
+            if (yPosition > 270) { // Nova página se necessário
+                doc.addPage();
+                yPosition = 20;
+                
+                // Repetir cabeçalho na nova página
+                doc.setFontSize(8);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Data', 20, yPosition);
+                doc.text('Cliente', 40, yPosition);
+                doc.text('Parcela', 80, yPosition);
+                doc.text('Total Pago', 100, yPosition);
+                doc.text('Juros', 125, yPosition);
+                doc.text('Capital', 145, yPosition);
+                doc.text('Método', 165, yPosition);
+                yPosition += 5;
+                doc.line(20, yPosition, 190, yPosition);
+                yPosition += 5;
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(7);
+            }
+            
+            const paymentDate = new Date(payment.paid_date).toLocaleDateString('pt-BR');
+            const clientName = payment.clientName.substring(0, 15); // Limitar nome
+            const installmentNumber = `${payment.installment_number}`;
+            const totalPaid = `R$ ${payment.paidAmount.toFixed(2)}`;
+            const interest = `R$ ${payment.interestAmount.toFixed(2)}`;
+            const principal = `R$ ${payment.principalAmount.toFixed(2)}`;
+            const method = payment.payment_method || 'N/A';
+            
+            doc.text(paymentDate, 20, yPosition);
+            doc.text(clientName, 40, yPosition);
+            doc.text(installmentNumber, 80, yPosition);
+            doc.text(totalPaid, 100, yPosition);
+            doc.text(interest, 125, yPosition);
+            doc.text(principal, 145, yPosition);
+            doc.text(method, 165, yPosition);
+            
+            yPosition += 6;
+        });
+        
+        // Linha separadora final
+        yPosition += 5;
+        doc.line(20, yPosition, 190, yPosition);
+        yPosition += 10;
+        
+        // Totais finais
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(10);
+        doc.text(`TOTAIS FINAIS:`, 20, yPosition);
+        yPosition += 8;
+        doc.text(`Total de Pagamentos: R$ ${totalPayments.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de Juros: R$ ${totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total de Capital: R$ ${totalPrincipal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        
+        // Rodapé em todas as páginas
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${totalPages}`, 170, 285);
+            doc.text(`Nexus Gestão Financeira - Relatório de Pagamentos Semanais`, 20, 285);
+        }
+        
+        // Salvar o PDF
+        const weekStart = monday.toLocaleDateString('pt-BR').replace(/\//g, '-');
+        const weekEnd = sunday.toLocaleDateString('pt-BR').replace(/\//g, '-');
+        const fileName = `pagamentos_semanais_${weekStart}_a_${weekEnd}.pdf`;
+        doc.save(fileName);
+        
+        showInfoMessage('Relatório de pagamentos semanais gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF dos pagamentos semanais:', error);
         showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
 }
