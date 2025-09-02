@@ -1156,9 +1156,14 @@ async function handlePayment(e) {
             
             if (actionNoteError) console.warn('Erro ao registrar nota de ação:', actionNoteError);
         } else {
-            // Atualizar status do empréstimo baseado no tipo de pagamento (lógica original)
+            // Atualizar status do empréstimo baseado no valor do pagamento
+            // Como agora o tipo representa método de pagamento, vamos verificar se o pagamento quita o empréstimo
+            const loan = loans.find(l => l.id === loanId);
+            const totalLoanAmount = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+            const remainingAmount = await calculateLoanRemainingAmount(loanId);
+            
             let newStatus = 'partial_paid';
-            if (paymentType === 'full') {
+            if (paymentAmount >= remainingAmount) {
                 newStatus = 'paid';
             }
             
@@ -1370,7 +1375,7 @@ function hideModal(modal) {
     } else if (modal === paymentModal) {
         document.getElementById('paymentForm').reset();
         document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
-        document.getElementById('paymentType').value = 'partial';
+        document.getElementById('paymentType').value = 'dinheiro';
     } else if (modal === paymentHistoryModal) {
         // Limpar dados do histórico
         document.getElementById('paymentHistoryTableBody').innerHTML = '';
@@ -1541,7 +1546,7 @@ function showPaymentModal(loanId) {
     
     // Limpar outros campos
     document.getElementById('paymentAmount').value = '';
-    document.getElementById('paymentType').value = 'partial';
+    document.getElementById('paymentType').value = 'dinheiro';
     document.getElementById('paymentNotes').value = '';
     
     // Resetar campos de alteração de data de vencimento
@@ -3215,6 +3220,9 @@ function updatePaymentHistorySummary(loanId, payments) {
 
 function getPaymentTypeText(type) {
     switch (type) {
+        case 'dinheiro': return 'Dinheiro';
+        case 'pix': return 'Pix';
+        case 'cartao': return 'Cartão';
         case 'partial': return 'Parcial';
         case 'full': return 'Total';
         case 'interest': return 'Apenas Juros';
