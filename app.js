@@ -7234,6 +7234,55 @@ function filterCashTransactions() {
     });
 }
 
+// Zerar caixa (resetar saldo e transações)
+async function resetCash() {
+    try {
+        // Mostrar confirmação com aviso
+        showConfirmationModal(
+            'Zerar Caixa',
+            'ATENÇÃO: Esta ação é irreversível!\n\nTodas as transações de caixa serão excluídas permanentemente e o saldo será zerado.\n\nDeseja realmente continuar?',
+            async () => {
+                try {
+                    // Primeiro, excluir todas as transações de caixa
+                    const { error: deleteTransactionsError } = await supabase
+                        .from('cash_transactions')
+                        .delete()
+                        .neq('id', '00000000-0000-0000-0000-000000000000'); // Deleta todos os registros
+                    
+                    if (deleteTransactionsError) throw deleteTransactionsError;
+                    
+                    // Depois, resetar o saldo para zero
+                    const { error: resetBalanceError } = await supabase
+                        .from('cash_settings')
+                        .update({ 
+                            current_balance: 0,
+                            last_updated: new Date().toISOString(),
+                            updated_by: currentUser?.id
+                        })
+                        .eq('id', cashSettings?.id || '00000000-0000-0000-0000-000000000000');
+                    
+                    if (resetBalanceError) throw resetBalanceError;
+                    
+                    // Atualizar dados locais
+                    await loadCashTransactions();
+                    await loadCashSettings();
+                    
+                    showInfoMessage('Caixa zerado com sucesso! Todas as transações foram excluídas.');
+                    
+                } catch (error) {
+                    console.error('Erro ao zerar caixa:', error);
+                    showInfoMessage('Erro ao zerar caixa: ' + error.message);
+                }
+            },
+            'Zerar Caixa'
+        );
+        
+    } catch (error) {
+        console.error('Erro ao preparar reset do caixa:', error);
+        showInfoMessage('Erro ao preparar reset do caixa: ' + error.message);
+    }
+}
+
 // ===================================================
 // FIM DA GESTÃO DE CAIXA
 // ===================================================
