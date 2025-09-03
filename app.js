@@ -6938,6 +6938,7 @@ async function addMoney(amount, description) {
         const currentBalance = cashSettings ? parseFloat(cashSettings.current_balance) : 0;
         const newBalance = currentBalance + parseFloat(amount);
         
+        // Inserir transação
         const { data, error } = await supabase
             .from('cash_transactions')
             .insert([{
@@ -6951,6 +6952,35 @@ async function addMoney(amount, description) {
             .select();
         
         if (error) throw error;
+        
+        // Atualizar manualmente o saldo na tabela cash_settings
+        if (cashSettings) {
+            const { error: updateError } = await supabase
+                .from('cash_settings')
+                .update({ 
+                    current_balance: newBalance,
+                    last_updated: new Date().toISOString(),
+                    updated_by: currentUser?.id
+                })
+                .eq('id', cashSettings.id);
+            
+            if (updateError) {
+                console.error('Erro ao atualizar saldo:', updateError);
+            }
+        } else {
+            // Se não existe configuração, criar uma nova
+            const { error: createError } = await supabase
+                .from('cash_settings')
+                .insert([{
+                    current_balance: newBalance,
+                    initial_balance: 0,
+                    updated_by: currentUser?.id
+                }]);
+            
+            if (createError) {
+                console.error('Erro ao criar configuração de caixa:', createError);
+            }
+        }
         
         // Atualizar dados locais
         await loadCashTransactions();
@@ -6978,6 +7008,7 @@ async function withdrawMoney(amount, description) {
         
         const newBalance = currentBalance - parseFloat(amount);
         
+        // Inserir transação
         const { data, error } = await supabase
             .from('cash_transactions')
             .insert([{
@@ -6991,6 +7022,22 @@ async function withdrawMoney(amount, description) {
             .select();
         
         if (error) throw error;
+        
+        // Atualizar manualmente o saldo na tabela cash_settings
+        if (cashSettings) {
+            const { error: updateError } = await supabase
+                .from('cash_settings')
+                .update({ 
+                    current_balance: newBalance,
+                    last_updated: new Date().toISOString(),
+                    updated_by: currentUser?.id
+                })
+                .eq('id', cashSettings.id);
+            
+            if (updateError) {
+                console.error('Erro ao atualizar saldo:', updateError);
+            }
+        }
         
         // Atualizar dados locais
         await loadCashTransactions();
@@ -7252,16 +7299,29 @@ async function resetCash() {
                     if (deleteTransactionsError) throw deleteTransactionsError;
                     
                     // Depois, resetar o saldo para zero
-                    const { error: resetBalanceError } = await supabase
-                        .from('cash_settings')
-                        .update({ 
-                            current_balance: 0,
-                            last_updated: new Date().toISOString(),
-                            updated_by: currentUser?.id
-                        })
-                        .eq('id', cashSettings?.id || '00000000-0000-0000-0000-000000000000');
-                    
-                    if (resetBalanceError) throw resetBalanceError;
+                    if (cashSettings) {
+                        const { error: resetBalanceError } = await supabase
+                            .from('cash_settings')
+                            .update({ 
+                                current_balance: 0,
+                                last_updated: new Date().toISOString(),
+                                updated_by: currentUser?.id
+                            })
+                            .eq('id', cashSettings.id);
+                        
+                        if (resetBalanceError) throw resetBalanceError;
+                    } else {
+                        // Se não existe configuração, criar uma nova com saldo zero
+                        const { error: createError } = await supabase
+                            .from('cash_settings')
+                            .insert([{
+                                current_balance: 0,
+                                initial_balance: 0,
+                                updated_by: currentUser?.id
+                            }]);
+                        
+                        if (createError) throw createError;
+                    }
                     
                     // Atualizar dados locais
                     await loadCashTransactions();
