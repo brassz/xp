@@ -44,6 +44,8 @@ CREATE TABLE IF NOT EXISTS clients (
     email TEXT NOT NULL,
     phone TEXT NOT NULL,
     address TEXT NOT NULL,
+    rg TEXT,
+    birth_date DATE,
     photo TEXT,
     created_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
@@ -57,6 +59,8 @@ COMMENT ON COLUMN clients.name IS 'Nome completo do cliente';
 COMMENT ON COLUMN clients.cpf IS 'CPF único do cliente';
 COMMENT ON COLUMN clients.email IS 'Email do cliente';
 COMMENT ON COLUMN clients.phone IS 'Telefone do cliente';
+COMMENT ON COLUMN clients.rg IS 'RG do cliente';
+COMMENT ON COLUMN clients.birth_date IS 'Data de nascimento do cliente';
 COMMENT ON COLUMN clients.photo IS 'URL da foto do cliente (Uploadcare)';
 COMMENT ON COLUMN clients.created_by IS 'Usuário que criou o cliente';
 COMMENT ON COLUMN clients.created_at IS 'Data de criação do registro';
