@@ -242,7 +242,10 @@ function setupEventListeners() {
             const results = searchHistoryClients(searchTerm);
             renderHistorySearchResults(results);
         } else {
-            document.getElementById('historyClientResults').classList.add('hidden');
+            const historyResults = document.getElementById('historyClientResults');
+            if (historyResults) {
+                historyResults.classList.add('hidden');
+            }
         }
     });
     
@@ -251,7 +254,7 @@ function setupEventListeners() {
         const searchInput = document.getElementById('historyClientSearch');
         const resultsContainer = document.getElementById('historyClientResults');
         
-        if (!searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
+        if (searchInput && resultsContainer && !searchInput.contains(e.target) && !resultsContainer.contains(e.target)) {
             resultsContainer.classList.add('hidden');
         }
     });
@@ -362,9 +365,13 @@ function setupUploadcare() {
                 });
             } else {
                 // Limpar quando arquivos forem removidos
-                document.getElementById('editClientPhotos').value = '';
-                document.getElementById('editPhotosUploadPreview').classList.add('hidden');
-                document.getElementById('editPhotosPreviewGrid').innerHTML = '';
+                const editClientPhotos = document.getElementById('editClientPhotos');
+                const editPhotosUploadPreview = document.getElementById('editPhotosUploadPreview');
+                const editPhotosPreviewGrid = document.getElementById('editPhotosPreviewGrid');
+                
+                if (editClientPhotos) editClientPhotos.value = '';
+                if (editPhotosUploadPreview) editPhotosUploadPreview.classList.add('hidden');
+                if (editPhotosPreviewGrid) editPhotosPreviewGrid.innerHTML = '';
             }
         });
         
@@ -385,8 +392,11 @@ function setupUploadcare() {
                 });
             } else {
                 // Limpar quando arquivo for removido
-                document.getElementById('guarantorPhoto').value = '';
-                document.getElementById('guarantorPhotoUploadPreview').classList.add('hidden');
+                const guarantorPhoto = document.getElementById('guarantorPhoto');
+                const guarantorPhotoUploadPreview = document.getElementById('guarantorPhotoUploadPreview');
+                
+                if (guarantorPhoto) guarantorPhoto.value = '';
+                if (guarantorPhotoUploadPreview) guarantorPhotoUploadPreview.classList.add('hidden');
             }
         });
         
@@ -407,8 +417,11 @@ function setupUploadcare() {
                 });
             } else {
                 // Limpar quando arquivo for removido
-                document.getElementById('newClientGuarantorPhoto').value = '';
-                document.getElementById('newClientGuarantorPhotoUploadPreview').classList.add('hidden');
+                const newClientGuarantorPhoto = document.getElementById('newClientGuarantorPhoto');
+                const newClientGuarantorPhotoUploadPreview = document.getElementById('newClientGuarantorPhotoUploadPreview');
+                
+                if (newClientGuarantorPhoto) newClientGuarantorPhoto.value = '';
+                if (newClientGuarantorPhotoUploadPreview) newClientGuarantorPhotoUploadPreview.classList.add('hidden');
             }
         });
     } else {
@@ -572,6 +585,7 @@ async function loadData() {
 // Carregar clientes
 async function loadClients() {
     try {
+        console.log('Carregando clientes do banco...'); // Debug log
         const { data, error } = await supabase
             .from('clients')
             .select('*')
@@ -580,7 +594,9 @@ async function loadClients() {
         if (error) throw error;
         
         clients = data || [];
+        console.log('Renderizando tabela de clientes...'); // Debug log
         renderClientsTable();
+        console.log('Populando select de histórico...'); // Debug log
         populateHistoryClientSelect();
         
     } catch (error) {
@@ -656,6 +672,10 @@ async function loadLoans() {
 // Renderizar tabela de clientes
 function renderClientsTable() {
     const tbody = document.getElementById('clientsTableBody');
+    if (!tbody) {
+        console.error('Erro: Elemento clientsTableBody não encontrado');
+        return;
+    }
     
     if (clients.length === 0) {
         tbody.innerHTML = `
@@ -981,10 +1001,17 @@ async function handleNewClient(e) {
         newClientForm.reset();
         
         // Resetar seção de avalista
-        document.getElementById('includeGuarantor').checked = false;
-        document.getElementById('guarantorSection').classList.add('hidden');
-        document.getElementById('newClientGuarantorPhoto').value = '';
-        document.getElementById('newClientGuarantorPhotoUploadPreview').classList.add('hidden');
+        const includeGuarantor = document.getElementById('includeGuarantor');
+        const guarantorSection = document.getElementById('guarantorSection');
+        
+        if (includeGuarantor) includeGuarantor.checked = false;
+        if (guarantorSection) guarantorSection.classList.add('hidden');
+        
+        const newClientGuarantorPhoto = document.getElementById('newClientGuarantorPhoto');
+        const newClientGuarantorPhotoUploadPreview = document.getElementById('newClientGuarantorPhotoUploadPreview');
+        
+        if (newClientGuarantorPhoto) newClientGuarantorPhoto.value = '';
+        if (newClientGuarantorPhotoUploadPreview) newClientGuarantorPhotoUploadPreview.classList.add('hidden');
         
         await loadClients();
         await loadGuarantors();
@@ -1288,12 +1315,16 @@ async function handleEditClient(e) {
         
         console.log('Client updated successfully:', data); // Debug log
         
+        console.log('Tentando fechar modal...'); // Debug log
         hideModal(editClientModal);
         
+        console.log('Recarregando dados...'); // Debug log
         // Recarregar dados
         await loadClients();
+        console.log('Clientes carregados, atualizando dashboard...'); // Debug log
         await updateDashboard();
         
+        console.log('Mostrando mensagem de sucesso...'); // Debug log
         // Mostrar mensagem de sucesso
         showSuccessMessage(`Cliente "${formData.name}" atualizado com sucesso!`);
         
@@ -1369,36 +1400,55 @@ function hideModal(modal) {
     
     // Limpar formulários específicos
     if (modal === editClientModal) {
-        document.getElementById('editClientForm').reset();
-        // Limpar preview das fotos de edição
-        document.getElementById('editPhotosUploadPreview').classList.add('hidden');
-        document.getElementById('editClientPhotos').value = '';
-        document.getElementById('editPhotosPreviewGrid').innerHTML = '';
+        const editClientForm = document.getElementById('editClientForm');
+        const editPhotosUploadPreview = document.getElementById('editPhotosUploadPreview');
+        const editClientPhotos = document.getElementById('editClientPhotos');
+        const editPhotosPreviewGrid = document.getElementById('editPhotosPreviewGrid');
+        
+        if (editClientForm) editClientForm.reset();
+        if (editPhotosUploadPreview) editPhotosUploadPreview.classList.add('hidden');
+        if (editClientPhotos) editClientPhotos.value = '';
+        if (editPhotosPreviewGrid) editPhotosPreviewGrid.innerHTML = '';
+        
         // Limpar widget do Uploadcare
         if (window.uploadcare) {
             const editWidget = uploadcare.Widget('#editClientPhotosUploader');
             editWidget.value(null);
         }
     } else if (modal === editLoanModal) {
-        document.getElementById('editLoanForm').reset();
+        const editLoanForm = document.getElementById('editLoanForm');
+        if (editLoanForm) editLoanForm.reset();
     } else if (modal === newClientModal) {
-        document.getElementById('newClientForm').reset();
-        // Resetar seção de avalista
-        document.getElementById('includeGuarantor').checked = false;
-        document.getElementById('guarantorSection').classList.add('hidden');
+        const newClientForm = document.getElementById('newClientForm');
+        const includeGuarantor = document.getElementById('includeGuarantor');
+        const guarantorSection = document.getElementById('guarantorSection');
+        
+        if (newClientForm) newClientForm.reset();
+        if (includeGuarantor) includeGuarantor.checked = false;
+        if (guarantorSection) guarantorSection.classList.add('hidden');
         clearNewClientGuarantorForm();
     } else if (modal === newLoanModal) {
-        document.getElementById('newLoanForm').reset();
+        const newLoanForm = document.getElementById('newLoanForm');
+        if (newLoanForm) newLoanForm.reset();
     } else if (modal === paymentModal) {
-        document.getElementById('paymentForm').reset();
-        document.getElementById('paymentDate').value = formatDateForInput(new Date());
-        document.getElementById('paymentType').value = 'dinheiro';
+        const paymentForm = document.getElementById('paymentForm');
+        const paymentDate = document.getElementById('paymentDate');
+        const paymentType = document.getElementById('paymentType');
+        
+        if (paymentForm) paymentForm.reset();
+        if (paymentDate) paymentDate.value = formatDateForInput(new Date());
+        if (paymentType) paymentType.value = 'dinheiro';
     } else if (modal === paymentHistoryModal) {
         // Limpar dados do histórico
-        document.getElementById('paymentHistoryTableBody').innerHTML = '';
-        document.getElementById('paymentHistoryTotalPaid').textContent = 'R$ 0,00';
-        document.getElementById('paymentHistoryRemainingAmount').textContent = 'R$ 0,00';
-        document.getElementById('paymentHistoryTotalWithInterest').textContent = 'R$ 0,00';
+        const paymentHistoryTableBody = document.getElementById('paymentHistoryTableBody');
+        const paymentHistoryTotalPaid = document.getElementById('paymentHistoryTotalPaid');
+        const paymentHistoryRemainingAmount = document.getElementById('paymentHistoryRemainingAmount');
+        const paymentHistoryTotalWithInterest = document.getElementById('paymentHistoryTotalWithInterest');
+        
+        if (paymentHistoryTableBody) paymentHistoryTableBody.innerHTML = '';
+        if (paymentHistoryTotalPaid) paymentHistoryTotalPaid.textContent = 'R$ 0,00';
+        if (paymentHistoryRemainingAmount) paymentHistoryRemainingAmount.textContent = 'R$ 0,00';
+        if (paymentHistoryTotalWithInterest) paymentHistoryTotalWithInterest.textContent = 'R$ 0,00';
         
         // Restaurar título padrão
         const titleElement = document.querySelector('#paymentHistoryModal h3');
@@ -1499,17 +1549,21 @@ function validatePaymentAmount() {
     
     feedbackDiv.classList.remove('hidden');
     
+    const paymentAmountEl = document.getElementById('paymentAmount');
+    
     if (paymentAmount < minimumAmount) {
         feedbackText = `⚠️ Valor abaixo do mínimo (R$ ${minimumAmount.toFixed(2)}). Pagamento não permitido.`;
         feedbackColor = 'text-red-400';
-        document.getElementById('paymentAmount').classList.add('border-red-500');
+        if (paymentAmountEl) paymentAmountEl.classList.add('border-red-500');
     } else if (Math.abs(paymentAmount - minimumAmount) <= (minimumAmount * 0.01)) {
         // Pagamento apenas de juros - valor restante permanece igual
         newRemainingAmount = currentCapital + currentInterestAmount;
         feedbackText = `🔄 PAGAMENTO DE JUROS: Capital permanece R$ ${currentCapital.toFixed(2)}, próximo valor total: R$ ${newRemainingAmount.toFixed(2)}`;
         feedbackColor = 'text-yellow-400';
-        document.getElementById('paymentAmount').classList.remove('border-red-500');
-        document.getElementById('paymentAmount').classList.add('border-yellow-500');
+        if (paymentAmountEl) {
+            paymentAmountEl.classList.remove('border-red-500');
+            paymentAmountEl.classList.add('border-yellow-500');
+        }
     } else if (paymentAmount < remainingAmount) {
         if (paymentAmount > currentInterestAmount) {
             // Pagamento de capital + juros
@@ -1531,17 +1585,23 @@ function validatePaymentAmount() {
             feedbackText = `⚠️ PAGAMENTO PARCIAL DE JUROS: Juros pendentes R$ ${unpaidInterest.toFixed(2)}, próximo valor total: R$ ${newRemainingAmount.toFixed(2)}`;
             feedbackColor = 'text-orange-400';
         }
-        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500');
-        document.getElementById('paymentAmount').classList.add('border-blue-500');
+        if (paymentAmountEl) {
+            paymentAmountEl.classList.remove('border-red-500', 'border-yellow-500');
+            paymentAmountEl.classList.add('border-blue-500');
+        }
     } else if (paymentAmount >= remainingAmount) {
         newRemainingAmount = 0;
         feedbackText = `✅ Pagamento quitará o empréstimo completamente. Valor restante: R$ 0,00`;
         feedbackColor = 'text-green-400';
-        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500');
-        document.getElementById('paymentAmount').classList.add('border-green-500');
+        if (paymentAmountEl) {
+            paymentAmountEl.classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500');
+            paymentAmountEl.classList.add('border-green-500');
+        }
     } else {
         feedbackDiv.className = 'mt-2 text-sm hidden';
-        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+        if (paymentAmountEl) {
+            paymentAmountEl.classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+        }
         return;
     }
     
@@ -1568,14 +1628,19 @@ function showPaymentModal(loanId) {
     document.getElementById('paymentNotes').value = '';
     
     // Resetar campos de alteração de data de vencimento
-    document.getElementById('changeDueDateCheckbox').checked = false;
-    document.getElementById('dueDateContainer').classList.add('hidden');
-    document.getElementById('newDueDate').value = '';
+    const changeDueDateCheckbox = document.getElementById('changeDueDateCheckbox');
+    const dueDateContainer = document.getElementById('dueDateContainer');
+    const newDueDate = document.getElementById('newDueDate');
+    const paymentAmount = document.getElementById('paymentAmount');
+    
+    if (changeDueDateCheckbox) changeDueDateCheckbox.checked = false;
+    if (dueDateContainer) dueDateContainer.classList.add('hidden');
+    if (newDueDate) newDueDate.value = '';
     
     // Limpar validação anterior
     const feedbackDiv = document.getElementById('paymentValidationFeedback');
-    feedbackDiv.className = 'mt-2 text-sm hidden';
-    document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+    if (feedbackDiv) feedbackDiv.className = 'mt-2 text-sm hidden';
+    if (paymentAmount) paymentAmount.classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
     
     // Armazenar ID do empréstimo
     document.getElementById('paymentForm').dataset.loanId = loanId;
@@ -1990,15 +2055,24 @@ function formatDate(dateString) {
 
 // Atualizar dashboard
 async function updateDashboard() {
-    document.getElementById('totalClients').textContent = clients.length;
+    const totalClientsEl = document.getElementById('totalClients');
+    if (totalClientsEl) {
+        totalClientsEl.textContent = clients.length;
+    }
     
     const totalLoaned = loans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
-    document.getElementById('totalLoaned').textContent = `R$ ${totalLoaned.toFixed(2)}`;
+    const totalLoanedEl = document.getElementById('totalLoaned');
+    if (totalLoanedEl) {
+        totalLoanedEl.textContent = `R$ ${totalLoaned.toFixed(2)}`;
+    }
     
     const totalInterest = loans.reduce((sum, loan) => {
         return sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
     }, 0);
-    document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
+    const totalInterestEl = document.getElementById('totalInterest');
+    if (totalInterestEl) {
+        totalInterestEl.textContent = `R$ ${totalInterest.toFixed(2)}`;
+    }
     
     // Calcular total restante considerando pagamentos
     let totalRemaining = 0;
@@ -2006,10 +2080,16 @@ async function updateDashboard() {
         const remainingAmount = await calculateLoanRemainingAmount(loan.id);
         totalRemaining += remainingAmount;
     }
-    document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
+    const totalRemainingEl = document.getElementById('totalRemaining');
+    if (totalRemainingEl) {
+        totalRemainingEl.textContent = `R$ ${totalRemaining.toFixed(2)}`;
+    }
     
     const activeLoans = loans.filter(loan => loan.status !== 'paid').length;
-    document.getElementById('activeLoans').textContent = activeLoans;
+    const activeLoansEl = document.getElementById('activeLoans');
+    if (activeLoansEl) {
+        activeLoansEl.textContent = activeLoans;
+    }
     
     // Contar empréstimos quitados da tabela paid_loans
     let paidLoansCount = 0;
@@ -2024,11 +2104,17 @@ async function updateDashboard() {
     } catch (error) {
         console.error('Erro ao contar empréstimos quitados:', error);
     }
-    document.getElementById('paidLoans').textContent = paidLoansCount;
+    const paidLoansEl = document.getElementById('paidLoans');
+    if (paidLoansEl) {
+        paidLoansEl.textContent = paidLoansCount;
+    }
     
     // Calcular total em caixa
     const totalCash = cashSettings ? parseFloat(cashSettings.current_balance) : 0;
-    document.getElementById('totalCash').textContent = `R$ ${totalCash.toFixed(2)}`;
+    const totalCashEl = document.getElementById('totalCash');
+    if (totalCashEl) {
+        totalCashEl.textContent = `R$ ${totalCash.toFixed(2)}`;
+    }
     
     // Calcular total de empréstimos vencidos
     const overdueLoans = loans.filter(loan => {
@@ -2042,7 +2128,10 @@ async function updateDashboard() {
         const remainingAmount = await calculateLoanRemainingAmount(loan.id);
         totalOverdue += remainingAmount;
     }
-    document.getElementById('overdueLoans').textContent = `R$ ${totalOverdue.toFixed(2)}`;
+    const overdueLoansEl = document.getElementById('overdueLoans');
+    if (overdueLoansEl) {
+        overdueLoansEl.textContent = `R$ ${totalOverdue.toFixed(2)}`;
+    }
 
     
     // Atualizar informações do usuário no header
@@ -2852,8 +2941,11 @@ function clearNewClientGuarantorForm() {
     document.getElementById('newClientGuarantorBirthDate').value = '';
     document.getElementById('newClientGuarantorRelationship').value = '';
     document.getElementById('newClientGuarantorAddress').value = '';
-    document.getElementById('newClientGuarantorPhoto').value = '';
-    document.getElementById('newClientGuarantorPhotoUploadPreview').classList.add('hidden');
+    const newClientGuarantorPhoto = document.getElementById('newClientGuarantorPhoto');
+    const newClientGuarantorPhotoUploadPreview = document.getElementById('newClientGuarantorPhotoUploadPreview');
+    
+    if (newClientGuarantorPhoto) newClientGuarantorPhoto.value = '';
+    if (newClientGuarantorPhotoUploadPreview) newClientGuarantorPhotoUploadPreview.classList.add('hidden');
     
     // Limpar widget do Uploadcare se existir
     if (window.uploadcare) {
@@ -2873,9 +2965,13 @@ function openGuarantorModal(guarantorId = null) {
     }
     
     // Limpar formulário
-    document.getElementById('guarantorForm').reset();
-    document.getElementById('guarantorPhoto').value = '';
-    document.getElementById('guarantorPhotoUploadPreview').classList.add('hidden');
+    const guarantorForm = document.getElementById('guarantorForm');
+    const guarantorPhoto = document.getElementById('guarantorPhoto');
+    const guarantorPhotoUploadPreview = document.getElementById('guarantorPhotoUploadPreview');
+    
+    if (guarantorForm) guarantorForm.reset();
+    if (guarantorPhoto) guarantorPhoto.value = '';
+    if (guarantorPhotoUploadPreview) guarantorPhotoUploadPreview.classList.add('hidden');
     
     // Configurar modal para adição ou edição
     if (guarantorId) {
@@ -4240,6 +4336,10 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para popular o select de clientes na aba de histórico
 function populateHistoryClientSelect() {
     const select = document.getElementById('historyClientSelect');
+    if (!select) {
+        console.error('Erro: Elemento historyClientSelect não encontrado');
+        return;
+    }
     select.innerHTML = '<option value="">Ou selecione da lista completa</option>';
     
     if (!clients || clients.length === 0) {
@@ -4318,7 +4418,8 @@ function selectHistoryClient(client) {
     document.getElementById('historyClientSelect').value = client.id;
     
     // Esconder resultados
-    document.getElementById('historyClientResults').classList.add('hidden');
+    const historyClientResults = document.getElementById('historyClientResults');
+    if (historyClientResults) historyClientResults.classList.add('hidden');
     
     // Carregar histórico automaticamente
     loadClientHistory();
@@ -4390,7 +4491,8 @@ async function loadClientHistory() {
         document.getElementById('historyRemainingAmount').textContent = `R$ ${totalRemaining.toFixed(2)}`;
         
         // Mostrar resumo do cliente
-        document.getElementById('clientSummary').classList.remove('hidden');
+        const clientSummary = document.getElementById('clientSummary');
+        if (clientSummary) clientSummary.classList.remove('hidden');
         
         // Renderizar tabela de empréstimos
         renderHistoryLoansTable(clientLoans);
@@ -5991,8 +6093,11 @@ let currentInstallmentPaymentId = null;
 // Abrir modal de novo parcelamento
 function openInstallmentModal() {
     // Limpar formulário
-    document.getElementById('newInstallmentForm').reset();
-    document.getElementById('installmentSummary').classList.add('hidden');
+    const newInstallmentForm = document.getElementById('newInstallmentForm');
+    const installmentSummary = document.getElementById('installmentSummary');
+    
+    if (newInstallmentForm) newInstallmentForm.reset();
+    if (installmentSummary) installmentSummary.classList.add('hidden');
     
     // Carregar empréstimos vencidos
     loadOverdueLoansForInstallment();
@@ -6055,7 +6160,8 @@ document.getElementById('installmentLoanId').addEventListener('change', function
         document.getElementById('installmentTotalAmount').value = '';
     }
     // Esconder o resumo quando os dados mudarem
-    document.getElementById('installmentSummary').classList.add('hidden');
+    const installmentSummary = document.getElementById('installmentSummary');
+    if (installmentSummary) installmentSummary.classList.add('hidden');
 });
 
 // Calcular parcelamento
@@ -6090,7 +6196,8 @@ document.getElementById('calculateInstallment').addEventListener('click', functi
     document.getElementById('calculatedTotalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
 
     // Mostrar resumo
-    document.getElementById('installmentSummary').classList.remove('hidden');
+    const installmentSummary = document.getElementById('installmentSummary');
+    if (installmentSummary) installmentSummary.classList.remove('hidden');
 });
 
 // Criar parcelamento
