@@ -36,23 +36,31 @@ const logoutBtn = document.getElementById('logoutBtn');
 const navLinks = document.querySelectorAll('.nav-link');
 const contentSections = document.querySelectorAll('.content-section');
 
-// Modais
-const newClientModal = document.getElementById('newClientModal');
-const newLoanModal = document.getElementById('newLoanModal');
-const paymentModal = document.getElementById('paymentModal');
-const editClientModal = document.getElementById('editClientModal');
-const editLoanModal = document.getElementById('editLoanModal');
-const confirmationModal = document.getElementById('confirmationModal');
-const paymentHistoryModal = document.getElementById('paymentHistoryModal');
-const newExpenseModal = document.getElementById('newExpenseModal');
-const newInstallmentModal = document.getElementById('newInstallmentModal');
-const installmentDetailsModal = document.getElementById('installmentDetailsModal');
-const installmentPaymentModal = document.getElementById('installmentPaymentModal');
-const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
-const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
-const addCapitalClientModal = document.getElementById('addCapitalClientModal');
-const guarantorModal = document.getElementById('guarantorModal');
-const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
+// Modais - inicializados após DOM estar pronto
+let newClientModal, newLoanModal, paymentModal, editClientModal, editLoanModal;
+let confirmationModal, paymentHistoryModal, newExpenseModal, newInstallmentModal;
+let installmentDetailsModal, installmentPaymentModal, newCapitalRaisingModal;
+let capitalRaisingDetailsModal, addCapitalClientModal, guarantorModal, whatsappSummaryModal;
+
+// Função para inicializar elementos DOM após carregamento
+function initializeModalElements() {
+    newClientModal = document.getElementById('newClientModal');
+    newLoanModal = document.getElementById('newLoanModal');
+    paymentModal = document.getElementById('paymentModal');
+    editClientModal = document.getElementById('editClientModal');
+    editLoanModal = document.getElementById('editLoanModal');
+    confirmationModal = document.getElementById('confirmationModal');
+    paymentHistoryModal = document.getElementById('paymentHistoryModal');
+    newExpenseModal = document.getElementById('newExpenseModal');
+    newInstallmentModal = document.getElementById('newInstallmentModal');
+    installmentDetailsModal = document.getElementById('installmentDetailsModal');
+    installmentPaymentModal = document.getElementById('installmentPaymentModal');
+    newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
+    capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
+    addCapitalClientModal = document.getElementById('addCapitalClientModal');
+    guarantorModal = document.getElementById('guarantorModal');
+    whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
+}
 
 
 // Botões
@@ -78,6 +86,7 @@ const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
+    initializeModalElements();
     initializeApp();
     setupEventListeners();
     setupUploadcare();
@@ -1336,6 +1345,10 @@ async function handleEditLoan(e) {
 
 // Funções auxiliares
 function showModal(modal) {
+    if (!modal) {
+        console.error('Erro: Modal element is null');
+        return;
+    }
     modal.classList.remove('hidden');
     modal.classList.add('fade-in');
     
@@ -1347,6 +1360,10 @@ function showModal(modal) {
 }
 
 function hideModal(modal) {
+    if (!modal) {
+        console.error('Erro: Modal element is null');
+        return;
+    }
     modal.classList.add('hidden');
     modal.classList.remove('fade-in');
     
