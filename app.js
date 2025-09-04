@@ -1217,7 +1217,7 @@ async function handlePayment(e) {
         
         // Adicionar informação sobre alteração de data de vencimento
         if (changeDueDate && newDueDate) {
-            successMessage += `\n\n📅 DATA DE VENCIMENTO ALTERADA!\n• Nova data: ${new Date(newDueDate).toLocaleDateString('pt-BR')}`;
+            successMessage += `\n\n📅 DATA DE VENCIMENTO ALTERADA!\n• Nova data: ${formatDate(newDueDate)}`;
         }
         
         if (recalcInfo.shouldRecalculate) {
@@ -1226,7 +1226,7 @@ async function handlePayment(e) {
                                 `• Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
                                 `• Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
                                 `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}\n` +
-                                `• Nova data de vencimento: ${new Date(recalcInfo.newDueDate).toLocaleDateString('pt-BR')}`;
+                                `• Nova data de vencimento: ${formatDate(recalcInfo.newDueDate)}`;
             } else if (recalcInfo.isCapitalReduction) {
                 successMessage += `\n\n💰 PAGAMENTO DE CAPITAL APLICADO!\n` +
                                 `• Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)}\n` +
@@ -1374,7 +1374,7 @@ function hideModal(modal) {
         document.getElementById('newLoanForm').reset();
     } else if (modal === paymentModal) {
         document.getElementById('paymentForm').reset();
-        document.getElementById('paymentDate').value = new Date().toISOString().split('T')[0];
+        document.getElementById('paymentDate').value = formatDateForInput(new Date());
         document.getElementById('paymentType').value = 'dinheiro';
     } else if (modal === paymentHistoryModal) {
         // Limpar dados do histórico
@@ -1417,8 +1417,10 @@ function setDefaultDates() {
     const today = new Date();
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
     
-    document.getElementById('loanDate').value = today.toISOString().split('T')[0];
-    document.getElementById('loanDueDate').value = nextMonth.toISOString().split('T')[0];
+    // Usar a função auxiliar para formatar datas
+    
+    document.getElementById('loanDate').value = formatDateForInput(today);
+    document.getElementById('loanDueDate').value = formatDateForInput(nextMonth);
 }
 
 function updateLoanSummary() {
@@ -1541,8 +1543,7 @@ function showPaymentModal(loanId) {
     calculateAndShowRemainingAmount(loanId);
     
     // Definir data padrão como hoje
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('paymentDate').value = today;
+    document.getElementById('paymentDate').value = formatDateForInput(new Date());
     
     // Limpar outros campos
     document.getElementById('paymentAmount').value = '';
@@ -1806,8 +1807,8 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
             // PAGAMENTO APENAS DE JUROS: Capital permanece o mesmo
             // Próximo mês: mesmo capital + novos juros
             // Não há recálculo, apenas renovação da data
-            const newDueDate = new Date(loan.due_date);
-            newDueDate.setDate(newDueDate.getDate() + 30);
+            const currentDueDate = parseLocalDate(loan.due_date);
+            const newDueDate = new Date(currentDueDate.getFullYear(), currentDueDate.getMonth() + 1, currentDueDate.getDate());
             
             return {
                 shouldRecalculate: true,
@@ -1900,11 +1901,15 @@ function getLoanStatus(dueDate, dbStatus = null) {
     // Se o status no banco for 'paid', retornar 'paid' independente da data
     if (dbStatus === 'paid') return 'paid';
     
-    const due = new Date(dueDate);
+    const due = parseLocalDate(dueDate);
     const today = new Date();
     
-    if (due < today) return 'overdue';
-    if (due.getTime() === today.getTime()) return 'due_today';
+    // Normalizar as datas para comparar apenas dia, mês e ano
+    const dueNormalized = new Date(due.getFullYear(), due.getMonth(), due.getDate());
+    const todayNormalized = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    
+    if (dueNormalized < todayNormalized) return 'overdue';
+    if (dueNormalized.getTime() === todayNormalized.getTime()) return 'due_today';
     return 'active';
 }
 
@@ -1928,8 +1933,42 @@ function getStatusText(status) {
     }
 }
 
+// Função auxiliar para parsing seguro de datas (evita problemas de fuso horário)
+function parseLocalDate(dateString) {
+    if (!dateString) return null;
+    
+    // Se a string já contém horário, usar diretamente
+    if (dateString.includes('T') || dateString.includes(' ')) {
+        return new Date(dateString);
+    }
+    
+    // Para datas no formato YYYY-MM-DD, criar data local sem conversão de fuso horário
+    const [year, month, day] = dateString.split('-').map(num => parseInt(num, 10));
+    return new Date(year, month - 1, day); // month é 0-indexado
+}
+
+// Função auxiliar para formatar data para campos de input (YYYY-MM-DD)
+function formatDateForInput(date) {
+    const year = date.getFullYear();
+    const month = String(date.getMonth() + 1).padStart(2, '0');
+    const day = String(date.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+}
+
 function formatDate(dateString) {
-    return new Date(dateString).toLocaleDateString('pt-BR');
+    try {
+        if (!dateString) return 'N/A';
+        
+        const date = parseLocalDate(dateString);
+        if (!date || isNaN(date.getTime())) {
+            return 'Data inválida';
+        }
+        
+        return date.toLocaleDateString('pt-BR');
+    } catch (error) {
+        console.warn('Erro ao formatar data:', dateString, error);
+        return 'Data inválida';
+    }
 }
 
 // Atualizar dashboard
@@ -4684,8 +4723,7 @@ async function deletePaidLoan(paidLoanId) {
 
 // Definir data padrão para hoje
 function setDefaultExpenseDate() {
-    const today = new Date().toISOString().split('T')[0];
-    document.getElementById('expenseDate').value = today;
+    document.getElementById('expenseDate').value = formatDateForInput(new Date());
 }
 
 
@@ -5137,7 +5175,7 @@ async function generateContract(loanId) {
         yPosition = addWrappedText(encerramentoText, margin, yPosition, maxWidth) + 6;
 
         // Data e local
-        const dataEmprestimo = new Date(loan.loan_date).toLocaleDateString('pt-BR');
+        const dataEmprestimo = formatDate(loan.loan_date);
         yPosition = addWrappedText(`Franca, ${dataEmprestimo}.`, margin, yPosition, maxWidth) + 8;
 
         // Assinaturas
@@ -5310,7 +5348,7 @@ async function generateMonthlyLoansPDF() {
                 doc.setFont('helvetica', 'normal');
             }
             
-            const loanDate = new Date(loan.created_at).toLocaleDateString('pt-BR');
+            const loanDate = formatDate(loan.created_at);
             const clientName = loan.clients ? loan.clients.name : 'Cliente não encontrado';
             const amount = parseFloat(loan.amount);
             const interestRate = parseFloat(loan.interest_rate);
@@ -5516,7 +5554,7 @@ async function generateWeeklyPaymentsPDF() {
                 capitalPaid = paymentAmount - interestAmount;
             }
             
-            doc.text(new Date(payment.payment_date).toLocaleDateString('pt-BR'), 20, yPosition);
+            doc.text(formatDate(payment.payment_date), 20, yPosition);
             doc.text(client.name.substring(0, 25), 45, yPosition);
             doc.text(`R$ ${paymentAmount.toFixed(2)}`, 110, yPosition);
             doc.text(`R$ ${interestPaid.toFixed(2)}`, 140, yPosition);
@@ -5686,7 +5724,7 @@ async function generateMonthlyExpensesPDF() {
                 doc.setFont('helvetica', 'normal');
             }
             
-            const expenseDate = new Date(expense.date).toLocaleDateString('pt-BR');
+            const expenseDate = formatDate(expense.date);
             const description = expense.title || expense.description || 'Sem descrição';
             const categoryName = expense.expense_categories?.name || 'Outros';
             const amount = parseFloat(expense.amount);
@@ -6180,7 +6218,7 @@ function renderInstallmentsTable() {
         // Calcular próximo vencimento
         const unpaidPayments = installment.installment_payments.filter(p => p.status === 'pending');
         const nextDueDate = unpaidPayments.length > 0 
-            ? new Date(unpaidPayments[0].due_date).toLocaleDateString('pt-BR') 
+            ? formatDate(unpaidPayments[0].due_date) 
             : 'Todas pagas';
 
         // Calcular progresso
@@ -6298,13 +6336,13 @@ function populateInstallmentDetailsModal(installmentData) {
             <tr class="table-row hover:bg-gray-700 transition-colors">
                 <td class="px-6 py-4 text-white">${payment.installment_number}ª</td>
                 <td class="px-6 py-4 text-white">R$ ${payment.amount.toFixed(2)}</td>
-                <td class="px-6 py-4 text-white">${new Date(payment.due_date).toLocaleDateString('pt-BR')}</td>
+                <td class="px-6 py-4 text-white">${formatDate(payment.due_date)}</td>
                 <td class="px-6 py-4">
                     <span class="px-2 py-1 text-xs font-medium rounded-full ${statusColors[currentStatus]}">
                         ${statusLabels[currentStatus]}
                     </span>
                 </td>
-                <td class="px-6 py-4 text-white">${payment.paid_date ? new Date(payment.paid_date).toLocaleDateString('pt-BR') : '-'}</td>
+                <td class="px-6 py-4 text-white">${payment.paid_date ? formatDate(payment.paid_date) : '-'}</td>
                 <td class="px-6 py-4 text-white">${payment.paid_amount ? `R$ ${payment.paid_amount.toFixed(2)}` : '-'}</td>
                 <td class="px-6 py-4">
                     ${payment.status !== 'paid' ? 
@@ -6354,7 +6392,7 @@ async function openInstallmentPaymentModal(paymentId) {
                 </div>
                 <div>
                     <span class="text-blue-300">Vencimento:</span>
-                    <p class="text-white">${new Date(data.due_date).toLocaleDateString('pt-BR')}</p>
+                    <p class="text-white">${formatDate(data.due_date)}</p>
                 </div>
                 <div>
                     <span class="text-blue-300">Status:</span>
@@ -6367,8 +6405,7 @@ async function openInstallmentPaymentModal(paymentId) {
         document.getElementById('installmentPaidAmount').value = data.amount.toFixed(2);
         
         // Definir data padrão como hoje
-        const today = new Date().toISOString().split('T')[0];
-        document.getElementById('installmentPaidDate').value = today;
+        document.getElementById('installmentPaidDate').value = formatDateForInput(new Date());
 
         installmentPaymentModal.classList.remove('hidden');
 
@@ -6629,7 +6666,7 @@ async function loadOverdueLoans() {
                     </td>
                     <td class="px-6 py-4 text-white">R$ ${loan.amount.toFixed(2)}</td>
                     <td class="px-6 py-4 text-white">R$ ${loan.total_amount.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-white">${new Date(loan.due_date).toLocaleDateString('pt-BR')}</td>
+                    <td class="px-6 py-4 text-white">${formatDate(loan.due_date)}</td>
                     <td class="px-6 py-4">
                         <span class="px-2 py-1 text-xs font-medium rounded-full ${
                             daysOverdue <= 30 ? 'bg-yellow-900 text-yellow-300' : 
@@ -7422,7 +7459,7 @@ function renderCapitalRaisingsTable() {
         const row = document.createElement('tr');
         row.className = 'table-row';
         
-        const formattedDate = new Date(raising.data_criacao).toLocaleDateString('pt-BR');
+        const formattedDate = formatDate(raising.data_criacao);
         let statusClass, statusText;
         
         if (raising.data_baixa) {
@@ -7618,7 +7655,7 @@ function renderCapitalClientsTable(clients, capitalRaisingId) {
         const row = document.createElement('tr');
         row.className = 'table-row';
         
-        const formattedDate = new Date(client.data_entrada).toLocaleDateString('pt-BR');
+        const formattedDate = formatDate(client.data_entrada);
         
         row.innerHTML = `
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">${client.nome}</td>
@@ -7875,12 +7912,12 @@ async function generateCapitalRaisingPDF(capitalRaisingId) {
             ['Valor Bruto:', `R$ ${parseFloat(raising.valor_bruto).toFixed(2).replace('.', ',')}`],
             ['Taxa de Juros:', `${parseFloat(raising.taxa_juros).toFixed(2)}%`],
             ['Valor Total:', `R$ ${parseFloat(raising.valor_total).toFixed(2).replace('.', ',')}`],
-            ['Data de Criação:', new Date(raising.data_criacao).toLocaleDateString('pt-BR')],
+            ['Data de Criação:', formatDate(raising.data_criacao)],
             ['Status:', raising.ativo ? 'Ativo' : 'Inativo'],
         ];
         
         if (raising.data_baixa) {
-            info.push(['Data da Baixa:', new Date(raising.data_baixa).toLocaleDateString('pt-BR')]);
+            info.push(['Data da Baixa:', formatDate(raising.data_baixa)]);
             info.push(['Motivo da Baixa:', raising.motivo_baixa || 'Não informado']);
         }
         
@@ -7980,7 +8017,7 @@ async function generateCapitalRaisingPDF(capitalRaisingId) {
                     client.telefone || '',
                     client.email || '',
                     `R$ ${parseFloat(client.valor_individual || 0).toFixed(2).replace('.', ',')}`,
-                    new Date(client.data_entrada).toLocaleDateString('pt-BR')
+                    formatDate(client.data_entrada)
                 ];
                 
                 data.forEach((item, index) => {
