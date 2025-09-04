@@ -899,6 +899,8 @@ async function handleNewClient(e) {
         email: document.getElementById('clientEmail').value,
         phone: document.getElementById('clientPhone').value,
         address: document.getElementById('clientAddress').value,
+        rg: document.getElementById('clientRG').value,
+        birth_date: document.getElementById('clientBirthDate').value || null,
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
@@ -1261,6 +1263,8 @@ async function handleEditClient(e) {
         email: document.getElementById('editClientEmail').value,
         phone: document.getElementById('editClientPhone').value,
         address: document.getElementById('editClientAddress').value,
+        rg: document.getElementById('editClientRG').value,
+        birth_date: document.getElementById('editClientBirthDate').value || null,
         updated_at: new Date().toISOString()
     };
     
