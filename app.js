@@ -1255,12 +1255,34 @@ async function handleEditClient(e) {
     
     const clientId = document.getElementById('editClientId').value;
     
+    // Verificar se todos os elementos existem
+    const elements = {
+        name: document.getElementById('editClientName'),
+        cpf: document.getElementById('editClientCPF'),
+        email: document.getElementById('editClientEmail'),
+        phone: document.getElementById('editClientPhone'),
+        address: document.getElementById('editClientAddress'),
+        rg: document.getElementById('editClientRG'),
+        birthDate: document.getElementById('editClientBirthDate')
+    };
+    
+    // Verificar se algum elemento está nulo
+    for (const [key, element] of Object.entries(elements)) {
+        if (!element) {
+            console.error(`Elemento ${key} não encontrado no DOM`);
+            alert(`Erro: Campo ${key} não encontrado. Recarregue a página e tente novamente.`);
+            return;
+        }
+    }
+    
     const formData = {
-        name: document.getElementById('editClientName').value,
-        cpf: document.getElementById('editClientCPF').value,
-        email: document.getElementById('editClientEmail').value,
-        phone: document.getElementById('editClientPhone').value,
-        address: document.getElementById('editClientAddress').value,
+        name: elements.name.value,
+        cpf: elements.cpf.value,
+        email: elements.email.value,
+        phone: elements.phone.value,
+        address: elements.address.value,
+        rg: elements.rg.value || null,
+        birth_date: elements.birthDate.value || null,
         updated_at: new Date().toISOString()
     };
     
@@ -1336,6 +1358,10 @@ async function handleEditLoan(e) {
 
 // Funções auxiliares
 function showModal(modal) {
+    if (!modal) {
+        console.error('Modal element is null or undefined');
+        return;
+    }
     modal.classList.remove('hidden');
     modal.classList.add('fade-in');
     
@@ -1347,6 +1373,10 @@ function showModal(modal) {
 }
 
 function hideModal(modal) {
+    if (!modal) {
+        console.error('Modal element is null or undefined');
+        return;
+    }
     modal.classList.add('hidden');
     modal.classList.remove('fade-in');
     
@@ -2639,7 +2669,15 @@ function editClient(clientId) {
     // Carregar e exibir avalistas do cliente
     loadAndDisplayClientGuarantors(clientId);
     
-    showModal(document.getElementById('editClientModal'));
+    // Verificar se o modal existe antes de tentar abri-lo
+    const editModal = document.getElementById('editClientModal');
+    if (!editModal) {
+        console.error('Modal de edição não encontrado no DOM');
+        alert('Erro: Modal de edição não encontrado. Recarregue a página e tente novamente.');
+        return;
+    }
+    
+    showModal(editModal);
     
     // Mostrar mensagem informativa
     showInfoMessage(`Editando cliente: ${client.name}`);
