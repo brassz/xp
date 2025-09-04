@@ -161,6 +161,8 @@ function setupEventListeners() {
     document.getElementById('closeLoanModal').addEventListener('click', () => hideModal(newLoanModal));
     document.getElementById('closePaymentModal').addEventListener('click', () => hideModal(paymentModal));
     document.getElementById('closeEditClientModal').addEventListener('click', () => hideModal(editClientModal));
+    document.getElementById('closeViewClientModal').addEventListener('click', () => hideModal(document.getElementById('viewClientModal')));
+    document.getElementById('closeViewClientBtn').addEventListener('click', () => hideModal(document.getElementById('viewClientModal')));
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
@@ -678,7 +680,7 @@ function renderClientsTable() {
             <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email}</td>
             <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')">✏️</button>
+                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')" title="Ver informações">👁️</button>
                 <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
                 <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">🗑️</button>
             </td>
@@ -2609,44 +2611,49 @@ function getLast12Months() {
     return months;
 }
 
-// Funções de edição e exclusão
+// Funções de visualização e exclusão
 function editClient(clientId) {
     const client = clients.find(c => c.id === clientId);
     if (!client) return;
     
-    // Preencher o formulário de edição
-    const editClientId = document.getElementById('editClientId');
-    const editClientName = document.getElementById('editClientName');
-    const editClientCPF = document.getElementById('editClientCPF');
-    const editClientEmail = document.getElementById('editClientEmail');
-    const editClientPhone = document.getElementById('editClientPhone');
-    const editClientAddress = document.getElementById('editClientAddress');
-    const editClientRG = document.getElementById('editClientRG');
-    const editClientBirthDate = document.getElementById('editClientBirthDate');
+    // Preencher as informações do cliente para visualização
+    const viewClientName = document.getElementById('viewClientName');
+    const viewClientCPF = document.getElementById('viewClientCPF');
+    const viewClientEmail = document.getElementById('viewClientEmail');
+    const viewClientPhone = document.getElementById('viewClientPhone');
+    const viewClientAddress = document.getElementById('viewClientAddress');
+    const viewClientRG = document.getElementById('viewClientRG');
+    const viewClientBirthDate = document.getElementById('viewClientBirthDate');
     
     // Verificar se todos os elementos existem antes de definir valores
-    if (!editClientId || !editClientName || !editClientCPF || !editClientEmail || 
-        !editClientPhone || !editClientAddress || !editClientRG || !editClientBirthDate) {
-        console.error('Erro: Alguns elementos do formulário de edição não foram encontrados');
+    if (!viewClientName || !viewClientCPF || !viewClientEmail || 
+        !viewClientPhone || !viewClientAddress || !viewClientRG || !viewClientBirthDate) {
+        console.error('Erro: Alguns elementos do modal de visualização não foram encontrados');
         return;
     }
     
-    editClientId.value = client.id;
-    editClientName.value = client.name;
-    editClientCPF.value = client.cpf;
-    editClientEmail.value = client.email;
-    editClientPhone.value = client.phone;
-    editClientAddress.value = client.address;
-    editClientRG.value = client.rg || '';
-    editClientBirthDate.value = client.birth_date || '';
+    viewClientName.textContent = client.name || 'Não informado';
+    viewClientCPF.textContent = client.cpf || 'Não informado';
+    viewClientEmail.textContent = client.email || 'Não informado';
+    viewClientPhone.textContent = client.phone || 'Não informado';
+    viewClientAddress.textContent = client.address || 'Não informado';
+    viewClientRG.textContent = client.rg || 'Não informado';
+    
+    // Formatar data de nascimento
+    if (client.birth_date) {
+        const date = new Date(client.birth_date);
+        viewClientBirthDate.textContent = date.toLocaleDateString('pt-BR');
+    } else {
+        viewClientBirthDate.textContent = 'Não informado';
+    }
     
     // Carregar e exibir avalistas do cliente
-    loadAndDisplayClientGuarantors(clientId);
+    loadAndDisplayClientGuarantorsView(clientId);
     
-    showModal(document.getElementById('editClientModal'));
+    showModal(document.getElementById('viewClientModal'));
     
     // Mostrar mensagem informativa
-    showInfoMessage(`Editando cliente: ${client.name}`);
+    showInfoMessage(`Visualizando informações do cliente: ${client.name}`);
 }
 
 function deleteClient(clientId) {
@@ -2821,6 +2828,55 @@ function renderGuarantorsList(clientGuarantors, clientId) {
                     <button onclick="deleteGuarantor('${guarantor.id}', '${guarantor.name}')" class="text-red-400 hover:text-red-300 p-1" title="Remover avalista">
                         🗑️
                     </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    guarantorsList.innerHTML = guarantorsHTML;
+}
+
+// Carregar e exibir avalistas de um cliente para visualização
+async function loadAndDisplayClientGuarantorsView(clientId) {
+    try {
+        const clientGuarantors = await loadClientGuarantors(clientId);
+        renderGuarantorsListView(clientGuarantors);
+    } catch (error) {
+        console.error('Erro ao carregar avalistas do cliente para visualização:', error);
+    }
+}
+
+// Renderizar lista de avalistas para visualização (somente leitura)
+function renderGuarantorsListView(clientGuarantors) {
+    const guarantorsList = document.getElementById('viewGuarantorsList');
+    
+    if (clientGuarantors.length === 0) {
+        guarantorsList.innerHTML = `
+            <div class="text-center py-6 text-gray-400">
+                <p>Nenhum avalista cadastrado para este cliente.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const guarantorsHTML = clientGuarantors.map(guarantor => `
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-600">
+            <div class="flex items-start space-x-4">
+                ${guarantor.photo ? `
+                    <img src="${guarantor.photo}" alt="${guarantor.name}" class="w-12 h-12 rounded-full object-cover border-2 border-blue-500">
+                ` : `
+                    <div class="w-12 h-12 rounded-full bg-gray-600 flex items-center justify-center border-2 border-gray-500">
+                        <span class="text-white font-semibold">${guarantor.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                `}
+                <div class="flex-1">
+                    <h5 class="text-white font-semibold">${guarantor.name}</h5>
+                    <p class="text-gray-300 text-sm">CPF: ${guarantor.cpf}</p>
+                    <p class="text-gray-300 text-sm">Telefone: ${guarantor.phone}</p>
+                    ${guarantor.relationship ? `<p class="text-blue-300 text-sm">Relacionamento: ${getRelationshipText(guarantor.relationship)}</p>` : ''}
+                    ${guarantor.email ? `<p class="text-gray-400 text-xs">${guarantor.email}</p>` : ''}
+                    ${guarantor.rg ? `<p class="text-gray-400 text-xs">RG: ${guarantor.rg}</p>` : ''}
+                    ${guarantor.birth_date ? `<p class="text-gray-400 text-xs">Data de Nascimento: ${new Date(guarantor.birth_date).toLocaleDateString('pt-BR')}</p>` : ''}
                 </div>
             </div>
         </div>
