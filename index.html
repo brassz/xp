@@ -1690,6 +1690,76 @@
         </div>
     </div>
 
+    <!-- View Client Modal -->
+    <div id="viewClientModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Informações do Cliente</h3>
+                    <button id="closeViewClientModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="space-y-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Nome Completo</label>
+                            <div id="viewClientName" class="bg-gray-700 p-3 rounded-lg text-gray-200"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">CPF</label>
+                            <div id="viewClientCPF" class="bg-gray-700 p-3 rounded-lg text-gray-200"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Email</label>
+                            <div id="viewClientEmail" class="bg-gray-700 p-3 rounded-lg text-gray-200"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Telefone</label>
+                            <div id="viewClientPhone" class="bg-gray-700 p-3 rounded-lg text-gray-200"></div>
+                        </div>
+                    </div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">RG</label>
+                            <div id="viewClientRG" class="bg-gray-700 p-3 rounded-lg text-gray-200"></div>
+                        </div>
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data de Nascimento</label>
+                            <div id="viewClientBirthDate" class="bg-gray-700 p-3 rounded-lg text-gray-200"></div>
+                        </div>
+                    </div>
+                    
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Endereço Completo</label>
+                        <div id="viewClientAddress" class="bg-gray-700 p-3 rounded-lg text-gray-200 min-h-[80px]"></div>
+                    </div>
+                    
+                    <!-- Seção de Avalistas -->
+                    <div class="border-t border-gray-600 pt-6 mt-6">
+                        <h4 class="text-lg font-semibold text-blue-200 mb-4">Avalistas</h4>
+                        <div id="viewGuarantorsList" class="space-y-4">
+                            <!-- Avalistas serão carregados aqui dinamicamente -->
+                        </div>
+                    </div>
+                    
+                    <div class="flex justify-end pt-4">
+                        <button type="button" id="closeViewClientBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
+                            Fechar
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Guarantor Modal -->
     <div id="guarantorModal" class="modal-overlay fixed inset-0 z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
