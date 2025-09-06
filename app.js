@@ -337,29 +337,29 @@ function setupUploadcare() {
 
 
         
-        // Widget para edição de cliente - múltiplas fotos
-        const editWidget = uploadcare.Widget('#editClientPhotosUploader');
-        editWidget.onChange(function(group) {
-            if (group) {
-                group.done(function(groupInfo) {
-                    const photoUrls = [];
-                    groupInfo.files.forEach(function(fileInfo) {
-                        photoUrls.push(fileInfo.cdnUrl);
-                    });
-                    
-                    // Armazenar URLs no campo hidden como JSON
-                    document.getElementById('editClientPhotos').value = JSON.stringify(photoUrls);
-                    
-                    // Mostrar preview das múltiplas fotos
-                    showPhotosPreview(photoUrls, 'editPhotosPreviewGrid', 'editPhotosUploadPreview');
-                });
-            } else {
-                // Limpar quando arquivos forem removidos
-                document.getElementById('editClientPhotos').value = '';
-                document.getElementById('editPhotosUploadPreview').classList.add('hidden');
-                document.getElementById('editPhotosPreviewGrid').innerHTML = '';
-            }
-        });
+        // Widget para edição de cliente - múltiplas fotos (commented out - elements don't exist in modal)
+        // const editWidget = uploadcare.Widget('#editClientPhotosUploader');
+        // editWidget.onChange(function(group) {
+        //     if (group) {
+        //         group.done(function(groupInfo) {
+        //             const photoUrls = [];
+        //             groupInfo.files.forEach(function(fileInfo) {
+        //                 photoUrls.push(fileInfo.cdnUrl);
+        //             });
+        //             
+        //             // Armazenar URLs no campo hidden como JSON
+        //             document.getElementById('editClientPhotos').value = JSON.stringify(photoUrls);
+        //             
+        //             // Mostrar preview das múltiplas fotos
+        //             showPhotosPreview(photoUrls, 'editPhotosPreviewGrid', 'editPhotosUploadPreview');
+        //         });
+        //     } else {
+        //         // Limpar quando arquivos forem removidos
+        //         document.getElementById('editClientPhotos').value = '';
+        //         document.getElementById('editPhotosUploadPreview').classList.add('hidden');
+        //         document.getElementById('editPhotosPreviewGrid').innerHTML = '';
+        //     }
+        // });
         
         // Widget para foto de avalista
         const guarantorWidget = uploadcare.Widget('#guarantorPhotoUploader');
@@ -681,8 +681,9 @@ function renderClientsTable() {
             <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
             <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
                 <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')" title="Ver informações">👁️</button>
+                <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="openEditClientModal('${client.id}')" title="Editar cliente">✏️</button>
                 <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
-                <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')">🗑️</button>
+                <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')" title="Excluir cliente">🗑️</button>
             </td>
         </tr>
     `).join('');
@@ -1359,15 +1360,15 @@ function hideModal(modal) {
     // Limpar formulários específicos
     if (modal === editClientModal) {
         document.getElementById('editClientForm').reset();
-        // Limpar preview das fotos de edição
-        document.getElementById('editPhotosUploadPreview').classList.add('hidden');
-        document.getElementById('editClientPhotos').value = '';
-        document.getElementById('editPhotosPreviewGrid').innerHTML = '';
-        // Limpar widget do Uploadcare
-        if (window.uploadcare) {
-            const editWidget = uploadcare.Widget('#editClientPhotosUploader');
-            editWidget.value(null);
-        }
+        // Limpar preview das fotos de edição (commented out - elements don't exist in modal)
+        // document.getElementById('editPhotosUploadPreview').classList.add('hidden');
+        // document.getElementById('editClientPhotos').value = '';
+        // document.getElementById('editPhotosPreviewGrid').innerHTML = '';
+        // // Limpar widget do Uploadcare
+        // if (window.uploadcare) {
+        //     const editWidget = uploadcare.Widget('#editClientPhotosUploader');
+        //     editWidget.value(null);
+        // }
     } else if (modal === editLoanModal) {
         document.getElementById('editLoanForm').reset();
     } else if (modal === newClientModal) {
@@ -2654,6 +2655,30 @@ function editClient(clientId) {
     
     // Mostrar mensagem informativa
     showInfoMessage(`Visualizando informações do cliente: ${client.name}`);
+}
+
+// Função para abrir modal de edição de cliente
+function openEditClientModal(clientId) {
+    const client = clients.find(c => c.id === clientId);
+    if (!client) return;
+    
+    // Preencher os campos do formulário de edição
+    document.getElementById('editClientId').value = client.id;
+    document.getElementById('editClientName').value = client.name || '';
+    document.getElementById('editClientCPF').value = client.cpf || '';
+    document.getElementById('editClientEmail').value = client.email || '';
+    document.getElementById('editClientPhone').value = client.phone || '';
+    document.getElementById('editClientRG').value = client.rg || '';
+    document.getElementById('editClientBirthDate').value = client.birth_date || '';
+    document.getElementById('editClientAddress').value = client.address || '';
+    
+    // Carregar e exibir avalistas do cliente
+    loadAndDisplayClientGuarantors(clientId);
+    
+    showModal(document.getElementById('editClientModal'));
+    
+    // Mostrar mensagem informativa
+    showInfoMessage(`Editando informações do cliente: ${client.name}`);
 }
 
 function deleteClient(clientId) {
