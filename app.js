@@ -3402,6 +3402,10 @@ async function performDeletePayment(paymentId) {
             await loadPaymentHistory(loanId);
         }
         
+        // Recarregar dados dos empréstimos para atualizar valores
+        await loadLoans();
+        await updateDashboard();
+        
         // Mostrar mensagem de sucesso
         showSuccessMessage('Pagamento excluído com sucesso!');
         
