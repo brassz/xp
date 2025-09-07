@@ -3314,7 +3314,6 @@ async function loadPaymentHistory(loanId) {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editPayment('${payment.id}')">✏️</button>
                         <button class="text-red-400 hover:text-red-300" onclick="deletePayment('${payment.id}')">🗑️</button>
                     </td>
                 </tr>
@@ -3360,33 +3359,30 @@ function getPaymentTypeText(type) {
     }
 }
 
-async function editPayment(paymentId) {
-    const payment = payments.find(p => p.id === paymentId); // Assuming 'payments' is a global variable or passed as an argument
-    if (!payment) return;
-
-    const paymentForm = document.getElementById('paymentForm'); // Assuming this is the payment modal form
-    if (!paymentForm) return;
-
-    paymentForm.dataset.paymentId = paymentId; // Set the payment ID for the form
-
-    document.getElementById('paymentAmount').value = payment.amount;
-    document.getElementById('paymentDate').value = payment.payment_date;
-    document.getElementById('paymentType').value = payment.payment_type;
-    document.getElementById('paymentNotes').value = payment.notes;
-
-    showModal(paymentModal);
-}
 
 async function deletePayment(paymentId) {
-    const payment = payments.find(p => p.id === paymentId); // Assuming 'payments' is a global variable or passed as an argument
-    if (!payment) return;
+    try {
+        // Buscar dados do pagamento
+        const { data: payment, error } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('id', paymentId)
+            .single();
+        
+        if (error || !payment) {
+            console.error('Erro ao buscar dados do pagamento:', error);
+            return;
+        }
 
-    showConfirmationModal(
-        'Excluir Pagamento',
-        `Tem certeza que deseja excluir o pagamento de R$ ${parseFloat(payment.amount).toFixed(2)} registrado em ${formatDate(payment.payment_date)}? Esta ação não pode ser desfeita.`,
-        () => performDeletePayment(paymentId),
-        'Excluir'
-    );
+        showConfirmationModal(
+            'Excluir Pagamento',
+            `Tem certeza que deseja excluir o pagamento de R$ ${parseFloat(payment.amount).toFixed(2)} registrado em ${formatDate(payment.payment_date)}? Esta ação não pode ser desfeita.`,
+            () => performDeletePayment(paymentId),
+            'Excluir'
+        );
+    } catch (error) {
+        console.error('Erro ao preparar exclusão do pagamento:', error);
+    }
 }
 
 async function performDeletePayment(paymentId) {
