@@ -3513,14 +3513,8 @@ async function sendLoanSummaryWhatsApp(loanId) {
 
 💰 VALORES:
 💵 Capital: R$ ${principalAmount.toFixed(2)}
-📈 Taxa de Juros: ${interestRate}%
 📊 Valor dos Juros: R$ ${interestAmount.toFixed(2)}
 💎 VALOR TOTAL: R$ ${totalAmount.toFixed(2)}
-
-📌 FORMAS DE PAGAMENTO:
-💳 PIX (CNPJ): 54413674000147
-🏦 Favorecido: Tuane Carla Mendes Tomaz
-🏢 Instituição: Stone Pagamento S.A
 
 ⚠️ IMPORTANTE:
 • Pagamento deve ser realizado até a data de vencimento
@@ -3592,13 +3586,8 @@ async function sendWhatsAppMessage(loanId) {
 
 💰 CLIENTE: ${client.name}
 💵 Capital: R$ ${principalAmount.toFixed(2)}
-📈 Juros: R$ ${interestAmount.toFixed(2)}
+📊 Juros: R$ ${interestAmount.toFixed(2)}
 ❌ Multa atual: R$ ${currentFine.toFixed(2)}
-
-📌 PAGAMENTO VIA PIX (CNPJ):
-Chave PIX: 54413674000147
-Favorecido: Tuane Carla Mendes Tomaz
-Instituição: Stone Pagamento S.A
 
 ⚠️🚨 ATENÇÃO!
 O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
