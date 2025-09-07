@@ -2844,6 +2844,7 @@ function renderGuarantorsList(clientGuarantors, clientId) {
                         <p class="text-gray-300 text-sm">Telefone: ${guarantor.phone}</p>
                         ${guarantor.relationship ? `<p class="text-blue-300 text-sm">Relacionamento: ${getRelationshipText(guarantor.relationship)}</p>` : ''}
                         ${guarantor.email ? `<p class="text-gray-400 text-xs">${guarantor.email}</p>` : ''}
+                        ${guarantor.address ? `<p class="text-gray-400 text-xs">Endereço: ${guarantor.address}</p>` : ''}
                     </div>
                 </div>
                 <div class="flex space-x-2">
@@ -2902,6 +2903,7 @@ function renderGuarantorsListView(clientGuarantors) {
                     ${guarantor.email ? `<p class="text-gray-400 text-xs">${guarantor.email}</p>` : ''}
                     ${guarantor.rg ? `<p class="text-gray-400 text-xs">RG: ${guarantor.rg}</p>` : ''}
                     ${guarantor.birth_date ? `<p class="text-gray-400 text-xs">Data de Nascimento: ${new Date(guarantor.birth_date).toLocaleDateString('pt-BR')}</p>` : ''}
+                    ${guarantor.address ? `<p class="text-gray-400 text-xs">Endereço: ${guarantor.address}</p>` : ''}
                 </div>
             </div>
         </div>
