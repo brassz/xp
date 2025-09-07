@@ -17,6 +17,7 @@ let expenseCategories = [];
 let installments = [];
 let installmentPayments = [];
 let guarantors = [];
+let emergencyContacts = [];
 let cashTransactions = [];
 let cashSettings = null;
 let capitalRaisings = [];
@@ -52,6 +53,7 @@ const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal')
 const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
 const addCapitalClientModal = document.getElementById('addCapitalClientModal');
 const guarantorModal = document.getElementById('guarantorModal');
+const emergencyContactModal = document.getElementById('emergencyContactModal');
 const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
 
 
@@ -167,6 +169,7 @@ function setupEventListeners() {
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
+    document.getElementById('closeEmergencyContactModal').addEventListener('click', () => hideModal(emergencyContactModal));
     document.getElementById('closeClientDocumentsModal').addEventListener('click', () => hideModal(document.getElementById('clientDocumentsModal')));
     
     // WhatsApp Summary modal
@@ -201,6 +204,7 @@ function setupEventListeners() {
     document.getElementById('closePaymentHistoryBtn').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('cancelExpense').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('cancelGuarantorBtn').addEventListener('click', () => hideModal(guarantorModal));
+    document.getElementById('cancelEmergencyContactBtn').addEventListener('click', () => hideModal(emergencyContactModal));
     
     // Capital Raising cancel buttons
     if (document.getElementById('cancelCapitalRaising')) {
@@ -257,6 +261,7 @@ function setupEventListeners() {
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
     newExpenseForm.addEventListener('submit', handleNewExpense);
     document.getElementById('guarantorForm').addEventListener('submit', handleGuarantorForm);
+    document.getElementById('emergencyContactForm').addEventListener('submit', handleEmergencyContactForm);
     document.getElementById('uploadDocumentForm').addEventListener('submit', handleDocumentUpload);
     
     // Filtro de documentos
@@ -265,6 +270,11 @@ function setupEventListeners() {
     // Botão de adicionar avalista
     document.getElementById('addGuarantorBtn').addEventListener('click', () => {
         openGuarantorModal();
+    });
+    
+    // Botão de adicionar contato de emergência
+    document.getElementById('addEmergencyContactBtn').addEventListener('click', () => {
+        openEmergencyContactModal();
     });
     
     // Checkbox para incluir avalista no novo cliente
@@ -276,6 +286,18 @@ function setupEventListeners() {
             guarantorSection.classList.add('hidden');
             // Limpar campos do avalista quando desmarcado
             clearNewClientGuarantorForm();
+        }
+    });
+    
+    // Checkbox para incluir contato de emergência no novo cliente
+    document.getElementById('includeEmergencyContact').addEventListener('change', function() {
+        const emergencyContactSection = document.getElementById('emergencyContactSection');
+        if (this.checked) {
+            emergencyContactSection.classList.remove('hidden');
+        } else {
+            emergencyContactSection.classList.add('hidden');
+            // Limpar campos do contato de emergência quando desmarcado
+            clearNewClientEmergencyContactForm();
         }
     });
     
@@ -542,6 +564,7 @@ async function loadData() {
             loadExpenses(),
             loadExpenseCategories(),
             loadGuarantors(),
+            loadEmergencyContacts(),
             loadCashTransactions(),
             loadCashSettings(),
             loadCapitalRaisings(),
@@ -600,6 +623,24 @@ async function loadGuarantors() {
     }
 }
 
+// Carregar contatos de emergência
+async function loadEmergencyContacts() {
+    try {
+        const { data, error } = await supabase
+            .from('emergency_contacts')
+            .select('*')
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        emergencyContacts = data || [];
+        
+    } catch (error) {
+        console.error('Erro ao carregar contatos de emergência:', error);
+        emergencyContacts = [];
+    }
+}
+
 // Carregar avalistas de um cliente específico
 async function loadClientGuarantors(clientId) {
     try {
@@ -615,6 +656,26 @@ async function loadClientGuarantors(clientId) {
         
     } catch (error) {
         console.error('Erro ao carregar avalistas do cliente:', error);
+        return [];
+    }
+}
+
+// Carregar contatos de emergência de um cliente específico
+async function loadClientEmergencyContacts(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('emergency_contacts')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('is_primary', { ascending: false })
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        return data || [];
+        
+    } catch (error) {
+        console.error('Erro ao carregar contatos de emergência do cliente:', error);
         return [];
     }
 }
@@ -938,6 +999,35 @@ async function handleNewClient(e) {
         };
     }
     
+    // Verificar se deve incluir contato de emergência
+    const includeEmergencyContact = document.getElementById('includeEmergencyContact').checked;
+    let emergencyContactData = null;
+    
+    if (includeEmergencyContact) {
+        const emergencyContactName = document.getElementById('newClientEmergencyContactName').value.trim();
+        const emergencyContactPhone = document.getElementById('newClientEmergencyContactPhone').value.trim();
+        const emergencyContactRelationship = document.getElementById('newClientEmergencyContactRelationship').value.trim();
+        
+        // Validar campos obrigatórios do contato de emergência
+        if (!emergencyContactName || !emergencyContactPhone || !emergencyContactRelationship) {
+            alert('Por favor, preencha pelo menos o nome, telefone e parentesco do contato de emergência.');
+            return;
+        }
+        
+        emergencyContactData = {
+            name: emergencyContactName,
+            phone: emergencyContactPhone,
+            relationship: emergencyContactRelationship,
+            secondary_phone: document.getElementById('newClientEmergencyContactSecondaryPhone').value.trim() || null,
+            email: document.getElementById('newClientEmergencyContactEmail').value.trim() || null,
+            address: document.getElementById('newClientEmergencyContactAddress').value.trim() || null,
+            notes: document.getElementById('newClientEmergencyContactNotes').value.trim() || null,
+            is_primary: document.getElementById('newClientEmergencyContactIsPrimary').checked,
+            created_by: currentUser.id,
+            created_at: new Date().toISOString()
+        };
+    }
+    
     try {
         console.log('Inserting client data:', formData); // Debug log
         const { data, error } = await supabase
@@ -973,6 +1063,25 @@ async function handleNewClient(e) {
             }
         }
         
+        // Se incluir contato de emergência, criar o registro do contato
+        if (includeEmergencyContact && emergencyContactData && newClient) {
+            emergencyContactData.client_id = newClient.id;
+            
+            console.log('Inserting emergency contact data:', emergencyContactData); // Debug log
+            const { data: emergencyContactResult, error: emergencyContactError } = await supabase
+                .from('emergency_contacts')
+                .insert([emergencyContactData])
+                .select();
+            
+            if (emergencyContactError) {
+                console.error('Emergency contact database error:', emergencyContactError);
+                // Não falhar a criação do cliente se o contato de emergência falhar
+                console.warn('Cliente criado, mas houve erro ao criar contato de emergência:', emergencyContactError.message);
+            } else {
+                console.log('Emergency contact created successfully:', emergencyContactResult);
+            }
+        }
+        
         hideModal(newClientModal);
         newClientForm.reset();
         
@@ -982,13 +1091,25 @@ async function handleNewClient(e) {
         document.getElementById('newClientGuarantorPhoto').value = '';
         document.getElementById('newClientGuarantorPhotoUploadPreview').classList.add('hidden');
         
+        // Resetar seção de contato de emergência
+        document.getElementById('includeEmergencyContact').checked = false;
+        document.getElementById('emergencyContactSection').classList.add('hidden');
+        clearNewClientEmergencyContactForm();
+        
         await loadClients();
         await loadGuarantors();
+        await loadEmergencyContacts();
         await updateDashboard();
         
-        const successMessage = includeGuarantor && guarantorData ? 
-            'Cliente e avalista criados com sucesso!' : 
-            'Cliente criado com sucesso!';
+        // Criar mensagem de sucesso dinâmica
+        let successMessage = 'Cliente criado com sucesso!';
+        if (includeGuarantor && guarantorData && includeEmergencyContact && emergencyContactData) {
+            successMessage = 'Cliente, avalista e contato de emergência criados com sucesso!';
+        } else if (includeGuarantor && guarantorData) {
+            successMessage = 'Cliente e avalista criados com sucesso!';
+        } else if (includeEmergencyContact && emergencyContactData) {
+            successMessage = 'Cliente e contato de emergência criados com sucesso!';
+        }
         showSuccessMessage(successMessage);
         
     } catch (error) {
@@ -1377,6 +1498,10 @@ function hideModal(modal) {
         document.getElementById('includeGuarantor').checked = false;
         document.getElementById('guarantorSection').classList.add('hidden');
         clearNewClientGuarantorForm();
+        // Resetar seção de contato de emergência
+        document.getElementById('includeEmergencyContact').checked = false;
+        document.getElementById('emergencyContactSection').classList.add('hidden');
+        clearNewClientEmergencyContactForm();
     } else if (modal === newLoanModal) {
         document.getElementById('newLoanForm').reset();
     } else if (modal === paymentModal) {
@@ -2672,8 +2797,9 @@ function openEditClientModal(clientId) {
     document.getElementById('editClientBirthDate').value = client.birth_date || '';
     document.getElementById('editClientAddress').value = client.address || '';
     
-    // Carregar e exibir avalistas do cliente
+    // Carregar e exibir avalistas e contatos de emergência do cliente
     loadAndDisplayClientGuarantors(clientId);
+    loadAndDisplayClientEmergencyContacts(clientId);
     
     showModal(document.getElementById('editClientModal'));
     
@@ -2910,6 +3036,109 @@ function renderGuarantorsListView(clientGuarantors) {
     guarantorsList.innerHTML = guarantorsHTML;
 }
 
+// =====================================================
+// FUNÇÕES DE GERENCIAMENTO DE CONTATOS DE EMERGÊNCIA
+// =====================================================
+
+// Carregar e exibir contatos de emergência de um cliente
+async function loadAndDisplayClientEmergencyContacts(clientId) {
+    try {
+        const clientEmergencyContacts = await loadClientEmergencyContacts(clientId);
+        renderEmergencyContactsList(clientEmergencyContacts, clientId);
+    } catch (error) {
+        console.error('Erro ao carregar contatos de emergência do cliente:', error);
+    }
+}
+
+// Renderizar lista de contatos de emergência
+function renderEmergencyContactsList(clientEmergencyContacts, clientId) {
+    const emergencyContactsList = document.getElementById('emergencyContactsList');
+    
+    if (clientEmergencyContacts.length === 0) {
+        emergencyContactsList.innerHTML = `
+            <div class="text-center py-6 text-gray-400">
+                <p>Nenhum contato de emergência cadastrado para este cliente.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const emergencyContactsHTML = clientEmergencyContacts.map(contact => `
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-600">
+            <div class="flex items-start justify-between">
+                <div class="flex items-start space-x-4">
+                    <div class="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center border-2 border-green-500">
+                        <span class="text-white font-semibold">${contact.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div class="flex-1">
+                        <div class="flex items-center space-x-2 mb-1">
+                            <h5 class="font-semibold text-white">${contact.name}</h5>
+                            ${contact.is_primary ? '<span class="bg-green-600 text-white text-xs px-2 py-1 rounded-full">Principal</span>' : ''}
+                        </div>
+                        <p class="text-sm text-gray-400 mb-1">${contact.relationship}</p>
+                        <p class="text-sm text-blue-300 mb-1">📞 ${contact.phone}</p>
+                        ${contact.secondary_phone ? `<p class="text-sm text-blue-300 mb-1">📞 ${contact.secondary_phone} (secundário)</p>` : ''}
+                        ${contact.email ? `<p class="text-sm text-gray-300 mb-1">✉️ ${contact.email}</p>` : ''}
+                        ${contact.address ? `<p class="text-sm text-gray-300 mb-1">📍 ${contact.address}</p>` : ''}
+                        ${contact.notes ? `<p class="text-sm text-gray-400 italic">"${contact.notes}"</p>` : ''}
+                    </div>
+                </div>
+                <div class="flex space-x-2">
+                    <button onclick="editEmergencyContact('${contact.id}')" class="text-blue-400 hover:text-blue-300 p-1 rounded" title="Editar">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"></path>
+                        </svg>
+                    </button>
+                    <button onclick="deleteEmergencyContact('${contact.id}')" class="text-red-400 hover:text-red-300 p-1 rounded" title="Excluir">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    emergencyContactsList.innerHTML = emergencyContactsHTML;
+}
+
+// Editar contato de emergência
+function editEmergencyContact(emergencyContactId) {
+    openEmergencyContactModal(emergencyContactId);
+}
+
+// Excluir contato de emergência
+async function deleteEmergencyContact(emergencyContactId) {
+    const emergencyContact = emergencyContacts.find(ec => ec.id === emergencyContactId);
+    if (!emergencyContact) return;
+    
+    if (!confirm(`Tem certeza que deseja excluir o contato de emergência "${emergencyContact.name}"?`)) {
+        return;
+    }
+    
+    try {
+        const { error } = await supabase
+            .from('emergency_contacts')
+            .delete()
+            .eq('id', emergencyContactId);
+        
+        if (error) throw error;
+        
+        // Recarregar dados
+        await loadEmergencyContacts();
+        const clientId = document.getElementById('editClientId').value;
+        if (clientId) {
+            await loadAndDisplayClientEmergencyContacts(clientId);
+        }
+        
+        showSuccessMessage('Contato de emergência excluído com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao excluir contato de emergência:', error);
+        alert('Erro ao excluir contato de emergência: ' + error.message);
+    }
+}
+
 // Limpar formulário de avalista no novo cliente
 function clearNewClientGuarantorForm() {
     document.getElementById('newClientGuarantorName').value = '';
@@ -2930,6 +3159,18 @@ function clearNewClientGuarantorForm() {
             widget.value(null);
         }
     }
+}
+
+// Limpar formulário de contato de emergência no novo cliente
+function clearNewClientEmergencyContactForm() {
+    document.getElementById('newClientEmergencyContactName').value = '';
+    document.getElementById('newClientEmergencyContactPhone').value = '';
+    document.getElementById('newClientEmergencyContactRelationship').value = '';
+    document.getElementById('newClientEmergencyContactSecondaryPhone').value = '';
+    document.getElementById('newClientEmergencyContactEmail').value = '';
+    document.getElementById('newClientEmergencyContactAddress').value = '';
+    document.getElementById('newClientEmergencyContactNotes').value = '';
+    document.getElementById('newClientEmergencyContactIsPrimary').checked = false;
 }
 
 // Abrir modal para adicionar avalista
@@ -2962,6 +3203,36 @@ function openGuarantorModal(guarantorId = null) {
     
     document.getElementById('guarantorClientId').value = clientId;
     showModal(guarantorModal);
+}
+
+// Abrir modal para adicionar contato de emergência
+function openEmergencyContactModal(emergencyContactId = null) {
+    const clientId = document.getElementById('editClientId').value;
+    if (!clientId) {
+        alert('Erro: ID do cliente não encontrado');
+        return;
+    }
+    
+    // Limpar formulário
+    document.getElementById('emergencyContactForm').reset();
+    
+    // Configurar modal para adição ou edição
+    if (emergencyContactId) {
+        document.getElementById('emergencyContactModalTitle').textContent = 'Editar Contato de Emergência';
+        document.getElementById('emergencyContactId').value = emergencyContactId;
+        
+        // Carregar dados do contato de emergência
+        const emergencyContact = emergencyContacts.find(ec => ec.id === emergencyContactId);
+        if (emergencyContact) {
+            fillEmergencyContactForm(emergencyContact);
+        }
+    } else {
+        document.getElementById('emergencyContactModalTitle').textContent = 'Adicionar Contato de Emergência';
+        document.getElementById('emergencyContactId').value = '';
+    }
+    
+    document.getElementById('emergencyContactClientId').value = clientId;
+    showModal(emergencyContactModal);
 }
 
 // Preencher formulário de avalista com dados existentes
@@ -3047,6 +3318,76 @@ async function handleGuarantorForm(e) {
     } catch (error) {
         console.error('Erro ao salvar avalista:', error);
         alert('Erro ao salvar avalista: ' + error.message);
+    }
+}
+
+// Preencher formulário de contato de emergência com dados existentes
+function fillEmergencyContactForm(emergencyContact) {
+    document.getElementById('emergencyContactName').value = emergencyContact.name || '';
+    document.getElementById('emergencyContactPhone').value = emergencyContact.phone || '';
+    document.getElementById('emergencyContactRelationship').value = emergencyContact.relationship || '';
+    document.getElementById('emergencyContactSecondaryPhone').value = emergencyContact.secondary_phone || '';
+    document.getElementById('emergencyContactEmail').value = emergencyContact.email || '';
+    document.getElementById('emergencyContactAddress').value = emergencyContact.address || '';
+    document.getElementById('emergencyContactNotes').value = emergencyContact.notes || '';
+    document.getElementById('emergencyContactIsPrimary').checked = emergencyContact.is_primary || false;
+}
+
+// Gerenciar formulário de contato de emergência
+async function handleEmergencyContactForm(e) {
+    e.preventDefault();
+    
+    const emergencyContactId = document.getElementById('emergencyContactId').value;
+    const clientId = document.getElementById('emergencyContactClientId').value;
+    
+    const formData = {
+        client_id: clientId,
+        name: document.getElementById('emergencyContactName').value,
+        phone: document.getElementById('emergencyContactPhone').value,
+        relationship: document.getElementById('emergencyContactRelationship').value,
+        secondary_phone: document.getElementById('emergencyContactSecondaryPhone').value || null,
+        email: document.getElementById('emergencyContactEmail').value || null,
+        address: document.getElementById('emergencyContactAddress').value || null,
+        notes: document.getElementById('emergencyContactNotes').value || null,
+        is_primary: document.getElementById('emergencyContactIsPrimary').checked,
+        updated_at: new Date().toISOString()
+    };
+    
+    try {
+        if (emergencyContactId) {
+            // Editar contato de emergência existente
+            const { data, error } = await supabase
+                .from('emergency_contacts')
+                .update(formData)
+                .eq('id', emergencyContactId)
+                .select();
+            
+            if (error) throw error;
+            
+            showSuccessMessage(`Contato de emergência "${formData.name}" atualizado com sucesso!`);
+        } else {
+            // Criar novo contato de emergência
+            formData.created_by = currentUser.id;
+            formData.created_at = new Date().toISOString();
+            
+            const { data, error } = await supabase
+                .from('emergency_contacts')
+                .insert([formData])
+                .select();
+            
+            if (error) throw error;
+            
+            showSuccessMessage(`Contato de emergência "${formData.name}" adicionado com sucesso!`);
+        }
+        
+        // Fechar modal e recarregar dados
+        hideModal(emergencyContactModal);
+        await loadEmergencyContacts();
+        await loadAndDisplayClientEmergencyContacts(clientId);
+        
+    } catch (error) {
+        console.error('Erro ao salvar contato de emergência:', error);
+        alert('Erro ao salvar contato de emergência: ' + error.message);
     }
 }
 
