@@ -797,6 +797,7 @@ async function renderLoansTable() {
                     <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                    <button class="text-pink-400 hover:text-pink-300 mr-3" onclick="openCollectionModal('${loan.id}')" title="Enviar cobrança para avalista/contato emergência">📨</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -8853,3 +8854,269 @@ async function generateMonthlyReportPDF() {
         showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
 }
+
+// ============================================================================
+// SISTEMA DE COBRANÇA PARA AVALISTAS E CONTATOS DE EMERGÊNCIA
+// ============================================================================
+
+// Variáveis globais para o sistema de cobrança
+let currentLoanForCollection = null;
+let selectedRecipient = null;
+
+// Abrir modal de cobrança
+async function openCollectionModal(loanId) {
+    try {
+        // Buscar dados do empréstimo
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            showInfoMessage('Empréstimo não encontrado');
+            return;
+        }
+
+        currentLoanForCollection = loan;
+        
+        // Buscar avalistas e contatos de emergência do cliente
+        await loadClientGuarantorsAndEmergencyContacts(loan.client_id);
+        
+        // Preencher informações do empréstimo
+        populateLoanInfo(loan);
+        
+        // Mostrar modal
+        showModal(document.getElementById('collectionModal'));
+        
+    } catch (error) {
+        console.error('Erro ao abrir modal de cobrança:', error);
+        showInfoMessage('Erro ao carregar dados: ' + error.message);
+    }
+}
+
+// Carregar avalistas e contatos de emergência do cliente
+async function loadClientGuarantorsAndEmergencyContacts(clientId) {
+    try {
+        // Buscar avalistas
+        const { data: guarantors, error: guarantorsError } = await supabase
+            .from('guarantors')
+            .select('*')
+            .eq('client_id', clientId);
+
+        if (guarantorsError) throw guarantorsError;
+
+        // Buscar contatos de emergência
+        const { data: emergencyContacts, error: contactsError } = await supabase
+            .from('emergency_contacts')
+            .select('*')
+            .eq('client_id', clientId);
+
+        if (contactsError) throw contactsError;
+
+        // Renderizar listas
+        renderGuarantorsForCollection(guarantors || []);
+        renderEmergencyContactsForCollection(emergencyContacts || []);
+        
+        // Mostrar mensagem se não houver contatos
+        const hasContacts = (guarantors && guarantors.length > 0) || (emergencyContacts && emergencyContacts.length > 0);
+        document.getElementById('noContactsMessage').classList.toggle('hidden', hasContacts);
+        
+    } catch (error) {
+        console.error('Erro ao carregar contatos:', error);
+        showInfoMessage('Erro ao carregar contatos: ' + error.message);
+    }
+}
+
+// Preencher informações do empréstimo no modal
+function populateLoanInfo(loan) {
+    const loanInfoDiv = document.getElementById('loanInfo');
+    const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+    
+    loanInfoDiv.innerHTML = `
+        <div><strong>Cliente:</strong> ${loan.clients?.name || 'N/A'}</div>
+        <div><strong>Valor Emprestado:</strong> R$ ${parseFloat(loan.amount).toFixed(2)}</div>
+        <div><strong>Taxa de Juros:</strong> ${loan.interest_rate}%</div>
+        <div><strong>Total com Juros:</strong> R$ ${originalTotal.toFixed(2)}</div>
+        <div><strong>Data do Empréstimo:</strong> ${formatDate(loan.loan_date)}</div>
+        <div><strong>Vencimento:</strong> ${formatDate(loan.due_date)}</div>
+        <div><strong>Status:</strong> <span class="text-red-400">Em atraso</span></div>
+    `;
+}
+
+// Renderizar avalistas para seleção
+function renderGuarantorsForCollection(guarantors) {
+    const guarantorsList = document.getElementById('guarantorsList');
+    
+    if (!guarantors || guarantors.length === 0) {
+        guarantorsList.innerHTML = '<div class="text-gray-400 text-sm">Nenhum avalista cadastrado</div>';
+        return;
+    }
+    
+    guarantorsList.innerHTML = guarantors.map(guarantor => `
+        <div class="border border-blue-500/30 rounded-lg p-3 cursor-pointer hover:bg-blue-900/20 transition-colors" 
+             onclick="selectRecipient('guarantor', '${guarantor.id}', '${guarantor.name}', '${guarantor.phone}')">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-white font-medium">${guarantor.name}</div>
+                    <div class="text-gray-300 text-sm">${guarantor.phone}</div>
+                    ${guarantor.relationship ? `<div class="text-blue-300 text-xs">${getRelationshipText(guarantor.relationship)}</div>` : ''}
+                </div>
+                <div class="text-blue-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Renderizar contatos de emergência para seleção
+function renderEmergencyContactsForCollection(contacts) {
+    const contactsList = document.getElementById('emergencyContactsList');
+    
+    if (!contacts || contacts.length === 0) {
+        contactsList.innerHTML = '<div class="text-gray-400 text-sm">Nenhum contato de emergência cadastrado</div>';
+        return;
+    }
+    
+    contactsList.innerHTML = contacts.map(contact => `
+        <div class="border border-green-500/30 rounded-lg p-3 cursor-pointer hover:bg-green-900/20 transition-colors" 
+             onclick="selectRecipient('emergency', '${contact.id}', '${contact.name}', '${contact.phone}')">
+            <div class="flex items-center justify-between">
+                <div>
+                    <div class="text-white font-medium">${contact.name}</div>
+                    <div class="text-gray-300 text-sm">${contact.phone}</div>
+                    <div class="text-green-300 text-xs">Contato de Emergência</div>
+                </div>
+                <div class="text-green-400">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                    </svg>
+                </div>
+            </div>
+        </div>
+    `).join('');
+}
+
+// Selecionar destinatário da cobrança
+function selectRecipient(type, id, name, phone) {
+    // Remover seleção anterior
+    document.querySelectorAll('#guarantorsList > div, #emergencyContactsList > div').forEach(div => {
+        div.classList.remove('ring-2', 'ring-blue-500', 'ring-green-500', 'bg-blue-900/30', 'bg-green-900/30');
+    });
+    
+    // Adicionar seleção atual
+    event.currentTarget.classList.add('ring-2', type === 'guarantor' ? 'ring-blue-500' : 'ring-green-500');
+    event.currentTarget.classList.add(type === 'guarantor' ? 'bg-blue-900/30' : 'bg-green-900/30');
+    
+    // Armazenar seleção
+    selectedRecipient = { type, id, name, phone };
+    
+    // Gerar mensagem de cobrança
+    generateCollectionMessage();
+    
+    // Habilitar botão de enviar
+    document.getElementById('sendCollectionBtn').disabled = false;
+}
+
+// Gerar mensagem de cobrança personalizada
+function generateCollectionMessage() {
+    if (!currentLoanForCollection || !selectedRecipient) return;
+    
+    const loan = currentLoanForCollection;
+    const recipient = selectedRecipient;
+    const client = loan.clients;
+    const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+    const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
+    
+    const recipientTypeText = recipient.type === 'guarantor' ? 'avalista' : 'contato de emergência';
+    
+    const message = `🚨 *COBRANÇA - NEXUS GESTÃO FINANCEIRA* 🚨
+
+Olá ${recipient.name},
+
+Você está recebendo esta mensagem por ser ${recipientTypeText} de *${client?.name || 'N/A'}*.
+
+📋 *DETALHES DO EMPRÉSTIMO EM ATRASO:*
+• Cliente: ${client?.name || 'N/A'}
+• Valor emprestado: R$ ${parseFloat(loan.amount).toFixed(2)}
+• Taxa de juros: ${loan.interest_rate}%
+• Total a pagar: R$ ${originalTotal.toFixed(2)}
+• Data do empréstimo: ${formatDate(loan.loan_date)}
+• Vencimento: ${formatDate(loan.due_date)}
+• Dias em atraso: *${daysOverdue} dias*
+
+⚠️ *SITUAÇÃO ATUAL:*
+O empréstimo encontra-se em atraso há ${daysOverdue} dias. Como ${recipientTypeText}, solicitamos sua colaboração para regularizar esta situação.
+
+💬 *PRÓXIMOS PASSOS:*
+• Entre em contato com ${client?.name || 'o cliente'} para resolver a pendência
+• Caso necessário, entre em contato conosco para negociar parcelamento
+• É importante regularizar a situação o quanto antes
+
+📞 *CONTATO:*
+Para dúvidas ou negociações, entre em contato conosco.
+
+_Nexus Gestão Financeira_
+_Mensagem enviada automaticamente_`;
+
+    document.getElementById('collectionMessage').value = message;
+}
+
+// Enviar mensagem de cobrança via WhatsApp
+function sendCollectionMessage() {
+    if (!selectedRecipient) {
+        showInfoMessage('Selecione um destinatário para enviar a cobrança');
+        return;
+    }
+    
+    const message = document.getElementById('collectionMessage').value;
+    if (!message.trim()) {
+        showInfoMessage('A mensagem não pode estar vazia');
+        return;
+    }
+    
+    // Limpar número de telefone (remover caracteres especiais)
+    const cleanPhone = selectedRecipient.phone.replace(/\D/g, '');
+    
+    // Montar URL do WhatsApp
+    const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodeURIComponent(message)}`;
+    
+    // Abrir WhatsApp
+    window.open(whatsappUrl, '_blank');
+    
+    // Fechar modal
+    hideModal(document.getElementById('collectionModal'));
+    
+    // Mostrar mensagem de sucesso
+    showInfoMessage(`Cobrança enviada para ${selectedRecipient.name} via WhatsApp`);
+    
+    // Limpar variáveis
+    currentLoanForCollection = null;
+    selectedRecipient = null;
+}
+
+// Event listeners para o modal de cobrança
+document.addEventListener('DOMContentLoaded', function() {
+    const collectionModal = document.getElementById('collectionModal');
+    const closeCollectionModal = document.getElementById('closeCollectionModal');
+    const cancelCollectionBtn = document.getElementById('cancelCollectionBtn');
+    const sendCollectionBtn = document.getElementById('sendCollectionBtn');
+    
+    if (closeCollectionModal) {
+        closeCollectionModal.addEventListener('click', () => {
+            hideModal(collectionModal);
+            currentLoanForCollection = null;
+            selectedRecipient = null;
+        });
+    }
+    
+    if (cancelCollectionBtn) {
+        cancelCollectionBtn.addEventListener('click', () => {
+            hideModal(collectionModal);
+            currentLoanForCollection = null;
+            selectedRecipient = null;
+        });
+    }
+    
+    if (sendCollectionBtn) {
+        sendCollectionBtn.addEventListener('click', sendCollectionMessage);
+    }
+});
