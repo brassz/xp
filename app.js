@@ -2765,8 +2765,9 @@ function editClient(clientId) {
         viewClientBirthDate.textContent = 'Não informado';
     }
     
-    // Carregar e exibir avalistas do cliente
+    // Carregar e exibir avalistas e contatos de emergência do cliente
     loadAndDisplayClientGuarantorsView(clientId);
+    loadAndDisplayClientEmergencyContactsView(clientId);
     
     showModal(document.getElementById('viewClientModal'));
     
@@ -3084,6 +3085,46 @@ function renderEmergencyContactsList(clientEmergencyContacts, clientId) {
     `).join('');
     
     emergencyContactsList.innerHTML = emergencyContactsHTML;
+}
+
+// Renderizar lista de contatos de emergência para visualização (somente leitura)
+function renderEmergencyContactsListView(clientEmergencyContacts) {
+    const emergencyContactsList = document.getElementById('viewEmergencyContactsList');
+    
+    if (clientEmergencyContacts.length === 0) {
+        emergencyContactsList.innerHTML = `
+            <div class="text-center py-6 text-gray-400">
+                <p>Nenhum contato de emergência cadastrado para este cliente.</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const emergencyContactsHTML = clientEmergencyContacts.map(contact => `
+        <div class="bg-gray-800 rounded-lg p-4 border border-gray-600">
+            <div class="flex items-start space-x-4">
+                <div class="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center border-2 border-green-500">
+                    <span class="text-white font-semibold">${contact.name.charAt(0).toUpperCase()}</span>
+                </div>
+                <div class="flex-1">
+                    <h5 class="font-semibold text-white mb-1">${contact.name}</h5>
+                    <p class="text-sm text-blue-300">📞 ${contact.phone}</p>
+                </div>
+            </div>
+        </div>
+    `).join('');
+    
+    emergencyContactsList.innerHTML = emergencyContactsHTML;
+}
+
+// Carregar e exibir contatos de emergência de um cliente para visualização
+async function loadAndDisplayClientEmergencyContactsView(clientId) {
+    try {
+        const clientEmergencyContacts = await loadClientEmergencyContacts(clientId);
+        renderEmergencyContactsListView(clientEmergencyContacts);
+    } catch (error) {
+        console.error('Erro ao carregar contatos de emergência do cliente para visualização:', error);
+    }
 }
 
 // Editar contato de emergência
