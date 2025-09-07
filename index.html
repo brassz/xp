@@ -1344,63 +1344,13 @@
                         <div id="emergencyContactSection" class="space-y-3 hidden">
                             <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
                                 <div>
-                                    <label class="block text-sm font-medium text-blue-200 mb-2">Nome do Contato</label>
-                                    <input type="text" id="newClientEmergencyContactName" class="form-input w-full" placeholder="Nome completo">
+                                    <label class="block text-sm font-medium text-blue-200 mb-2">Nome Completo</label>
+                                    <input type="text" id="newClientEmergencyContactName" class="form-input w-full" placeholder="Nome completo" required>
                                 </div>
                                 <div>
-                                    <label class="block text-sm font-medium text-blue-200 mb-2">Telefone Principal</label>
-                                    <input type="tel" id="newClientEmergencyContactPhone" class="form-input w-full" placeholder="(00) 00000-0000">
+                                    <label class="block text-sm font-medium text-blue-200 mb-2">Celular</label>
+                                    <input type="tel" id="newClientEmergencyContactPhone" class="form-input w-full" placeholder="(00) 00000-0000" required>
                                 </div>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-sm font-medium text-blue-200 mb-2">Parentesco/Relação</label>
-                                    <select id="newClientEmergencyContactRelationship" class="form-input w-full">
-                                        <option value="">Selecione o parentesco</option>
-                                        <option value="Pai">Pai</option>
-                                        <option value="Mãe">Mãe</option>
-                                        <option value="Cônjuge">Cônjuge</option>
-                                        <option value="Irmão">Irmão</option>
-                                        <option value="Irmã">Irmã</option>
-                                        <option value="Filho">Filho</option>
-                                        <option value="Filha">Filha</option>
-                                        <option value="Tio">Tio</option>
-                                        <option value="Tia">Tia</option>
-                                        <option value="Primo">Primo</option>
-                                        <option value="Prima">Prima</option>
-                                        <option value="Amigo">Amigo</option>
-                                        <option value="Amiga">Amiga</option>
-                                        <option value="Vizinho">Vizinho</option>
-                                        <option value="Vizinha">Vizinha</option>
-                                        <option value="Outro">Outro</option>
-                                    </select>
-                                </div>
-                                <div>
-                                    <label class="block text-sm font-medium text-blue-200 mb-2">Telefone Secundário</label>
-                                    <input type="tel" id="newClientEmergencyContactSecondaryPhone" class="form-input w-full" placeholder="(00) 00000-0000 (opcional)">
-                                </div>
-                            </div>
-                            
-                            <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                <div>
-                                    <label class="block text-sm font-medium text-blue-200 mb-2">Email</label>
-                                    <input type="email" id="newClientEmergencyContactEmail" class="form-input w-full" placeholder="email@exemplo.com (opcional)">
-                                </div>
-                                <div class="flex items-center">
-                                    <input type="checkbox" id="newClientEmergencyContactIsPrimary" class="mr-2 rounded">
-                                    <label for="newClientEmergencyContactIsPrimary" class="text-sm text-blue-200">Contato de emergência principal</label>
-                                </div>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-blue-200 mb-2">Endereço do Contato</label>
-                                <textarea id="newClientEmergencyContactAddress" class="form-input w-full" rows="2" placeholder="Endereço completo (opcional)"></textarea>
-                            </div>
-                            
-                            <div>
-                                <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
-                                <textarea id="newClientEmergencyContactNotes" class="form-input w-full" rows="2" placeholder="Informações adicionais sobre o contato (opcional)"></textarea>
                             </div>
                         </div>
                     </div>
@@ -1973,59 +1923,9 @@
                             <input type="text" id="emergencyContactName" class="form-input w-full" required>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Telefone Principal</label>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Celular</label>
                             <input type="tel" id="emergencyContactPhone" class="form-input w-full" placeholder="(00) 00000-0000" required>
                         </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Parentesco/Relação</label>
-                            <select id="emergencyContactRelationship" class="form-input w-full" required>
-                                <option value="">Selecione o parentesco</option>
-                                <option value="Pai">Pai</option>
-                                <option value="Mãe">Mãe</option>
-                                <option value="Cônjuge">Cônjuge</option>
-                                <option value="Irmão">Irmão</option>
-                                <option value="Irmã">Irmã</option>
-                                <option value="Filho">Filho</option>
-                                <option value="Filha">Filha</option>
-                                <option value="Tio">Tio</option>
-                                <option value="Tia">Tia</option>
-                                <option value="Primo">Primo</option>
-                                <option value="Prima">Prima</option>
-                                <option value="Amigo">Amigo</option>
-                                <option value="Amiga">Amiga</option>
-                                <option value="Vizinho">Vizinho</option>
-                                <option value="Vizinha">Vizinha</option>
-                                <option value="Outro">Outro</option>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Telefone Secundário</label>
-                            <input type="tel" id="emergencyContactSecondaryPhone" class="form-input w-full" placeholder="(00) 00000-0000 (opcional)">
-                        </div>
-                    </div>
-                    
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Email</label>
-                            <input type="email" id="emergencyContactEmail" class="form-input w-full" placeholder="email@exemplo.com (opcional)">
-                        </div>
-                        <div class="flex items-center">
-                            <input type="checkbox" id="emergencyContactIsPrimary" class="mr-2 rounded">
-                            <label for="emergencyContactIsPrimary" class="text-sm text-blue-200">Contato de emergência principal</label>
-                        </div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Endereço do Contato</label>
-                        <textarea id="emergencyContactAddress" class="form-input w-full" rows="2" placeholder="Endereço completo (opcional)"></textarea>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Observações</label>
-                        <textarea id="emergencyContactNotes" class="form-input w-full" rows="2" placeholder="Informações adicionais sobre o contato (opcional)"></textarea>
                     </div>
                     
                     <div class="flex justify-end space-x-4 pt-4">

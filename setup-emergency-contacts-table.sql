@@ -6,14 +6,8 @@
 CREATE TABLE IF NOT EXISTS emergency_contacts (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
     client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
-    name TEXT NOT NULL,
-    phone TEXT NOT NULL,
-    relationship TEXT NOT NULL, -- Relacionamento com o cliente (ex: mãe, pai, irmão, cônjuge, amigo)
-    secondary_phone TEXT, -- Telefone secundário (opcional)
-    email TEXT, -- Email do contato de emergência (opcional)
-    address TEXT, -- Endereço do contato (opcional)
-    is_primary BOOLEAN DEFAULT false, -- Se é o contato de emergência principal
-    notes TEXT, -- Observações sobre o contato
+    name TEXT NOT NULL, -- Nome completo do contato de emergência
+    phone TEXT NOT NULL, -- Celular do contato de emergência
     created_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
@@ -24,13 +18,7 @@ COMMENT ON TABLE emergency_contacts IS 'Tabela para armazenar contatos de emerg�
 COMMENT ON COLUMN emergency_contacts.id IS 'Identificador único do contato de emergência';
 COMMENT ON COLUMN emergency_contacts.client_id IS 'Referência ao cliente para o qual é contato de emergência';
 COMMENT ON COLUMN emergency_contacts.name IS 'Nome completo do contato de emergência';
-COMMENT ON COLUMN emergency_contacts.phone IS 'Telefone principal do contato de emergência';
-COMMENT ON COLUMN emergency_contacts.relationship IS 'Relacionamento com o cliente';
-COMMENT ON COLUMN emergency_contacts.secondary_phone IS 'Telefone secundário do contato (opcional)';
-COMMENT ON COLUMN emergency_contacts.email IS 'Email do contato de emergência (opcional)';
-COMMENT ON COLUMN emergency_contacts.address IS 'Endereço do contato de emergência (opcional)';
-COMMENT ON COLUMN emergency_contacts.is_primary IS 'Se é o contato de emergência principal';
-COMMENT ON COLUMN emergency_contacts.notes IS 'Observações sobre o contato';
+COMMENT ON COLUMN emergency_contacts.phone IS 'Celular do contato de emergência';
 COMMENT ON COLUMN emergency_contacts.created_by IS 'Usuário que criou o registro do contato';
 COMMENT ON COLUMN emergency_contacts.created_at IS 'Data de criação do registro';
 COMMENT ON COLUMN emergency_contacts.updated_at IS 'Data da última atualização';
@@ -38,7 +26,6 @@ COMMENT ON COLUMN emergency_contacts.updated_at IS 'Data da última atualizaçã
 -- Índices para melhor performance
 CREATE INDEX IF NOT EXISTS idx_emergency_contacts_client_id ON emergency_contacts(client_id);
 CREATE INDEX IF NOT EXISTS idx_emergency_contacts_phone ON emergency_contacts(phone);
-CREATE INDEX IF NOT EXISTS idx_emergency_contacts_is_primary ON emergency_contacts(is_primary);
 CREATE INDEX IF NOT EXISTS idx_emergency_contacts_created_at ON emergency_contacts(created_at);
 
 -- Trigger para atualizar updated_at automaticamente
@@ -102,5 +89,5 @@ JOIN clients c ON ec.client_id = c.id
 LEFT JOIN users u ON ec.created_by = u.id;
 
 -- Inserir dados de exemplo (opcional - remover em produção)
--- INSERT INTO emergency_contacts (client_id, name, phone, relationship, is_primary) VALUES
--- ('client-uuid-example', 'Maria Silva Santos', '(11) 99999-7777', 'Mãe', true);
+-- INSERT INTO emergency_contacts (client_id, name, phone) VALUES
+-- ('client-uuid-example', 'Maria Silva Santos', '(11) 99999-7777');

@@ -667,7 +667,6 @@ async function loadClientEmergencyContacts(clientId) {
             .from('emergency_contacts')
             .select('*')
             .eq('client_id', clientId)
-            .order('is_primary', { ascending: false })
             .order('created_at', { ascending: false });
         
         if (error) throw error;
@@ -1006,23 +1005,16 @@ async function handleNewClient(e) {
     if (includeEmergencyContact) {
         const emergencyContactName = document.getElementById('newClientEmergencyContactName').value.trim();
         const emergencyContactPhone = document.getElementById('newClientEmergencyContactPhone').value.trim();
-        const emergencyContactRelationship = document.getElementById('newClientEmergencyContactRelationship').value.trim();
         
         // Validar campos obrigatórios do contato de emergência
-        if (!emergencyContactName || !emergencyContactPhone || !emergencyContactRelationship) {
-            alert('Por favor, preencha pelo menos o nome, telefone e parentesco do contato de emergência.');
+        if (!emergencyContactName || !emergencyContactPhone) {
+            alert('Por favor, preencha o nome e celular do contato de emergência.');
             return;
         }
         
         emergencyContactData = {
             name: emergencyContactName,
             phone: emergencyContactPhone,
-            relationship: emergencyContactRelationship,
-            secondary_phone: document.getElementById('newClientEmergencyContactSecondaryPhone').value.trim() || null,
-            email: document.getElementById('newClientEmergencyContactEmail').value.trim() || null,
-            address: document.getElementById('newClientEmergencyContactAddress').value.trim() || null,
-            notes: document.getElementById('newClientEmergencyContactNotes').value.trim() || null,
-            is_primary: document.getElementById('newClientEmergencyContactIsPrimary').checked,
             created_by: currentUser.id,
             created_at: new Date().toISOString()
         };
@@ -3071,16 +3063,8 @@ function renderEmergencyContactsList(clientEmergencyContacts, clientId) {
                         <span class="text-white font-semibold">${contact.name.charAt(0).toUpperCase()}</span>
                     </div>
                     <div class="flex-1">
-                        <div class="flex items-center space-x-2 mb-1">
-                            <h5 class="font-semibold text-white">${contact.name}</h5>
-                            ${contact.is_primary ? '<span class="bg-green-600 text-white text-xs px-2 py-1 rounded-full">Principal</span>' : ''}
-                        </div>
-                        <p class="text-sm text-gray-400 mb-1">${contact.relationship}</p>
-                        <p class="text-sm text-blue-300 mb-1">📞 ${contact.phone}</p>
-                        ${contact.secondary_phone ? `<p class="text-sm text-blue-300 mb-1">📞 ${contact.secondary_phone} (secundário)</p>` : ''}
-                        ${contact.email ? `<p class="text-sm text-gray-300 mb-1">✉️ ${contact.email}</p>` : ''}
-                        ${contact.address ? `<p class="text-sm text-gray-300 mb-1">📍 ${contact.address}</p>` : ''}
-                        ${contact.notes ? `<p class="text-sm text-gray-400 italic">"${contact.notes}"</p>` : ''}
+                        <h5 class="font-semibold text-white mb-1">${contact.name}</h5>
+                        <p class="text-sm text-blue-300">📞 ${contact.phone}</p>
                     </div>
                 </div>
                 <div class="flex space-x-2">
@@ -3165,12 +3149,6 @@ function clearNewClientGuarantorForm() {
 function clearNewClientEmergencyContactForm() {
     document.getElementById('newClientEmergencyContactName').value = '';
     document.getElementById('newClientEmergencyContactPhone').value = '';
-    document.getElementById('newClientEmergencyContactRelationship').value = '';
-    document.getElementById('newClientEmergencyContactSecondaryPhone').value = '';
-    document.getElementById('newClientEmergencyContactEmail').value = '';
-    document.getElementById('newClientEmergencyContactAddress').value = '';
-    document.getElementById('newClientEmergencyContactNotes').value = '';
-    document.getElementById('newClientEmergencyContactIsPrimary').checked = false;
 }
 
 // Abrir modal para adicionar avalista
@@ -3325,12 +3303,6 @@ async function handleGuarantorForm(e) {
 function fillEmergencyContactForm(emergencyContact) {
     document.getElementById('emergencyContactName').value = emergencyContact.name || '';
     document.getElementById('emergencyContactPhone').value = emergencyContact.phone || '';
-    document.getElementById('emergencyContactRelationship').value = emergencyContact.relationship || '';
-    document.getElementById('emergencyContactSecondaryPhone').value = emergencyContact.secondary_phone || '';
-    document.getElementById('emergencyContactEmail').value = emergencyContact.email || '';
-    document.getElementById('emergencyContactAddress').value = emergencyContact.address || '';
-    document.getElementById('emergencyContactNotes').value = emergencyContact.notes || '';
-    document.getElementById('emergencyContactIsPrimary').checked = emergencyContact.is_primary || false;
 }
 
 // Gerenciar formulário de contato de emergência
@@ -3344,12 +3316,6 @@ async function handleEmergencyContactForm(e) {
         client_id: clientId,
         name: document.getElementById('emergencyContactName').value,
         phone: document.getElementById('emergencyContactPhone').value,
-        relationship: document.getElementById('emergencyContactRelationship').value,
-        secondary_phone: document.getElementById('emergencyContactSecondaryPhone').value || null,
-        email: document.getElementById('emergencyContactEmail').value || null,
-        address: document.getElementById('emergencyContactAddress').value || null,
-        notes: document.getElementById('emergencyContactNotes').value || null,
-        is_primary: document.getElementById('emergencyContactIsPrimary').checked,
         updated_at: new Date().toISOString()
     };
     

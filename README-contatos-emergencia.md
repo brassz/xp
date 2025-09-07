@@ -12,13 +12,7 @@ Foi implementada com sucesso a funcionalidade de **Contatos de Emergência** par
   - `id` - Identificador único (UUID)
   - `client_id` - Referência ao cliente (chave estrangeira)
   - `name` - Nome completo do contato (obrigatório)
-  - `phone` - Telefone principal (obrigatório)
-  - `relationship` - Parentesco/relação com o cliente (obrigatório)
-  - `secondary_phone` - Telefone secundário (opcional)
-  - `email` - Email do contato (opcional)
-  - `address` - Endereço do contato (opcional)
-  - `is_primary` - Se é o contato principal (boolean)
-  - `notes` - Observações sobre o contato (opcional)
+  - `phone` - Celular do contato (obrigatório)
   - `created_by` - Usuário que criou o registro
   - `created_at` - Data de criação
   - `updated_at` - Data da última atualização
@@ -29,24 +23,19 @@ Foi implementada com sucesso a funcionalidade de **Contatos de Emergência** par
 - Adicionada seção "Contato de Emergência (Opcional)" no formulário de novo cliente
 - Checkbox para ativar/desativar a seção
 - Campos disponíveis:
-  - Nome do contato
-  - Telefone principal
-  - Parentesco/relação (dropdown com opções pré-definidas)
-  - Telefone secundário
-  - Email
-  - Endereço
-  - Observações
-  - Checkbox para marcar como contato principal
+  - Nome completo do contato (obrigatório)
+  - Celular (obrigatório)
 
 #### 2.2 Modal de Edição de Cliente
 - Seção dedicada para "Contatos de Emergência" na tela de edição
 - Botão "+ Adicionar Contato de Emergência"
 - Lista de contatos existentes com opções de editar/excluir
-- Exibição visual destacada para contatos principais
+- Design visual limpo e intuitivo
 
 #### 2.3 Modal de Gerenciamento de Contatos
 - Modal específico para adicionar/editar contatos de emergência
-- Formulário completo com validação
+- Formulário simples com apenas nome e celular
+- Validação dos campos obrigatórios
 - Suporte para edição de contatos existentes
 
 ### 3. Funcionalidades JavaScript
@@ -75,8 +64,8 @@ Foi implementada com sucesso a funcionalidade de **Contatos de Emergência** par
 
 ### 5. Design e Experiência do Usuário
 - Interface consistente com o resto do sistema
-- Ícones intuitivos (telefone, email, endereço)
-- Indicação visual para contatos principais
+- Ícone intuitivo de telefone para o celular
+- Design limpo e minimalista
 - Cores diferenciadas (verde) para contatos de emergência vs avalistas (azul)
 - Responsivo para diferentes tamanhos de tela
 
@@ -85,9 +74,8 @@ Foi implementada com sucesso a funcionalidade de **Contatos de Emergência** par
 ### Para Adicionar Contato ao Criar Cliente:
 1. Acesse "Novo Cliente"
 2. Marque a opção "Adicionar Contato de Emergência (Opcional)"
-3. Preencha os campos necessários (nome, telefone, parentesco são obrigatórios)
-4. Marque como "principal" se necessário
-5. Salve o cliente
+3. Preencha o nome completo e celular (ambos obrigatórios)
+4. Salve o cliente
 
 ### Para Gerenciar Contatos de Cliente Existente:
 1. Edite um cliente existente
@@ -107,45 +95,24 @@ CREATE TABLE emergency_contacts (
     client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     name TEXT NOT NULL,
     phone TEXT NOT NULL,
-    relationship TEXT NOT NULL,
-    secondary_phone TEXT,
-    email TEXT,
-    address TEXT,
-    is_primary BOOLEAN DEFAULT false,
-    notes TEXT,
     created_by UUID REFERENCES users(id),
     created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW(),
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 ```
 
-## Opções de Parentesco Disponíveis:
-- Pai
-- Mãe
-- Cônjuge
-- Irmão/Irmã
-- Filho/Filha
-- Tio/Tia
-- Primo/Prima
-- Amigo/Amiga
-- Vizinho/Vizinha
-- Outro
-
 ## Validações Implementadas:
-- Nome do contato (obrigatório)
-- Telefone principal (obrigatório)
-- Parentesco/relação (obrigatório)
-- Email (formato válido quando preenchido)
-- Telefones (formato sugerido mas não forçado)
+- Nome completo do contato (obrigatório)
+- Celular (obrigatório)
+- Formato de telefone sugerido mas não forçado
 
 ## Melhorias Futuras Possíveis:
 1. Importação/exportação de contatos
 2. Integração com APIs de telefonia
 3. Histórico de comunicações com contatos
-4. Agrupamento por tipo de emergência
-5. Notificações automáticas para contatos principais
-6. Validação mais rigorosa de números de telefone
-7. Suporte a múltiplos endereços por contato
+4. Adição de campos opcionais (parentesco, email, etc.)
+5. Validação mais rigorosa de números de telefone
+6. Múltiplos contatos por cliente
 
 ## Arquivos Modificados/Criados:
 1. `setup-emergency-contacts-table.sql` (novo)
