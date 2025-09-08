@@ -13,6 +13,7 @@ let currentUser = null;
 let clients = [];
 let filteredClients = [];
 let loans = [];
+let filteredLoans = [];
 let expenses = [];
 let expenseCategories = [];
 let installments = [];
@@ -252,6 +253,15 @@ function setupEventListeners() {
 
     // Botão de limpar busca de clientes
     document.getElementById('clearClientSearch').addEventListener('click', clearClientSearch);
+
+    // Campo de busca de empréstimos
+    document.getElementById('loanSearchInput').addEventListener('input', function(e) {
+        const searchTerm = e.target.value;
+        searchLoans(searchTerm);
+    });
+
+    // Botão de limpar busca de empréstimos
+    document.getElementById('clearLoanSearch').addEventListener('click', clearLoanSearch);
     
     // Esconder resultados ao clicar fora
     document.addEventListener('click', function(e) {
@@ -709,6 +719,7 @@ async function loadLoans() {
         if (error) throw error;
         
         loans = data || [];
+        filteredLoans = [...loans]; // Inicializar filteredLoans
         await renderLoansTable();
         
     } catch (error) {
@@ -793,18 +804,60 @@ function clearClientSearch() {
     }
 }
 
+// Função para buscar empréstimos
+function searchLoans(searchTerm) {
+    if (!searchTerm || searchTerm.trim() === '') {
+        filteredLoans = [...loans];
+    } else {
+        const term = searchTerm.toLowerCase().trim();
+        filteredLoans = loans.filter(loan => {
+            // Encontrar o cliente associado ao empréstimo
+            const client = clients.find(c => c.id === loan.client_id);
+            const clientName = client ? client.name.toLowerCase() : '';
+            
+            return (
+                clientName.includes(term) ||
+                loan.amount.toString().includes(term) ||
+                loan.interest_rate.toString().includes(term) ||
+                loan.status.toLowerCase().includes(term) ||
+                (loan.loan_date && loan.loan_date.includes(term)) ||
+                (loan.due_date && loan.due_date.includes(term))
+            );
+        });
+    }
+    renderLoansTable();
+}
+
+// Função para limpar busca de empréstimos
+function clearLoanSearch() {
+    const searchInput = document.getElementById('loanSearchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        filteredLoans = [...loans];
+        renderLoansTable();
+    }
+}
+
 // Renderizar tabela de empréstimos
 async function renderLoansTable() {
     const tbody = document.getElementById('loansTableBody');
     
+    // Usar filteredLoans se há um termo de busca ativo, senão usar loans
+    const searchInput = document.getElementById('loanSearchInput');
+    const hasSearchTerm = searchInput && searchInput.value.trim() !== '';
+    const loansToShow = hasSearchTerm ? filteredLoans : loans;
+    
     // Filtrar apenas empréstimos ativos (não quitados)
-    const activeLoans = loans.filter(loan => loan.status !== 'paid');
+    const activeLoans = loansToShow.filter(loan => loan.status !== 'paid');
     
     if (activeLoans.length === 0) {
+        const message = hasSearchTerm 
+            ? 'Nenhum empréstimo encontrado para o termo de busca'
+            : 'Nenhum empréstimo ativo';
         tbody.innerHTML = `
             <tr>
                 <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                    Nenhum empréstimo ativo
+                    ${message}
                 </td>
             </tr>
         `;
@@ -4714,6 +4767,12 @@ async function markLoanAsPaid(loanId) {
                     loans.splice(loanIndex, 1);
                 }
                 
+                // Remover da lista filtrada
+                const filteredLoanIndex = filteredLoans.findIndex(l => l.id === loanId);
+                if (filteredLoanIndex > -1) {
+                    filteredLoans.splice(filteredLoanIndex, 1);
+                }
+                
                 // Mostrar mensagem de sucesso
                 showSuccessMessage('Empréstimo quitado com sucesso e movido para histórico de quitados!');
                 
@@ -5065,6 +5124,12 @@ async function cancelLoan(loanId) {
         const loanIndex = loans.findIndex(l => l.id === loanId);
         if (loanIndex > -1) {
             loans.splice(loanIndex, 1);
+        }
+        
+        // Remover da lista filtrada
+        const filteredLoanIndex = filteredLoans.findIndex(l => l.id === loanId);
+        if (filteredLoanIndex > -1) {
+            filteredLoans.splice(filteredLoanIndex, 1);
         }
         
         // Fechar modal de confirmação
