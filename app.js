@@ -1723,18 +1723,6 @@ function setDefaultDates() {
     }
 }
 
-// Função para definir data do empréstimo X dias atrás
-function setLoanDateDaysAgo(daysAgo) {
-    const date = new Date();
-    date.setDate(date.getDate() - daysAgo);
-    
-    document.getElementById('loanDate').value = formatDateForInput(date);
-    
-    // Atualizar data de vencimento para 30 dias após a data do empréstimo
-    const dueDate = new Date(date);
-    dueDate.setDate(dueDate.getDate() + 30);
-    document.getElementById('loanDueDate').value = formatDateForInput(dueDate);
-}
 
 function updateLoanSummary() {
     const amount = parseFloat(document.getElementById('loanAmount').value) || 0;
