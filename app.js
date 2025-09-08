@@ -55,6 +55,7 @@ const addCapitalClientModal = document.getElementById('addCapitalClientModal');
 const guarantorModal = document.getElementById('guarantorModal');
 const emergencyContactModal = document.getElementById('emergencyContactModal');
 const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
+const reminderModal = document.getElementById('reminderModal');
 
 
 // Botões
@@ -797,6 +798,7 @@ async function renderLoansTable() {
                     <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                    <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="openReminderModal('${loan.id}')" title="Lembrete de Vencimento">🔔</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -8842,3 +8844,232 @@ async function generateMonthlyReportPDF() {
         showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
 }
+
+// Função para abrir modal de lembrete de vencimento
+async function openReminderModal(loanId) {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showErrorMessage('Empréstimo não encontrado!');
+        return;
+    }
+
+    const client = loan.clients;
+    if (!client) {
+        showErrorMessage('Dados do cliente não encontrados!');
+        return;
+    }
+
+    // Preencher informações do empréstimo
+    const loanInfo = document.getElementById('reminderLoanInfo');
+    const principalAmount = parseFloat(loan.amount);
+    const interestRate = parseFloat(loan.interest_rate);
+    const totalAmount = principalAmount + (principalAmount * interestRate / 100);
+    const remainingAmount = await calculateLoanRemainingAmount(loanId);
+    
+    loanInfo.innerHTML = `
+        <div class="grid grid-cols-2 gap-4">
+            <div>
+                <p><strong>Cliente:</strong> ${client.name}</p>
+                <p><strong>CPF:</strong> ${client.cpf}</p>
+                <p><strong>Telefone:</strong> ${client.phone || 'Não informado'}</p>
+            </div>
+            <div>
+                <p><strong>Valor:</strong> R$ ${principalAmount.toFixed(2)}</p>
+                <p><strong>Total:</strong> R$ ${totalAmount.toFixed(2)}</p>
+                <p><strong>Restante:</strong> R$ ${remainingAmount.toFixed(2)}</p>
+                <p><strong>Vencimento:</strong> ${formatDate(loan.due_date)}</p>
+            </div>
+        </div>
+    `;
+
+    // Preencher informações do cliente
+    const clientInfo = document.getElementById('clientInfo');
+    clientInfo.textContent = `${client.name} - ${client.phone || 'Sem telefone'}`;
+
+    // Verificar se cliente tem telefone
+    const sendToClientCheckbox = document.getElementById('sendToClient');
+    sendToClientCheckbox.disabled = !client.phone;
+    sendToClientCheckbox.checked = !!client.phone;
+
+    // Buscar avalista do cliente
+    const guarantor = guarantors.find(g => g.client_id === client.id);
+    const guarantorOption = document.getElementById('guarantorOption');
+    const guarantorInfo = document.getElementById('guarantorInfo');
+    const sendToGuarantorCheckbox = document.getElementById('sendToGuarantor');
+
+    if (guarantor && guarantor.phone) {
+        guarantorOption.classList.remove('hidden');
+        guarantorInfo.textContent = `${guarantor.name} - ${guarantor.phone}`;
+        sendToGuarantorCheckbox.disabled = false;
+        sendToGuarantorCheckbox.checked = false;
+    } else {
+        guarantorOption.classList.add('hidden');
+        sendToGuarantorCheckbox.disabled = true;
+        sendToGuarantorCheckbox.checked = false;
+    }
+
+    // Buscar contato de emergência do cliente
+    const emergencyContact = emergencyContacts.find(ec => ec.client_id === client.id);
+    const emergencyContactOption = document.getElementById('emergencyContactOption');
+    const emergencyContactInfo = document.getElementById('emergencyContactInfo');
+    const sendToEmergencyContactCheckbox = document.getElementById('sendToEmergencyContact');
+
+    if (emergencyContact && emergencyContact.phone) {
+        emergencyContactOption.classList.remove('hidden');
+        emergencyContactInfo.textContent = `${emergencyContact.name} - ${emergencyContact.phone}`;
+        sendToEmergencyContactCheckbox.disabled = false;
+        sendToEmergencyContactCheckbox.checked = false;
+    } else {
+        emergencyContactOption.classList.add('hidden');
+        sendToEmergencyContactCheckbox.disabled = true;
+        sendToEmergencyContactCheckbox.checked = false;
+    }
+
+    // Armazenar ID do empréstimo para usar no envio
+    reminderModal.dataset.loanId = loanId;
+
+    // Mostrar modal
+    reminderModal.classList.remove('hidden');
+}
+
+// Função para enviar lembrete de vencimento
+async function sendReminderMessage() {
+    const loanId = reminderModal.dataset.loanId;
+    const loan = loans.find(l => l.id === loanId);
+    
+    if (!loan) {
+        showErrorMessage('Empréstimo não encontrado!');
+        return;
+    }
+
+    const client = loan.clients;
+    const sendToClient = document.getElementById('sendToClient').checked;
+    const sendToGuarantor = document.getElementById('sendToGuarantor').checked;
+    const sendToEmergencyContact = document.getElementById('sendToEmergencyContact').checked;
+
+    if (!sendToClient && !sendToGuarantor && !sendToEmergencyContact) {
+        showErrorMessage('Selecione pelo menos um destinatário!');
+        return;
+    }
+
+    try {
+        // Calcular valores do empréstimo
+        const principalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = principalAmount * (interestRate / 100);
+        const remainingAmount = await calculateLoanRemainingAmount(loanId);
+        
+        // Calcular multa se estiver vencido
+        const dueDate = new Date(loan.due_date);
+        const today = new Date();
+        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+        const dailyFine = 50.00; // Multa diária de R$ 50,00
+        const currentFine = daysOverdue > 0 ? daysOverdue * dailyFine : 0;
+
+        // Formatar data de vencimento
+        const formattedDueDate = formatDate(loan.due_date);
+
+        // Montar mensagem do lembrete
+        const message = `🔔 LEMBRETE DE VENCIMENTO
+
+📅 Data de Vencimento: ${formattedDueDate}
+💰 Cliente: ${client.name}
+💵 Capital: R$ ${principalAmount.toFixed(2)}
+📊 Juros: R$ ${interestAmount.toFixed(2)}
+💳 Valor Restante: R$ ${remainingAmount.toFixed(2)}
+${currentFine > 0 ? `❌ Multa atual: R$ ${currentFine.toFixed(2)}` : ''}
+
+⏰ Este é um lembrete amigável sobre o vencimento do seu empréstimo.
+${daysOverdue <= 0 ? 'Por favor, organize-se para efetuar o pagamento na data correta.' : 'O empréstimo está em atraso. Multa diária de R$ 50,00 está sendo aplicada.'}
+
+Qualquer dúvida, entre em contato conosco.`;
+
+        let sentCount = 0;
+
+        // Enviar para o cliente
+        if (sendToClient && client.phone) {
+            const cleanPhone = client.phone.replace(/\D/g, '');
+            const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+            const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+            window.open(whatsappUrl, '_blank');
+            sentCount++;
+        }
+
+        // Enviar para o avalista
+        if (sendToGuarantor) {
+            const guarantor = guarantors.find(g => g.client_id === client.id);
+            if (guarantor && guarantor.phone) {
+                const messageToGuarantor = `🔔 LEMBRETE DE VENCIMENTO - AVALISTA
+
+📅 Data de Vencimento: ${formattedDueDate}
+💰 Cliente: ${client.name} (você é avalista)
+💵 Capital: R$ ${principalAmount.toFixed(2)}
+📊 Juros: R$ ${interestAmount.toFixed(2)}
+💳 Valor Restante: R$ ${remainingAmount.toFixed(2)}
+${currentFine > 0 ? `❌ Multa atual: R$ ${currentFine.toFixed(2)}` : ''}
+
+⏰ Como avalista, informamos sobre o vencimento deste empréstimo.
+${daysOverdue <= 0 ? 'Por favor, entre em contato com o cliente para lembrar sobre o pagamento.' : 'O empréstimo está em atraso. Multa diária de R$ 50,00 está sendo aplicada.'}
+
+Qualquer dúvida, entre em contato conosco.`;
+
+                const cleanPhone = guarantor.phone.replace(/\D/g, '');
+                const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+                const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(messageToGuarantor)}`;
+                window.open(whatsappUrl, '_blank');
+                sentCount++;
+            }
+        }
+
+        // Enviar para o contato de emergência
+        if (sendToEmergencyContact) {
+            const emergencyContact = emergencyContacts.find(ec => ec.client_id === client.id);
+            if (emergencyContact && emergencyContact.phone) {
+                const messageToEmergency = `🔔 LEMBRETE DE VENCIMENTO - CONTATO DE EMERGÊNCIA
+
+📅 Data de Vencimento: ${formattedDueDate}
+💰 Cliente: ${client.name}
+💵 Capital: R$ ${principalAmount.toFixed(2)}
+📊 Juros: R$ ${interestAmount.toFixed(2)}
+💳 Valor Restante: R$ ${remainingAmount.toFixed(2)}
+${currentFine > 0 ? `❌ Multa atual: R$ ${currentFine.toFixed(2)}` : ''}
+
+⏰ Como contato de emergência, informamos sobre o vencimento deste empréstimo.
+${daysOverdue <= 0 ? 'Por favor, entre em contato com o cliente para lembrar sobre o pagamento.' : 'O empréstimo está em atraso. Multa diária de R$ 50,00 está sendo aplicada.'}
+
+Qualquer dúvida, entre em contato conosco.`;
+
+                const cleanPhone = emergencyContact.phone.replace(/\D/g, '');
+                const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+                const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(messageToEmergency)}`;
+                window.open(whatsappUrl, '_blank');
+                sentCount++;
+            }
+        }
+
+        // Fechar modal
+        reminderModal.classList.add('hidden');
+
+        // Mostrar mensagem de sucesso
+        showInfoMessage(`Lembrete de vencimento enviado para ${sentCount} destinatário(s)!`);
+
+    } catch (error) {
+        console.error('Erro ao enviar lembrete de vencimento:', error);
+        showErrorMessage('Erro ao enviar lembrete: ' + error.message);
+    }
+}
+
+// Event listeners para o modal de lembrete
+document.addEventListener('DOMContentLoaded', function() {
+    // Fechar modal de lembrete
+    document.getElementById('closeReminderModal').addEventListener('click', () => {
+        reminderModal.classList.add('hidden');
+    });
+
+    document.getElementById('cancelReminderBtn').addEventListener('click', () => {
+        reminderModal.classList.add('hidden');
+    });
+
+    // Enviar lembrete
+    document.getElementById('sendReminderBtn').addEventListener('click', sendReminderMessage);
+});

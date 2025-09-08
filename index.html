@@ -2706,6 +2706,79 @@
         </div>
     </div>
 
+    <!-- Reminder Modal -->
+    <div id="reminderModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Lembrete de Vencimento</h3>
+                    <button id="closeReminderModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="space-y-6">
+                    <div class="bg-gray-700 p-4 rounded-lg">
+                        <h4 class="text-lg font-semibold text-white mb-2">Informações do Empréstimo</h4>
+                        <div id="reminderLoanInfo" class="text-gray-300">
+                            <!-- Loan info will be populated here -->
+                        </div>
+                    </div>
+
+                    <div>
+                        <h4 class="text-lg font-semibold text-white mb-4">Selecione os destinatários da mensagem:</h4>
+                        
+                        <div class="space-y-3">
+                            <!-- Cliente -->
+                            <div class="flex items-center space-x-3">
+                                <input type="checkbox" id="sendToClient" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+                                <label for="sendToClient" class="text-white">
+                                    <span class="font-medium">Cliente:</span>
+                                    <span id="clientInfo" class="text-gray-300"></span>
+                                </label>
+                            </div>
+
+                            <!-- Avalista -->
+                            <div id="guarantorOption" class="flex items-center space-x-3 hidden">
+                                <input type="checkbox" id="sendToGuarantor" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+                                <label for="sendToGuarantor" class="text-white">
+                                    <span class="font-medium">Avalista:</span>
+                                    <span id="guarantorInfo" class="text-gray-300"></span>
+                                </label>
+                            </div>
+
+                            <!-- Contato de Emergência -->
+                            <div id="emergencyContactOption" class="flex items-center space-x-3 hidden">
+                                <input type="checkbox" id="sendToEmergencyContact" class="w-4 h-4 text-blue-600 bg-gray-700 border-gray-600 rounded focus:ring-blue-500">
+                                <label for="sendToEmergencyContact" class="text-white">
+                                    <span class="font-medium">Contato de Emergência:</span>
+                                    <span id="emergencyContactInfo" class="text-gray-300"></span>
+                                </label>
+                            </div>
+                        </div>
+
+                        <div class="mt-4 p-3 bg-yellow-900 bg-opacity-30 border border-yellow-600 rounded-lg">
+                            <p class="text-yellow-300 text-sm">
+                                ⚠️ A mensagem será enviada via WhatsApp para os destinatários selecionados.
+                            </p>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-4">
+                        <button id="cancelReminderBtn" class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                            Cancelar
+                        </button>
+                        <button id="sendReminderBtn" class="px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                            Enviar Lembrete
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html> 
