@@ -1220,12 +1220,13 @@ async function handleNewLoan(e) {
     
     if (dueDateObj < today) {
         const confirmOverdue = confirm(
-            'A data de vencimento selecionada já passou. Este empréstimo será marcado como vencido. Deseja continuar?'
+            'A data de vencimento selecionada já passou. Este empréstimo será criado como ativo, mas aparecerá como vencido na lista. Deseja continuar?'
         );
         if (!confirmOverdue) {
             return; // Cancelar se o usuário não confirmar
         }
-        initialStatus = 'overdue';
+        // Manter como 'active' - o sistema calculará automaticamente o status como 'overdue' na visualização
+        initialStatus = 'active';
     }
     
     const formData = {
@@ -1234,10 +1235,13 @@ async function handleNewLoan(e) {
         interest_rate: parseFloat(document.getElementById('loanInterest').value),
         loan_date: loanDate,
         due_date: dueDate,
-        status: initialStatus,
+        status: 'active', // Sempre usar 'active' para evitar problemas de constraint
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
+    
+    // Debug: verificar dados antes de enviar
+    console.log('Dados do empréstimo:', formData);
     
     try {
         const { data, error } = await supabase
@@ -1278,7 +1282,8 @@ async function handleNewLoan(e) {
         }
         
     } catch (error) {
-        alert('Erro ao criar empréstimo: ' + error.message);
+        console.error('Erro detalhado ao criar empréstimo:', error);
+        alert('Erro ao criar empréstimo: ' + error.message + '\n\nDetalhes no console.');
     }
 }
 
