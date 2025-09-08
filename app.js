@@ -1678,13 +1678,88 @@ function populateClientSelect() {
 }
 
 function setDefaultDates() {
+    // Não definir datas padrão para permitir datas retroativas
+    // Os usuários podem escolher qualquer data, incluindo datas passadas
+    
+    // Limpar os campos de data para permitir seleção manual
+    document.getElementById('loanDate').value = '';
+    document.getElementById('loanDueDate').value = '';
+    
+    // Opcional: definir data sugerida apenas se o campo estiver vazio
+    // e o usuário não tiver interagido com ele ainda
+}
+
+// Função para definir datas rápidas (retroativas)
+function setQuickLoanDate(period) {
     const today = new Date();
-    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
+    let selectedDate;
     
-    // Usar a função auxiliar para formatar datas
+    switch(period) {
+        case 'today':
+            selectedDate = today;
+            break;
+        case 'yesterday':
+            selectedDate = new Date(today);
+            selectedDate.setDate(today.getDate() - 1);
+            break;
+        case 'week':
+            selectedDate = new Date(today);
+            selectedDate.setDate(today.getDate() - 7);
+            break;
+        case 'month':
+            selectedDate = new Date(today);
+            selectedDate.setMonth(today.getMonth() - 1);
+            break;
+        default:
+            selectedDate = today;
+    }
     
-    document.getElementById('loanDate').value = formatDateForInput(today);
-    document.getElementById('loanDueDate').value = formatDateForInput(nextMonth);
+    // Definir a data do empréstimo
+    document.getElementById('loanDate').value = formatDateForInput(selectedDate);
+    
+    // Automaticamente sugerir data de vencimento (1 mês após a data do empréstimo)
+    const dueDate = new Date(selectedDate);
+    dueDate.setMonth(selectedDate.getMonth() + 1);
+    document.getElementById('loanDueDate').value = formatDateForInput(dueDate);
+    
+    // Atualizar resumo se a função existir
+    if (typeof updateLoanSummary === 'function') {
+        updateLoanSummary();
+    }
+}
+
+// Função para definir datas rápidas no formulário de edição
+function setQuickEditLoanDate(period) {
+    const today = new Date();
+    let selectedDate;
+    
+    switch(period) {
+        case 'today':
+            selectedDate = today;
+            break;
+        case 'yesterday':
+            selectedDate = new Date(today);
+            selectedDate.setDate(today.getDate() - 1);
+            break;
+        case 'week':
+            selectedDate = new Date(today);
+            selectedDate.setDate(today.getDate() - 7);
+            break;
+        case 'month':
+            selectedDate = new Date(today);
+            selectedDate.setMonth(today.getMonth() - 1);
+            break;
+        default:
+            selectedDate = today;
+    }
+    
+    // Definir a data do empréstimo no formulário de edição
+    document.getElementById('editLoanDate').value = formatDateForInput(selectedDate);
+    
+    // Automaticamente sugerir data de vencimento (1 mês após a data do empréstimo)
+    const dueDate = new Date(selectedDate);
+    dueDate.setMonth(selectedDate.getMonth() + 1);
+    document.getElementById('editLoanDueDate').value = formatDateForInput(dueDate);
 }
 
 function updateLoanSummary() {
