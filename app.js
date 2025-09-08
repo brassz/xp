@@ -4976,22 +4976,20 @@ async function loadClientHistory() {
         // Buscar empréstimos quitados do cliente
         const { data: paidLoans, error: paidLoansError } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
+            .select('*')
             .eq('client_id', clientId)
             .order('paid_date', { ascending: false });
         
         if (paidLoansError) throw paidLoansError;
         
+        // Adicionar dados do cliente aos empréstimos quitados
+        const paidLoansWithClient = (paidLoans || []).map(paidLoan => ({
+            ...paidLoan,
+            clients: client // Usar os dados do cliente já carregados
+        }));
+        
         // Combinar empréstimos ativos e quitados
-        const allClientLoans = [...(clientLoans || []), ...(paidLoans || [])];
+        const allClientLoans = [...(clientLoans || []), ...paidLoansWithClient];
         
         // Buscar todos os pagamentos dos empréstimos ativos do cliente
         const activeLoanIds = (clientLoans || []).map(loan => loan.id);
@@ -5011,12 +5009,12 @@ async function loadClientHistory() {
         // Calcular resumo financeiro
         const totalLoans = allClientLoans.length;
         const totalActiveAmount = (clientLoans || []).reduce((sum, loan) => sum + parseFloat(loan.amount || 0), 0);
-        const totalPaidAmount = (paidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
+        const totalPaidAmount = (paidLoansWithClient || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
         const totalAmount = totalActiveAmount + totalPaidAmount;
         
         // Total pago inclui pagamentos de empréstimos ativos + total pago de empréstimos quitados
         const totalPaidFromActive = clientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
-        const totalPaidFromSettled = (paidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
+        const totalPaidFromSettled = (paidLoansWithClient || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
         const totalPaid = totalPaidFromActive + totalPaidFromSettled;
         
         let totalRemaining = 0;
@@ -5035,10 +5033,10 @@ async function loadClientHistory() {
         document.getElementById('clientSummary').classList.remove('hidden');
         
         // Renderizar tabela de empréstimos (ativos e quitados)
-        renderHistoryLoansTable(allClientLoans, paidLoans || []);
+        renderHistoryLoansTable(allClientLoans, paidLoansWithClient || []);
         
         // Renderizar tabela de pagamentos
-        renderHistoryPaymentsTable(clientPayments, clientLoans || [], paidLoans || []);
+        renderHistoryPaymentsTable(clientPayments, clientLoans || [], paidLoansWithClient || []);
         
         showSuccessMessage(`Histórico carregado para ${client.name}`);
         
