@@ -1261,26 +1261,73 @@ async function handleNewLoan(e) {
             created_by: currentUser.id
         });
         
-        // INSERÇÃO ULTRA-SIMPLES - apenas o essencial
-        const { data, error } = await supabase
-            .from('loans')
-            .insert([{
-                client_id: clientId,
-                amount: amount,
-                interest_rate: interestRate,
-                loan_date: loanDate,
-                due_date: dueDate,
-                created_by: currentUser.id
-                // SEM status, SEM funções RPC, SEM ON CONFLICT
-            }])
-            .select();
+        // TENTATIVA 1: Inserção via SQL raw para evitar problemas do client Supabase
+        console.log('Tentativa 1: SQL raw...');
+        
+        const sqlQuery = `
+            INSERT INTO loans (client_id, amount, interest_rate, loan_date, due_date, created_by)
+            VALUES ($1, $2, $3, $4, $5, $6)
+            RETURNING *;
+        `;
+        
+        let { data, error } = await supabase
+            .rpc('exec_sql', {
+                query: sqlQuery,
+                params: [clientId, amount, interestRate, loanDate, dueDate, currentUser.id]
+            });
+        
+        // Se a função exec_sql não existir, tentar inserção normal
+        if (error && error.message.includes('function "exec_sql" does not exist')) {
+            console.log('Tentativa 2: Inserção normal...');
+            
+            const result = await supabase
+                .from('loans')
+                .insert([{
+                    client_id: clientId,
+                    amount: amount,
+                    interest_rate: interestRate,
+                    loan_date: loanDate,
+                    due_date: dueDate,
+                    created_by: currentUser.id
+                }])
+                .select();
+            
+            data = result.data;
+            error = result.error;
+        }
         
         if (error) {
             console.error('Erro detalhado do Supabase:', error);
             console.error('Código do erro:', error.code);
             console.error('Detalhes:', error.details);
             console.error('Hint:', error.hint);
-            throw error;
+            console.error('Message:', error.message);
+            
+            // Tentar uma última abordagem - inserção campo por campo
+            if (error.message.includes('ON CONFLICT')) {
+                console.log('Tentativa 3: Inserção minimalista...');
+                
+                const minimalResult = await supabase
+                    .from('loans')
+                    .insert({
+                        client_id: clientId,
+                        amount: parseFloat(amount),
+                        interest_rate: parseFloat(interestRate),
+                        loan_date: loanDate,
+                        due_date: dueDate,
+                        created_by: currentUser.id
+                    })
+                    .select();
+                
+                if (minimalResult.error) {
+                    throw minimalResult.error;
+                } else {
+                    data = minimalResult.data;
+                    error = null;
+                }
+            } else {
+                throw error;
+            }
         }
         
         hideModal(newLoanModal);
