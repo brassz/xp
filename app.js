@@ -11,6 +11,7 @@ const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
 // Estado global da aplicação
 let currentUser = null;
 let clients = [];
+let filteredClients = [];
 let loans = [];
 let expenses = [];
 let expenseCategories = [];
@@ -242,6 +243,15 @@ function setupEventListeners() {
             document.getElementById('historyClientResults').classList.add('hidden');
         }
     });
+
+    // Campo de busca de clientes na aba principal
+    document.getElementById('clientSearchInput').addEventListener('input', function(e) {
+        const searchTerm = e.target.value;
+        searchClients(searchTerm);
+    });
+
+    // Botão de limpar busca de clientes
+    document.getElementById('clearClientSearch').addEventListener('click', clearClientSearch);
     
     // Esconder resultados ao clicar fora
     document.addEventListener('click', function(e) {
@@ -596,6 +606,7 @@ async function loadClients() {
         if (error) throw error;
         
         clients = data || [];
+        filteredClients = [...clients];
         renderClientsTable();
         populateHistoryClientSelect();
         
@@ -710,18 +721,22 @@ async function loadLoans() {
 function renderClientsTable() {
     const tbody = document.getElementById('clientsTableBody');
     
-    if (clients.length === 0) {
+    if (filteredClients.length === 0) {
+        const message = clients.length === 0 
+            ? 'Nenhum cliente cadastrado ainda'
+            : 'Nenhum cliente encontrado com os critérios de busca';
+        
         tbody.innerHTML = `
             <tr>
                 <td colspan="6" class="px-6 py-8 text-center text-gray-400">
-                    Nenhum cliente cadastrado ainda
+                    ${message}
                 </td>
             </tr>
         `;
         return;
     }
     
-    tbody.innerHTML = clients.map(client => `
+    tbody.innerHTML = filteredClients.map(client => `
         <tr class="table-row">
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
@@ -747,6 +762,35 @@ function renderClientsTable() {
             </td>
         </tr>
     `).join('');
+}
+
+// Função para buscar clientes
+function searchClients(searchTerm) {
+    if (!searchTerm || searchTerm.trim() === '') {
+        filteredClients = [...clients];
+    } else {
+        const term = searchTerm.toLowerCase().trim();
+        filteredClients = clients.filter(client => {
+            return (
+                client.name.toLowerCase().includes(term) ||
+                client.cpf.toLowerCase().includes(term) ||
+                client.phone.toLowerCase().includes(term) ||
+                client.email.toLowerCase().includes(term) ||
+                client.address.toLowerCase().includes(term)
+            );
+        });
+    }
+    renderClientsTable();
+}
+
+// Função para limpar busca de clientes
+function clearClientSearch() {
+    const searchInput = document.getElementById('clientSearchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        filteredClients = [...clients];
+        renderClientsTable();
+    }
 }
 
 // Renderizar tabela de empréstimos
