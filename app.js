@@ -1247,6 +1247,29 @@ async function handleNewLoan(e) {
         return;
     }
     
+    // Validações adicionais de formato
+    if (amount <= 0 || !isFinite(amount)) {
+        alert('Valor do empréstimo deve ser um número positivo válido.');
+        return;
+    }
+    
+    if (interestRate < 0 || !isFinite(interestRate)) {
+        alert('Taxa de juros deve ser um número válido maior ou igual a zero.');
+        return;
+    }
+    
+    // Validar formato das datas (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(loanDate)) {
+        alert('Data do empréstimo deve estar no formato YYYY-MM-DD.');
+        return;
+    }
+    
+    if (!dateRegex.test(dueDate)) {
+        alert('Data de vencimento deve estar no formato YYYY-MM-DD.');
+        return;
+    }
+    
     console.log('Tentando criar empréstimo com os dados:', {
         clientId, amount, interestRate, loanDate, dueDate, userId: currentUser.id
     });
@@ -1261,40 +1284,20 @@ async function handleNewLoan(e) {
             created_by: currentUser.id
         });
         
-        // TENTATIVA 1: Inserção via SQL raw para evitar problemas do client Supabase
-        console.log('Tentativa 1: SQL raw...');
+        // INSERÇÃO DIRETA SIMPLES - sem arrays, sem complexidade
+        console.log('Inserindo empréstimo...');
         
-        const sqlQuery = `
-            INSERT INTO loans (client_id, amount, interest_rate, loan_date, due_date, created_by)
-            VALUES ($1, $2, $3, $4, $5, $6)
-            RETURNING *;
-        `;
-        
-        let { data, error } = await supabase
-            .rpc('exec_sql', {
-                query: sqlQuery,
-                params: [clientId, amount, interestRate, loanDate, dueDate, currentUser.id]
-            });
-        
-        // Se a função exec_sql não existir, tentar inserção normal
-        if (error && error.message.includes('function "exec_sql" does not exist')) {
-            console.log('Tentativa 2: Inserção normal...');
-            
-            const result = await supabase
-                .from('loans')
-                .insert([{
-                    client_id: clientId,
-                    amount: amount,
-                    interest_rate: interestRate,
-                    loan_date: loanDate,
-                    due_date: dueDate,
-                    created_by: currentUser.id
-                }])
-                .select();
-            
-            data = result.data;
-            error = result.error;
-        }
+        const { data, error } = await supabase
+            .from('loans')
+            .insert({
+                client_id: clientId,
+                amount: parseFloat(amount),
+                interest_rate: parseFloat(interestRate),
+                loan_date: loanDate,
+                due_date: dueDate,
+                created_by: currentUser.id
+            })
+            .select();
         
         if (error) {
             console.error('Erro detalhado do Supabase:', error);
@@ -1302,32 +1305,7 @@ async function handleNewLoan(e) {
             console.error('Detalhes:', error.details);
             console.error('Hint:', error.hint);
             console.error('Message:', error.message);
-            
-            // Tentar uma última abordagem - inserção campo por campo
-            if (error.message.includes('ON CONFLICT')) {
-                console.log('Tentativa 3: Inserção minimalista...');
-                
-                const minimalResult = await supabase
-                    .from('loans')
-                    .insert({
-                        client_id: clientId,
-                        amount: parseFloat(amount),
-                        interest_rate: parseFloat(interestRate),
-                        loan_date: loanDate,
-                        due_date: dueDate,
-                        created_by: currentUser.id
-                    })
-                    .select();
-                
-                if (minimalResult.error) {
-                    throw minimalResult.error;
-                } else {
-                    data = minimalResult.data;
-                    error = null;
-                }
-            } else {
-                throw error;
-            }
+            throw error;
         }
         
         hideModal(newLoanModal);
