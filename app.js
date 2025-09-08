@@ -1209,16 +1209,39 @@ async function handleNewClient(e) {
 async function handleNewLoan(e) {
     e.preventDefault();
     
+    const loanDate = document.getElementById('loanDate').value;
+    const dueDate = document.getElementById('loanDueDate').value;
+    
+    // Determinar status inicial baseado na data de vencimento
+    // Para empréstimos retroativos, verificar se já estão vencidos
+    let initialStatus = 'active';
+    const today = new Date();
+    const dueDateObj = parseLocalDate(dueDate);
+    
+    if (dueDateObj < today) {
+        const confirmOverdue = confirm(
+            'A data de vencimento selecionada já passou. Este empréstimo será criado como ativo, mas aparecerá como vencido na lista. Deseja continuar?'
+        );
+        if (!confirmOverdue) {
+            return; // Cancelar se o usuário não confirmar
+        }
+        // Manter como 'active' - o sistema calculará automaticamente o status como 'overdue' na visualização
+        initialStatus = 'active';
+    }
+    
     const formData = {
         client_id: document.getElementById('loanClient').value,
         amount: parseFloat(document.getElementById('loanAmount').value),
         interest_rate: parseFloat(document.getElementById('loanInterest').value),
-        loan_date: document.getElementById('loanDate').value,
-        due_date: document.getElementById('loanDueDate').value,
-        status: 'active',
+        loan_date: loanDate,
+        due_date: dueDate,
+        status: 'active', // Sempre usar 'active' para evitar problemas de constraint
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
+    
+    // Debug: verificar dados antes de enviar
+    console.log('Dados do empréstimo:', formData);
     
     try {
         const { data, error } = await supabase
@@ -1234,8 +1257,18 @@ async function handleNewLoan(e) {
         await loadLoans();
         await updateDashboard();
         
+        // Mostrar mensagem de sucesso específica para empréstimos retroativos
+        const loanDateObj = parseLocalDate(loanDate);
+        const isRetroactive = loanDateObj < new Date();
+        
+        let successMessage = 'Empréstimo criado com sucesso!';
+        if (isRetroactive) {
+            const daysAgo = Math.floor((new Date() - loanDateObj) / (1000 * 60 * 60 * 24));
+            successMessage += ` (Empréstimo retroativo de ${daysAgo} dias atrás)`;
+        }
+        
         // Perguntar se deseja gerar contrato
-        const generateContractNow = confirm('Empréstimo criado com sucesso! Deseja gerar o contrato agora?');
+        const generateContractNow = confirm(successMessage + ' Deseja gerar o contrato agora?');
         if (generateContractNow && data && data[0]) {
             await generateContract(data[0].id);
         }
@@ -1249,7 +1282,8 @@ async function handleNewLoan(e) {
         }
         
     } catch (error) {
-        alert('Erro ao criar empréstimo: ' + error.message);
+        console.error('Erro detalhado ao criar empréstimo:', error);
+        alert('Erro ao criar empréstimo: ' + error.message + '\n\nDetalhes no console.');
     }
 }
 
@@ -1682,10 +1716,18 @@ function setDefaultDates() {
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
     
     // Usar a função auxiliar para formatar datas
+    // Não definir valores padrão para permitir que o usuário escolha datas livremente
+    // Isso permite cadastrar empréstimos retroativos (datas antigas)
     
-    document.getElementById('loanDate').value = formatDateForInput(today);
-    document.getElementById('loanDueDate').value = formatDateForInput(nextMonth);
+    // Apenas definir se os campos estiverem vazios
+    if (!document.getElementById('loanDate').value) {
+        document.getElementById('loanDate').value = formatDateForInput(today);
+    }
+    if (!document.getElementById('loanDueDate').value) {
+        document.getElementById('loanDueDate').value = formatDateForInput(nextMonth);
+    }
 }
+
 
 function updateLoanSummary() {
     const amount = parseFloat(document.getElementById('loanAmount').value) || 0;
