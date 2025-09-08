@@ -28,6 +28,107 @@ let capitalRaisingClients = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
+// Variáveis de paginação
+let clientsCurrentPage = 1;
+let loansCurrentPage = 1;
+let clientsHasMore = true;
+let loansHasMore = true;
+
+// Cache local para dados estáticos
+const cache = {
+    expenseCategories: { data: null, timestamp: null, ttl: 5 * 60 * 1000 }, // 5 minutos
+    cashSettings: { data: null, timestamp: null, ttl: 10 * 60 * 1000 }, // 10 minutos
+};
+
+// Funções utilitárias para loading indicators
+function showLoadingIndicator(elementId, message = 'Carregando...') {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.innerHTML = `
+            <tr>
+                <td colspan="10" class="px-6 py-8 text-center">
+                    <div class="flex items-center justify-center">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-600 mr-3"></div>
+                        <span class="text-gray-400">${message}</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+    }
+}
+
+function hideLoadingIndicator(elementId) {
+    const element = document.getElementById(elementId);
+    if (element) {
+        element.innerHTML = '';
+    }
+}
+
+// Função de debounce para otimizar buscas
+function debounce(func, wait) {
+    let timeout;
+    return function executedFunction(...args) {
+        const later = () => {
+            clearTimeout(timeout);
+            func(...args);
+        };
+        clearTimeout(timeout);
+        timeout = setTimeout(later, wait);
+    };
+}
+
+// Funções de cache
+function isDataCached(key) {
+    const cached = cache[key];
+    if (!cached || !cached.data || !cached.timestamp) return false;
+    
+    const now = Date.now();
+    return (now - cached.timestamp) < cached.ttl;
+}
+
+function getCachedData(key) {
+    if (isDataCached(key)) {
+        console.log(`📋 Usando dados em cache para: ${key}`);
+        return cache[key].data;
+    }
+    return null;
+}
+
+function setCachedData(key, data) {
+    cache[key] = {
+        data: data,
+        timestamp: Date.now(),
+        ttl: cache[key].ttl
+    };
+    console.log(`💾 Dados armazenados em cache para: ${key}`);
+}
+
+// Função para resetar paginação
+function resetPagination() {
+    clientsCurrentPage = 1;
+    loansCurrentPage = 1;
+    clientsHasMore = true;
+    loansHasMore = true;
+    
+    // Ocultar botões "Carregar mais"
+    const clientsContainer = document.getElementById('loadMoreClientsContainer');
+    const loansContainer = document.getElementById('loadMoreLoansContainer');
+    
+    if (clientsContainer) clientsContainer.style.display = 'none';
+    if (loansContainer) loansContainer.style.display = 'none';
+}
+
+// Função para recarregar dados com performance otimizada
+async function reloadClientsData() {
+    resetPagination();
+    await loadClients(1, 20);
+}
+
+async function reloadLoansData() {
+    resetPagination();
+    await loadLoans(1, 20);
+}
+
 
 // Elementos DOM
 const loginPage = document.getElementById('loginPage');
@@ -234,21 +335,31 @@ function setupEventListeners() {
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
     
-    // Campo de busca de clientes no histórico
-    document.getElementById('historyClientSearch').addEventListener('input', function(e) {
-        const searchTerm = e.target.value;
+    // Botões de carregar mais dados
+    document.getElementById('loadMoreClientsBtn').addEventListener('click', loadMoreClients);
+    document.getElementById('loadMoreLoansBtn').addEventListener('click', loadMoreLoans);
+    
+    // Campo de busca de clientes no histórico com debounce
+    const debouncedHistorySearch = debounce(function(searchTerm) {
         if (searchTerm.length >= 2) {
             const results = searchHistoryClients(searchTerm);
             renderHistorySearchResults(results);
         } else {
             document.getElementById('historyClientResults').classList.add('hidden');
         }
+    }, 300);
+    
+    document.getElementById('historyClientSearch').addEventListener('input', function(e) {
+        debouncedHistorySearch(e.target.value);
     });
 
-    // Campo de busca de clientes na aba principal
-    document.getElementById('clientSearchInput').addEventListener('input', function(e) {
-        const searchTerm = e.target.value;
+    // Campo de busca de clientes na aba principal com debounce
+    const debouncedClientSearch = debounce(function(searchTerm) {
         searchClients(searchTerm);
+    }, 300);
+    
+    document.getElementById('clientSearchInput').addEventListener('input', function(e) {
+        debouncedClientSearch(e.target.value);
     });
 
     // Botão de limpar busca de clientes
@@ -564,7 +675,7 @@ function handleNavigation(e) {
     });
 }
 
-// Carregar dados
+// Carregar dados essenciais primeiro (lazy loading)
 async function loadData() {
     if (isLoadingData) {
         console.log('Dados já estão sendo carregados, ignorando chamada duplicada');
@@ -572,57 +683,140 @@ async function loadData() {
     }
     
     isLoadingData = true;
-    console.log('Iniciando carregamento de dados...');
+    console.log('Iniciando carregamento de dados essenciais...');
     
     try {
         // Primeiro, testar a conectividade com categorias
         await testCategoriesConnection();
         
+        // Carregar apenas dados essenciais primeiro
         await Promise.all([
-            loadClients(),
-            loadLoans(),
-            loadExpenses(),
-            loadExpenseCategories(),
-            loadGuarantors(),
-            loadEmergencyContacts(),
-            loadCashTransactions(),
-            loadCashSettings(),
-            loadCapitalRaisings(),
-
+            loadClients(1, 20), // Carrega apenas os primeiros 20 clientes
+            loadLoans(1, 20),   // Carrega apenas os primeiros 20 empréstimos
+            loadExpenseCategories(), // Essencial para formulários
         ]);
         
-        // Carregar empréstimos quitados separadamente
-        await renderPaidLoansTable();
-        
         await updateDashboard();
-        await updateCharts();
         
-        console.log('Dados carregados com sucesso');
+        console.log('Dados essenciais carregados com sucesso');
+        
+        // Carregar dados secundários em background
+        setTimeout(() => {
+            loadSecondaryData();
+        }, 100);
+        
     } catch (error) {
-        console.error('Erro ao carregar dados:', error);
+        console.error('Erro ao carregar dados essenciais:', error);
+        showErrorMessage('Erro ao carregar dados. Verifique sua conexão.');
     } finally {
         isLoadingData = false;
     }
 }
 
-// Carregar clientes
-async function loadClients() {
+// Carregar dados secundários em background
+async function loadSecondaryData() {
+    console.log('Carregando dados secundários...');
+    
     try {
-        const { data, error } = await supabase
+        await Promise.all([
+            loadExpenses(),
+            loadGuarantors(),
+            loadEmergencyContacts(),
+            loadCashTransactions(),
+            loadCashSettings(),
+            loadCapitalRaisings(),
+        ]);
+        
+        // Carregar empréstimos quitados separadamente
+        await renderPaidLoansTable();
+        await updateCharts();
+        
+        console.log('Dados secundários carregados com sucesso');
+    } catch (error) {
+        console.error('Erro ao carregar dados secundários:', error);
+    }
+}
+
+// Função para carregar mais clientes
+async function loadMoreClients() {
+    if (!clientsHasMore) return;
+    
+    clientsCurrentPage++;
+    const result = await loadClients(clientsCurrentPage, 20, false);
+    
+    clientsHasMore = result.hasMore;
+    
+    // Atualizar visibilidade do botão
+    const container = document.getElementById('loadMoreClientsContainer');
+    if (!clientsHasMore) {
+        container.style.display = 'none';
+    }
+}
+
+// Função para carregar mais empréstimos
+async function loadMoreLoans() {
+    if (!loansHasMore) return;
+    
+    loansCurrentPage++;
+    const result = await loadLoans(loansCurrentPage, 20, false);
+    
+    loansHasMore = result.hasMore;
+    
+    // Atualizar visibilidade do botão
+    const container = document.getElementById('loadMoreLoansContainer');
+    if (!loansHasMore) {
+        container.style.display = 'none';
+    }
+}
+
+// Carregar clientes com paginação e loading indicator
+async function loadClients(page = 1, limit = 50, showLoading = true) {
+    try {
+        if (showLoading) {
+            showLoadingIndicator('clientsTableBody', 'Carregando clientes...');
+        }
+        
+        const offset = (page - 1) * limit;
+        const { data, error, count } = await supabase
             .from('clients')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
         
         if (error) throw error;
         
-        clients = data || [];
-        filteredClients = [...clients];
+        // Se for a primeira página, substitui os dados. Senão, adiciona
+        if (page === 1) {
+            clients = data || [];
+            filteredClients = [...clients];
+        } else {
+            clients = [...clients, ...(data || [])];
+            filteredClients = [...clients];
+        }
+        
         renderClientsTable();
         populateHistoryClientSelect();
+        
+        // Atualizar botão "Carregar mais"
+        const hasMore = count > offset + limit;
+        const loadMoreContainer = document.getElementById('loadMoreClientsContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'block' : 'none';
+        }
+        
+        // Retorna informações de paginação
+        return {
+            data: data || [],
+            totalCount: count,
+            hasMore: hasMore,
+            currentPage: page
+        };
         
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
         clients = [];
+        showErrorMessage('Erro ao carregar clientes. Tente novamente.');
+        return { data: [], totalCount: 0, hasMore: false, currentPage: 1 };
     }
 }
 
@@ -700,10 +894,15 @@ async function loadClientEmergencyContacts(clientId) {
     }
 }
 
-// Carregar empréstimos
-async function loadLoans() {
+// Carregar empréstimos com paginação e loading indicator
+async function loadLoans(page = 1, limit = 50, showLoading = true) {
     try {
-        const { data, error } = await supabase
+        if (showLoading) {
+            showLoadingIndicator('loansTableBody', 'Carregando empréstimos...');
+        }
+        
+        const offset = (page - 1) * limit;
+        const { data, error, count } = await supabase
             .from('loans')
             .select(`
                 *,
@@ -713,18 +912,43 @@ async function loadLoans() {
                     email,
                     phone
                 )
-            `)
-            .order('created_at', { ascending: false });
+            `, { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + limit - 1);
         
         if (error) throw error;
         
-        loans = data || [];
-        filteredLoans = [...loans]; // Inicializar filteredLoans
+        // Se for a primeira página, substitui os dados. Senão, adiciona
+        if (page === 1) {
+            loans = data || [];
+            filteredLoans = [...loans];
+        } else {
+            loans = [...loans, ...(data || [])];
+            filteredLoans = [...loans];
+        }
+        
         await renderLoansTable();
+        
+        // Atualizar botão "Carregar mais"
+        const hasMore = count > offset + limit;
+        const loadMoreContainer = document.getElementById('loadMoreLoansContainer');
+        if (loadMoreContainer) {
+            loadMoreContainer.style.display = hasMore ? 'block' : 'none';
+        }
+        
+        // Retorna informações de paginação
+        return {
+            data: data || [],
+            totalCount: count,
+            hasMore: hasMore,
+            currentPage: page
+        };
         
     } catch (error) {
         console.error('Erro ao carregar empréstimos:', error);
         loans = [];
+        showErrorMessage('Erro ao carregar empréstimos. Tente novamente.');
+        return { data: [], totalCount: 0, hasMore: false, currentPage: 1 };
     }
 }
 
@@ -1182,7 +1406,7 @@ async function handleNewClient(e) {
         document.getElementById('emergencyContactSection').classList.add('hidden');
         clearNewClientEmergencyContactForm();
         
-        await loadClients();
+        await reloadClientsData();
         await loadGuarantors();
         await loadEmergencyContacts();
         await updateDashboard();
@@ -1228,7 +1452,7 @@ async function handleNewLoan(e) {
         hideModal(newLoanModal);
         newLoanForm.reset();
         
-        await loadLoans();
+        await reloadLoansData();
         await updateDashboard();
         
         // Perguntar se deseja gerar contrato
@@ -1422,7 +1646,7 @@ async function handlePayment(e) {
         }
         
         // Recarregar dados primeiro
-        await loadLoans();
+        await reloadLoansData();
         await updateDashboard();
         
         // Atualizar o modal com os novos valores antes de fechar (se estiver aberto)
@@ -1524,7 +1748,7 @@ async function handleEditClient(e) {
         hideModal(editClientModal);
         
         // Recarregar dados
-        await loadClients();
+        await reloadClientsData();
         await updateDashboard();
         
         // Mostrar mensagem de sucesso
@@ -1561,7 +1785,7 @@ async function handleEditLoan(e) {
         hideModal(editLoanModal);
         
         // Recarregar dados
-        await loadLoans();
+        await reloadLoansData();
         await updateDashboard();
         
         // Mostrar mensagem de sucesso
@@ -3921,7 +4145,7 @@ async function performDeletePayment(paymentId) {
         hideModal(document.getElementById('confirmationModal'));
         
         // Recarregar dados principais
-        await loadLoans();
+        await reloadLoansData();
         await updateDashboard();
         
         // Recarregar histórico de pagamentos
@@ -4049,7 +4273,7 @@ async function performDeleteClient(clientId) {
         hideModal(document.getElementById('confirmationModal'));
         
         // Recarregar dados
-        await loadClients();
+        await reloadClientsData();
         await updateDashboard();
         
         // Mostrar mensagem de sucesso
@@ -4073,7 +4297,7 @@ async function performDeleteLoan(loanId) {
         hideModal(document.getElementById('confirmationModal'));
         
         // Recarregar dados
-        await loadLoans();
+        await reloadLoansData();
         await updateDashboard();
         
         // Mostrar mensagem de sucesso
@@ -5273,7 +5497,7 @@ async function restorePaidLoan(paidLoanId) {
         if (deleteError) throw deleteError;
         
         // Recarregar dados
-        await loadLoans();
+        await reloadLoansData();
         await updateDashboard();
         await updateCharts();
         
@@ -6389,6 +6613,15 @@ async function generateMonthlyExpensesPDF() {
 // Carregar categorias de despesas
 async function loadExpenseCategories() {
     console.log('🔄 Iniciando carregamento de categorias de despesas...');
+    
+    // Verificar cache primeiro
+    const cachedData = getCachedData('expenseCategories');
+    if (cachedData) {
+        expenseCategories = cachedData;
+        updateExpenseCategorySelect();
+        return;
+    }
+    
     try {
         const { data, error } = await supabase
             .from('expense_categories')
@@ -6403,6 +6636,10 @@ async function loadExpenseCategories() {
         
         console.log('✅ Dados recebidos do Supabase:', data);
         expenseCategories = data || [];
+        
+        // Armazenar no cache
+        setCachedData('expenseCategories', expenseCategories);
+        
         console.log('📊 Categorias carregadas:', expenseCategories.length);
         updateExpenseCategorySelect();
         
