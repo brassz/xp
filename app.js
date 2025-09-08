@@ -169,6 +169,8 @@ function setupEventListeners() {
     document.getElementById('closeViewClientBtn').addEventListener('click', () => hideModal(document.getElementById('viewClientModal')));
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
+    document.getElementById('closePaymentDetailsModal').addEventListener('click', () => hideModal(document.getElementById('paymentDetailsModal')));
+    document.getElementById('closePaymentDetailsModalBtn').addEventListener('click', () => hideModal(document.getElementById('paymentDetailsModal')));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('closeEmergencyContactModal').addEventListener('click', () => hideModal(emergencyContactModal));
@@ -5192,7 +5194,7 @@ function renderHistoryLoansTable(clientLoans) {
     if (clientLoans.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="9" class="px-6 py-8 text-center text-gray-400">
                     Nenhum empréstimo encontrado para este cliente
                 </td>
             </tr>
@@ -5218,6 +5220,18 @@ function renderHistoryLoansTable(clientLoans) {
             statusText = getStatusText(status);
         }
         
+        // Data de pagamento (apenas para empréstimos quitados)
+        const paymentDateCell = isQuitado ? 
+            `<span class="text-green-400">${formatDate(loan.paid_date)}</span>` : 
+            '<span class="text-gray-500">-</span>';
+        
+        // Botão de ações (apenas para empréstimos quitados)
+        const actionsCell = isQuitado ? 
+            `<button onclick="showPaymentDetails('${loan.id || loan.loan_id}')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+                Ver Pagamento
+            </button>` : 
+            '<span class="text-gray-500">-</span>';
+        
         tableHTML += `
             <tr class="table-row">
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -5228,18 +5242,101 @@ function renderHistoryLoansTable(clientLoans) {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.due_date)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${paymentDateCell}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <span class="status-badge ${statusClass}">${statusText}</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     <div class="text-blue-300">R$ ${originalTotal.toFixed(2)}</div>
-                    ${isQuitado ? '<div class="text-green-400 text-xs">Quitado em ' + formatDate(loan.paid_date) + '</div>' : ''}
                 </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${actionsCell}</td>
             </tr>
         `;
     }
     
     tbody.innerHTML = tableHTML;
+}
+
+// Função para mostrar detalhes do pagamento de um empréstimo quitado
+async function showPaymentDetails(paidLoanId) {
+    try {
+        // Buscar dados do empréstimo quitado
+        const { data: paidLoan, error: paidLoanError } = await supabase
+            .from('paid_loans')
+            .select(`
+                *,
+                clients (
+                    name,
+                    cpf,
+                    email,
+                    phone
+                )
+            `)
+            .eq('id', paidLoanId)
+            .single();
+        
+        if (paidLoanError) throw paidLoanError;
+        
+        if (!paidLoan) {
+            showInfoMessage('Empréstimo quitado não encontrado');
+            return;
+        }
+        
+        // Buscar histórico de pagamentos do empréstimo original
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('loan_id', paidLoan.loan_id)
+            .order('payment_date', { ascending: false });
+        
+        if (paymentsError) {
+            console.warn('Erro ao buscar histórico de pagamentos:', paymentsError);
+        }
+        
+        // Preencher dados do modal
+        document.getElementById('paymentDetailClientName').textContent = paidLoan.clients?.name || 'Cliente não encontrado';
+        document.getElementById('paymentDetailOriginalAmount').textContent = `R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}`;
+        document.getElementById('paymentDetailInterestRate').textContent = `${paidLoan.interest_rate}%`;
+        document.getElementById('paymentDetailTotalAmount').textContent = `R$ ${parseFloat(paidLoan.total_with_interest).toFixed(2)}`;
+        document.getElementById('paymentDetailLoanDate').textContent = formatDate(paidLoan.loan_date);
+        document.getElementById('paymentDetailDueDate').textContent = formatDate(paidLoan.due_date);
+        document.getElementById('paymentDetailPaidDate').textContent = formatDate(paidLoan.paid_date);
+        document.getElementById('paymentDetailPaidAmount').textContent = `R$ ${parseFloat(paidLoan.total_paid).toFixed(2)}`;
+        document.getElementById('paymentDetailPaymentMethod').textContent = paidLoan.payment_method || 'Não informado';
+        document.getElementById('paymentDetailNotes').textContent = paidLoan.notes || 'Sem observações registradas';
+        
+        // Renderizar histórico de pagamentos
+        const paymentsTableBody = document.getElementById('paymentDetailPaymentsTable');
+        if (payments && payments.length > 0) {
+            let paymentsHTML = '';
+            for (const payment of payments) {
+                paymentsHTML += `
+                    <tr class="table-row">
+                        <td class="px-4 py-2 text-sm text-gray-300">${formatDate(payment.payment_date)}</td>
+                        <td class="px-4 py-2 text-sm text-gray-300">R$ ${parseFloat(payment.amount).toFixed(2)}</td>
+                        <td class="px-4 py-2 text-sm text-gray-300">${getPaymentTypeText(payment.payment_type)}</td>
+                        <td class="px-4 py-2 text-sm text-gray-300">${payment.notes || 'Sem observações'}</td>
+                    </tr>
+                `;
+            }
+            paymentsTableBody.innerHTML = paymentsHTML;
+        } else {
+            paymentsTableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="px-4 py-8 text-center text-gray-400">
+                        Nenhum pagamento parcial registrado
+                    </td>
+                </tr>
+            `;
+        }
+        
+        // Mostrar modal
+        showModal(document.getElementById('paymentDetailsModal'));
+        
+    } catch (error) {
+        console.error('Erro ao carregar detalhes do pagamento:', error);
+        showInfoMessage('Erro ao carregar detalhes do pagamento: ' + error.message);
+    }
 }
 
 // Função para renderizar tabela de pagamentos do histórico
