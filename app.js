@@ -1252,63 +1252,34 @@ async function handleNewLoan(e) {
     });
     
     try {
-        let data, error;
-        
-        // Tentativa 1: Inserção direta simples (sem função RPC)
-        console.log('Tentativa 1: Inserção direta...');
-        
-        const formData = {
+        console.log('Dados que serão enviados:', {
             client_id: clientId,
             amount: amount,
             interest_rate: interestRate,
             loan_date: loanDate,
             due_date: dueDate,
             created_by: currentUser.id
-            // SEM status - deixar usar padrão do banco
-        };
+        });
         
-        const result = await supabase
+        // INSERÇÃO ULTRA-SIMPLES - apenas o essencial
+        const { data, error } = await supabase
             .from('loans')
-            .insert([formData])
+            .insert([{
+                client_id: clientId,
+                amount: amount,
+                interest_rate: interestRate,
+                loan_date: loanDate,
+                due_date: dueDate,
+                created_by: currentUser.id
+                // SEM status, SEM funções RPC, SEM ON CONFLICT
+            }])
             .select();
-        
-        data = result.data;
-        error = result.error;
-        
-        // Se der erro, tentar função SQL simples
-        if (error) {
-            console.log('Tentativa 2: Usando função SQL simples...');
-            
-            const rpcResult = await supabase
-                .rpc('create_loan', {
-                    p_client_id: clientId,
-                    p_amount: amount,
-                    p_interest_rate: interestRate,
-                    p_loan_date: loanDate,
-                    p_due_date: dueDate,
-                    p_created_by: currentUser.id
-                });
-            
-            if (!rpcResult.error && rpcResult.data) {
-                // Se a função RPC funcionou, buscar os dados do empréstimo criado
-                const loanId = rpcResult.data;
-                const fetchResult = await supabase
-                    .from('loans')
-                    .select('*')
-                    .eq('id', loanId)
-                    .single();
-                
-                if (!fetchResult.error) {
-                    data = [fetchResult.data];
-                    error = null;
-                }
-            } else {
-                error = rpcResult.error || error;
-            }
-        }
         
         if (error) {
             console.error('Erro detalhado do Supabase:', error);
+            console.error('Código do erro:', error.code);
+            console.error('Detalhes:', error.details);
+            console.error('Hint:', error.hint);
             throw error;
         }
         
