@@ -1276,13 +1276,15 @@
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Juros</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Data Empréstimo</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Vencimento</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Data Pagamento</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
-                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Valor Restante</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Valor Total</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Ações</th>
                                     </tr>
                                 </thead>
                                 <tbody id="historyLoansTableBody" class="divide-y divide-gray-700">
                                     <tr>
-                                        <td colspan="7" class="px-6 py-8 text-center text-gray-400">
+                                        <td colspan="9" class="px-6 py-8 text-center text-gray-400">
                                             Selecione um cliente para ver o histórico de empréstimos
                                         </td>
                                     </tr>
@@ -2742,6 +2744,113 @@
                             Excluir
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Payment Details Modal -->
+    <div id="paymentDetailsModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-4xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Detalhes do Pagamento - Empréstimo Quitado</h3>
+                    <button id="closePaymentDetailsModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <!-- Informações do Empréstimo -->
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                    <div class="glass-card p-4 rounded-lg">
+                        <h4 class="text-lg font-semibold text-white mb-3">Informações do Empréstimo</h4>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Cliente:</span>
+                                <span class="text-white" id="paymentDetailClientName">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Valor Original:</span>
+                                <span class="text-white" id="paymentDetailOriginalAmount">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Taxa de Juros:</span>
+                                <span class="text-white" id="paymentDetailInterestRate">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Valor Total com Juros:</span>
+                                <span class="text-white" id="paymentDetailTotalAmount">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Data do Empréstimo:</span>
+                                <span class="text-white" id="paymentDetailLoanDate">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Data de Vencimento:</span>
+                                <span class="text-white" id="paymentDetailDueDate">-</span>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <div class="glass-card p-4 rounded-lg">
+                        <h4 class="text-lg font-semibold text-white mb-3">Informações do Pagamento</h4>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Data da Quitação:</span>
+                                <span class="text-green-400" id="paymentDetailPaidDate">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Valor Pago:</span>
+                                <span class="text-green-400" id="paymentDetailPaidAmount">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Método de Pagamento:</span>
+                                <span class="text-white" id="paymentDetailPaymentMethod">-</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-gray-300">Status:</span>
+                                <span class="text-green-400">✓ Quitado</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                
+                <!-- Observações -->
+                <div class="glass-card p-4 rounded-lg mb-6">
+                    <h4 class="text-lg font-semibold text-white mb-3">Observações</h4>
+                    <p class="text-gray-300" id="paymentDetailNotes">Sem observações registradas</p>
+                </div>
+                
+                <!-- Histórico de Pagamentos Parciais -->
+                <div class="glass-card p-4 rounded-lg">
+                    <h4 class="text-lg font-semibold text-white mb-3">Histórico de Pagamentos</h4>
+                    <div class="overflow-x-auto">
+                        <table class="min-w-full">
+                            <thead>
+                                <tr class="border-b border-gray-700">
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">Data</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">Valor</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">Tipo</th>
+                                    <th class="px-4 py-2 text-left text-xs font-medium text-gray-300 uppercase">Observações</th>
+                                </tr>
+                            </thead>
+                            <tbody id="paymentDetailPaymentsTable" class="divide-y divide-gray-700">
+                                <tr>
+                                    <td colspan="4" class="px-4 py-8 text-center text-gray-400">
+                                        Carregando histórico de pagamentos...
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end mt-6">
+                    <button id="closePaymentDetailsModalBtn" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                        Fechar
+                    </button>
                 </div>
             </div>
         </div>

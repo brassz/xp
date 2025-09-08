@@ -169,6 +169,8 @@ function setupEventListeners() {
     document.getElementById('closeViewClientBtn').addEventListener('click', () => hideModal(document.getElementById('viewClientModal')));
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
+    document.getElementById('closePaymentDetailsModal').addEventListener('click', () => hideModal(document.getElementById('paymentDetailsModal')));
+    document.getElementById('closePaymentDetailsModalBtn').addEventListener('click', () => hideModal(document.getElementById('paymentDetailsModal')));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('closeEmergencyContactModal').addEventListener('click', () => hideModal(emergencyContactModal));
@@ -235,10 +237,10 @@ function setupEventListeners() {
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
     
     // Campo de busca de clientes no histórico
-    document.getElementById('historyClientSearch').addEventListener('input', function(e) {
+    document.getElementById('historyClientSearch').addEventListener('input', async function(e) {
         const searchTerm = e.target.value;
         if (searchTerm.length >= 2) {
-            const results = searchHistoryClients(searchTerm);
+            const results = await searchHistoryClients(searchTerm);
             renderHistorySearchResults(results);
         } else {
             document.getElementById('historyClientResults').classList.add('hidden');
@@ -542,8 +544,8 @@ function handleNavigation(e) {
             // Atualizar lista de clientes quando a seção de histórico for exibida
             if (target === 'history') {
                 console.log('Seção de histórico ativada, atualizando lista de clientes...');
-                setTimeout(() => {
-                    populateHistoryClientSelect();
+                setTimeout(async () => {
+                    await populateHistoryClientSelect();
                 }, 100);
             }
             
@@ -618,7 +620,7 @@ async function loadClients() {
         clients = data || [];
         filteredClients = [...clients];
         renderClientsTable();
-        populateHistoryClientSelect();
+        await populateHistoryClientSelect();
         
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
@@ -4836,44 +4838,179 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Função para popular o select de clientes na aba de histórico
-function populateHistoryClientSelect() {
+async function populateHistoryClientSelect() {
     const select = document.getElementById('historyClientSelect');
     select.innerHTML = '<option value="">Ou selecione da lista completa</option>';
     
-    if (!clients || clients.length === 0) {
-        console.log('Nenhum cliente carregado para o histórico');
+    try {
+        // Buscar todos os clientes que têm empréstimos ativos
+        let allClientIds = new Set();
+        
+        // Primeiro, tentar buscar clientes com empréstimos ativos
+        try {
+            const { data: activeLoans, error: activeError } = await supabase
+                .from('loans')
+                .select('client_id')
+                .not('client_id', 'is', null);
+            
+            if (activeError) throw activeError;
+            (activeLoans || []).forEach(loan => allClientIds.add(loan.client_id));
+        } catch (error) {
+            console.warn('Erro ao buscar empréstimos ativos:', error);
+        }
+        
+        // Depois, tentar buscar clientes com empréstimos quitados
+        try {
+            const { data: paidLoans, error: paidError } = await supabase
+                .from('paid_loans')
+                .select('client_id')
+                .not('client_id', 'is', null);
+            
+            if (paidError) {
+                console.warn('Tabela paid_loans pode não existir ou ter problemas:', paidError);
+            } else {
+                (paidLoans || []).forEach(loan => allClientIds.add(loan.client_id));
+            }
+        } catch (error) {
+            console.warn('Erro ao buscar empréstimos quitados (tabela pode não existir):', error);
+        }
+        
+        // Se não encontrou nenhum cliente com empréstimos, usar todos os clientes
+        if (allClientIds.size === 0) {
+            console.log('Nenhum empréstimo encontrado, carregando todos os clientes...');
+            const { data: allClients, error: allClientsError } = await supabase
+                .from('clients')
+                .select('id, name, cpf')
+                .order('name');
+            
+            if (allClientsError) throw allClientsError;
+            
+            if (!allClients || allClients.length === 0) {
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "Nenhum cliente encontrado";
+                option.disabled = true;
+                select.appendChild(option);
+                return;
+            }
+            
+            allClients.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.id;
+                option.textContent = `${client.name} - ${client.cpf}`;
+                select.appendChild(option);
+            });
+            return;
+        }
+        
+        // Buscar dados dos clientes que têm empréstimos
+        const { data: clientsData, error: clientsError } = await supabase
+            .from('clients')
+            .select('id, name, cpf')
+            .in('id', Array.from(allClientIds))
+            .order('name');
+        
+        if (clientsError) throw clientsError;
+        
+        if (!clientsData || clientsData.length === 0) {
+            console.log('Nenhum cliente com histórico de empréstimos encontrado');
+            const option = document.createElement('option');
+            option.value = "";
+            option.textContent = "Nenhum cliente com empréstimos encontrado";
+            option.disabled = true;
+            select.appendChild(option);
+            return;
+        }
+        
+        clientsData.forEach(client => {
+            const option = document.createElement('option');
+            option.value = client.id;
+            option.textContent = `${client.name} - ${client.cpf}`;
+            select.appendChild(option);
+        });
+        
+    } catch (error) {
+        console.error('Erro ao carregar clientes para histórico:', error);
         const option = document.createElement('option');
         option.value = "";
-        option.textContent = "Nenhum cliente encontrado";
+        option.textContent = "Erro ao carregar clientes";
         option.disabled = true;
         select.appendChild(option);
-        return;
     }
-    
-    clients.forEach(client => {
-        const option = document.createElement('option');
-        option.value = client.id;
-        option.textContent = `${client.name} - ${client.cpf}`;
-        select.appendChild(option);
-    });
 }
 
 // Função para buscar clientes por nome
-function searchHistoryClients(searchTerm) {
-    if (!clients || clients.length === 0) {
-        return [];
-    }
-    
+async function searchHistoryClients(searchTerm) {
     if (!searchTerm || searchTerm.trim().length < 2) {
         return [];
     }
     
-    const term = searchTerm.toLowerCase().trim();
-    return clients.filter(client => 
-        client.name.toLowerCase().includes(term) ||
-        client.cpf.includes(term) ||
-        (client.email && client.email.toLowerCase().includes(term))
-    );
+    try {
+        const term = searchTerm.toLowerCase().trim();
+        let allClientIds = new Set();
+        
+        // Primeiro, tentar buscar clientes com empréstimos ativos
+        try {
+            const { data: activeLoans, error: activeError } = await supabase
+                .from('loans')
+                .select('client_id')
+                .not('client_id', 'is', null);
+            
+            if (activeError) throw activeError;
+            (activeLoans || []).forEach(loan => allClientIds.add(loan.client_id));
+        } catch (error) {
+            console.warn('Erro ao buscar empréstimos ativos:', error);
+        }
+        
+        // Depois, tentar buscar clientes com empréstimos quitados
+        try {
+            const { data: paidLoans, error: paidError } = await supabase
+                .from('paid_loans')
+                .select('client_id')
+                .not('client_id', 'is', null);
+            
+            if (paidError) {
+                console.warn('Tabela paid_loans pode não existir:', paidError);
+            } else {
+                (paidLoans || []).forEach(loan => allClientIds.add(loan.client_id));
+            }
+        } catch (error) {
+            console.warn('Erro ao buscar empréstimos quitados:', error);
+        }
+        
+        // Se não encontrou clientes com empréstimos, buscar em todos os clientes
+        let clientsData;
+        if (allClientIds.size === 0) {
+            const { data: allClients, error: allClientsError } = await supabase
+                .from('clients')
+                .select('id, name, cpf, email')
+                .ilike('name', `%${term}%`);
+            
+            if (allClientsError) throw allClientsError;
+            clientsData = allClients || [];
+        } else {
+            // Buscar dados dos clientes que têm empréstimos
+            const { data: filteredClients, error: clientsError } = await supabase
+                .from('clients')
+                .select('id, name, cpf, email')
+                .in('id', Array.from(allClientIds));
+            
+            if (clientsError) throw clientsError;
+            
+            // Filtrar pela busca
+            clientsData = (filteredClients || []).filter(client => 
+                client.name.toLowerCase().includes(term) ||
+                client.cpf.includes(term) ||
+                (client.email && client.email.toLowerCase().includes(term))
+            );
+        }
+        
+        return clientsData;
+        
+    } catch (error) {
+        console.error('Erro ao buscar clientes:', error);
+        return [];
+    }
 }
 
 // Função para renderizar resultados da busca
@@ -4932,14 +5069,22 @@ async function loadClientHistory() {
     }
     
     try {
-        const client = clients.find(c => c.id === clientId);
-        if (!client) {
+        // Buscar o cliente diretamente do banco de dados
+        const { data: clientData, error: clientError } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('id', clientId)
+            .single();
+        
+        if (clientError || !clientData) {
             showInfoMessage('Cliente não encontrado');
             return;
         }
         
-        // Buscar todos os empréstimos do cliente
-        const { data: clientLoans, error: loansError } = await supabase
+        const client = clientData;
+        
+        // Buscar todos os empréstimos ativos do cliente
+        const { data: activeLoans, error: loansError } = await supabase
             .from('loans')
             .select(`
                 *,
@@ -4955,15 +5100,47 @@ async function loadClientHistory() {
         
         if (loansError) throw loansError;
         
+        // Buscar todos os empréstimos quitados do cliente (se a tabela existir)
+        let paidLoans = [];
+        try {
+            const { data: paidLoansData, error: paidLoansError } = await supabase
+                .from('paid_loans')
+                .select(`
+                    *,
+                    clients (
+                        name,
+                        cpf,
+                        email,
+                        phone
+                    )
+                `)
+                .eq('client_id', clientId)
+                .order('created_at', { ascending: false });
+            
+            if (paidLoansError) {
+                console.warn('Erro ao buscar empréstimos quitados (tabela pode não existir):', paidLoansError);
+            } else {
+                paidLoans = paidLoansData || [];
+            }
+        } catch (error) {
+            console.warn('Tabela paid_loans pode não existir:', error);
+            paidLoans = [];
+        }
+        
+        // Combinar empréstimos ativos e quitados
+        const clientLoans = [...(activeLoans || []), ...(paidLoans || [])];
+        
         // Buscar todos os pagamentos dos empréstimos do cliente
-        const loanIds = clientLoans.map(loan => loan.id);
+        const activeLoanIds = (activeLoans || []).map(loan => loan.id);
+        const paidLoanIds = (paidLoans || []).map(loan => loan.loan_id); // usar loan_id para empréstimos quitados
+        const allLoanIds = [...activeLoanIds, ...paidLoanIds];
         let clientPayments = [];
         
-        if (loanIds.length > 0) {
+        if (allLoanIds.length > 0) {
             const { data: payments, error: paymentsError } = await supabase
                 .from('payments')
                 .select('*')
-                .in('loan_id', loanIds)
+                .in('loan_id', allLoanIds)
                 .order('payment_date', { ascending: false });
             
             if (paymentsError) throw paymentsError;
@@ -4972,14 +5149,20 @@ async function loadClientHistory() {
         
         // Calcular resumo financeiro
         const totalLoans = clientLoans.length;
-        const totalAmount = clientLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+        const totalAmount = clientLoans.reduce((sum, loan) => {
+            // Para empréstimos quitados, usar original_amount; para ativos, usar amount
+            const amount = loan.original_amount || loan.amount;
+            return sum + parseFloat(amount);
+        }, 0);
         const totalPaid = clientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
         
         let totalRemaining = 0;
-        for (const loan of clientLoans) {
+        // Calcular apenas para empréstimos ativos (não quitados)
+        for (const loan of activeLoans || []) {
             const remainingAmount = await calculateLoanRemainingAmount(loan.id);
             totalRemaining += remainingAmount;
         }
+        // Empréstimos quitados têm valor restante zero por definição
         
         // Atualizar resumo do cliente
         document.getElementById('historyTotalLoans').textContent = totalLoans;
@@ -5011,7 +5194,7 @@ function renderHistoryLoansTable(clientLoans) {
     if (clientLoans.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="9" class="px-6 py-8 text-center text-gray-400">
                     Nenhum empréstimo encontrado para este cliente
                 </td>
             </tr>
@@ -5021,8 +5204,33 @@ function renderHistoryLoansTable(clientLoans) {
     
     let tableHTML = '';
     for (const loan of clientLoans) {
-        const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-        const status = getLoanStatus(loan.due_date, loan.status);
+        // Verificar se é um empréstimo quitado (tem original_amount) ou ativo (tem amount)
+        const isQuitado = loan.original_amount !== undefined;
+        const loanAmount = isQuitado ? parseFloat(loan.original_amount) : parseFloat(loan.amount);
+        const originalTotal = loanAmount + (loanAmount * parseFloat(loan.interest_rate) / 100);
+        
+        let status, statusClass, statusText;
+        if (isQuitado) {
+            status = 'quitado';
+            statusClass = 'status-paid';
+            statusText = 'Quitado';
+        } else {
+            status = getLoanStatus(loan.due_date, loan.status);
+            statusClass = getStatusClass(status);
+            statusText = getStatusText(status);
+        }
+        
+        // Data de pagamento (apenas para empréstimos quitados)
+        const paymentDateCell = isQuitado ? 
+            `<span class="text-green-400">${formatDate(loan.paid_date)}</span>` : 
+            '<span class="text-gray-500">-</span>';
+        
+        // Botão de ações (apenas para empréstimos quitados)
+        const actionsCell = isQuitado ? 
+            `<button onclick="showPaymentDetails('${loan.id || loan.loan_id}')" class="px-3 py-1 bg-blue-600 text-white text-xs rounded hover:bg-blue-700 transition-colors">
+                Ver Pagamento
+            </button>` : 
+            '<span class="text-gray-500">-</span>';
         
         tableHTML += `
             <tr class="table-row">
@@ -5030,21 +5238,105 @@ function renderHistoryLoansTable(clientLoans) {
                     <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
                     <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${loanAmount.toFixed(2)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.due_date)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${paymentDateCell}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     <div class="text-blue-300">R$ ${originalTotal.toFixed(2)}</div>
                 </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">${actionsCell}</td>
             </tr>
         `;
     }
     
     tbody.innerHTML = tableHTML;
+}
+
+// Função para mostrar detalhes do pagamento de um empréstimo quitado
+async function showPaymentDetails(paidLoanId) {
+    try {
+        // Buscar dados do empréstimo quitado
+        const { data: paidLoan, error: paidLoanError } = await supabase
+            .from('paid_loans')
+            .select(`
+                *,
+                clients (
+                    name,
+                    cpf,
+                    email,
+                    phone
+                )
+            `)
+            .eq('id', paidLoanId)
+            .single();
+        
+        if (paidLoanError) throw paidLoanError;
+        
+        if (!paidLoan) {
+            showInfoMessage('Empréstimo quitado não encontrado');
+            return;
+        }
+        
+        // Buscar histórico de pagamentos do empréstimo original
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('loan_id', paidLoan.loan_id)
+            .order('payment_date', { ascending: false });
+        
+        if (paymentsError) {
+            console.warn('Erro ao buscar histórico de pagamentos:', paymentsError);
+        }
+        
+        // Preencher dados do modal
+        document.getElementById('paymentDetailClientName').textContent = paidLoan.clients?.name || 'Cliente não encontrado';
+        document.getElementById('paymentDetailOriginalAmount').textContent = `R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}`;
+        document.getElementById('paymentDetailInterestRate').textContent = `${paidLoan.interest_rate}%`;
+        document.getElementById('paymentDetailTotalAmount').textContent = `R$ ${parseFloat(paidLoan.total_with_interest).toFixed(2)}`;
+        document.getElementById('paymentDetailLoanDate').textContent = formatDate(paidLoan.loan_date);
+        document.getElementById('paymentDetailDueDate').textContent = formatDate(paidLoan.due_date);
+        document.getElementById('paymentDetailPaidDate').textContent = formatDate(paidLoan.paid_date);
+        document.getElementById('paymentDetailPaidAmount').textContent = `R$ ${parseFloat(paidLoan.total_paid).toFixed(2)}`;
+        document.getElementById('paymentDetailPaymentMethod').textContent = paidLoan.payment_method || 'Não informado';
+        document.getElementById('paymentDetailNotes').textContent = paidLoan.notes || 'Sem observações registradas';
+        
+        // Renderizar histórico de pagamentos
+        const paymentsTableBody = document.getElementById('paymentDetailPaymentsTable');
+        if (payments && payments.length > 0) {
+            let paymentsHTML = '';
+            for (const payment of payments) {
+                paymentsHTML += `
+                    <tr class="table-row">
+                        <td class="px-4 py-2 text-sm text-gray-300">${formatDate(payment.payment_date)}</td>
+                        <td class="px-4 py-2 text-sm text-gray-300">R$ ${parseFloat(payment.amount).toFixed(2)}</td>
+                        <td class="px-4 py-2 text-sm text-gray-300">${getPaymentTypeText(payment.payment_type)}</td>
+                        <td class="px-4 py-2 text-sm text-gray-300">${payment.notes || 'Sem observações'}</td>
+                    </tr>
+                `;
+            }
+            paymentsTableBody.innerHTML = paymentsHTML;
+        } else {
+            paymentsTableBody.innerHTML = `
+                <tr>
+                    <td colspan="4" class="px-4 py-8 text-center text-gray-400">
+                        Nenhum pagamento parcial registrado
+                    </td>
+                </tr>
+            `;
+        }
+        
+        // Mostrar modal
+        showModal(document.getElementById('paymentDetailsModal'));
+        
+    } catch (error) {
+        console.error('Erro ao carregar detalhes do pagamento:', error);
+        showInfoMessage('Erro ao carregar detalhes do pagamento: ' + error.message);
+    }
 }
 
 // Função para renderizar tabela de pagamentos do histórico
@@ -5064,8 +5356,9 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans) {
     
     let tableHTML = '';
     for (const payment of clientPayments) {
-        const loan = clientLoans.find(l => l.id === payment.loan_id);
-        const loanAmount = loan ? parseFloat(loan.amount) : 0;
+        // Buscar o empréstimo correspondente (pode ser ativo ou quitado)
+        const loan = clientLoans.find(l => l.id === payment.loan_id || l.loan_id === payment.loan_id);
+        const loanAmount = loan ? (loan.original_amount ? parseFloat(loan.original_amount) : parseFloat(loan.amount)) : 0;
         const loanInterest = loan ? parseFloat(loan.interest_rate) : 0;
         const loanTotal = loanAmount + (loanAmount * loanInterest / 100);
         
