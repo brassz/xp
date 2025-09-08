@@ -32,31 +32,26 @@ BEGIN
     -- Gerar novo ID
     new_loan_id := gen_random_uuid();
     
-    -- Inserir o empréstimo diretamente, contornando possíveis problemas de constraint
+    -- Inserir o empréstimo diretamente, sem ON CONFLICT
     INSERT INTO loans (
-        id, 
         client_id, 
         amount, 
         interest_rate, 
         loan_date, 
         due_date, 
         status, 
-        created_by,
-        created_at,
-        updated_at
+        created_by
     )
     VALUES (
-        new_loan_id,
         p_client_id,
         p_amount,
         p_interest_rate,
         p_loan_date,
         p_due_date,
         'active',
-        p_created_by,
-        NOW(),
-        NOW()
-    );
+        p_created_by
+    )
+    RETURNING id INTO new_loan_id;
     
     -- Retornar o registro criado
     RETURN QUERY
@@ -77,31 +72,24 @@ BEGIN
     
 EXCEPTION
     WHEN OTHERS THEN
-        -- Em caso de erro, tentar sem status (deixar usar padrão)
-        DELETE FROM loans WHERE id = new_loan_id;
-        
+        -- Em caso de erro, tentar sem status (deixar usar padrão)        
         INSERT INTO loans (
-            id, 
             client_id, 
             amount, 
             interest_rate, 
             loan_date, 
             due_date, 
-            created_by,
-            created_at,
-            updated_at
+            created_by
         )
         VALUES (
-            new_loan_id,
             p_client_id,
             p_amount,
             p_interest_rate,
             p_loan_date,
             p_due_date,
-            p_created_by,
-            NOW(),
-            NOW()
-        );
+            p_created_by
+        )
+        RETURNING id INTO new_loan_id;
         
         -- Retornar o registro criado
         RETURN QUERY

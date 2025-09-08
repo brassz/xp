@@ -1252,66 +1252,64 @@ async function handleNewLoan(e) {
     });
     
     try {
-        // Tentativa 1: Usar função SQL personalizada para contornar constraint
-        console.log('Tentativa 1: Usando função SQL personalizada...');
+        let data, error;
         
-        let { data, error } = await supabase
-            .rpc('create_loan', {
-                p_client_id: clientId,
-                p_amount: amount,
-                p_interest_rate: interestRate,
-                p_loan_date: loanDate,
-                p_due_date: dueDate,
-                p_created_by: currentUser.id
-            });
+        // Tentativa 1: Inserção direta simples (sem função RPC)
+        console.log('Tentativa 1: Inserção direta...');
         
-        // Se a função não existir ou falhar, tentar inserção normal
-        if (error && (error.message.includes('function') || error.message.includes('does not exist'))) {
-            console.log('Função não existe, tentando inserção normal...');
+        const formData = {
+            client_id: clientId,
+            amount: amount,
+            interest_rate: interestRate,
+            loan_date: loanDate,
+            due_date: dueDate,
+            created_by: currentUser.id
+            // SEM status - deixar usar padrão do banco
+        };
+        
+        const result = await supabase
+            .from('loans')
+            .insert([formData])
+            .select();
+        
+        data = result.data;
+        error = result.error;
+        
+        // Se der erro, tentar função SQL simples
+        if (error) {
+            console.log('Tentativa 2: Usando função SQL simples...');
             
-            // Tentativa 2: inserção normal sem status
-            const formData = {
-                client_id: clientId,
-                amount: amount,
-                interest_rate: interestRate,
-                loan_date: loanDate,
-                due_date: dueDate,
-                created_by: currentUser.id
-            };
+            const rpcResult = await supabase
+                .rpc('create_loan', {
+                    p_client_id: clientId,
+                    p_amount: amount,
+                    p_interest_rate: interestRate,
+                    p_loan_date: loanDate,
+                    p_due_date: dueDate,
+                    p_created_by: currentUser.id
+                });
             
-            const result = await supabase
-                .from('loans')
-                .insert([formData])
-                .select();
-            
-            data = result.data;
-            error = result.error;
-            
-            // Se ainda der erro de status, tentar com status explícito
-            if (error && error.message.includes('status')) {
-                console.log('Tentando com status explícito...');
-                formData.status = 'active';
-                
-                const result2 = await supabase
+            if (!rpcResult.error && rpcResult.data) {
+                // Se a função RPC funcionou, buscar os dados do empréstimo criado
+                const loanId = rpcResult.data;
+                const fetchResult = await supabase
                     .from('loans')
-                    .insert([formData])
-                    .select();
+                    .select('*')
+                    .eq('id', loanId)
+                    .single();
                 
-                data = result2.data;
-                error = result2.error;
+                if (!fetchResult.error) {
+                    data = [fetchResult.data];
+                    error = null;
+                }
+            } else {
+                error = rpcResult.error || error;
             }
         }
         
         if (error) {
             console.error('Erro detalhado do Supabase:', error);
             throw error;
-        }
-        
-        // Converter array para objeto se necessário (função RPC retorna array)
-        if (Array.isArray(data) && data.length > 0) {
-            data = data;
-        } else if (data && !Array.isArray(data)) {
-            data = [data];
         }
         
         hideModal(newLoanModal);

@@ -1,7 +1,8 @@
 # 🚨 SOLUÇÃO DEFINITIVA - Erro de Constraint de Status
 
-## Problema
-`Erro ao criar empréstimo: Status inválido. Os status permitidos são: active, overdue, paid, partial_paid, cancelled.`
+## Problemas Resolvidos
+- `Erro ao criar empréstimo: Status inválido. Os status permitidos são: active, overdue, paid, partial_paid, cancelled.`
+- `Erro ao criar empréstimo: there is no unique or exclusion constraint matching the ON CONFLICT specification`
 
 ## ✅ SOLUÇÕES IMPLEMENTADAS (Execute na ordem)
 
@@ -13,10 +14,14 @@ ALTER TABLE loans DROP CONSTRAINT IF EXISTS loans_status_check;
 ```
 Arquivo: `disable-status-constraint.sql`
 
-### 🛠️ **SOLUÇÃO 2 - Função SQL Personalizada**
+### 🛠️ **SOLUÇÃO 2 - Função SQL Simples (NOVA)**
+Execute no Supabase SQL Editor o arquivo `simple-create-loan.sql`
+- Função SQL mais simples que evita problemas de ON CONFLICT
+- Resolve erros de "unique or exclusion constraint matching"
+
+### 🔄 **SOLUÇÃO 3 - Função SQL Personalizada (Alternativa)**
 Execute no Supabase SQL Editor o arquivo `create-loan-function.sql`
-- Cria uma função que contorna o problema da constraint
-- O código JavaScript já está preparado para usar esta função
+- Versão mais complexa com tratamento de erros
 
 ### 🔄 **SOLUÇÃO 3 - Código com Múltiplas Tentativas**
 O código atual já implementa:
