@@ -1212,16 +1212,53 @@ async function handleNewClient(e) {
 async function handleNewLoan(e) {
     e.preventDefault();
     
+    // Validar campos obrigatórios
+    const clientId = document.getElementById('loanClient').value;
+    const amount = parseFloat(document.getElementById('loanAmount').value);
+    const interestRate = parseFloat(document.getElementById('loanInterest').value);
+    const loanDate = document.getElementById('loanDate').value;
+    const dueDate = document.getElementById('loanDueDate').value;
+    
+    // Verificar se todos os campos estão preenchidos
+    if (!clientId) {
+        alert('Por favor, selecione um cliente.');
+        return;
+    }
+    if (!amount || amount <= 0) {
+        alert('Por favor, insira um valor válido para o empréstimo.');
+        return;
+    }
+    if (isNaN(interestRate) || interestRate < 0) {
+        alert('Por favor, insira uma taxa de juros válida.');
+        return;
+    }
+    if (!loanDate) {
+        alert('Por favor, selecione a data do empréstimo.');
+        return;
+    }
+    if (!dueDate) {
+        alert('Por favor, selecione a data de vencimento.');
+        return;
+    }
+    
+    // Verificar se o usuário está logado
+    if (!currentUser || !currentUser.id) {
+        alert('Erro: Usuário não está logado. Por favor, faça login novamente.');
+        return;
+    }
+    
     const formData = {
-        client_id: document.getElementById('loanClient').value,
-        amount: parseFloat(document.getElementById('loanAmount').value),
-        interest_rate: parseFloat(document.getElementById('loanInterest').value),
-        loan_date: document.getElementById('loanDate').value,
-        due_date: document.getElementById('loanDueDate').value,
+        client_id: clientId,
+        amount: amount,
+        interest_rate: interestRate,
+        loan_date: loanDate,
+        due_date: dueDate,
         status: 'active',
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
+    
+    console.log('Dados do empréstimo a serem enviados:', formData);
     
     try {
         const { data, error } = await supabase
@@ -1229,7 +1266,10 @@ async function handleNewLoan(e) {
             .insert([formData])
             .select();
         
-        if (error) throw error;
+        if (error) {
+            console.error('Erro detalhado do Supabase:', error);
+            throw error;
+        }
         
         hideModal(newLoanModal);
         newLoanForm.reset();
@@ -1252,7 +1292,23 @@ async function handleNewLoan(e) {
         }
         
     } catch (error) {
-        alert('Erro ao criar empréstimo: ' + error.message);
+        console.error('Erro completo:', error);
+        
+        let errorMessage = 'Erro ao criar empréstimo: ';
+        
+        if (error.message.includes('loans_status_check')) {
+            errorMessage += 'Status inválido. Os status permitidos são: active, overdue, paid, partial_paid, cancelled.';
+        } else if (error.message.includes('violates check constraint')) {
+            errorMessage += 'Dados inválidos. Verifique se todos os campos estão preenchidos corretamente.';
+        } else if (error.message.includes('not-null')) {
+            errorMessage += 'Campos obrigatórios não preenchidos.';
+        } else if (error.message.includes('foreign key')) {
+            errorMessage += 'Cliente ou usuário inválido.';
+        } else {
+            errorMessage += error.message;
+        }
+        
+        alert(errorMessage);
     }
 }
 
