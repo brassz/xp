@@ -1247,24 +1247,67 @@ async function handleNewLoan(e) {
         return;
     }
     
-    const formData = {
+    // Primeira tentativa: inserir sem status (usar padrão do banco)
+    let formData = {
         client_id: clientId,
         amount: amount,
         interest_rate: interestRate,
         loan_date: loanDate,
         due_date: dueDate,
-        status: 'active',
-        created_by: currentUser.id,
-        created_at: new Date().toISOString()
+        created_by: currentUser.id
+        // Não incluir status - deixar o banco usar o padrão
     };
     
-    console.log('Dados do empréstimo a serem enviados:', formData);
+    console.log('Primeira tentativa - Dados do empréstimo (sem status):', formData);
     
     try {
-        const { data, error } = await supabase
+        let { data, error } = await supabase
             .from('loans')
             .insert([formData])
             .select();
+        
+        // Se deu erro relacionado a status, tentar alternativas
+        if (error && error.message.includes('status')) {
+            console.log('Primeira tentativa falhou, tentando alternativas...');
+            
+            // Tentativa 2: com status 'active'
+            formData.status = 'active';
+            console.log('Segunda tentativa - status active:', formData);
+            
+            let result = await supabase
+                .from('loans')
+                .insert([formData])
+                .select();
+                
+            if (result.error) {
+                // Tentativa 3: inserir sem constraint (caso haja problema na constraint)
+                console.log('Segunda tentativa falhou, tentando inserção direta...');
+                
+                // Remover status e tentar novamente
+                delete formData.status;
+                result = await supabase
+                    .from('loans')
+                    .insert([formData])
+                    .select();
+                
+                // Se inseriu com sucesso, atualizar o status depois
+                if (!result.error && result.data && result.data[0]) {
+                    console.log('Inserção sem status funcionou, atualizando status...');
+                    const updateResult = await supabase
+                        .from('loans')
+                        .update({ status: 'active' })
+                        .eq('id', result.data[0].id)
+                        .select();
+                    
+                    if (!updateResult.error) {
+                        result.data = updateResult.data;
+                    }
+                }
+            }
+            
+            data = result.data;
+            error = result.error;
+        }
         
         if (error) {
             console.error('Erro detalhado do Supabase:', error);
