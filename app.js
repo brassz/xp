@@ -47,6 +47,7 @@ const editClientModal = document.getElementById('editClientModal');
 const editLoanModal = document.getElementById('editLoanModal');
 const confirmationModal = document.getElementById('confirmationModal');
 const paymentHistoryModal = document.getElementById('paymentHistoryModal');
+const paidLoanDetailsModal = document.getElementById('paidLoanDetailsModal');
 const newExpenseModal = document.getElementById('newExpenseModal');
 const newInstallmentModal = document.getElementById('newInstallmentModal');
 const installmentDetailsModal = document.getElementById('installmentDetailsModal');
@@ -169,6 +170,7 @@ function setupEventListeners() {
     document.getElementById('closeViewClientBtn').addEventListener('click', () => hideModal(document.getElementById('viewClientModal')));
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
+    document.getElementById('closePaidLoanDetailsModal').addEventListener('click', () => hideModal(paidLoanDetailsModal));
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('closeEmergencyContactModal').addEventListener('click', () => hideModal(emergencyContactModal));
@@ -204,6 +206,7 @@ function setupEventListeners() {
     document.getElementById('cancelEditLoanBtn').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('cancelConfirmationBtn').addEventListener('click', () => hideModal(confirmationModal));
     document.getElementById('closePaymentHistoryBtn').addEventListener('click', () => hideModal(paymentHistoryModal));
+    document.getElementById('closePaidLoanDetailsBtn').addEventListener('click', () => hideModal(paidLoanDetailsModal));
     document.getElementById('cancelExpense').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('cancelGuarantorBtn').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('cancelEmergencyContactBtn').addEventListener('click', () => hideModal(emergencyContactModal));
@@ -1634,6 +1637,21 @@ function hideModal(modal) {
         if (titleElement) {
             titleElement.textContent = 'Histórico de Pagamentos';
         }
+    } else if (modal === paidLoanDetailsModal) {
+        // Limpar dados do empréstimo quitado
+        document.getElementById('paidLoanClientName').textContent = '-';
+        document.getElementById('paidLoanClientCpf').textContent = '-';
+        document.getElementById('paidLoanClientEmail').textContent = '-';
+        document.getElementById('paidLoanClientPhone').textContent = '-';
+        document.getElementById('paidLoanOriginalAmount').textContent = 'R$ 0,00';
+        document.getElementById('paidLoanInterestRate').textContent = '0%';
+        document.getElementById('paidLoanTotalWithInterest').textContent = 'R$ 0,00';
+        document.getElementById('paidLoanDate').textContent = '-';
+        document.getElementById('paidLoanDueDate').textContent = '-';
+        document.getElementById('paidLoanPaidDate').textContent = '-';
+        document.getElementById('paidLoanTotalPaid').textContent = 'R$ 0,00';
+        document.getElementById('paidLoanPaymentMethod').textContent = '-';
+        document.getElementById('paidLoanNotes').textContent = '-';
     }
 }
 
@@ -4938,7 +4956,7 @@ async function loadClientHistory() {
             return;
         }
         
-        // Buscar todos os empréstimos do cliente
+        // Buscar todos os empréstimos ativos do cliente
         const { data: clientLoans, error: loansError } = await supabase
             .from('loans')
             .select(`
@@ -4955,15 +4973,35 @@ async function loadClientHistory() {
         
         if (loansError) throw loansError;
         
-        // Buscar todos os pagamentos dos empréstimos do cliente
-        const loanIds = clientLoans.map(loan => loan.id);
+        // Buscar empréstimos quitados do cliente
+        const { data: paidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select(`
+                *,
+                clients (
+                    name,
+                    cpf,
+                    email,
+                    phone
+                )
+            `)
+            .eq('client_id', clientId)
+            .order('paid_date', { ascending: false });
+        
+        if (paidLoansError) throw paidLoansError;
+        
+        // Combinar empréstimos ativos e quitados
+        const allClientLoans = [...(clientLoans || []), ...(paidLoans || [])];
+        
+        // Buscar todos os pagamentos dos empréstimos ativos do cliente
+        const activeLoanIds = (clientLoans || []).map(loan => loan.id);
         let clientPayments = [];
         
-        if (loanIds.length > 0) {
+        if (activeLoanIds.length > 0) {
             const { data: payments, error: paymentsError } = await supabase
                 .from('payments')
                 .select('*')
-                .in('loan_id', loanIds)
+                .in('loan_id', activeLoanIds)
                 .order('payment_date', { ascending: false });
             
             if (paymentsError) throw paymentsError;
@@ -4971,12 +5009,18 @@ async function loadClientHistory() {
         }
         
         // Calcular resumo financeiro
-        const totalLoans = clientLoans.length;
-        const totalAmount = clientLoans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
-        const totalPaid = clientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalLoans = allClientLoans.length;
+        const totalActiveAmount = (clientLoans || []).reduce((sum, loan) => sum + parseFloat(loan.amount || 0), 0);
+        const totalPaidAmount = (paidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
+        const totalAmount = totalActiveAmount + totalPaidAmount;
+        
+        // Total pago inclui pagamentos de empréstimos ativos + total pago de empréstimos quitados
+        const totalPaidFromActive = clientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        const totalPaidFromSettled = (paidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
+        const totalPaid = totalPaidFromActive + totalPaidFromSettled;
         
         let totalRemaining = 0;
-        for (const loan of clientLoans) {
+        for (const loan of (clientLoans || [])) {
             const remainingAmount = await calculateLoanRemainingAmount(loan.id);
             totalRemaining += remainingAmount;
         }
@@ -4990,11 +5034,11 @@ async function loadClientHistory() {
         // Mostrar resumo do cliente
         document.getElementById('clientSummary').classList.remove('hidden');
         
-        // Renderizar tabela de empréstimos
-        renderHistoryLoansTable(clientLoans);
+        // Renderizar tabela de empréstimos (ativos e quitados)
+        renderHistoryLoansTable(allClientLoans, paidLoans || []);
         
         // Renderizar tabela de pagamentos
-        renderHistoryPaymentsTable(clientPayments, clientLoans);
+        renderHistoryPaymentsTable(clientPayments, clientLoans || [], paidLoans || []);
         
         showSuccessMessage(`Histórico carregado para ${client.name}`);
         
@@ -5005,13 +5049,13 @@ async function loadClientHistory() {
 }
 
 // Função para renderizar tabela de empréstimos do histórico
-function renderHistoryLoansTable(clientLoans) {
+function renderHistoryLoansTable(allClientLoans, paidLoans) {
     const tbody = document.getElementById('historyLoansTableBody');
     
-    if (clientLoans.length === 0) {
+    if (allClientLoans.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="7" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="8" class="px-6 py-8 text-center text-gray-400">
                     Nenhum empréstimo encontrado para este cliente
                 </td>
             </tr>
@@ -5020,25 +5064,54 @@ function renderHistoryLoansTable(clientLoans) {
     }
     
     let tableHTML = '';
-    for (const loan of clientLoans) {
-        const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-        const status = getLoanStatus(loan.due_date, loan.status);
+    for (const loan of allClientLoans) {
+        // Verificar se é empréstimo quitado
+        const isPaidLoan = paidLoans.some(pl => pl.loan_id === loan.id || pl.id === loan.id);
+        const loanAmount = isPaidLoan ? parseFloat(loan.original_amount || loan.amount || 0) : parseFloat(loan.amount || 0);
+        const interestRate = parseFloat(loan.interest_rate || 0);
+        const originalTotal = loanAmount + (loanAmount * interestRate / 100);
+        
+        let status, statusClass, statusText;
+        if (isPaidLoan) {
+            status = 'paid';
+            statusClass = 'bg-green-100 text-green-800';
+            statusText = 'Quitado';
+        } else {
+            status = getLoanStatus(loan.due_date, loan.status);
+            statusClass = getStatusClass(status);
+            statusText = getStatusText(status);
+        }
+        
+        // Data do empréstimo e vencimento
+        const loanDate = isPaidLoan ? (loan.loan_date || loan.created_at) : loan.loan_date;
+        const dueDate = isPaidLoan ? loan.due_date : loan.due_date;
+        const paidDate = isPaidLoan ? loan.paid_date : null;
         
         tableHTML += `
-            <tr class="table-row">
+            <tr class="table-row ${isPaidLoan ? 'bg-green-900 bg-opacity-20' : ''}">
                 <td class="px-6 py-4 whitespace-nowrap">
                     <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
                     <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.due_date)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${loanAmount.toFixed(2)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${interestRate}%</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loanDate)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(dueDate)}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
+                    <span class="status-badge ${statusClass}">${statusText}</span>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     <div class="text-blue-300">R$ ${originalTotal.toFixed(2)}</div>
+                    ${isPaidLoan ? `<div class="text-green-400 text-xs">Pago: R$ ${parseFloat(loan.total_paid || 0).toFixed(2)}</div>` : ''}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    ${isPaidLoan && paidDate ? `
+                        <button class="text-green-400 hover:text-green-300 mr-2" onclick="showPaidLoanDetails('${loan.id}')" title="Ver detalhes do pagamento">
+                            💰
+                        </button>
+                    ` : `
+                        <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')" title="Ver histórico de pagamentos">💰</button>
+                    `}
                 </td>
             </tr>
         `;
@@ -5048,10 +5121,47 @@ function renderHistoryLoansTable(clientLoans) {
 }
 
 // Função para renderizar tabela de pagamentos do histórico
-function renderHistoryPaymentsTable(clientPayments, clientLoans) {
+function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
     const tbody = document.getElementById('historyPaymentsTableBody');
     
-    if (clientPayments.length === 0) {
+    // Combinar pagamentos de empréstimos ativos com informações de empréstimos quitados
+    const allPaymentInfo = [];
+    
+    // Adicionar pagamentos de empréstimos ativos
+    for (const payment of clientPayments) {
+        const loan = clientLoans.find(l => l.id === payment.loan_id);
+        if (loan) {
+            allPaymentInfo.push({
+                type: 'payment',
+                date: payment.payment_date,
+                amount: parseFloat(payment.amount),
+                paymentType: payment.payment_type,
+                notes: payment.notes || 'Sem notas',
+                loanAmount: parseFloat(loan.amount),
+                loanInterest: parseFloat(loan.interest_rate),
+                isFromPaidLoan: false
+            });
+        }
+    }
+    
+    // Adicionar informações de quitação de empréstimos pagos
+    for (const paidLoan of paidLoans) {
+        allPaymentInfo.push({
+            type: 'settlement',
+            date: paidLoan.paid_date,
+            amount: parseFloat(paidLoan.total_paid || 0),
+            paymentType: paidLoan.payment_method || 'Quitação',
+            notes: paidLoan.notes || 'Empréstimo quitado completamente',
+            loanAmount: parseFloat(paidLoan.original_amount || 0),
+            loanInterest: parseFloat(paidLoan.interest_rate || 0),
+            isFromPaidLoan: true
+        });
+    }
+    
+    // Ordenar por data (mais recente primeiro)
+    allPaymentInfo.sort((a, b) => new Date(b.date) - new Date(a.date));
+    
+    if (allPaymentInfo.length === 0) {
         tbody.innerHTML = `
             <tr>
                 <td colspan="5" class="px-6 py-8 text-center text-gray-400">
@@ -5063,22 +5173,27 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans) {
     }
     
     let tableHTML = '';
-    for (const payment of clientPayments) {
-        const loan = clientLoans.find(l => l.id === payment.loan_id);
-        const loanAmount = loan ? parseFloat(loan.amount) : 0;
-        const loanInterest = loan ? parseFloat(loan.interest_rate) : 0;
-        const loanTotal = loanAmount + (loanAmount * loanInterest / 100);
+    for (const info of allPaymentInfo) {
+        const loanTotal = info.loanAmount + (info.loanAmount * info.loanInterest / 100);
+        const rowClass = info.isFromPaidLoan ? 'bg-green-900 bg-opacity-20' : '';
+        const typeDisplay = info.type === 'settlement' ? 'Quitação Total' : getPaymentTypeText(info.paymentType);
         
         tableHTML += `
-            <tr class="table-row">
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(payment.payment_date)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(payment.amount).toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${getPaymentTypeText(payment.payment_type)}</td>
+            <tr class="table-row ${rowClass}">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(info.date)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${info.isFromPaidLoan ? 'text-green-400 font-semibold' : 'text-gray-300'}">
+                    R$ ${info.amount.toFixed(2)}
+                    ${info.isFromPaidLoan ? '<div class="text-xs text-green-300">Quitação</div>' : ''}
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    <div>R$ ${loanAmount.toFixed(2)}</div>
+                    ${typeDisplay}
+                    ${info.isFromPaidLoan ? '<div class="text-xs text-green-400">✅ Empréstimo Quitado</div>' : ''}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    <div>R$ ${info.loanAmount.toFixed(2)}</div>
                     <div class="text-xs text-gray-400">Total: R$ ${loanTotal.toFixed(2)}</div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${payment.notes || 'Sem notas'}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${info.notes}</td>
             </tr>
         `;
     }
@@ -5195,23 +5310,27 @@ async function showPaidLoanDetails(paidLoanId) {
             console.warn('Cliente não encontrado:', clientError);
         }
         
-        const message = `
-Detalhes do Empréstimo Quitado:
-
-Cliente: ${client?.name || 'Cliente não encontrado'}
-CPF: ${client?.cpf || 'N/A'}
-Valor Original: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}
-Taxa de Juros: ${paidLoan.interest_rate}%
-Total com Juros: R$ ${parseFloat(paidLoan.total_with_interest).toFixed(2)}
-Data do Empréstimo: ${formatDate(paidLoan.loan_date)}
-Data de Vencimento: ${formatDate(paidLoan.due_date)}
-Data de Quitação: ${formatDate(paidLoan.paid_date)}
-Total Pago: R$ ${parseFloat(paidLoan.total_paid).toFixed(2)}
-Método de Pagamento: ${paidLoan.payment_method || 'N/A'}
-Observações: ${paidLoan.notes || 'N/A'}
-        `;
+        // Preencher dados do cliente
+        document.getElementById('paidLoanClientName').textContent = client?.name || 'Cliente não encontrado';
+        document.getElementById('paidLoanClientCpf').textContent = client?.cpf || 'N/A';
+        document.getElementById('paidLoanClientEmail').textContent = client?.email || 'N/A';
+        document.getElementById('paidLoanClientPhone').textContent = client?.phone || 'N/A';
         
-        alert(message);
+        // Preencher dados do empréstimo
+        document.getElementById('paidLoanOriginalAmount').textContent = `R$ ${parseFloat(paidLoan.original_amount || 0).toFixed(2)}`;
+        document.getElementById('paidLoanInterestRate').textContent = `${parseFloat(paidLoan.interest_rate || 0).toFixed(2)}%`;
+        document.getElementById('paidLoanTotalWithInterest').textContent = `R$ ${parseFloat(paidLoan.total_with_interest || 0).toFixed(2)}`;
+        document.getElementById('paidLoanDate').textContent = formatDate(paidLoan.loan_date);
+        document.getElementById('paidLoanDueDate').textContent = formatDate(paidLoan.due_date);
+        
+        // Preencher dados da quitação
+        document.getElementById('paidLoanPaidDate').textContent = formatDate(paidLoan.paid_date);
+        document.getElementById('paidLoanTotalPaid').textContent = `R$ ${parseFloat(paidLoan.total_paid || 0).toFixed(2)}`;
+        document.getElementById('paidLoanPaymentMethod').textContent = paidLoan.payment_method || 'N/A';
+        document.getElementById('paidLoanNotes').textContent = paidLoan.notes || 'Sem observações';
+        
+        // Mostrar modal
+        showModal(paidLoanDetailsModal);
         
     } catch (error) {
         console.error('Erro ao buscar detalhes do empréstimo quitado:', error);
