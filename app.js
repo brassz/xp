@@ -358,6 +358,9 @@ function setupEventListeners() {
     document.getElementById('editLoanAmount').addEventListener('input', updateEditLoanSummary);
     document.getElementById('editLoanInterest').addEventListener('input', updateEditLoanSummary);
     
+    // Botão para definir datas padrão
+    document.getElementById('setTodayDatesBtn').addEventListener('click', setTodayDates);
+    
     // Validação do valor de pagamento
     document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
     
@@ -1678,10 +1681,16 @@ function populateClientSelect() {
 }
 
 function setDefaultDates() {
+    // Deixar os campos de data vazios para permitir que o usuário escolha qualquer data,
+    // incluindo datas retroativas
+    document.getElementById('loanDate').value = '';
+    document.getElementById('loanDueDate').value = '';
+}
+
+function setTodayDates() {
+    // Função para definir datas padrão quando o usuário clicar no botão
     const today = new Date();
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
-    
-    // Usar a função auxiliar para formatar datas
     
     document.getElementById('loanDate').value = formatDateForInput(today);
     document.getElementById('loanDueDate').value = formatDateForInput(nextMonth);

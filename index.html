@@ -1533,11 +1533,19 @@
                         <div>
                             <label class="block text-sm font-medium text-blue-200 mb-2">Data do Empréstimo</label>
                             <input type="date" id="loanDate" class="form-input w-full" required>
+                            <p class="text-xs text-gray-400 mt-1">Pode ser uma data retroativa</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-blue-200 mb-2">Data de Vencimento</label>
                             <input type="date" id="loanDueDate" class="form-input w-full" required>
+                            <p class="text-xs text-gray-400 mt-1">Pode ser qualquer data futura ou passada</p>
                         </div>
+                    </div>
+                    
+                    <div class="flex justify-center">
+                        <button type="button" id="setTodayDatesBtn" class="px-4 py-2 bg-blue-600 text-white text-sm rounded-lg hover:bg-blue-700 transition-colors">
+                            Usar Datas Padrão (Hoje + 30 dias)
+                        </button>
                     </div>
                     
                     <div class="bg-gray-800 p-4 rounded-lg">
@@ -2027,10 +2035,12 @@
                         <div>
                             <label class="block text-sm font-medium text-blue-200 mb-2">Data do Empréstimo</label>
                             <input type="date" id="editLoanDate" class="form-input w-full" required>
+                            <p class="text-xs text-gray-400 mt-1">Pode ser uma data retroativa</p>
                         </div>
                         <div>
                             <label class="block text-sm font-medium text-blue-200 mb-2">Data de Vencimento</label>
                             <input type="date" id="editLoanDueDate" class="form-input w-full" required>
+                            <p class="text-xs text-gray-400 mt-1">Pode ser qualquer data futura ou passada</p>
                         </div>
                     </div>
                     
