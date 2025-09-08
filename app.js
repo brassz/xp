@@ -358,6 +358,9 @@ function setupEventListeners() {
     document.getElementById('editLoanAmount').addEventListener('input', updateEditLoanSummary);
     document.getElementById('editLoanInterest').addEventListener('input', updateEditLoanSummary);
     
+    // Botão para definir datas padrão
+    document.getElementById('setTodayDatesBtn').addEventListener('click', setTodayDates);
+    
     // Validação do valor de pagamento
     document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
     
@@ -1209,24 +1212,101 @@ async function handleNewClient(e) {
 async function handleNewLoan(e) {
     e.preventDefault();
     
-    const formData = {
-        client_id: document.getElementById('loanClient').value,
-        amount: parseFloat(document.getElementById('loanAmount').value),
-        interest_rate: parseFloat(document.getElementById('loanInterest').value),
-        loan_date: document.getElementById('loanDate').value,
-        due_date: document.getElementById('loanDueDate').value,
-        status: 'active',
-        created_by: currentUser.id,
-        created_at: new Date().toISOString()
-    };
+    // Validar campos obrigatórios
+    const clientId = document.getElementById('loanClient').value;
+    const amount = parseFloat(document.getElementById('loanAmount').value);
+    const interestRate = parseFloat(document.getElementById('loanInterest').value);
+    const loanDate = document.getElementById('loanDate').value;
+    const dueDate = document.getElementById('loanDueDate').value;
+    
+    // Verificar se todos os campos estão preenchidos
+    if (!clientId) {
+        alert('Por favor, selecione um cliente.');
+        return;
+    }
+    if (!amount || amount <= 0) {
+        alert('Por favor, insira um valor válido para o empréstimo.');
+        return;
+    }
+    if (isNaN(interestRate) || interestRate < 0) {
+        alert('Por favor, insira uma taxa de juros válida.');
+        return;
+    }
+    if (!loanDate) {
+        alert('Por favor, selecione a data do empréstimo.');
+        return;
+    }
+    if (!dueDate) {
+        alert('Por favor, selecione a data de vencimento.');
+        return;
+    }
+    
+    // Verificar se o usuário está logado
+    if (!currentUser || !currentUser.id) {
+        alert('Erro: Usuário não está logado. Por favor, faça login novamente.');
+        return;
+    }
+    
+    // Validações adicionais de formato
+    if (amount <= 0 || !isFinite(amount)) {
+        alert('Valor do empréstimo deve ser um número positivo válido.');
+        return;
+    }
+    
+    if (interestRate < 0 || !isFinite(interestRate)) {
+        alert('Taxa de juros deve ser um número válido maior ou igual a zero.');
+        return;
+    }
+    
+    // Validar formato das datas (YYYY-MM-DD)
+    const dateRegex = /^\d{4}-\d{2}-\d{2}$/;
+    if (!dateRegex.test(loanDate)) {
+        alert('Data do empréstimo deve estar no formato YYYY-MM-DD.');
+        return;
+    }
+    
+    if (!dateRegex.test(dueDate)) {
+        alert('Data de vencimento deve estar no formato YYYY-MM-DD.');
+        return;
+    }
+    
+    console.log('Tentando criar empréstimo com os dados:', {
+        clientId, amount, interestRate, loanDate, dueDate, userId: currentUser.id
+    });
     
     try {
+        console.log('Dados que serão enviados:', {
+            client_id: clientId,
+            amount: amount,
+            interest_rate: interestRate,
+            loan_date: loanDate,
+            due_date: dueDate,
+            created_by: currentUser.id
+        });
+        
+        // INSERÇÃO DIRETA SIMPLES - sem arrays, sem complexidade
+        console.log('Inserindo empréstimo...');
+        
         const { data, error } = await supabase
             .from('loans')
-            .insert([formData])
+            .insert({
+                client_id: clientId,
+                amount: parseFloat(amount),
+                interest_rate: parseFloat(interestRate),
+                loan_date: loanDate,
+                due_date: dueDate,
+                created_by: currentUser.id
+            })
             .select();
         
-        if (error) throw error;
+        if (error) {
+            console.error('Erro detalhado do Supabase:', error);
+            console.error('Código do erro:', error.code);
+            console.error('Detalhes:', error.details);
+            console.error('Hint:', error.hint);
+            console.error('Message:', error.message);
+            throw error;
+        }
         
         hideModal(newLoanModal);
         newLoanForm.reset();
@@ -1249,7 +1329,23 @@ async function handleNewLoan(e) {
         }
         
     } catch (error) {
-        alert('Erro ao criar empréstimo: ' + error.message);
+        console.error('Erro completo:', error);
+        
+        let errorMessage = 'Erro ao criar empréstimo: ';
+        
+        if (error.message.includes('loans_status_check')) {
+            errorMessage += 'Status inválido. Os status permitidos são: active, overdue, paid, partial_paid, cancelled.';
+        } else if (error.message.includes('violates check constraint')) {
+            errorMessage += 'Dados inválidos. Verifique se todos os campos estão preenchidos corretamente.';
+        } else if (error.message.includes('not-null')) {
+            errorMessage += 'Campos obrigatórios não preenchidos.';
+        } else if (error.message.includes('foreign key')) {
+            errorMessage += 'Cliente ou usuário inválido.';
+        } else {
+            errorMessage += error.message;
+        }
+        
+        alert(errorMessage);
     }
 }
 
@@ -1678,10 +1774,16 @@ function populateClientSelect() {
 }
 
 function setDefaultDates() {
+    // Deixar os campos de data vazios para permitir que o usuário escolha qualquer data,
+    // incluindo datas retroativas
+    document.getElementById('loanDate').value = '';
+    document.getElementById('loanDueDate').value = '';
+}
+
+function setTodayDates() {
+    // Função para definir datas padrão quando o usuário clicar no botão
     const today = new Date();
     const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
-    
-    // Usar a função auxiliar para formatar datas
     
     document.getElementById('loanDate').value = formatDateForInput(today);
     document.getElementById('loanDueDate').value = formatDateForInput(nextMonth);
