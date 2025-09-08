@@ -4842,42 +4842,75 @@ async function populateHistoryClientSelect() {
     
     try {
         // Buscar todos os clientes que têm empréstimos ativos
-        const { data: activeClients, error: activeError } = await supabase
-            .from('loans')
-            .select('client_id, clients(id, name, cpf)')
-            .not('clients', 'is', null);
+        let allClientIds = new Set();
         
-        if (activeError) throw activeError;
+        // Primeiro, tentar buscar clientes com empréstimos ativos
+        try {
+            const { data: activeLoans, error: activeError } = await supabase
+                .from('loans')
+                .select('client_id')
+                .not('client_id', 'is', null);
+            
+            if (activeError) throw activeError;
+            (activeLoans || []).forEach(loan => allClientIds.add(loan.client_id));
+        } catch (error) {
+            console.warn('Erro ao buscar empréstimos ativos:', error);
+        }
         
-        // Buscar todos os clientes que têm empréstimos quitados
-        const { data: paidClients, error: paidError } = await supabase
-            .from('paid_loans')
-            .select('client_id, clients(id, name, cpf)')
-            .not('clients', 'is', null);
-        
-        if (paidError) throw paidError;
-        
-        // Combinar e remover duplicatas
-        const allClientIds = new Set();
-        const allClients = [];
-        
-        // Adicionar clientes com empréstimos ativos
-        (activeClients || []).forEach(loan => {
-            if (loan.clients && !allClientIds.has(loan.clients.id)) {
-                allClientIds.add(loan.clients.id);
-                allClients.push(loan.clients);
+        // Depois, tentar buscar clientes com empréstimos quitados
+        try {
+            const { data: paidLoans, error: paidError } = await supabase
+                .from('paid_loans')
+                .select('client_id')
+                .not('client_id', 'is', null);
+            
+            if (paidError) {
+                console.warn('Tabela paid_loans pode não existir ou ter problemas:', paidError);
+            } else {
+                (paidLoans || []).forEach(loan => allClientIds.add(loan.client_id));
             }
-        });
+        } catch (error) {
+            console.warn('Erro ao buscar empréstimos quitados (tabela pode não existir):', error);
+        }
         
-        // Adicionar clientes com empréstimos quitados
-        (paidClients || []).forEach(loan => {
-            if (loan.clients && !allClientIds.has(loan.clients.id)) {
-                allClientIds.add(loan.clients.id);
-                allClients.push(loan.clients);
+        // Se não encontrou nenhum cliente com empréstimos, usar todos os clientes
+        if (allClientIds.size === 0) {
+            console.log('Nenhum empréstimo encontrado, carregando todos os clientes...');
+            const { data: allClients, error: allClientsError } = await supabase
+                .from('clients')
+                .select('id, name, cpf')
+                .order('name');
+            
+            if (allClientsError) throw allClientsError;
+            
+            if (!allClients || allClients.length === 0) {
+                const option = document.createElement('option');
+                option.value = "";
+                option.textContent = "Nenhum cliente encontrado";
+                option.disabled = true;
+                select.appendChild(option);
+                return;
             }
-        });
+            
+            allClients.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.id;
+                option.textContent = `${client.name} - ${client.cpf}`;
+                select.appendChild(option);
+            });
+            return;
+        }
         
-        if (allClients.length === 0) {
+        // Buscar dados dos clientes que têm empréstimos
+        const { data: clientsData, error: clientsError } = await supabase
+            .from('clients')
+            .select('id, name, cpf')
+            .in('id', Array.from(allClientIds))
+            .order('name');
+        
+        if (clientsError) throw clientsError;
+        
+        if (!clientsData || clientsData.length === 0) {
             console.log('Nenhum cliente com histórico de empréstimos encontrado');
             const option = document.createElement('option');
             option.value = "";
@@ -4887,10 +4920,7 @@ async function populateHistoryClientSelect() {
             return;
         }
         
-        // Ordenar por nome
-        allClients.sort((a, b) => a.name.localeCompare(b.name));
-        
-        allClients.forEach(client => {
+        clientsData.forEach(client => {
             const option = document.createElement('option');
             option.value = client.id;
             option.textContent = `${client.name} - ${client.cpf}`;
@@ -4915,49 +4945,65 @@ async function searchHistoryClients(searchTerm) {
     
     try {
         const term = searchTerm.toLowerCase().trim();
+        let allClientIds = new Set();
         
-        // Buscar clientes que têm empréstimos ativos
-        const { data: activeClients, error: activeError } = await supabase
-            .from('loans')
-            .select('client_id, clients(id, name, cpf, email)')
-            .not('clients', 'is', null);
+        // Primeiro, tentar buscar clientes com empréstimos ativos
+        try {
+            const { data: activeLoans, error: activeError } = await supabase
+                .from('loans')
+                .select('client_id')
+                .not('client_id', 'is', null);
+            
+            if (activeError) throw activeError;
+            (activeLoans || []).forEach(loan => allClientIds.add(loan.client_id));
+        } catch (error) {
+            console.warn('Erro ao buscar empréstimos ativos:', error);
+        }
         
-        if (activeError) throw activeError;
-        
-        // Buscar clientes que têm empréstimos quitados
-        const { data: paidClients, error: paidError } = await supabase
-            .from('paid_loans')
-            .select('client_id, clients(id, name, cpf, email)')
-            .not('clients', 'is', null);
-        
-        if (paidError) throw paidError;
-        
-        // Combinar e remover duplicatas
-        const allClientIds = new Set();
-        const allClients = [];
-        
-        // Adicionar clientes com empréstimos ativos
-        (activeClients || []).forEach(loan => {
-            if (loan.clients && !allClientIds.has(loan.clients.id)) {
-                allClientIds.add(loan.clients.id);
-                allClients.push(loan.clients);
+        // Depois, tentar buscar clientes com empréstimos quitados
+        try {
+            const { data: paidLoans, error: paidError } = await supabase
+                .from('paid_loans')
+                .select('client_id')
+                .not('client_id', 'is', null);
+            
+            if (paidError) {
+                console.warn('Tabela paid_loans pode não existir:', paidError);
+            } else {
+                (paidLoans || []).forEach(loan => allClientIds.add(loan.client_id));
             }
-        });
+        } catch (error) {
+            console.warn('Erro ao buscar empréstimos quitados:', error);
+        }
         
-        // Adicionar clientes com empréstimos quitados
-        (paidClients || []).forEach(loan => {
-            if (loan.clients && !allClientIds.has(loan.clients.id)) {
-                allClientIds.add(loan.clients.id);
-                allClients.push(loan.clients);
-            }
-        });
+        // Se não encontrou clientes com empréstimos, buscar em todos os clientes
+        let clientsData;
+        if (allClientIds.size === 0) {
+            const { data: allClients, error: allClientsError } = await supabase
+                .from('clients')
+                .select('id, name, cpf, email')
+                .ilike('name', `%${term}%`);
+            
+            if (allClientsError) throw allClientsError;
+            clientsData = allClients || [];
+        } else {
+            // Buscar dados dos clientes que têm empréstimos
+            const { data: filteredClients, error: clientsError } = await supabase
+                .from('clients')
+                .select('id, name, cpf, email')
+                .in('id', Array.from(allClientIds));
+            
+            if (clientsError) throw clientsError;
+            
+            // Filtrar pela busca
+            clientsData = (filteredClients || []).filter(client => 
+                client.name.toLowerCase().includes(term) ||
+                client.cpf.includes(term) ||
+                (client.email && client.email.toLowerCase().includes(term))
+            );
+        }
         
-        // Filtrar pela busca
-        return allClients.filter(client => 
-            client.name.toLowerCase().includes(term) ||
-            client.cpf.includes(term) ||
-            (client.email && client.email.toLowerCase().includes(term))
-        );
+        return clientsData;
         
     } catch (error) {
         console.error('Erro ao buscar clientes:', error);
@@ -5052,22 +5098,32 @@ async function loadClientHistory() {
         
         if (loansError) throw loansError;
         
-        // Buscar todos os empréstimos quitados do cliente
-        const { data: paidLoans, error: paidLoansError } = await supabase
-            .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                )
-            `)
-            .eq('client_id', clientId)
-            .order('created_at', { ascending: false });
-        
-        if (paidLoansError) throw paidLoansError;
+        // Buscar todos os empréstimos quitados do cliente (se a tabela existir)
+        let paidLoans = [];
+        try {
+            const { data: paidLoansData, error: paidLoansError } = await supabase
+                .from('paid_loans')
+                .select(`
+                    *,
+                    clients (
+                        name,
+                        cpf,
+                        email,
+                        phone
+                    )
+                `)
+                .eq('client_id', clientId)
+                .order('created_at', { ascending: false });
+            
+            if (paidLoansError) {
+                console.warn('Erro ao buscar empréstimos quitados (tabela pode não existir):', paidLoansError);
+            } else {
+                paidLoans = paidLoansData || [];
+            }
+        } catch (error) {
+            console.warn('Tabela paid_loans pode não existir:', error);
+            paidLoans = [];
+        }
         
         // Combinar empréstimos ativos e quitados
         const clientLoans = [...(activeLoans || []), ...(paidLoans || [])];
