@@ -1247,71 +1247,71 @@ async function handleNewLoan(e) {
         return;
     }
     
-    // Primeira tentativa: inserir sem status (usar padrão do banco)
-    let formData = {
-        client_id: clientId,
-        amount: amount,
-        interest_rate: interestRate,
-        loan_date: loanDate,
-        due_date: dueDate,
-        created_by: currentUser.id
-        // Não incluir status - deixar o banco usar o padrão
-    };
-    
-    console.log('Primeira tentativa - Dados do empréstimo (sem status):', formData);
+    console.log('Tentando criar empréstimo com os dados:', {
+        clientId, amount, interestRate, loanDate, dueDate, userId: currentUser.id
+    });
     
     try {
-        let { data, error } = await supabase
-            .from('loans')
-            .insert([formData])
-            .select();
+        // Tentativa 1: Usar função SQL personalizada para contornar constraint
+        console.log('Tentativa 1: Usando função SQL personalizada...');
         
-        // Se deu erro relacionado a status, tentar alternativas
-        if (error && error.message.includes('status')) {
-            console.log('Primeira tentativa falhou, tentando alternativas...');
+        let { data, error } = await supabase
+            .rpc('create_loan', {
+                p_client_id: clientId,
+                p_amount: amount,
+                p_interest_rate: interestRate,
+                p_loan_date: loanDate,
+                p_due_date: dueDate,
+                p_created_by: currentUser.id
+            });
+        
+        // Se a função não existir ou falhar, tentar inserção normal
+        if (error && (error.message.includes('function') || error.message.includes('does not exist'))) {
+            console.log('Função não existe, tentando inserção normal...');
             
-            // Tentativa 2: com status 'active'
-            formData.status = 'active';
-            console.log('Segunda tentativa - status active:', formData);
+            // Tentativa 2: inserção normal sem status
+            const formData = {
+                client_id: clientId,
+                amount: amount,
+                interest_rate: interestRate,
+                loan_date: loanDate,
+                due_date: dueDate,
+                created_by: currentUser.id
+            };
             
-            let result = await supabase
+            const result = await supabase
                 .from('loans')
                 .insert([formData])
                 .select();
+            
+            data = result.data;
+            error = result.error;
+            
+            // Se ainda der erro de status, tentar com status explícito
+            if (error && error.message.includes('status')) {
+                console.log('Tentando com status explícito...');
+                formData.status = 'active';
                 
-            if (result.error) {
-                // Tentativa 3: inserir sem constraint (caso haja problema na constraint)
-                console.log('Segunda tentativa falhou, tentando inserção direta...');
-                
-                // Remover status e tentar novamente
-                delete formData.status;
-                result = await supabase
+                const result2 = await supabase
                     .from('loans')
                     .insert([formData])
                     .select();
                 
-                // Se inseriu com sucesso, atualizar o status depois
-                if (!result.error && result.data && result.data[0]) {
-                    console.log('Inserção sem status funcionou, atualizando status...');
-                    const updateResult = await supabase
-                        .from('loans')
-                        .update({ status: 'active' })
-                        .eq('id', result.data[0].id)
-                        .select();
-                    
-                    if (!updateResult.error) {
-                        result.data = updateResult.data;
-                    }
-                }
+                data = result2.data;
+                error = result2.error;
             }
-            
-            data = result.data;
-            error = result.error;
         }
         
         if (error) {
             console.error('Erro detalhado do Supabase:', error);
             throw error;
+        }
+        
+        // Converter array para objeto se necessário (função RPC retorna array)
+        if (Array.isArray(data) && data.length > 0) {
+            data = data;
+        } else if (data && !Array.isArray(data)) {
+            data = [data];
         }
         
         hideModal(newLoanModal);
