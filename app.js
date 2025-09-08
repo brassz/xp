@@ -1103,18 +1103,15 @@ async function handleNewClient(e) {
         const emergencyContactName = document.getElementById('newClientEmergencyContactName').value.trim();
         const emergencyContactPhone = document.getElementById('newClientEmergencyContactPhone').value.trim();
         
-        // Validar campos obrigatórios do contato de emergência
-        if (!emergencyContactName || !emergencyContactPhone) {
-            alert('Por favor, preencha o nome e celular do contato de emergência.');
-            return;
+        // Só criar contato de emergência se pelo menos um campo estiver preenchido
+        if (emergencyContactName || emergencyContactPhone) {
+            emergencyContactData = {
+                name: emergencyContactName || null,
+                phone: emergencyContactPhone || null,
+                created_by: currentUser.id,
+                created_at: new Date().toISOString()
+            };
         }
-        
-        emergencyContactData = {
-            name: emergencyContactName,
-            phone: emergencyContactPhone,
-            created_by: currentUser.id,
-            created_at: new Date().toISOString()
-        };
     }
     
     try {
@@ -3183,16 +3180,21 @@ function renderEmergencyContactsList(clientEmergencyContacts, clientId) {
         return;
     }
     
-    const emergencyContactsHTML = clientEmergencyContacts.map(contact => `
+    const emergencyContactsHTML = clientEmergencyContacts.map(contact => {
+        const displayName = contact.name || 'Nome não informado';
+        const displayPhone = contact.phone || 'Telefone não informado';
+        const initial = contact.name ? contact.name.charAt(0).toUpperCase() : '?';
+        
+        return `
         <div class="bg-gray-800 rounded-lg p-4 border border-gray-600">
             <div class="flex items-start justify-between">
                 <div class="flex items-start space-x-4">
                     <div class="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center border-2 border-green-500">
-                        <span class="text-white font-semibold">${contact.name.charAt(0).toUpperCase()}</span>
+                        <span class="text-white font-semibold">${initial}</span>
                     </div>
                     <div class="flex-1">
-                        <h5 class="font-semibold text-white mb-1">${contact.name}</h5>
-                        <p class="text-sm text-blue-300">📞 ${contact.phone}</p>
+                        <h5 class="font-semibold text-white mb-1">${displayName}</h5>
+                        <p class="text-sm text-blue-300">📞 ${displayPhone}</p>
                     </div>
                 </div>
                 <div class="flex space-x-2">
@@ -3209,7 +3211,8 @@ function renderEmergencyContactsList(clientEmergencyContacts, clientId) {
                 </div>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
     
     emergencyContactsList.innerHTML = emergencyContactsHTML;
 }
@@ -3227,19 +3230,25 @@ function renderEmergencyContactsListView(clientEmergencyContacts) {
         return;
     }
     
-    const emergencyContactsHTML = clientEmergencyContacts.map(contact => `
+    const emergencyContactsHTML = clientEmergencyContacts.map(contact => {
+        const displayName = contact.name || 'Nome não informado';
+        const displayPhone = contact.phone || 'Telefone não informado';
+        const initial = contact.name ? contact.name.charAt(0).toUpperCase() : '?';
+        
+        return `
         <div class="bg-gray-800 rounded-lg p-4 border border-gray-600">
             <div class="flex items-start space-x-4">
                 <div class="w-12 h-12 rounded-full bg-green-600 flex items-center justify-center border-2 border-green-500">
-                    <span class="text-white font-semibold">${contact.name.charAt(0).toUpperCase()}</span>
+                    <span class="text-white font-semibold">${initial}</span>
                 </div>
                 <div class="flex-1">
-                    <h5 class="font-semibold text-white mb-1">${contact.name}</h5>
-                    <p class="text-sm text-blue-300">📞 ${contact.phone}</p>
+                    <h5 class="font-semibold text-white mb-1">${displayName}</h5>
+                    <p class="text-sm text-blue-300">📞 ${displayPhone}</p>
                 </div>
             </div>
         </div>
-    `).join('');
+        `;
+    }).join('');
     
     emergencyContactsList.innerHTML = emergencyContactsHTML;
 }
@@ -3264,7 +3273,8 @@ async function deleteEmergencyContact(emergencyContactId) {
     const emergencyContact = emergencyContacts.find(ec => ec.id === emergencyContactId);
     if (!emergencyContact) return;
     
-    if (!confirm(`Tem certeza que deseja excluir o contato de emergência "${emergencyContact.name}"?`)) {
+    const displayName = emergencyContact.name || emergencyContact.phone || 'este contato';
+    if (!confirm(`Tem certeza que deseja excluir o contato de emergência "${displayName}"?`)) {
         return;
     }
     
@@ -3480,10 +3490,19 @@ async function handleEmergencyContactForm(e) {
     const emergencyContactId = document.getElementById('emergencyContactId').value;
     const clientId = document.getElementById('emergencyContactClientId').value;
     
+    const name = document.getElementById('emergencyContactName').value.trim();
+    const phone = document.getElementById('emergencyContactPhone').value.trim();
+    
+    // Validar que pelo menos um campo esteja preenchido
+    if (!name && !phone) {
+        alert('Por favor, preencha pelo menos o nome ou o celular do contato de emergência.');
+        return;
+    }
+    
     const formData = {
         client_id: clientId,
-        name: document.getElementById('emergencyContactName').value,
-        phone: document.getElementById('emergencyContactPhone').value,
+        name: name || null,
+        phone: phone || null,
         updated_at: new Date().toISOString()
     };
     
@@ -3498,7 +3517,8 @@ async function handleEmergencyContactForm(e) {
             
             if (error) throw error;
             
-            showSuccessMessage(`Contato de emergência "${formData.name}" atualizado com sucesso!`);
+            const displayName = formData.name || formData.phone || 'Contato';
+            showSuccessMessage(`Contato de emergência "${displayName}" atualizado com sucesso!`);
         } else {
             // Criar novo contato de emergência
             formData.created_by = currentUser.id;
@@ -3511,7 +3531,8 @@ async function handleEmergencyContactForm(e) {
             
             if (error) throw error;
             
-            showSuccessMessage(`Contato de emergência "${formData.name}" adicionado com sucesso!`);
+            const displayName = formData.name || formData.phone || 'Contato';
+            showSuccessMessage(`Contato de emergência "${displayName}" adicionado com sucesso!`);
         }
         
         // Fechar modal e recarregar dados
