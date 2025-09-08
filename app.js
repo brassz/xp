@@ -1164,6 +1164,7 @@ async function handlePayment(e) {
     const paymentType = document.getElementById('paymentType').value;
     const paymentNotes = document.getElementById('paymentNotes').value;
     const loanId = document.getElementById('paymentForm').dataset.loanId;
+    const paymentId = document.getElementById('paymentForm').dataset.paymentId; // Verificar se é edição
     
     // Verificar se deve alterar a data de vencimento
     const changeDueDate = document.getElementById('changeDueDateCheckbox').checked;
@@ -1189,21 +1190,43 @@ async function handlePayment(e) {
             return;
         }
         
-        // Verificar se é necessário recalcular o empréstimo antes de registrar o pagamento
-        const recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+        // Se é uma edição, não recalcular o empréstimo (manter lógica original)
+        let recalcInfo = { shouldRecalculate: false };
+        if (!paymentId) {
+            // Verificar se é necessário recalcular o empréstimo apenas para novos pagamentos
+            recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+        }
         
-        // Registrar o pagamento
-        const { error: paymentError } = await supabase
-            .from('payments')
-            .insert([{
-                loan_id: loanId,
-                amount: paymentAmount,
-                payment_date: paymentDate,
-                payment_type: paymentType,
-                notes: paymentNotes,
-                created_by: currentUser.id,
-                created_at: new Date().toISOString()
-            }]);
+        // Registrar ou atualizar o pagamento
+        let paymentError;
+        if (paymentId) {
+            // Editar pagamento existente
+            const { error } = await supabase
+                .from('payments')
+                .update({
+                    amount: paymentAmount,
+                    payment_date: paymentDate,
+                    payment_type: paymentType,
+                    notes: paymentNotes,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', paymentId);
+            paymentError = error;
+        } else {
+            // Criar novo pagamento
+            const { error } = await supabase
+                .from('payments')
+                .insert([{
+                    loan_id: loanId,
+                    amount: paymentAmount,
+                    payment_date: paymentDate,
+                    payment_type: paymentType,
+                    notes: paymentNotes,
+                    created_by: currentUser.id,
+                    created_at: new Date().toISOString()
+                }]);
+            paymentError = error;
+        }
         
         if (paymentError) throw paymentError;
         
@@ -1325,13 +1348,18 @@ async function handlePayment(e) {
         hideModal(paymentModal);
         paymentForm.reset();
         
+        // Limpar dataset do formulário
+        delete paymentForm.dataset.paymentId;
+        
         // Se o modal de histórico estiver aberto, recarregar os dados
         if (!paymentHistoryModal.classList.contains('hidden')) {
             await loadPaymentHistory(loanId);
         }
         
         // Mostrar mensagem de sucesso com informações sobre a operação
-        let successMessage = `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
+        let successMessage = paymentId 
+            ? `Pagamento de R$ ${paymentAmount.toFixed(2)} editado com sucesso!`
+            : `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
         
         // Adicionar informação sobre alteração de data de vencimento
         if (changeDueDate && newDueDate) {
@@ -3653,7 +3681,6 @@ async function loadPaymentHistory(loanId) {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editPayment('${payment.id}')">✏️</button>
                         <button class="text-red-400 hover:text-red-300" onclick="deletePayment('${payment.id}')">🗑️</button>
                     </td>
                 </tr>
@@ -3700,32 +3727,68 @@ function getPaymentTypeText(type) {
 }
 
 async function editPayment(paymentId) {
-    const payment = payments.find(p => p.id === paymentId); // Assuming 'payments' is a global variable or passed as an argument
-    if (!payment) return;
+    try {
+        // Buscar o pagamento do banco de dados
+        const { data: payment, error } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('id', paymentId)
+            .single();
+        
+        if (error) throw error;
+        if (!payment) {
+            alert('Pagamento não encontrado!');
+            return;
+        }
 
-    const paymentForm = document.getElementById('paymentForm'); // Assuming this is the payment modal form
-    if (!paymentForm) return;
+        const paymentForm = document.getElementById('paymentForm');
+        if (!paymentForm) return;
 
-    paymentForm.dataset.paymentId = paymentId; // Set the payment ID for the form
+        // Definir o ID do pagamento no dataset para indicar que é uma edição
+        paymentForm.dataset.paymentId = paymentId;
+        paymentForm.dataset.loanId = payment.loan_id;
 
-    document.getElementById('paymentAmount').value = payment.amount;
-    document.getElementById('paymentDate').value = payment.payment_date;
-    document.getElementById('paymentType').value = payment.payment_type;
-    document.getElementById('paymentNotes').value = payment.notes;
+        // Preencher o formulário com os dados do pagamento
+        document.getElementById('paymentAmount').value = payment.amount;
+        document.getElementById('paymentDate').value = payment.payment_date;
+        document.getElementById('paymentType').value = payment.payment_type;
+        document.getElementById('paymentNotes').value = payment.notes || '';
 
-    showModal(paymentModal);
+        // Mostrar o modal de pagamento
+        showModal(paymentModal);
+        
+    } catch (error) {
+        console.error('Erro ao carregar pagamento para edição:', error);
+        alert('Erro ao carregar dados do pagamento: ' + error.message);
+    }
 }
 
 async function deletePayment(paymentId) {
-    const payment = payments.find(p => p.id === paymentId); // Assuming 'payments' is a global variable or passed as an argument
-    if (!payment) return;
+    try {
+        // Buscar o pagamento do banco de dados
+        const { data: payment, error } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('id', paymentId)
+            .single();
+        
+        if (error) throw error;
+        if (!payment) {
+            alert('Pagamento não encontrado!');
+            return;
+        }
 
-    showConfirmationModal(
-        'Excluir Pagamento',
-        `Tem certeza que deseja excluir o pagamento de R$ ${parseFloat(payment.amount).toFixed(2)} registrado em ${formatDate(payment.payment_date)}? Esta ação não pode ser desfeita.`,
-        () => performDeletePayment(paymentId),
-        'Excluir'
-    );
+        showConfirmationModal(
+            'Excluir Pagamento',
+            `Tem certeza que deseja excluir o pagamento de R$ ${parseFloat(payment.amount).toFixed(2)} registrado em ${formatDate(payment.payment_date)}? Esta ação não pode ser desfeita.`,
+            () => performDeletePayment(paymentId),
+            'Excluir'
+        );
+        
+    } catch (error) {
+        console.error('Erro ao carregar pagamento para exclusão:', error);
+        alert('Erro ao carregar dados do pagamento: ' + error.message);
+    }
 }
 
 async function performDeletePayment(paymentId) {
@@ -3739,6 +3802,10 @@ async function performDeletePayment(paymentId) {
         
         hideModal(document.getElementById('confirmationModal'));
         
+        // Recarregar dados principais
+        await loadLoans();
+        await updateDashboard();
+        
         // Recarregar histórico de pagamentos
         const loanId = document.getElementById('paymentHistoryLoanId').value;
         if (loanId) {
@@ -3746,7 +3813,7 @@ async function performDeletePayment(paymentId) {
         }
         
         // Mostrar mensagem de sucesso
-        showSuccessMessage('Pagamento excluído com sucesso!');
+        showSuccessMessage('Pagamento excluído com sucesso! Valores atualizados.');
         
     } catch (error) {
         console.error('Erro ao excluir pagamento:', error);
