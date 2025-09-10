@@ -1,12 +1,34 @@
-// Configuração do Supabase
-const SUPABASE_URL = 'https://mhtxyxizfnxupwmilith.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI';
+// Configurações das empresas
+const COMPANIES = {
+    LITORAL: {
+        id: 'litoral',
+        name: 'LITORAL CRED',
+        supabaseUrl: 'https://dtifsfzmnjnllzzlndxv.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA',
+        uploadcareKey: '026feb50f83d7cdfe4ea',
+        color: '#3b82f6'
+    },
+    MOGIANA: {
+        id: 'mogiana',
+        name: 'MOGIANA CRED',
+        supabaseUrl: 'https://eemfnpefgojllvzzaimu.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y',
+        uploadcareKey: '72349b0b9769d2be0d8c',
+        color: '#10b981'
+    },
+    NEXUS: {
+        id: 'nexus',
+        name: 'NEXUS (Original)',
+        supabaseUrl: 'https://mhtxyxizfnxupwmilith.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI',
+        uploadcareKey: '5bb6bf6b98f6d36060dc',
+        color: '#8b5cf6'
+    }
+};
 
-// Configuração do Uploadcare
-const UPLOADCARE_PUBLIC_KEY = '5bb6bf6b98f6d36060dc';
-
-// Inicializar Supabase
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Estado da empresa atual
+let currentCompany = null;
+let supabase = null;
 
 // Estado global da aplicação
 let currentUser = null;
@@ -30,10 +52,12 @@ let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
 
 // Elementos DOM
+const companySelector = document.getElementById('companySelector');
 const loginPage = document.getElementById('loginPage');
 const dashboard = document.getElementById('dashboard');
 const loginForm = document.getElementById('loginForm');
 const logoutBtn = document.getElementById('logoutBtn');
+const switchCompanyBtn = document.getElementById('switchCompanyBtn');
 
 // Navegação
 const navLinks = document.querySelectorAll('.nav-link');
@@ -90,25 +114,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Inicializar aplicação
 async function initializeApp() {
-    // Verificar se há usuário logado no localStorage
-    const savedUser = localStorage.getItem('nexusUser');
-    if (savedUser) {
+    // Verificar se há empresa selecionada
+    const savedCompany = localStorage.getItem('selectedCompany');
+    
+    if (savedCompany) {
         try {
-            currentUser = JSON.parse(savedUser);
-            showDashboard();
-            // Verificar e criar tabelas se necessário
-            await createTablesIfNotExist();
+            initializeCompany(savedCompany);
             
-            // Aguardar um pouco para garantir que o DOM esteja pronto
-            setTimeout(async () => {
-                await loadData();
-            }, 100);
+            // Verificar se há usuário logado
+            const savedUser = localStorage.getItem('nexusUser');
+            if (savedUser) {
+                try {
+                    currentUser = JSON.parse(savedUser);
+                    showDashboard();
+                    // Verificar e criar tabelas se necessário
+                    await createTablesIfNotExist();
+                    
+                    // Aguardar um pouco para garantir que o DOM esteja pronto
+                    setTimeout(async () => {
+                        await loadData();
+                    }, 100);
+                } catch (error) {
+                    localStorage.removeItem('nexusUser');
+                    showLogin();
+                }
+            } else {
+                showLogin();
+            }
         } catch (error) {
-            localStorage.removeItem('nexusUser');
-            showLogin();
+            console.error('Erro ao inicializar empresa salva:', error);
+            localStorage.removeItem('selectedCompany');
+            showCompanySelector();
         }
     } else {
-        showLogin();
+        showCompanySelector();
     }
 }
 
@@ -117,6 +156,7 @@ function setupEventListeners() {
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
+    switchCompanyBtn.addEventListener('click', handleSwitchCompany);
     
     // Navegação
     navLinks.forEach(link => {
@@ -456,12 +496,101 @@ function setupUploadcare() {
 
 
 
+// Funções de gerenciamento de empresas
+function initializeCompany(companyId) {
+    const company = Object.values(COMPANIES).find(c => c.id === companyId);
+    if (!company) {
+        throw new Error(`Empresa não encontrada: ${companyId}`);
+    }
+    
+    currentCompany = company;
+    supabase = window.supabase.createClient(company.supabaseUrl, company.supabaseKey);
+    
+    // Atualizar Uploadcare
+    if (window.uploadcare) {
+        window.uploadcare.publicKey = company.uploadcareKey;
+    }
+    
+    // Atualizar indicador da empresa
+    updateCompanyIndicator(company);
+    
+    // Salvar seleção no localStorage
+    localStorage.setItem('selectedCompany', companyId);
+    
+    console.log(`Empresa inicializada: ${company.name}`);
+    return company;
+}
+
+function updateCompanyIndicator(company) {
+    const companyIndicator = document.getElementById('companyIndicator');
+    const companyName = document.getElementById('companyName');
+    
+    if (companyIndicator && companyName) {
+        companyName.textContent = company.name;
+        companyIndicator.style.backgroundColor = company.color;
+        companyIndicator.classList.remove('hidden');
+    }
+}
+
+function showCompanySelector() {
+    companySelector.classList.remove('hidden');
+    loginPage.classList.add('hidden');
+    dashboard.classList.add('hidden');
+}
+
+function hideCompanySelector() {
+    companySelector.classList.add('hidden');
+}
+
+function handleCompanySelection(companyId) {
+    try {
+        initializeCompany(companyId);
+        hideCompanySelector();
+        showLogin();
+    } catch (error) {
+        console.error('Erro ao selecionar empresa:', error);
+        alert('Erro ao selecionar empresa. Tente novamente.');
+    }
+}
+
+function resetToCompanySelector() {
+    currentCompany = null;
+    supabase = null;
+    currentUser = null;
+    
+    // Limpar dados
+    clients = [];
+    filteredClients = [];
+    loans = [];
+    filteredLoans = [];
+    expenses = [];
+    expenseCategories = [];
+    installments = [];
+    installmentPayments = [];
+    guarantors = [];
+    emergencyContacts = [];
+    cashTransactions = [];
+    cashSettings = null;
+    capitalRaisings = [];
+    capitalRaisingClients = [];
+    
+    localStorage.removeItem('selectedCompany');
+    localStorage.removeItem('currentUser');
+    
+    showCompanySelector();
+}
+
 // Handlers de autenticação
 async function handleLogin(e) {
     e.preventDefault();
     
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
+    
+    if (!supabase) {
+        alert('Sistema não inicializado. Selecione uma empresa primeiro.');
+        return;
+    }
     
     try {
         // Primeiro, verificar se o usuário existe na nossa tabela
@@ -506,6 +635,10 @@ async function handleLogout() {
     currentUser = null;
     localStorage.removeItem('nexusUser');
     showLogin();
+}
+
+function handleSwitchCompany() {
+    resetToCompanySelector();
 }
 
 // Navegação
