@@ -14,6 +14,14 @@ Para fazer o deploy do sistema Nexus com suporte a múltiplas empresas no Vercel
 
 Adicione cada uma das variáveis abaixo:
 
+#### Empresa 1 - NEXUS (Principal)
+
+| Variable Name | Value |
+|---------------|-------|
+| `NEXT_PUBLIC_SUPABASE_URL_EMPRESA1` | `https://mhtxyxizfnxupwmilith.supabase.co` |
+| `NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1` | `eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI` |
+| `NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA1` | `5bb6bf6b98f6d36060dc` |
+
 #### Empresa 2 - LITORAL CRED
 
 | Variable Name | Value |
@@ -89,6 +97,11 @@ Após o deploy:
 Para facilitar, aqui estão os comandos que você pode usar no terminal do Vercel CLI:
 
 ```bash
+# Empresa 1 - NEXUS (Principal)
+vercel env add NEXT_PUBLIC_SUPABASE_URL_EMPRESA1
+vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1  
+vercel env add NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA1
+
 # Empresa 2 - LITORAL CRED
 vercel env add NEXT_PUBLIC_SUPABASE_URL_EMPRESA2
 vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA2  

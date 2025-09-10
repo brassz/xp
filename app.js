@@ -12,6 +12,9 @@ function getEnvVar(name, fallback = '') {
     
     // Fallback para valores hardcoded (desenvolvimento local)
     const fallbacks = {
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA1': 'https://mhtxyxizfnxupwmilith.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA1': '5bb6bf6b98f6d36060dc',
         'NEXT_PUBLIC_SUPABASE_URL_EMPRESA2': 'https://dtifsfzmnjnllzzlndxv.supabase.co',
         'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA2': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA',
         'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2': '026feb50f83d7cdfe4ea',
@@ -25,6 +28,16 @@ function getEnvVar(name, fallback = '') {
 
 // Configurações das empresas usando variáveis de ambiente
 const COMPANIES_CONFIG = {
+    nexus: {
+        name: 'NEXUS (Principal)',
+        supabase: {
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA1'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1')
+        },
+        uploadcare: {
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA1')
+        }
+    },
     litoral: {
         name: 'LITORAL CRED',
         supabase: {

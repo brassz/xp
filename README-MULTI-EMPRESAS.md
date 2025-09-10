@@ -6,11 +6,15 @@ Foi implementado um sistema de seleção de empresas no Nexus que permite gerenc
 
 ### Empresas Configuradas
 
-1. **LITORAL CRED**
+1. **NEXUS (Principal)**
+   - Supabase URL: `https://mhtxyxizfnxupwmilith.supabase.co`
+   - Uploadcare Key: `5bb6bf6b98f6d36060dc`
+
+2. **LITORAL CRED**
    - Supabase URL: `https://dtifsfzmnjnllzzlndxv.supabase.co`
    - Uploadcare Key: `026feb50f83d7cdfe4ea`
 
-2. **MOGIANA CRED**
+3. **MOGIANA CRED**
    - Supabase URL: `https://eemfnpefgojllvzzaimu.supabase.co`
    - Uploadcare Key: `72349b0b9769d2be0d8c`
 
@@ -84,6 +88,11 @@ O sistema agora utiliza variáveis de ambiente para maior segurança e flexibili
 #### Variáveis Necessárias no Vercel:
 
 ```bash
+# Empresa 1 - NEXUS (Principal)
+NEXT_PUBLIC_SUPABASE_URL_EMPRESA1=https://mhtxyxizfnxupwmilith.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA1=5bb6bf6b98f6d36060dc
+
 # Empresa 2 - LITORAL CRED
 NEXT_PUBLIC_SUPABASE_URL_EMPRESA2=https://dtifsfzmnjnllzzlndxv.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA2=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
