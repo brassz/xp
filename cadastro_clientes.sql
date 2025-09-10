@@ -5,7 +5,8 @@
 -- Remover restrição NOT NULL do campo address (se existir)
 ALTER TABLE clients ALTER COLUMN address DROP NOT NULL;
 
--- Inserção dos clientes na tabela existente
+-- Inserção dos clientes na tabela existente (com tratamento de duplicatas)
+-- Se o CPF já existir, os dados serão atualizados
 INSERT INTO clients (name, cpf, email, phone) VALUES
 ('Tatiane Alves Silva', '313.064.188-28', 'tatiane@gmail.com', '(13) 99136-4955'),
 ('Gilberto Jader dos Santos Palhas', '296.832.598-12', 'gilberto@gmail.com', '(13) 99698-9086'),
@@ -136,7 +137,13 @@ INSERT INTO clients (name, cpf, email, phone) VALUES
 ('Cassio Fernando Adolpho', '297.598.108-90', 'cassio@gmail.com', '(13) 99103-5335'),
 ('José Fernandes da Silva', '212.797.578-25', 'jose2@gmail.com', '(13) 96000-4500'),
 ('Thamires Walquiria Russi Pereira Santos', '433.074.708-17', 'thamires@gmail.com', '(13) 99607-4778'),
-('Gilmara Vieira Lucas Conceição', '309.468.648-61', 'gilmara@gmail.com', '(13) 99705-3457');
+('Gilmara Vieira Lucas Conceição', '309.468.648-61', 'gilmara@gmail.com', '(13) 99705-3457')
+ON CONFLICT (cpf) 
+DO UPDATE SET 
+    name = EXCLUDED.name,
+    email = EXCLUDED.email,
+    phone = EXCLUDED.phone,
+    updated_at = CURRENT_TIMESTAMP;
 
 -- Verificar quantos clientes foram inseridos
 SELECT COUNT(*) as total_clientes FROM clients;
