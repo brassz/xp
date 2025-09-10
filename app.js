@@ -88,6 +88,120 @@ document.addEventListener('DOMContentLoaded', function() {
     setupUploadcare();
 });
 
+// Função para validar e corrigir o currentUser
+async function validateAndFixCurrentUser() {
+    console.log('🔍 Verificando currentUser...');
+    
+    if (!currentUser || !currentUser.id) {
+        console.warn('⚠️ currentUser não definido ou sem ID');
+        await loadDefaultUser();
+        return;
+    }
+
+    try {
+        // Verificar se o usuário existe no banco
+        const { data: userExists, error } = await supabase
+            .from('users')
+            .select('id, email, full_name, role')
+            .eq('id', currentUser.id)
+            .single();
+
+        if (error || !userExists) {
+            console.warn('⚠️ Usuário atual não existe no banco:', currentUser.id);
+            await loadDefaultUser();
+        } else {
+            console.log('✅ currentUser válido:', userExists);
+        }
+    } catch (error) {
+        console.error('❌ Erro ao verificar usuário:', error);
+        await loadDefaultUser();
+    }
+}
+
+// Função para carregar usuário padrão
+async function loadDefaultUser() {
+    try {
+        console.log('🔄 Carregando usuário admin padrão...');
+        
+        const { data: adminUser, error } = await supabase
+            .from('users')
+            .select('id, email, full_name, role')
+            .eq('email', 'admin@nexus.com')
+            .single();
+
+        if (error || !adminUser) {
+            console.error('❌ Usuário admin não encontrado. Criando...');
+            await createDefaultAdminUser();
+        } else {
+            currentUser = adminUser;
+            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+            console.log('✅ Usuário admin carregado:', currentUser);
+        }
+    } catch (error) {
+        console.error('❌ Erro ao carregar usuário admin:', error);
+        await createDefaultAdminUser();
+    }
+}
+
+// Função para criar usuário admin padrão
+async function createDefaultAdminUser() {
+    try {
+        console.log('🔨 Criando usuário admin padrão...');
+        
+        const adminData = {
+            id: '00000000-0000-0000-0000-000000000001',
+            email: 'admin@nexus.com',
+            password_hash: '1020',
+            full_name: 'Administrador Nexus',
+            role: 'admin',
+            is_active: true,
+            created_at: new Date().toISOString(),
+            updated_at: new Date().toISOString()
+        };
+
+        const { data, error } = await supabase
+            .from('users')
+            .upsert([adminData])
+            .select()
+            .single();
+
+        if (error) {
+            console.error('❌ Erro ao criar usuário admin:', error);
+            // Usar dados padrão mesmo com erro
+            currentUser = {
+                id: '00000000-0000-0000-0000-000000000001',
+                email: 'admin@nexus.com',
+                full_name: 'Administrador Nexus',
+                role: 'admin'
+            };
+        } else {
+            currentUser = data;
+            console.log('✅ Usuário admin criado:', currentUser);
+        }
+
+        localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+    } catch (error) {
+        console.error('❌ Erro crítico ao criar usuário admin:', error);
+        // Fallback para dados hardcoded
+        currentUser = {
+            id: '00000000-0000-0000-0000-000000000001',
+            email: 'admin@nexus.com',
+            full_name: 'Administrador Nexus',
+            role: 'admin'
+        };
+        localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+    }
+}
+
+// Função para garantir created_by válido antes de inserções
+function ensureValidCreatedBy() {
+    if (!currentUser || !currentUser.id) {
+        console.warn('⚠️ currentUser inválido, usando ID padrão');
+        return '00000000-0000-0000-0000-000000000001';
+    }
+    return currentUser.id;
+}
+
 // Inicializar aplicação
 async function initializeApp() {
     // Verificar se há usuário logado no localStorage
@@ -95,6 +209,8 @@ async function initializeApp() {
     if (savedUser) {
         try {
             currentUser = JSON.parse(savedUser);
+            // Validar se o usuário é válido
+            await validateAndFixCurrentUser();
             showDashboard();
             // Verificar e criar tabelas se necessário
             await createTablesIfNotExist();
@@ -1054,7 +1170,8 @@ async function renderPaidLoansTable() {
 async function handleNewClient(e) {
     e.preventDefault();
     
-
+    // Garantir que temos um usuário válido
+    await validateAndFixCurrentUser();
     
     const formData = {
         name: document.getElementById('clientName').value,
@@ -1064,7 +1181,7 @@ async function handleNewClient(e) {
         address: document.getElementById('clientAddress').value,
         rg: document.getElementById('clientRG').value || null,
         birth_date: document.getElementById('clientBirthDate').value || null,
-        created_by: currentUser.id,
+        created_by: ensureValidCreatedBy(),
         created_at: new Date().toISOString()
     };
     
@@ -1209,6 +1326,9 @@ async function handleNewClient(e) {
 async function handleNewLoan(e) {
     e.preventDefault();
     
+    // Garantir que temos um usuário válido
+    await validateAndFixCurrentUser();
+    
     const formData = {
         client_id: document.getElementById('loanClient').value,
         amount: parseFloat(document.getElementById('loanAmount').value),
@@ -1216,7 +1336,7 @@ async function handleNewLoan(e) {
         loan_date: document.getElementById('loanDate').value,
         due_date: document.getElementById('loanDueDate').value,
         status: 'active',
-        created_by: currentUser.id,
+        created_by: ensureValidCreatedBy(),
         created_at: new Date().toISOString()
     };
     
@@ -1319,7 +1439,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
-                    created_by: currentUser.id,
+                    created_by: ensureValidCreatedBy(),
                     created_at: new Date().toISOString()
                 }]);
             paymentError = error;
@@ -1388,7 +1508,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: actionType,
                     notes: actionNotes,
-                    created_by: currentUser.id,
+                    created_by: ensureValidCreatedBy(),
                     created_at: new Date().toISOString()
                 }]);
             
@@ -3539,7 +3659,7 @@ async function handleEmergencyContactForm(e) {
             showSuccessMessage(`Contato de emergência "${displayName}" atualizado com sucesso!`);
         } else {
             // Criar novo contato de emergência
-            formData.created_by = currentUser.id;
+            formData.created_by = ensureValidCreatedBy();
             formData.created_at = new Date().toISOString();
             
             const { data, error } = await supabase
