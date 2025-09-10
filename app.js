@@ -1,12 +1,14 @@
-// Configuração do Supabase
-const SUPABASE_URL = 'https://mhtxyxizfnxupwmilith.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI';
+// =====================================================
+// CONFIGURAÇÃO MULTI-EMPRESA - SISTEMA NEXUS
+// =====================================================
+// NOTA: As configurações de Supabase agora são gerenciadas
+// pelo sistema multi-empresa. Veja companies-config.js
 
-// Configuração do Uploadcare
-const UPLOADCARE_PUBLIC_KEY = '5bb6bf6b98f6d36060dc';
+// Variáveis globais para compatibilidade
+let supabase = null;
+let UPLOADCARE_PUBLIC_KEY = null;
 
-// Inicializar Supabase
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Inicialização será feita pelo sistema multi-empresa
 
 // Estado global da aplicação
 let currentUser = null;
@@ -82,16 +84,39 @@ const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 
 // Inicialização da aplicação
-document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
-    setupEventListeners();
-    setupUploadcare();
+document.addEventListener('DOMContentLoaded', async function() {
+    try {
+        // Inicializar sistema multi-empresa primeiro
+        await initializeMultiCompany();
+        
+        // Configurar cliente Supabase global para compatibilidade
+        supabase = companyManager.getSupabaseClient();
+        
+        // Configurar Uploadcare
+        const uploadcareConfig = companyManager.getUploadcareConfig();
+        UPLOADCARE_PUBLIC_KEY = uploadcareConfig.publicKey;
+        
+        // Inicializar aplicação normalmente
+        await initializeApp();
+        setupEventListeners();
+        setupUploadcare();
+        
+    } catch (error) {
+        console.error('❌ Erro na inicialização:', error);
+        
+        // Se há erro, redirecionar para seletor de empresa
+        if (window.location.pathname !== '/company-selector.html') {
+            window.location.href = 'company-selector.html';
+        }
+    }
 });
 
 // Inicializar aplicação
 async function initializeApp() {
-    // Verificar se há usuário logado no localStorage
-    const savedUser = localStorage.getItem('nexusUser');
+    // Verificar se há usuário logado no localStorage (separado por empresa)
+    const currentCompanyId = getCurrentCompanyId();
+    const savedUser = localStorage.getItem(`nexusUser_${currentCompanyId}`);
+    
     if (savedUser) {
         try {
             currentUser = JSON.parse(savedUser);
@@ -104,7 +129,7 @@ async function initializeApp() {
                 await loadData();
             }, 100);
         } catch (error) {
-            localStorage.removeItem('nexusUser');
+            localStorage.removeItem(`nexusUser_${currentCompanyId}`);
             showLogin();
         }
     } else {
@@ -116,7 +141,20 @@ async function initializeApp() {
 function setupEventListeners() {
     // Login
     loginForm.addEventListener('submit', handleLogin);
-    logoutBtn.addEventListener('click', handleLogout);
+    
+    // Logout
+    const logoutBtn = document.getElementById('logoutBtn');
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+    }
+    
+    // Company Selector
+    const companySelector = document.getElementById('companySelector');
+    if (companySelector) {
+        companySelector.addEventListener('click', function() {
+            companyManager.openCompanySelector();
+        });
+    }
     
     // Navegação
     navLinks.forEach(link => {
@@ -481,8 +519,9 @@ async function handleLogin(e) {
         if (password === '1020' || password === 'user123') {
             currentUser = userData;
             
-            // Salvar usuário no localStorage
-            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+            // Salvar usuário no localStorage (separado por empresa)
+            const currentCompanyId = getCurrentCompanyId();
+            localStorage.setItem(`nexusUser_${currentCompanyId}`, JSON.stringify(currentUser));
             
             showDashboard();
             await loadData();
@@ -504,7 +543,8 @@ async function handleLogin(e) {
 
 async function handleLogout() {
     currentUser = null;
-    localStorage.removeItem('nexusUser');
+    const currentCompanyId = getCurrentCompanyId();
+    localStorage.removeItem(`nexusUser_${currentCompanyId}`);
     showLogin();
 }
 
