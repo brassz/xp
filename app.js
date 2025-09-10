@@ -1,12 +1,22 @@
-// Configuração do Supabase
-const SUPABASE_URL = 'https://mhtxyxizfnxupwmilith.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI';
+// Configuração das Empresas
+const COMPANIES = {
+    'litoral': {
+        name: 'LITORAL CRED',
+        supabaseUrl: 'https://dtifsfzmnjnllzzlndxv.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA',
+        uploadcareKey: '026feb50f83d7cdfe4ea'
+    },
+    'mogiana': {
+        name: 'MOGIANA CRED',
+        supabaseUrl: 'https://eemfnpefgojllvzzaimu.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y',
+        uploadcareKey: '72349b0b9769d2be0d8c'
+    }
+};
 
-// Configuração do Uploadcare
-const UPLOADCARE_PUBLIC_KEY = '5bb6bf6b98f6d36060dc';
-
-// Inicializar Supabase
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Estado global da empresa selecionada
+let selectedCompany = null;
+let supabase = null;
 
 // Estado global da aplicação
 let currentUser = null;
@@ -30,10 +40,19 @@ let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
 
 // Elementos DOM
+const companySelectionPage = document.getElementById('companySelectionPage');
 const loginPage = document.getElementById('loginPage');
 const dashboard = document.getElementById('dashboard');
 const loginForm = document.getElementById('loginForm');
 const logoutBtn = document.getElementById('logoutBtn');
+
+// Botões de seleção de empresa
+const selectLitoralBtn = document.getElementById('selectLitoralBtn');
+const selectMogianaBtn = document.getElementById('selectMogianaBtn');
+const backToCompanySelectionBtn = document.getElementById('backToCompanySelectionBtn');
+const selectedCompanyName = document.getElementById('selectedCompanyName');
+const currentCompanyName = document.getElementById('currentCompanyName');
+const changeCompanyBtn = document.getElementById('changeCompanyBtn');
 
 // Navegação
 const navLinks = document.querySelectorAll('.nav-link');
@@ -88,32 +107,136 @@ document.addEventListener('DOMContentLoaded', function() {
     setupUploadcare();
 });
 
+// Função para inicializar Supabase com a empresa selecionada
+function initializeSupabase(companyKey) {
+    const company = COMPANIES[companyKey];
+    if (!company) {
+        console.error('Empresa não encontrada:', companyKey);
+        return false;
+    }
+    
+    try {
+        supabase = window.supabase.createClient(company.supabaseUrl, company.supabaseKey);
+        selectedCompany = companyKey;
+        console.log('✅ Supabase inicializado para:', company.name);
+        return true;
+    } catch (error) {
+        console.error('❌ Erro ao inicializar Supabase:', error);
+        return false;
+    }
+}
+
+// Função para selecionar empresa
+function selectCompany(companyKey) {
+    const company = COMPANIES[companyKey];
+    if (!company) {
+        console.error('Empresa não encontrada:', companyKey);
+        return;
+    }
+    
+    // Inicializar Supabase para a empresa selecionada
+    if (initializeSupabase(companyKey)) {
+        // Salvar empresa selecionada no localStorage
+        localStorage.setItem('selectedCompany', companyKey);
+        
+        // Atualizar interface
+        selectedCompanyName.textContent = company.name;
+        
+        // Configurar Uploadcare para a empresa
+        if (window.uploadcare) {
+            window.uploadcare.start({
+                publicKey: company.uploadcareKey
+            });
+        }
+        
+        // Mostrar página de login
+        showLoginPage();
+    }
+}
+
+// Função para mostrar página de seleção de empresa
+function showCompanySelection() {
+    companySelectionPage.classList.remove('hidden');
+    loginPage.classList.add('hidden');
+    dashboard.classList.add('hidden');
+}
+
+// Função para mostrar página de login
+function showLoginPage() {
+    companySelectionPage.classList.add('hidden');
+    loginPage.classList.remove('hidden');
+    dashboard.classList.add('hidden');
+}
+
 // Inicializar aplicação
 async function initializeApp() {
-    // Verificar se há usuário logado no localStorage
+    // Verificar se há empresa selecionada no localStorage
+    const savedCompany = localStorage.getItem('selectedCompany');
     const savedUser = localStorage.getItem('nexusUser');
-    if (savedUser) {
-        try {
-            currentUser = JSON.parse(savedUser);
-            showDashboard();
-            // Verificar e criar tabelas se necessário
-            await createTablesIfNotExist();
+    
+    if (savedCompany && COMPANIES[savedCompany]) {
+        // Inicializar Supabase para a empresa salva
+        initializeSupabase(savedCompany);
+        
+        // Atualizar interface
+        const company = COMPANIES[savedCompany];
+        selectedCompanyName.textContent = company.name;
+        
+        // Configurar Uploadcare
+        if (window.uploadcare) {
+            window.uploadcare.start({
+                publicKey: company.uploadcareKey
+            });
+        }
+        
+        // Verificar se há usuário logado
+        if (savedUser) {
+            try {
+                currentUser = JSON.parse(savedUser);
+                showDashboard();
+                // Verificar e criar tabelas se necessário
+                await createTablesIfNotExist();
             
             // Aguardar um pouco para garantir que o DOM esteja pronto
             setTimeout(async () => {
                 await loadData();
             }, 100);
-        } catch (error) {
-            localStorage.removeItem('nexusUser');
-            showLogin();
+            } catch (error) {
+                localStorage.removeItem('nexusUser');
+                showLoginPage();
+            }
+        } else {
+            showLoginPage();
         }
     } else {
-        showLogin();
+        // Não há empresa selecionada, mostrar seleção de empresa
+        showCompanySelection();
     }
 }
 
 // Configurar event listeners
 function setupEventListeners() {
+    // Seleção de empresa
+    selectLitoralBtn.addEventListener('click', () => selectCompany('litoral'));
+    selectMogianaBtn.addEventListener('click', () => selectCompany('mogiana'));
+    backToCompanySelectionBtn.addEventListener('click', () => {
+        // Limpar empresa selecionada
+        localStorage.removeItem('selectedCompany');
+        selectedCompany = null;
+        supabase = null;
+        showCompanySelection();
+    });
+    
+    changeCompanyBtn.addEventListener('click', () => {
+        // Fazer logout do usuário e mostrar seleção de empresa
+        currentUser = null;
+        localStorage.removeItem('nexusUser');
+        localStorage.removeItem('selectedCompany');
+        selectedCompany = null;
+        supabase = null;
+        showCompanySelection();
+    });
+    
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
@@ -366,10 +489,10 @@ function setupEventListeners() {
 
 // Configurar Uploadcare
 function setupUploadcare() {
-    if (window.uploadcare) {
-        // Configurar Uploadcare globalmente
+    if (window.uploadcare && selectedCompany && COMPANIES[selectedCompany]) {
+        // Configurar Uploadcare globalmente com a chave da empresa selecionada
         uploadcare.start({
-            publicKey: UPLOADCARE_PUBLIC_KEY,
+            publicKey: COMPANIES[selectedCompany].uploadcareKey,
             locale: 'pt',
             tabs: 'file camera url facebook gdrive gphotos dropbox instagram',
             multiple: true,
@@ -505,6 +628,7 @@ async function handleLogin(e) {
 async function handleLogout() {
     currentUser = null;
     localStorage.removeItem('nexusUser');
+    // Manter empresa selecionada, apenas fazer logout do usuário
     showLogin();
 }
 
@@ -1656,13 +1780,23 @@ function hideModal(modal) {
 }
 
 function showLogin() {
-    loginPage.classList.remove('hidden');
-    dashboard.classList.add('hidden');
+    // Se não há empresa selecionada, mostrar seleção de empresa
+    if (!selectedCompany) {
+        showCompanySelection();
+    } else {
+        showLoginPage();
+    }
 }
 
 function showDashboard() {
+    companySelectionPage.classList.add('hidden');
     loginPage.classList.add('hidden');
     dashboard.classList.remove('hidden');
+    
+    // Atualizar nome da empresa no dashboard
+    if (selectedCompany && COMPANIES[selectedCompany]) {
+        currentCompanyName.textContent = COMPANIES[selectedCompany].name;
+    }
 }
 
 function populateClientSelect() {
