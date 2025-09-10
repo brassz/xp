@@ -1,9 +1,11 @@
 # 🎯 Guia Visual - Sistema de Múltiplas Empresas
 
-## Interface Integrada no Dashboard
+## Interface Integrada
 
 ### 📍 Localização do Seletor
-O seletor de empresas está localizado no **header do dashboard**, ao lado do título "Dashboard".
+O seletor de empresas está disponível em dois locais:
+1. **Tela de Login**: Dropdown antes dos campos de email/senha
+2. **Header do Dashboard**: Ao lado do título "Dashboard"
 
 ```
 ┌─────────────────────────────────────────────────────────────┐
@@ -31,10 +33,9 @@ O seletor de empresas está localizado no **header do dashboard**, ao lado do t�
 
 #### Cenário 1: Primeiro Acesso
 ```
-1. Login normal → Dashboard
-2. Clicar no dropdown "Selecionar Empresa"
-3. Escolher empresa (LITORAL, MOGIANA ou NEXUS)
-4. Dados carregam automaticamente
+1. Tela de login → Selecionar empresa no dropdown
+2. Inserir credenciais → Fazer login
+3. Dashboard carrega com dados da empresa selecionada
 ```
 
 #### Cenário 2: Troca de Empresa
@@ -47,9 +48,9 @@ O seletor de empresas está localizado no **header do dashboard**, ao lado do t�
 
 #### Cenário 3: Login sem Empresa
 ```
-1. Tentar fazer login sem empresa selecionada
+1. Tentar fazer login sem selecionar empresa
 2. Alerta: "Nenhuma empresa selecionada"
-3. Dropdown destaca com animação dourada
+3. Dropdown na tela de login destaca com animação dourada
 4. Selecionar empresa e tentar login novamente
 ```
 

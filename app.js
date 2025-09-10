@@ -58,6 +58,8 @@ const loginForm = document.getElementById('loginForm');
 const logoutBtn = document.getElementById('logoutBtn');
 const companyDropdownBtn = document.getElementById('companyDropdownBtn');
 const companyDropdownMenu = document.getElementById('companyDropdownMenu');
+const loginCompanyDropdownBtn = document.getElementById('loginCompanyDropdownBtn');
+const loginCompanyDropdownMenu = document.getElementById('loginCompanyDropdownMenu');
 
 // Navegação
 const navLinks = document.querySelectorAll('.nav-link');
@@ -153,13 +155,28 @@ function setupEventListeners() {
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
     
-    // Company dropdown
-    companyDropdownBtn.addEventListener('click', toggleCompanyDropdown);
+    // Company dropdown (dashboard)
+    if (companyDropdownBtn) {
+        companyDropdownBtn.addEventListener('click', toggleCompanyDropdown);
+    }
+    
+    // Company dropdown (login)
+    if (loginCompanyDropdownBtn) {
+        loginCompanyDropdownBtn.addEventListener('click', toggleLoginCompanyDropdown);
+    }
     
     // Fechar dropdown quando clicar fora
     document.addEventListener('click', function(event) {
-        if (!companyDropdownBtn.contains(event.target) && !companyDropdownMenu.contains(event.target)) {
+        // Dashboard dropdown
+        if (companyDropdownBtn && companyDropdownMenu && 
+            !companyDropdownBtn.contains(event.target) && !companyDropdownMenu.contains(event.target)) {
             companyDropdownMenu.classList.add('hidden');
+        }
+        
+        // Login dropdown
+        if (loginCompanyDropdownBtn && loginCompanyDropdownMenu &&
+            !loginCompanyDropdownBtn.contains(event.target) && !loginCompanyDropdownMenu.contains(event.target)) {
+            loginCompanyDropdownMenu.classList.add('hidden');
         }
     });
     
@@ -527,6 +544,7 @@ function initializeCompany(companyId) {
 }
 
 function updateCompanyIndicator(company) {
+    // Dashboard indicator
     const currentCompanyIcon = document.getElementById('currentCompanyIcon');
     const currentCompanyName = document.getElementById('currentCompanyName');
     
@@ -534,20 +552,51 @@ function updateCompanyIndicator(company) {
         currentCompanyName.textContent = company.name;
         currentCompanyIcon.style.backgroundColor = company.color;
     }
+    
+    // Login indicator
+    const loginCurrentCompanyIcon = document.getElementById('loginCurrentCompanyIcon');
+    const loginCurrentCompanyName = document.getElementById('loginCurrentCompanyName');
+    
+    if (loginCurrentCompanyIcon && loginCurrentCompanyName) {
+        loginCurrentCompanyName.textContent = company.name;
+        loginCurrentCompanyIcon.style.backgroundColor = company.color;
+    }
 }
 
 function toggleCompanyDropdown() {
-    companyDropdownMenu.classList.toggle('hidden');
+    if (companyDropdownMenu) {
+        companyDropdownMenu.classList.toggle('hidden');
+    }
+}
+
+function toggleLoginCompanyDropdown() {
+    if (loginCompanyDropdownMenu) {
+        loginCompanyDropdownMenu.classList.toggle('hidden');
+    }
 }
 
 function handleCompanySelection(companyId) {
     try {
         initializeCompany(companyId);
-        companyDropdownMenu.classList.add('hidden');
+        if (companyDropdownMenu) {
+            companyDropdownMenu.classList.add('hidden');
+        }
         
         // Se já estiver logado, recarregar dados
         if (currentUser) {
             loadData();
+        }
+    } catch (error) {
+        console.error('Erro ao selecionar empresa:', error);
+        alert('Erro ao selecionar empresa. Tente novamente.');
+    }
+}
+
+function handleLoginCompanySelection(companyId) {
+    try {
+        initializeCompany(companyId);
+        if (loginCompanyDropdownMenu) {
+            loginCompanyDropdownMenu.classList.add('hidden');
         }
     } catch (error) {
         console.error('Erro ao selecionar empresa:', error);
@@ -563,11 +612,14 @@ async function handleLogin(e) {
     const password = document.getElementById('loginPassword').value;
     
     if (!supabase) {
-        // Destacar o dropdown de empresa
-        companyDropdownBtn.classList.add('company-dropdown-highlight');
-        setTimeout(() => {
-            companyDropdownBtn.classList.remove('company-dropdown-highlight');
-        }, 4000);
+        // Destacar o dropdown de empresa (login ou dashboard)
+        const dropdownToHighlight = loginCompanyDropdownBtn || companyDropdownBtn;
+        if (dropdownToHighlight) {
+            dropdownToHighlight.classList.add('company-dropdown-highlight');
+            setTimeout(() => {
+                dropdownToHighlight.classList.remove('company-dropdown-highlight');
+            }, 4000);
+        }
         
         alert('Nenhuma empresa selecionada. Por favor, selecione uma empresa no dropdown acima.');
         return;

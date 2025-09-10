@@ -46,9 +46,9 @@ O sistema Nexus foi expandido para suportar múltiplas empresas com bancos de da
 ## Como Usar
 
 ### 1. Primeira Utilização
-1. Acesse o sistema e faça login normalmente
-2. No header do dashboard, clique no dropdown "Selecionar Empresa"
-3. Escolha a empresa desejada
+1. Acesse o sistema 
+2. Na tela de login, selecione a empresa no dropdown "Selecionar Empresa"
+3. Faça login com suas credenciais
 4. Os dados serão carregados automaticamente
 
 ### 2. Trocar de Empresa
@@ -57,9 +57,9 @@ O sistema Nexus foi expandido para suportar múltiplas empresas com bancos de da
 3. Os dados são atualizados automaticamente (sem necessidade de novo login)
 
 ### 3. Indicador Visual
-- No header do dashboard, você verá o nome da empresa atual no dropdown
+- Na tela de login e no dashboard, você verá o nome da empresa selecionada
 - A cor do ícone corresponde à cor da empresa selecionada
-- Se nenhuma empresa estiver selecionada, o dropdown será destacado ao tentar fazer login
+- Se nenhuma empresa estiver selecionada, o dropdown será destacado com animação ao tentar fazer login
 
 ## Estrutura Técnica
 
