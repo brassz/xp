@@ -5810,8 +5810,16 @@ async function loadExpenses() {
             expensesQuery = expensesQuery.eq('user_id', currentUser.id);
         }
         
-        const { data: expensesData, error: expensesError } = await expensesQuery
+        let { data: expensesData, error: expensesError } = await expensesQuery
             .order('date', { ascending: false });
+            
+        // Se houver erro com 'date', tentar com 'expense_date'
+        if (expensesError && expensesError.message.includes('column') && expensesError.message.includes('date')) {
+            console.log('Tentando com expense_date...');
+            const result = await expensesQuery.order('expense_date', { ascending: false });
+            expensesData = result.data;
+            expensesError = result.error;
+        }
             
         if (expensesError) throw expensesError;
         
@@ -5829,10 +5837,12 @@ async function loadExpenses() {
             categoriesMap[category.id] = category;
         });
         
-        // Join expenses with categories
+        // Join expenses with categories and normalize date field
         expenses = (expensesData || []).map(expense => ({
             ...expense,
-            expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null
+            expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null,
+            // Normalizar campo de data para compatibilidade
+            date: expense.date || expense.expense_date
         }));
         
         displayExpenses();
