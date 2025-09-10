@@ -77,9 +77,42 @@ Foi implementado um sistema de seleção de empresas no Nexus que permite gerenc
 4. Todas as operações serão realizadas no contexto da empresa selecionada
 5. A empresa ficará selecionada até o logout
 
+### Configuração de Variáveis de Ambiente
+
+O sistema agora utiliza variáveis de ambiente para maior segurança e flexibilidade:
+
+#### Variáveis Necessárias no Vercel:
+
+```bash
+# Empresa 2 - LITORAL CRED
+NEXT_PUBLIC_SUPABASE_URL_EMPRESA2=https://dtifsfzmnjnllzzlndxv.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA2=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2=026feb50f83d7cdfe4ea
+
+# Empresa 3 - MOGIANA CRED
+NEXT_PUBLIC_SUPABASE_URL_EMPRESA3=https://eemfnpefgojllvzzaimu.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3=72349b0b9769d2be0d8c
+```
+
+#### Configuração no Vercel:
+
+1. Acesse o painel do Vercel
+2. Vá em **Settings > Environment Variables**
+3. Adicione cada variável acima
+4. Marque para todos os ambientes (Production, Preview, Development)
+5. Faça redeploy da aplicação
+
+#### Desenvolvimento Local:
+
+1. Copie `.env.example` para `.env.local`
+2. Preencha com os valores corretos
+3. O arquivo `.env.local` já está no `.gitignore` por segurança
+
 ### Observações Técnicas
 
-- As configurações das empresas estão hardcoded no código por segurança
+- Configurações das empresas agora usam variáveis de ambiente
+- Fallback para valores hardcoded em desenvolvimento local
 - Cada empresa mantém seus próprios dados isolados
 - A troca de empresa requer novo login
 - Sistema compatível com todas as funcionalidades existentes do Nexus

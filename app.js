@@ -1,23 +1,48 @@
-// Configurações das empresas
+// Função para obter variáveis de ambiente (compatível com Vercel)
+function getEnvVar(name, fallback = '') {
+    // Tentar process.env primeiro (Node.js/Vercel)
+    if (typeof process !== 'undefined' && process.env && process.env[name]) {
+        return process.env[name];
+    }
+    
+    // Tentar window para variáveis públicas (browser)
+    if (typeof window !== 'undefined' && window.process && window.process.env && window.process.env[name]) {
+        return window.process.env[name];
+    }
+    
+    // Fallback para valores hardcoded (desenvolvimento local)
+    const fallbacks = {
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA2': 'https://dtifsfzmnjnllzzlndxv.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA2': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2': '026feb50f83d7cdfe4ea',
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA3': 'https://eemfnpefgojllvzzaimu.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3': '72349b0b9769d2be0d8c'
+    };
+    
+    return fallbacks[name] || fallback;
+}
+
+// Configurações das empresas usando variáveis de ambiente
 const COMPANIES_CONFIG = {
     litoral: {
         name: 'LITORAL CRED',
         supabase: {
-            url: 'https://dtifsfzmnjnllzzlndxv.supabase.co',
-            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA'
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA2'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA2')
         },
         uploadcare: {
-            publicKey: '026feb50f83d7cdfe4ea'
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2')
         }
     },
     mogiana: {
         name: 'MOGIANA CRED',
         supabase: {
-            url: 'https://eemfnpefgojllvzzaimu.supabase.co',
-            key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y'
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA3'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3')
         },
         uploadcare: {
-            publicKey: '72349b0b9769d2be0d8c'
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3')
         }
     }
 };
