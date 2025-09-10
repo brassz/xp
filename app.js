@@ -1,12 +1,34 @@
-// Configuração do Supabase
-const SUPABASE_URL = 'https://mhtxyxizfnxupwmilith.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI';
+// Configurações das empresas
+const COMPANIES = {
+    LITORAL: {
+        id: 'litoral',
+        name: 'LITORAL CRED',
+        supabaseUrl: 'https://dtifsfzmnjnllzzlndxv.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA',
+        uploadcareKey: '026feb50f83d7cdfe4ea',
+        color: '#3b82f6'
+    },
+    MOGIANA: {
+        id: 'mogiana',
+        name: 'MOGIANA CRED',
+        supabaseUrl: 'https://eemfnpefgojllvzzaimu.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y',
+        uploadcareKey: '72349b0b9769d2be0d8c',
+        color: '#10b981'
+    },
+    NEXUS: {
+        id: 'nexus',
+        name: 'NEXUS (Original)',
+        supabaseUrl: 'https://mhtxyxizfnxupwmilith.supabase.co',
+        supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI',
+        uploadcareKey: '5bb6bf6b98f6d36060dc',
+        color: '#8b5cf6'
+    }
+};
 
-// Configuração do Uploadcare
-const UPLOADCARE_PUBLIC_KEY = '5bb6bf6b98f6d36060dc';
-
-// Inicializar Supabase
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Estado da empresa atual
+let currentCompany = null;
+let supabase = null;
 
 // Estado global da aplicação
 let currentUser = null;
@@ -34,6 +56,10 @@ const loginPage = document.getElementById('loginPage');
 const dashboard = document.getElementById('dashboard');
 const loginForm = document.getElementById('loginForm');
 const logoutBtn = document.getElementById('logoutBtn');
+const companyDropdownBtn = document.getElementById('companyDropdownBtn');
+const companyDropdownMenu = document.getElementById('companyDropdownMenu');
+const loginCompanyDropdownBtn = document.getElementById('loginCompanyDropdownBtn');
+const loginCompanyDropdownMenu = document.getElementById('loginCompanyDropdownMenu');
 
 // Navegação
 const navLinks = document.querySelectorAll('.nav-link');
@@ -90,19 +116,30 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Inicializar aplicação
 async function initializeApp() {
-    // Verificar se há usuário logado no localStorage
+    // Verificar se há usuário logado
     const savedUser = localStorage.getItem('nexusUser');
     if (savedUser) {
         try {
             currentUser = JSON.parse(savedUser);
             showDashboard();
-            // Verificar e criar tabelas se necessário
-            await createTablesIfNotExist();
             
-            // Aguardar um pouco para garantir que o DOM esteja pronto
-            setTimeout(async () => {
-                await loadData();
-            }, 100);
+            // Verificar se há empresa selecionada
+            const savedCompany = localStorage.getItem('selectedCompany');
+            if (savedCompany) {
+                try {
+                    initializeCompany(savedCompany);
+                    // Verificar e criar tabelas se necessário
+                    await createTablesIfNotExist();
+                    
+                    // Aguardar um pouco para garantir que o DOM esteja pronto
+                    setTimeout(async () => {
+                        await loadData();
+                    }, 100);
+                } catch (error) {
+                    console.error('Erro ao inicializar empresa salva:', error);
+                    localStorage.removeItem('selectedCompany');
+                }
+            }
         } catch (error) {
             localStorage.removeItem('nexusUser');
             showLogin();
@@ -117,6 +154,31 @@ function setupEventListeners() {
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
+    
+    // Company dropdown (dashboard)
+    if (companyDropdownBtn) {
+        companyDropdownBtn.addEventListener('click', toggleCompanyDropdown);
+    }
+    
+    // Company dropdown (login)
+    if (loginCompanyDropdownBtn) {
+        loginCompanyDropdownBtn.addEventListener('click', toggleLoginCompanyDropdown);
+    }
+    
+    // Fechar dropdown quando clicar fora
+    document.addEventListener('click', function(event) {
+        // Dashboard dropdown
+        if (companyDropdownBtn && companyDropdownMenu && 
+            !companyDropdownBtn.contains(event.target) && !companyDropdownMenu.contains(event.target)) {
+            companyDropdownMenu.classList.add('hidden');
+        }
+        
+        // Login dropdown
+        if (loginCompanyDropdownBtn && loginCompanyDropdownMenu &&
+            !loginCompanyDropdownBtn.contains(event.target) && !loginCompanyDropdownMenu.contains(event.target)) {
+            loginCompanyDropdownMenu.classList.add('hidden');
+        }
+    });
     
     // Navegação
     navLinks.forEach(link => {
@@ -456,12 +518,112 @@ function setupUploadcare() {
 
 
 
+// Funções de gerenciamento de empresas
+function initializeCompany(companyId) {
+    const company = Object.values(COMPANIES).find(c => c.id === companyId);
+    if (!company) {
+        throw new Error(`Empresa não encontrada: ${companyId}`);
+    }
+    
+    currentCompany = company;
+    supabase = window.supabase.createClient(company.supabaseUrl, company.supabaseKey);
+    
+    // Atualizar Uploadcare
+    if (window.uploadcare) {
+        window.uploadcare.publicKey = company.uploadcareKey;
+    }
+    
+    // Atualizar indicador da empresa
+    updateCompanyIndicator(company);
+    
+    // Salvar seleção no localStorage
+    localStorage.setItem('selectedCompany', companyId);
+    
+    console.log(`Empresa inicializada: ${company.name}`);
+    return company;
+}
+
+function updateCompanyIndicator(company) {
+    // Dashboard indicator
+    const currentCompanyIcon = document.getElementById('currentCompanyIcon');
+    const currentCompanyName = document.getElementById('currentCompanyName');
+    
+    if (currentCompanyIcon && currentCompanyName) {
+        currentCompanyName.textContent = company.name;
+        currentCompanyIcon.style.backgroundColor = company.color;
+    }
+    
+    // Login indicator
+    const loginCurrentCompanyIcon = document.getElementById('loginCurrentCompanyIcon');
+    const loginCurrentCompanyName = document.getElementById('loginCurrentCompanyName');
+    
+    if (loginCurrentCompanyIcon && loginCurrentCompanyName) {
+        loginCurrentCompanyName.textContent = company.name;
+        loginCurrentCompanyIcon.style.backgroundColor = company.color;
+    }
+}
+
+function toggleCompanyDropdown() {
+    if (companyDropdownMenu) {
+        companyDropdownMenu.classList.toggle('hidden');
+    }
+}
+
+function toggleLoginCompanyDropdown() {
+    if (loginCompanyDropdownMenu) {
+        loginCompanyDropdownMenu.classList.toggle('hidden');
+    }
+}
+
+function handleCompanySelection(companyId) {
+    try {
+        initializeCompany(companyId);
+        if (companyDropdownMenu) {
+            companyDropdownMenu.classList.add('hidden');
+        }
+        
+        // Se já estiver logado, recarregar dados
+        if (currentUser) {
+            loadData();
+        }
+    } catch (error) {
+        console.error('Erro ao selecionar empresa:', error);
+        alert('Erro ao selecionar empresa. Tente novamente.');
+    }
+}
+
+function handleLoginCompanySelection(companyId) {
+    try {
+        initializeCompany(companyId);
+        if (loginCompanyDropdownMenu) {
+            loginCompanyDropdownMenu.classList.add('hidden');
+        }
+    } catch (error) {
+        console.error('Erro ao selecionar empresa:', error);
+        alert('Erro ao selecionar empresa. Tente novamente.');
+    }
+}
+
 // Handlers de autenticação
 async function handleLogin(e) {
     e.preventDefault();
     
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
+    
+    if (!supabase) {
+        // Destacar o dropdown de empresa (login ou dashboard)
+        const dropdownToHighlight = loginCompanyDropdownBtn || companyDropdownBtn;
+        if (dropdownToHighlight) {
+            dropdownToHighlight.classList.add('company-dropdown-highlight');
+            setTimeout(() => {
+                dropdownToHighlight.classList.remove('company-dropdown-highlight');
+            }, 4000);
+        }
+        
+        alert('Nenhuma empresa selecionada. Por favor, selecione uma empresa no dropdown acima.');
+        return;
+    }
     
     try {
         // Primeiro, verificar se o usuário existe na nossa tabela
@@ -505,6 +667,23 @@ async function handleLogin(e) {
 async function handleLogout() {
     currentUser = null;
     localStorage.removeItem('nexusUser');
+    
+    // Limpar dados mas manter empresa selecionada
+    clients = [];
+    filteredClients = [];
+    loans = [];
+    filteredLoans = [];
+    expenses = [];
+    expenseCategories = [];
+    installments = [];
+    installmentPayments = [];
+    guarantors = [];
+    emergencyContacts = [];
+    cashTransactions = [];
+    cashSettings = null;
+    capitalRaisings = [];
+    capitalRaisingClients = [];
+    
     showLogin();
 }
 
