@@ -342,23 +342,7 @@ function setupEventListeners() {
         }
     });
 
-    // Campo de busca de clientes na aba principal
-    document.getElementById('clientSearchInput').addEventListener('input', function(e) {
-        const searchTerm = e.target.value;
-        searchClients(searchTerm);
-    });
-
-    // Botão de limpar busca de clientes
-    document.getElementById('clearClientSearch').addEventListener('click', clearClientSearch);
-
-    // Campo de busca de empréstimos
-    document.getElementById('loanSearchInput').addEventListener('input', function(e) {
-        const searchTerm = e.target.value;
-        searchLoans(searchTerm);
-    });
-
-    // Botão de limpar busca de empréstimos
-    document.getElementById('clearLoanSearch').addEventListener('click', clearLoanSearch);
+    // These event listeners will be set up in setupEventListeners() function
     
     // Esconder resultados ao clicar fora
     document.addEventListener('click', function(e) {
@@ -455,6 +439,35 @@ function setupEventListeners() {
     // Validação do valor de pagamento
     document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
     
+    // Campo de busca de clientes na aba principal
+    const clientSearchInput = document.getElementById('clientSearchInput');
+    if (clientSearchInput) {
+        clientSearchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value;
+            searchClients(searchTerm);
+        });
+    }
+
+    // Botão de limpar busca de clientes
+    const clearClientSearchBtn = document.getElementById('clearClientSearch');
+    if (clearClientSearchBtn) {
+        clearClientSearchBtn.addEventListener('click', clearClientSearch);
+    }
+
+    // Campo de busca de empréstimos
+    const loanSearchInput = document.getElementById('loanSearchInput');
+    if (loanSearchInput) {
+        loanSearchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value;
+            searchLoans(searchTerm);
+        });
+    }
+
+    // Botão de limpar busca de empréstimos
+    const clearLoanSearchBtn = document.getElementById('clearLoanSearch');
+    if (clearLoanSearchBtn) {
+        clearLoanSearchBtn.addEventListener('click', clearLoanSearch);
+    }
 
 }
 
