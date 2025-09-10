@@ -1,0 +1,240 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Nexus - Seleção de Empresa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+    <style>
+        .company-card {
+            transition: all 0.3s ease;
+            cursor: pointer;
+        }
+        .company-card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+        }
+        .company-card.selected {
+            border: 3px solid #3B82F6;
+            box-shadow: 0 0 0 1px #3B82F6;
+        }
+        .gradient-bg {
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        }
+    </style>
+</head>
+<body class="gradient-bg min-h-screen flex items-center justify-center p-4">
+    <div class="bg-white rounded-2xl shadow-2xl p-8 max-w-4xl w-full">
+        <!-- Header -->
+        <div class="text-center mb-8">
+            <div class="flex justify-center mb-4">
+                <img src="assets/images/nexus-logo-circular.png" alt="Nexus Logo" class="w-16 h-16">
+            </div>
+            <h1 class="text-3xl font-bold text-gray-800 mb-2">Selecione sua Empresa</h1>
+            <p class="text-gray-600">Escolha a empresa para acessar o sistema de gestão financeira</p>
+        </div>
+
+        <!-- Companies Grid -->
+        <div class="grid md:grid-cols-3 gap-6 mb-8">
+            <!-- Nexus -->
+            <div class="company-card bg-white border-2 border-gray-200 rounded-xl p-6 text-center" 
+                 data-company="nexus">
+                <div class="mb-4">
+                    <img src="assets/images/nexus-logo-circular.png" alt="Nexus Logo" class="w-16 h-16 mx-auto mb-3">
+                    <div class="w-12 h-1 bg-blue-500 mx-auto rounded"></div>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">NEXUS</h3>
+                <p class="text-sm text-gray-600 mb-4">Gestão Financeira</p>
+                <div class="flex justify-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                        <i class="fas fa-building mr-1"></i>
+                        Matriz
+                    </span>
+                </div>
+            </div>
+
+            <!-- Litoral Cred -->
+            <div class="company-card bg-white border-2 border-gray-200 rounded-xl p-6 text-center" 
+                 data-company="litoral">
+                <div class="mb-4">
+                    <img src="assets/images/nexus-logo-circular.png" alt="Litoral Cred Logo" class="w-16 h-16 mx-auto mb-3">
+                    <div class="w-12 h-1 bg-green-500 mx-auto rounded"></div>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">LITORAL CRED</h3>
+                <p class="text-sm text-gray-600 mb-4">Crédito e Financiamento</p>
+                <div class="flex justify-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                        <i class="fas fa-waves mr-1"></i>
+                        Litoral
+                    </span>
+                </div>
+            </div>
+
+            <!-- Mogiana Cred -->
+            <div class="company-card bg-white border-2 border-gray-200 rounded-xl p-6 text-center" 
+                 data-company="mogiana">
+                <div class="mb-4">
+                    <img src="assets/images/nexus-logo-circular.png" alt="Mogiana Cred Logo" class="w-16 h-16 mx-auto mb-3">
+                    <div class="w-12 h-1 bg-red-500 mx-auto rounded"></div>
+                </div>
+                <h3 class="text-xl font-bold text-gray-800 mb-2">MOGIANA CRED</h3>
+                <p class="text-sm text-gray-600 mb-4">Crédito e Financiamento</p>
+                <div class="flex justify-center">
+                    <span class="inline-flex items-center px-3 py-1 rounded-full text-xs font-medium bg-red-100 text-red-800">
+                        <i class="fas fa-mountain mr-1"></i>
+                        Mogiana
+                    </span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Action Buttons -->
+        <div class="flex justify-center space-x-4">
+            <button id="selectCompanyBtn" 
+                    class="px-8 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+                    disabled>
+                <i class="fas fa-sign-in-alt mr-2"></i>
+                Acessar Sistema
+            </button>
+            <button id="cancelBtn" 
+                    class="px-8 py-3 bg-gray-600 text-white rounded-lg font-semibold hover:bg-gray-700 transition-colors">
+                <i class="fas fa-times mr-2"></i>
+                Cancelar
+            </button>
+        </div>
+
+        <!-- Current Selection Info -->
+        <div id="selectionInfo" class="mt-6 p-4 bg-blue-50 border border-blue-200 rounded-lg hidden">
+            <div class="flex items-center">
+                <i class="fas fa-info-circle text-blue-600 mr-2"></i>
+                <span class="text-blue-800 font-medium">Empresa selecionada: <span id="selectedCompanyName"></span></span>
+            </div>
+        </div>
+    </div>
+
+    <!-- Loading Overlay -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center hidden z-50">
+        <div class="bg-white rounded-lg p-6 text-center">
+            <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p class="text-gray-700">Conectando ao sistema...</p>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="companies-config.js"></script>
+    <script>
+        let selectedCompany = null;
+
+        // Inicialização
+        document.addEventListener('DOMContentLoaded', function() {
+            initializeCompanySelector();
+        });
+
+        function initializeCompanySelector() {
+            const companyCards = document.querySelectorAll('.company-card');
+            const selectBtn = document.getElementById('selectCompanyBtn');
+            const cancelBtn = document.getElementById('cancelBtn');
+            const selectionInfo = document.getElementById('selectionInfo');
+            const selectedCompanyName = document.getElementById('selectedCompanyName');
+
+            // Verificar se há empresa previamente selecionada
+            const currentCompany = getCurrentCompanyId();
+            if (currentCompany) {
+                selectCompanyCard(currentCompany);
+            }
+
+            // Event listeners para os cards
+            companyCards.forEach(card => {
+                card.addEventListener('click', function() {
+                    const companyId = this.getAttribute('data-company');
+                    selectCompanyCard(companyId);
+                });
+            });
+
+            // Event listener para botão de seleção
+            selectBtn.addEventListener('click', function() {
+                if (selectedCompany) {
+                    connectToCompany(selectedCompany);
+                }
+            });
+
+            // Event listener para botão de cancelar
+            cancelBtn.addEventListener('click', function() {
+                // Se vier de uma página anterior, volta
+                if (document.referrer) {
+                    window.history.back();
+                } else {
+                    // Caso contrário, redireciona para a página principal
+                    window.location.href = 'index.html';
+                }
+            });
+
+            function selectCompanyCard(companyId) {
+                // Remove seleção anterior
+                companyCards.forEach(card => card.classList.remove('selected'));
+                
+                // Adiciona seleção atual
+                const selectedCard = document.querySelector(`[data-company="${companyId}"]`);
+                if (selectedCard) {
+                    selectedCard.classList.add('selected');
+                    selectedCompany = companyId;
+                    
+                    // Habilita botão e mostra info
+                    selectBtn.disabled = false;
+                    const companyConfig = COMPANIES_CONFIG[companyId];
+                    selectedCompanyName.textContent = companyConfig.name;
+                    selectionInfo.classList.remove('hidden');
+                }
+            }
+        }
+
+        async function connectToCompany(companyId) {
+            const loadingOverlay = document.getElementById('loadingOverlay');
+            
+            try {
+                loadingOverlay.classList.remove('hidden');
+                
+                // Salvar empresa selecionada
+                setCurrentCompany(companyId);
+                
+                // Simular tempo de conexão
+                await new Promise(resolve => setTimeout(resolve, 1500));
+                
+                // Redirecionar para o sistema principal
+                window.location.href = 'index.html';
+                
+            } catch (error) {
+                console.error('Erro ao conectar à empresa:', error);
+                alert('Erro ao conectar à empresa. Tente novamente.');
+                loadingOverlay.classList.add('hidden');
+            }
+        }
+
+        // Função para testar conexão com a empresa
+        async function testCompanyConnection(companyId) {
+            const config = COMPANIES_CONFIG[companyId];
+            if (!config) return false;
+
+            try {
+                // Criar cliente temporário para teste
+                const testClient = window.supabase.createClient(
+                    config.supabase.url, 
+                    config.supabase.anonKey
+                );
+                
+                // Testar conexão
+                const { data, error } = await testClient.from('users').select('count').limit(1);
+                
+                return !error;
+            } catch (error) {
+                console.error('Erro ao testar conexão:', error);
+                return false;
+            }
+        }
+    </script>
+
+    <!-- Supabase JS -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+</body>
+</html>

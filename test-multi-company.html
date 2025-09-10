@@ -1,0 +1,323 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Sistema Multi-Empresa</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.0.0/css/all.min.css">
+</head>
+<body class="bg-gray-900 text-white min-h-screen p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center">🧪 Teste Sistema Multi-Empresa</h1>
+        
+        <!-- Status Cards -->
+        <div class="grid md:grid-cols-3 gap-6 mb-8">
+            <!-- Nexus -->
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-blue-600 rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-building text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold">NEXUS</h3>
+                        <p class="text-gray-400">Gestão Financeira</p>
+                    </div>
+                </div>
+                <div id="nexusStatus" class="space-y-2">
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
+                        <span>Testando...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Litoral Cred -->
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-green-600 rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-waves text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold">LITORAL CRED</h3>
+                        <p class="text-gray-400">Crédito e Financiamento</p>
+                    </div>
+                </div>
+                <div id="litoralStatus" class="space-y-2">
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
+                        <span>Testando...</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Mogiana Cred -->
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <div class="flex items-center mb-4">
+                    <div class="w-12 h-12 bg-red-600 rounded-full flex items-center justify-center mr-4">
+                        <i class="fas fa-mountain text-white"></i>
+                    </div>
+                    <div>
+                        <h3 class="text-xl font-bold">MOGIANA CRED</h3>
+                        <p class="text-gray-400">Crédito e Financiamento</p>
+                    </div>
+                </div>
+                <div id="mogianaStatus" class="space-y-2">
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
+                        <span>Testando...</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Test Controls -->
+        <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 mb-8">
+            <h2 class="text-xl font-bold mb-4">🎛️ Controles de Teste</h2>
+            <div class="grid md:grid-cols-3 gap-4">
+                <button id="testAllBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded transition-colors">
+                    <i class="fas fa-play mr-2"></i>Testar Todas
+                </button>
+                <button id="testConfigBtn" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded transition-colors">
+                    <i class="fas fa-cog mr-2"></i>Testar Configurações
+                </button>
+                <button id="clearTestsBtn" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded transition-colors">
+                    <i class="fas fa-trash mr-2"></i>Limpar Testes
+                </button>
+            </div>
+        </div>
+
+        <!-- Detailed Results -->
+        <div class="bg-gray-800 p-6 rounded-lg border border-gray-700 mb-8">
+            <h2 class="text-xl font-bold mb-4">📊 Resultados Detalhados</h2>
+            <div id="detailedResults" class="bg-gray-900 p-4 rounded font-mono text-sm max-h-96 overflow-y-auto">
+                <div class="text-gray-400">Aguardando testes...</div>
+            </div>
+        </div>
+
+        <!-- Quick Actions -->
+        <div class="grid md:grid-cols-2 gap-6">
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <h3 class="text-lg font-bold mb-4">🚀 Ações Rápidas</h3>
+                <div class="space-y-3">
+                    <button onclick="window.location.href='company-selector.html'" class="w-full bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded transition-colors">
+                        <i class="fas fa-building mr-2"></i>Abrir Seletor de Empresa
+                    </button>
+                    <button onclick="window.location.href='index.html'" class="w-full bg-green-600 hover:bg-green-700 px-4 py-2 rounded transition-colors">
+                        <i class="fas fa-home mr-2"></i>Ir para Sistema Principal
+                    </button>
+                </div>
+            </div>
+
+            <div class="bg-gray-800 p-6 rounded-lg border border-gray-700">
+                <h3 class="text-lg font-bold mb-4">📋 Informações</h3>
+                <div class="space-y-2 text-sm">
+                    <div><strong>Empresa Atual:</strong> <span id="currentCompanyInfo">-</span></div>
+                    <div><strong>LocalStorage:</strong> <span id="localStorageInfo">-</span></div>
+                    <div><strong>Supabase:</strong> <span id="supabaseInfo">-</span></div>
+                    <div><strong>Uploadcare:</strong> <span id="uploadcareInfo">-</span></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <script src="companies-config.js"></script>
+    <script src="multi-company-manager.js"></script>
+    
+    <script>
+        // Variáveis globais
+        let testResults = [];
+
+        // Inicializar testes
+        document.addEventListener('DOMContentLoaded', function() {
+            setupEventListeners();
+            updateInfo();
+            autoTestConfigurations();
+        });
+
+        function setupEventListeners() {
+            document.getElementById('testAllBtn').addEventListener('click', testAllCompanies);
+            document.getElementById('testConfigBtn').addEventListener('click', testConfigurations);
+            document.getElementById('clearTestsBtn').addEventListener('click', clearTests);
+        }
+
+        function updateInfo() {
+            try {
+                const currentCompany = getCurrentCompanyId();
+                const companyConfig = getCurrentCompanyConfig();
+                
+                document.getElementById('currentCompanyInfo').textContent = 
+                    companyConfig ? companyConfig.name : 'Nenhuma';
+                
+                document.getElementById('localStorageInfo').textContent = 
+                    localStorage.getItem('selectedCompany') || 'Não definida';
+                
+                document.getElementById('supabaseInfo').textContent = 
+                    companyConfig ? companyConfig.supabase.url.split('.')[0].split('//')[1] : '-';
+                
+                document.getElementById('uploadcareInfo').textContent = 
+                    companyConfig ? companyConfig.uploadcare.publicKey : '-';
+                    
+            } catch (error) {
+                logResult('❌ Erro ao atualizar informações: ' + error.message, 'error');
+            }
+        }
+
+        async function testAllCompanies() {
+            logResult('🚀 Iniciando teste de todas as empresas...', 'info');
+            
+            for (const companyId of Object.keys(COMPANIES_CONFIG)) {
+                await testCompanyConnection(companyId);
+            }
+            
+            logResult('✅ Teste de todas as empresas concluído!', 'success');
+        }
+
+        async function testCompanyConnection(companyId) {
+            const config = COMPANIES_CONFIG[companyId];
+            const statusElement = document.getElementById(`${companyId}Status`);
+            
+            try {
+                logResult(`🔍 Testando ${config.name}...`, 'info');
+                updateStatus(statusElement, 'testing', `Conectando...`);
+                
+                // Testar conexão Supabase
+                const client = window.supabase.createClient(
+                    config.supabase.url, 
+                    config.supabase.anonKey
+                );
+                
+                const { data, error } = await client.from('users').select('count').limit(1);
+                
+                if (error) {
+                    throw new Error(`Supabase: ${error.message}`);
+                }
+                
+                // Testar configurações
+                if (!config.uploadcare.publicKey) {
+                    throw new Error('Chave Uploadcare não configurada');
+                }
+                
+                updateStatus(statusElement, 'success', `✅ Conectado`);
+                logResult(`✅ ${config.name}: Conexão bem-sucedida`, 'success');
+                
+                return true;
+                
+            } catch (error) {
+                updateStatus(statusElement, 'error', `❌ Erro: ${error.message}`);
+                logResult(`❌ ${config.name}: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        function testConfigurations() {
+            logResult('🔧 Testando configurações...', 'info');
+            
+            // Testar se todas as empresas estão configuradas
+            const companies = Object.keys(COMPANIES_CONFIG);
+            logResult(`📊 Empresas configuradas: ${companies.length}`, 'info');
+            
+            companies.forEach(companyId => {
+                const config = COMPANIES_CONFIG[companyId];
+                logResult(`🏢 ${config.name}:`, 'info');
+                logResult(`   - Supabase: ${config.supabase.url}`, 'info');
+                logResult(`   - Uploadcare: ${config.uploadcare.publicKey}`, 'info');
+                logResult(`   - Tema: ${config.theme.primaryColor}`, 'info');
+            });
+            
+            // Testar localStorage
+            const currentCompany = localStorage.getItem('selectedCompany');
+            logResult(`💾 Empresa no localStorage: ${currentCompany || 'Nenhuma'}`, 'info');
+            
+            // Testar funções auxiliares
+            try {
+                const config = getCurrentCompanyConfig();
+                logResult(`⚙️ Configuração atual carregada: ${config.name}`, 'success');
+            } catch (error) {
+                logResult(`❌ Erro ao carregar configuração: ${error.message}`, 'error');
+            }
+        }
+
+        function autoTestConfigurations() {
+            setTimeout(() => {
+                testConfigurations();
+            }, 1000);
+        }
+
+        function updateStatus(element, type, message) {
+            const colors = {
+                testing: 'bg-yellow-500',
+                success: 'bg-green-500',
+                error: 'bg-red-500'
+            };
+            
+            element.innerHTML = `
+                <div class="flex items-center">
+                    <span class="w-3 h-3 ${colors[type]} rounded-full mr-2"></span>
+                    <span>${message}</span>
+                </div>
+            `;
+        }
+
+        function logResult(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            const resultElement = document.getElementById('detailedResults');
+            const logEntry = `<div class="${colors[type]}">[${timestamp}] ${message}</div>`;
+            
+            if (resultElement.innerHTML.includes('Aguardando testes...')) {
+                resultElement.innerHTML = logEntry;
+            } else {
+                resultElement.innerHTML += logEntry;
+            }
+            
+            // Auto-scroll para o final
+            resultElement.scrollTop = resultElement.scrollHeight;
+            
+            // Também logar no console
+            console.log(`[${timestamp}] ${message}`);
+        }
+
+        function clearTests() {
+            document.getElementById('detailedResults').innerHTML = 
+                '<div class="text-gray-400">Aguardando testes...</div>';
+            
+            // Resetar status cards
+            ['nexus', 'litoral', 'mogiana'].forEach(companyId => {
+                const statusElement = document.getElementById(`${companyId}Status`);
+                statusElement.innerHTML = `
+                    <div class="flex items-center">
+                        <span class="w-3 h-3 bg-gray-500 rounded-full mr-2"></span>
+                        <span>Aguardando teste...</span>
+                    </div>
+                `;
+            });
+            
+            logResult('🧹 Testes limpos', 'info');
+        }
+
+        // Testar se as funções básicas estão funcionando
+        window.addEventListener('load', function() {
+            if (typeof COMPANIES_CONFIG === 'undefined') {
+                logResult('❌ companies-config.js não carregado', 'error');
+            } else {
+                logResult('✅ companies-config.js carregado', 'success');
+            }
+            
+            if (typeof MultiCompanyManager === 'undefined') {
+                logResult('❌ multi-company-manager.js não carregado', 'error');
+            } else {
+                logResult('✅ multi-company-manager.js carregado', 'success');
+            }
+        });
+    </script>
+</body>
+</html>
