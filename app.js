@@ -1,12 +1,100 @@
-// Configuração do Supabase
-const SUPABASE_URL = 'https://mhtxyxizfnxupwmilith.supabase.co';
-const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI';
+// Função para obter variáveis de ambiente (compatível com Vercel)
+function getEnvVar(name, fallback = '') {
+    // Tentar process.env primeiro (Node.js/Vercel)
+    if (typeof process !== 'undefined' && process.env && process.env[name]) {
+        return process.env[name];
+    }
+    
+    // Tentar window para variáveis públicas (browser)
+    if (typeof window !== 'undefined' && window.process && window.process.env && window.process.env[name]) {
+        return window.process.env[name];
+    }
+    
+    // Fallback para valores hardcoded (desenvolvimento local)
+    const fallbacks = {
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA1': 'https://mhtxyxizfnxupwmilith.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA1': '5bb6bf6b98f6d36060dc',
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA2': 'https://dtifsfzmnjnllzzlndxv.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA2': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2': '026feb50f83d7cdfe4ea',
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA3': 'https://eemfnpefgojllvzzaimu.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3': '72349b0b9769d2be0d8c'
+    };
+    
+    return fallbacks[name] || fallback;
+}
 
-// Configuração do Uploadcare
-const UPLOADCARE_PUBLIC_KEY = '5bb6bf6b98f6d36060dc';
+// Configurações das empresas usando variáveis de ambiente
+const COMPANIES_CONFIG = {
+    nexus: {
+        name: 'NEXUS (Principal)',
+        supabase: {
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA1'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1')
+        },
+        uploadcare: {
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA1')
+        }
+    },
+    litoral: {
+        name: 'LITORAL CRED',
+        supabase: {
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA2'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA2')
+        },
+        uploadcare: {
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2')
+        }
+    },
+    mogiana: {
+        name: 'MOGIANA CRED',
+        supabase: {
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA3'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3')
+        },
+        uploadcare: {
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3')
+        }
+    }
+};
 
-// Inicializar Supabase
-const supabase = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+// Variáveis globais para configuração atual
+let currentCompany = null;
+let supabase = null;
+
+// Função para inicializar empresa
+function initializeCompany(companyId) {
+    if (!COMPANIES_CONFIG[companyId]) {
+        throw new Error(`Empresa ${companyId} não encontrada na configuração`);
+    }
+    
+    currentCompany = companyId;
+    const config = COMPANIES_CONFIG[companyId];
+    
+    // Inicializar Supabase para a empresa selecionada
+    supabase = window.supabase.createClient(config.supabase.url, config.supabase.key);
+    
+    // Atualizar configuração do Uploadcare
+    if (window.uploadcare) {
+        window.uploadcare.publicKey = config.uploadcare.publicKey;
+    }
+    
+    // Salvar empresa selecionada no localStorage
+    localStorage.setItem('selectedCompany', companyId);
+    
+    console.log(`Empresa inicializada: ${config.name}`);
+    return config;
+}
+
+// Função para obter configuração da empresa atual
+function getCurrentCompanyConfig() {
+    if (!currentCompany) {
+        return null;
+    }
+    return COMPANIES_CONFIG[currentCompany];
+}
 
 // Estado global da aplicação
 let currentUser = null;
@@ -92,8 +180,13 @@ document.addEventListener('DOMContentLoaded', function() {
 async function initializeApp() {
     // Verificar se há usuário logado no localStorage
     const savedUser = localStorage.getItem('nexusUser');
-    if (savedUser) {
+    const savedCompany = localStorage.getItem('selectedCompany');
+    
+    if (savedUser && savedCompany) {
         try {
+            // Restaurar empresa selecionada
+            initializeCompany(savedCompany);
+            
             currentUser = JSON.parse(savedUser);
             showDashboard();
             // Verificar e criar tabelas se necessário
@@ -105,6 +198,7 @@ async function initializeApp() {
             }, 100);
         } catch (error) {
             localStorage.removeItem('nexusUser');
+            localStorage.removeItem('selectedCompany');
             showLogin();
         }
     } else {
@@ -368,8 +462,9 @@ function setupEventListeners() {
 function setupUploadcare() {
     if (window.uploadcare) {
         // Configurar Uploadcare globalmente
+        // A publicKey será definida dinamicamente quando a empresa for selecionada
         uploadcare.start({
-            publicKey: UPLOADCARE_PUBLIC_KEY,
+            publicKey: '5bb6bf6b98f6d36060dc', // Key padrão, será substituída
             locale: 'pt',
             tabs: 'file camera url facebook gdrive gphotos dropbox instagram',
             multiple: true,
@@ -460,10 +555,19 @@ function setupUploadcare() {
 async function handleLogin(e) {
     e.preventDefault();
     
+    const companyId = document.getElementById('companySelect').value;
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     
+    if (!companyId) {
+        alert('Por favor, selecione uma empresa');
+        return;
+    }
+    
     try {
+        // Inicializar empresa selecionada
+        initializeCompany(companyId);
+        
         // Primeiro, verificar se o usuário existe na nossa tabela
         const { data: userData, error: userError } = await supabase
             .from('users')
@@ -504,7 +608,10 @@ async function handleLogin(e) {
 
 async function handleLogout() {
     currentUser = null;
+    currentCompany = null;
+    supabase = null;
     localStorage.removeItem('nexusUser');
+    localStorage.removeItem('selectedCompany');
     showLogin();
 }
 
@@ -1663,6 +1770,13 @@ function showLogin() {
 function showDashboard() {
     loginPage.classList.add('hidden');
     dashboard.classList.remove('hidden');
+    
+    // Atualizar indicador da empresa
+    const companyIndicator = document.getElementById('companyIndicator');
+    if (companyIndicator && currentCompany) {
+        const config = getCurrentCompanyConfig();
+        companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
+    }
 }
 
 function populateClientSelect() {
