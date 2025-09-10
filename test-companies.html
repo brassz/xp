@@ -1,0 +1,124 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Multi-Empresas Nexus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Teste de Conexão Multi-Empresas</h1>
+        
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-8">
+            <!-- Teste Litoral Cred -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4 text-blue-300">LITORAL CRED</h2>
+                <div class="space-y-4">
+                    <div>
+                        <strong>URL:</strong> https://dtifsfzmnjnllzzlndxv.supabase.co
+                    </div>
+                    <div>
+                        <strong>Uploadcare Key:</strong> 026feb50f83d7cdfe4ea
+                    </div>
+                    <button id="testLitoral" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+                        Testar Conexão
+                    </button>
+                    <div id="litoralResult" class="mt-4 p-3 bg-gray-700 rounded hidden"></div>
+                </div>
+            </div>
+            
+            <!-- Teste Mogiana Cred -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4 text-green-300">MOGIANA CRED</h2>
+                <div class="space-y-4">
+                    <div>
+                        <strong>URL:</strong> https://eemfnpefgojllvzzaimu.supabase.co
+                    </div>
+                    <div>
+                        <strong>Uploadcare Key:</strong> 72349b0b9769d2be0d8c
+                    </div>
+                    <button id="testMogiana" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
+                        Testar Conexão
+                    </button>
+                    <div id="mogianaResult" class="mt-4 p-3 bg-gray-700 rounded hidden"></div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="mt-8 bg-gray-800 p-6 rounded-lg">
+            <h3 class="text-lg font-semibold mb-4">Log de Testes</h3>
+            <div id="testLog" class="space-y-2 text-sm"></div>
+        </div>
+    </div>
+
+    <script>
+        // Configurações das empresas
+        const COMPANIES = {
+            'litoral': {
+                name: 'LITORAL CRED',
+                supabaseUrl: 'https://dtifsfzmnjnllzzlndxv.supabase.co',
+                supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA',
+                uploadcareKey: '026feb50f83d7cdfe4ea'
+            },
+            'mogiana': {
+                name: 'MOGIANA CRED',
+                supabaseUrl: 'https://eemfnpefgojllvzzaimu.supabase.co',
+                supabaseKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y',
+                uploadcareKey: '72349b0b9769d2be0d8c'
+            }
+        };
+
+        function addLog(message, type = 'info') {
+            const log = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const div = document.createElement('div');
+            div.className = `p-2 rounded ${type === 'success' ? 'bg-green-900 text-green-300' : 
+                             type === 'error' ? 'bg-red-900 text-red-300' : 'bg-blue-900 text-blue-300'}`;
+            div.innerHTML = `<span class="text-gray-400">[${timestamp}]</span> ${message}`;
+            log.appendChild(div);
+            log.scrollTop = log.scrollHeight;
+        }
+
+        async function testCompanyConnection(companyKey) {
+            const company = COMPANIES[companyKey];
+            const resultDiv = document.getElementById(companyKey + 'Result');
+            
+            try {
+                addLog(`Testando conexão com ${company.name}...`);
+                
+                // Criar cliente Supabase
+                const supabase = window.supabase.createClient(company.supabaseUrl, company.supabaseKey);
+                
+                // Testar conexão básica
+                const { data, error } = await supabase.from('users').select('count', { count: 'exact', head: true });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                resultDiv.className = 'mt-4 p-3 bg-green-900 text-green-300 rounded';
+                resultDiv.textContent = `✅ Conexão bem-sucedida! Database respondeu.`;
+                resultDiv.classList.remove('hidden');
+                
+                addLog(`✅ ${company.name}: Conexão estabelecida com sucesso`, 'success');
+                
+            } catch (error) {
+                resultDiv.className = 'mt-4 p-3 bg-red-900 text-red-300 rounded';
+                resultDiv.textContent = `❌ Erro na conexão: ${error.message}`;
+                resultDiv.classList.remove('hidden');
+                
+                addLog(`❌ ${company.name}: Erro na conexão - ${error.message}`, 'error');
+            }
+        }
+
+        // Event listeners
+        document.getElementById('testLitoral').addEventListener('click', () => testCompanyConnection('litoral'));
+        document.getElementById('testMogiana').addEventListener('click', () => testCompanyConnection('mogiana'));
+
+        // Log inicial
+        addLog('Sistema de teste multi-empresas inicializado');
+    </script>
+</body>
+</html>
