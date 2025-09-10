@@ -52,12 +52,12 @@ let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
 
 // Elementos DOM
-const companySelector = document.getElementById('companySelector');
 const loginPage = document.getElementById('loginPage');
 const dashboard = document.getElementById('dashboard');
 const loginForm = document.getElementById('loginForm');
 const logoutBtn = document.getElementById('logoutBtn');
-const switchCompanyBtn = document.getElementById('switchCompanyBtn');
+const companyDropdownBtn = document.getElementById('companyDropdownBtn');
+const companyDropdownMenu = document.getElementById('companyDropdownMenu');
 
 // Navegação
 const navLinks = document.querySelectorAll('.nav-link');
@@ -114,19 +114,18 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Inicializar aplicação
 async function initializeApp() {
-    // Verificar se há empresa selecionada
-    const savedCompany = localStorage.getItem('selectedCompany');
-    
-    if (savedCompany) {
+    // Verificar se há usuário logado
+    const savedUser = localStorage.getItem('nexusUser');
+    if (savedUser) {
         try {
-            initializeCompany(savedCompany);
+            currentUser = JSON.parse(savedUser);
+            showDashboard();
             
-            // Verificar se há usuário logado
-            const savedUser = localStorage.getItem('nexusUser');
-            if (savedUser) {
+            // Verificar se há empresa selecionada
+            const savedCompany = localStorage.getItem('selectedCompany');
+            if (savedCompany) {
                 try {
-                    currentUser = JSON.parse(savedUser);
-                    showDashboard();
+                    initializeCompany(savedCompany);
                     // Verificar e criar tabelas se necessário
                     await createTablesIfNotExist();
                     
@@ -135,19 +134,16 @@ async function initializeApp() {
                         await loadData();
                     }, 100);
                 } catch (error) {
-                    localStorage.removeItem('nexusUser');
-                    showLogin();
+                    console.error('Erro ao inicializar empresa salva:', error);
+                    localStorage.removeItem('selectedCompany');
                 }
-            } else {
-                showLogin();
             }
         } catch (error) {
-            console.error('Erro ao inicializar empresa salva:', error);
-            localStorage.removeItem('selectedCompany');
-            showCompanySelector();
+            localStorage.removeItem('nexusUser');
+            showLogin();
         }
     } else {
-        showCompanySelector();
+        showLogin();
     }
 }
 
@@ -156,7 +152,16 @@ function setupEventListeners() {
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
-    switchCompanyBtn.addEventListener('click', handleSwitchCompany);
+    
+    // Company dropdown
+    companyDropdownBtn.addEventListener('click', toggleCompanyDropdown);
+    
+    // Fechar dropdown quando clicar fora
+    document.addEventListener('click', function(event) {
+        if (!companyDropdownBtn.contains(event.target) && !companyDropdownMenu.contains(event.target)) {
+            companyDropdownMenu.classList.add('hidden');
+        }
+    });
     
     // Navegação
     navLinks.forEach(link => {
@@ -522,62 +527,32 @@ function initializeCompany(companyId) {
 }
 
 function updateCompanyIndicator(company) {
-    const companyIndicator = document.getElementById('companyIndicator');
-    const companyName = document.getElementById('companyName');
+    const currentCompanyIcon = document.getElementById('currentCompanyIcon');
+    const currentCompanyName = document.getElementById('currentCompanyName');
     
-    if (companyIndicator && companyName) {
-        companyName.textContent = company.name;
-        companyIndicator.style.backgroundColor = company.color;
-        companyIndicator.classList.remove('hidden');
+    if (currentCompanyIcon && currentCompanyName) {
+        currentCompanyName.textContent = company.name;
+        currentCompanyIcon.style.backgroundColor = company.color;
     }
 }
 
-function showCompanySelector() {
-    companySelector.classList.remove('hidden');
-    loginPage.classList.add('hidden');
-    dashboard.classList.add('hidden');
-}
-
-function hideCompanySelector() {
-    companySelector.classList.add('hidden');
+function toggleCompanyDropdown() {
+    companyDropdownMenu.classList.toggle('hidden');
 }
 
 function handleCompanySelection(companyId) {
     try {
         initializeCompany(companyId);
-        hideCompanySelector();
-        showLogin();
+        companyDropdownMenu.classList.add('hidden');
+        
+        // Se já estiver logado, recarregar dados
+        if (currentUser) {
+            loadData();
+        }
     } catch (error) {
         console.error('Erro ao selecionar empresa:', error);
         alert('Erro ao selecionar empresa. Tente novamente.');
     }
-}
-
-function resetToCompanySelector() {
-    currentCompany = null;
-    supabase = null;
-    currentUser = null;
-    
-    // Limpar dados
-    clients = [];
-    filteredClients = [];
-    loans = [];
-    filteredLoans = [];
-    expenses = [];
-    expenseCategories = [];
-    installments = [];
-    installmentPayments = [];
-    guarantors = [];
-    emergencyContacts = [];
-    cashTransactions = [];
-    cashSettings = null;
-    capitalRaisings = [];
-    capitalRaisingClients = [];
-    
-    localStorage.removeItem('selectedCompany');
-    localStorage.removeItem('currentUser');
-    
-    showCompanySelector();
 }
 
 // Handlers de autenticação
@@ -588,7 +563,13 @@ async function handleLogin(e) {
     const password = document.getElementById('loginPassword').value;
     
     if (!supabase) {
-        alert('Sistema não inicializado. Selecione uma empresa primeiro.');
+        // Destacar o dropdown de empresa
+        companyDropdownBtn.classList.add('company-dropdown-highlight');
+        setTimeout(() => {
+            companyDropdownBtn.classList.remove('company-dropdown-highlight');
+        }, 4000);
+        
+        alert('Nenhuma empresa selecionada. Por favor, selecione uma empresa no dropdown acima.');
         return;
     }
     
@@ -634,11 +615,24 @@ async function handleLogin(e) {
 async function handleLogout() {
     currentUser = null;
     localStorage.removeItem('nexusUser');
+    
+    // Limpar dados mas manter empresa selecionada
+    clients = [];
+    filteredClients = [];
+    loans = [];
+    filteredLoans = [];
+    expenses = [];
+    expenseCategories = [];
+    installments = [];
+    installmentPayments = [];
+    guarantors = [];
+    emergencyContacts = [];
+    cashTransactions = [];
+    cashSettings = null;
+    capitalRaisings = [];
+    capitalRaisingClients = [];
+    
     showLogin();
-}
-
-function handleSwitchCompany() {
-    resetToCompanySelector();
 }
 
 // Navegação

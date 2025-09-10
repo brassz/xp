@@ -11,9 +11,10 @@ O sistema Nexus foi expandido para suportar múltiplas empresas com bancos de da
 ## Características
 
 ### 🏢 Seleção de Empresa
-- Tela inicial com seleção visual de empresa
+- Dropdown integrado no header do dashboard
 - Cada empresa tem sua própria cor e identidade visual
 - Seleção salva automaticamente no navegador
+- Troca de empresa em tempo real sem logout
 
 ### 🗄️ Bancos de Dados Separados
 - Cada empresa possui seu próprio banco de dados Supabase
@@ -45,18 +46,20 @@ O sistema Nexus foi expandido para suportar múltiplas empresas com bancos de da
 ## Como Usar
 
 ### 1. Primeira Utilização
-1. Acesse o sistema
-2. Selecione a empresa desejada na tela inicial
-3. Faça login com suas credenciais da empresa selecionada
+1. Acesse o sistema e faça login normalmente
+2. No header do dashboard, clique no dropdown "Selecionar Empresa"
+3. Escolha a empresa desejada
+4. Os dados serão carregados automaticamente
 
 ### 2. Trocar de Empresa
-1. No dashboard, clique em "Trocar Empresa" no menu lateral
+1. No header do dashboard, clique no dropdown da empresa atual
 2. Selecione a nova empresa
-3. Faça login com as credenciais da nova empresa
+3. Os dados são atualizados automaticamente (sem necessidade de novo login)
 
 ### 3. Indicador Visual
-- No header do dashboard, você verá o nome da empresa atual
-- A cor do indicador corresponde à cor da empresa selecionada
+- No header do dashboard, você verá o nome da empresa atual no dropdown
+- A cor do ícone corresponde à cor da empresa selecionada
+- Se nenhuma empresa estiver selecionada, o dropdown será destacado ao tentar fazer login
 
 ## Estrutura Técnica
 
@@ -66,10 +69,9 @@ O sistema Nexus foi expandido para suportar múltiplas empresas com bancos de da
 
 ### Principais Funções Adicionadas
 - `initializeCompany(companyId)` - Inicializa uma empresa específica
-- `showCompanySelector()` - Exibe o seletor de empresas
+- `toggleCompanyDropdown()` - Abre/fecha o dropdown de empresas
 - `handleCompanySelection(companyId)` - Processa seleção de empresa
-- `resetToCompanySelector()` - Volta para seleção de empresa
-- `updateCompanyIndicator(company)` - Atualiza indicador visual
+- `updateCompanyIndicator(company)` - Atualiza indicador visual no header
 
 ### Armazenamento Local
 - `selectedCompany` - Empresa atualmente selecionada
@@ -91,8 +93,8 @@ Para adicionar uma nova empresa:
 
 ## Troubleshooting
 
-### Problema: "Sistema não inicializado"
-- **Solução**: Selecione uma empresa na tela inicial
+### Problema: "Nenhuma empresa selecionada"
+- **Solução**: Clique no dropdown de empresas no header e selecione uma empresa
 
 ### Problema: Dados não carregam
 - **Solução**: Verifique se as credenciais da empresa estão corretas

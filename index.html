@@ -224,64 +224,19 @@
             box-shadow: 0 12px 40px 0 rgba(31, 38, 135, 0.5);
             filter: brightness(1.1);
         }
+
+        .company-dropdown-highlight {
+            animation: pulse 2s infinite;
+            border: 2px solid #f59e0b !important;
+        }
+
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.7; }
+        }
     </style>
 </head>
 <body class="antialiased">
-    <!-- Company Selector -->
-    <div id="companySelector" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 via-gray-800 to-gray-900 hidden">
-        <div class="glass-card p-8 rounded-2xl w-full max-w-2xl">
-            <div class="text-center mb-8">
-                <div class="w-20 h-20 flex items-center justify-center mx-auto mb-4">
-                    <img src="assets/images/nexus-logo-circular.png" alt="Nexus Logo" class="w-20 h-20 object-contain">
-                </div>
-                <h1 class="text-3xl font-bold bg-gradient-to-r from-blue-400 to-purple-400 bg-clip-text text-transparent">
-                    Sistema Nexus
-                </h1>
-                <p class="text-gray-300 mt-2">Selecione a empresa para acessar</p>
-            </div>
-            
-            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
-                <!-- LITORAL CRED -->
-                <div class="company-card group cursor-pointer" onclick="handleCompanySelection('litoral')" style="border-color: #3b82f6;">
-                    <div class="p-6 text-center">
-                        <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style="background-color: rgba(59, 130, 246, 0.1);">
-                            <svg class="w-8 h-8" style="color: #3b82f6;" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a2 2 0 114 0 2 2 0 01-4 0zm8-2a2 2 0 100 4 2 2 0 000-4z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-semibold text-white mb-2">LITORAL CRED</h3>
-                        <p class="text-gray-400 text-sm">Gestão Financeira Litoral</p>
-                    </div>
-                </div>
-                
-                <!-- MOGIANA CRED -->
-                <div class="company-card group cursor-pointer" onclick="handleCompanySelection('mogiana')" style="border-color: #10b981;">
-                    <div class="p-6 text-center">
-                        <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style="background-color: rgba(16, 185, 129, 0.1);">
-                            <svg class="w-8 h-8" style="color: #10b981;" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a2 2 0 114 0 2 2 0 01-4 0zm8-2a2 2 0 100 4 2 2 0 000-4z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-semibold text-white mb-2">MOGIANA CRED</h3>
-                        <p class="text-gray-400 text-sm">Gestão Financeira Mogiana</p>
-                    </div>
-                </div>
-                
-                <!-- NEXUS Original -->
-                <div class="company-card group cursor-pointer" onclick="handleCompanySelection('nexus')" style="border-color: #8b5cf6;">
-                    <div class="p-6 text-center">
-                        <div class="w-16 h-16 mx-auto mb-4 rounded-full flex items-center justify-center" style="background-color: rgba(139, 92, 246, 0.1);">
-                            <svg class="w-8 h-8" style="color: #8b5cf6;" fill="currentColor" viewBox="0 0 20 20">
-                                <path fill-rule="evenodd" d="M4 4a2 2 0 00-2 2v8a2 2 0 002 2h12a2 2 0 002-2V6a2 2 0 00-2-2H4zm2 6a2 2 0 114 0 2 2 0 01-4 0zm8-2a2 2 0 100 4 2 2 0 000-4z" clip-rule="evenodd" />
-                            </svg>
-                        </div>
-                        <h3 class="text-xl font-semibold text-white mb-2">NEXUS</h3>
-                        <p class="text-gray-400 text-sm">Sistema Original</p>
-                    </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
     <!-- Login Page -->
     <div id="loginPage" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900 hidden">
@@ -410,13 +365,7 @@
 
             </nav>
             
-            <div class="absolute bottom-4 left-4 right-4 space-y-2">
-                <button id="switchCompanyBtn" class="w-full flex items-center justify-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7h12m0 0l-4-4m4 4l-4 4m0 6H4m0 0l4 4m-4-4l4-4"></path>
-                    </svg>
-                    <span>Trocar Empresa</span>
-                </button>
+            <div class="absolute bottom-4 left-4 right-4">
                 <button id="logoutBtn" class="w-full flex items-center justify-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
@@ -433,8 +382,50 @@
                 <div class="flex items-center justify-between">
                     <div class="flex items-center space-x-4">
                         <h1 class="text-2xl font-bold text-white">Dashboard</h1>
-                        <div id="companyIndicator" class="px-3 py-1 rounded-full text-sm font-semibold text-white hidden">
-                            <span id="companyName">Empresa</span>
+                        
+                        <!-- Company Selector Dropdown -->
+                        <div class="relative">
+                            <button id="companyDropdownBtn" class="flex items-center space-x-2 px-4 py-2 bg-gray-700 hover:bg-gray-600 rounded-lg transition-colors">
+                                <div id="currentCompanyIcon" class="w-3 h-3 rounded-full bg-gray-500"></div>
+                                <span id="currentCompanyName" class="text-white font-medium">Selecionar Empresa</span>
+                                <svg class="w-4 h-4 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                </svg>
+                            </button>
+                            
+                            <!-- Dropdown Menu -->
+                            <div id="companyDropdownMenu" class="absolute top-full left-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-xl border border-gray-700 hidden z-50">
+                                <div class="p-2">
+                                    <div class="text-xs text-gray-400 uppercase tracking-wide px-3 py-2">Selecionar Empresa</div>
+                                    
+                                    <!-- LITORAL CRED -->
+                                    <button onclick="handleCompanySelection('litoral')" class="w-full flex items-center space-x-3 px-3 py-2 hover:bg-gray-700 rounded-md transition-colors">
+                                        <div class="w-4 h-4 rounded-full" style="background-color: #3b82f6;"></div>
+                                        <div class="text-left">
+                                            <div class="text-white font-medium">LITORAL CRED</div>
+                                            <div class="text-xs text-gray-400">Gestão Financeira Litoral</div>
+                                        </div>
+                                    </button>
+                                    
+                                    <!-- MOGIANA CRED -->
+                                    <button onclick="handleCompanySelection('mogiana')" class="w-full flex items-center space-x-3 px-3 py-2 hover:bg-gray-700 rounded-md transition-colors">
+                                        <div class="w-4 h-4 rounded-full" style="background-color: #10b981;"></div>
+                                        <div class="text-left">
+                                            <div class="text-white font-medium">MOGIANA CRED</div>
+                                            <div class="text-xs text-gray-400">Gestão Financeira Mogiana</div>
+                                        </div>
+                                    </button>
+                                    
+                                    <!-- NEXUS Original -->
+                                    <button onclick="handleCompanySelection('nexus')" class="w-full flex items-center space-x-3 px-3 py-2 hover:bg-gray-700 rounded-md transition-colors">
+                                        <div class="w-4 h-4 rounded-full" style="background-color: #8b5cf6;"></div>
+                                        <div class="text-left">
+                                            <div class="text-white font-medium">NEXUS</div>
+                                            <div class="text-xs text-gray-400">Sistema Original</div>
+                                        </div>
+                                    </button>
+                                </div>
+                            </div>
                         </div>
                     </div>
                     <div class="flex items-center space-x-4">
