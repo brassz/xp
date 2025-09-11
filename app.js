@@ -895,9 +895,9 @@ function searchClients(searchTerm) {
             return (
                 client.name.toLowerCase().includes(term) ||
                 client.cpf.toLowerCase().includes(term) ||
-                client.phone.toLowerCase().includes(term) ||
-                client.email.toLowerCase().includes(term) ||
-                client.address.toLowerCase().includes(term)
+                (client.phone && client.phone.toLowerCase().includes(term)) ||
+                (client.email && client.email.toLowerCase().includes(term)) ||
+                (client.address && client.address.toLowerCase().includes(term))
             );
         });
     }
