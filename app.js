@@ -102,6 +102,15 @@ let clients = [];
 let filteredClients = [];
 let loans = [];
 let filteredLoans = [];
+
+// Variáveis para paginação de clientes
+let clientsPagination = {
+    currentPage: 0,
+    pageSize: 20,
+    hasMore: true,
+    isLoading: false,
+    totalClients: 0
+};
 let expenses = [];
 let expenseCategories = [];
 let installments = [];
@@ -350,6 +359,9 @@ function setupEventListeners() {
 
     // Botão de limpar busca de clientes
     document.getElementById('clearClientSearch').addEventListener('click', clearClientSearch);
+    
+    // Scroll infinito para tabela de clientes
+    setupClientsInfiniteScroll();
 
     // Campo de busca de empréstimos
     document.getElementById('loanSearchInput').addEventListener('input', function(e) {
@@ -715,24 +727,61 @@ async function loadData() {
     }
 }
 
-// Carregar clientes
-async function loadClients() {
+// Carregar clientes com paginação
+async function loadClients(reset = true) {
     try {
-        const { data, error } = await supabase
+        // Se reset for true, reiniciar a paginação
+        if (reset) {
+            clientsPagination.currentPage = 0;
+            clientsPagination.hasMore = true;
+            clients = [];
+            filteredClients = [];
+        }
+        
+        // Se não há mais dados ou já está carregando, não fazer nova requisição
+        if (!clientsPagination.hasMore || clientsPagination.isLoading) {
+            return;
+        }
+        
+        clientsPagination.isLoading = true;
+        showClientsLoadingIndicator();
+        
+        const from = clientsPagination.currentPage * clientsPagination.pageSize;
+        const to = from + clientsPagination.pageSize - 1;
+        
+        const { data, error, count } = await supabase
             .from('clients')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select('*', { count: 'exact' })
+            .order('created_at', { ascending: false })
+            .range(from, to);
         
         if (error) throw error;
         
-        clients = data || [];
+        const newClients = data || [];
+        
+        // Atualizar contadores de paginação
+        clientsPagination.totalClients = count || 0;
+        clientsPagination.hasMore = newClients.length === clientsPagination.pageSize;
+        clientsPagination.currentPage++;
+        
+        // Adicionar novos clientes à lista existente
+        clients = [...clients, ...newClients];
         filteredClients = [...clients];
-        renderClientsTable();
-        populateHistoryClientSelect();
+        
+        renderClientsTable(!reset); // append = !reset
+        if (reset) {
+            populateHistoryClientSelect();
+        }
         
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
-        clients = [];
+        if (reset) {
+            clients = [];
+            filteredClients = [];
+        }
+    } finally {
+        clientsPagination.isLoading = false;
+        hideClientsLoadingIndicator();
     }
 }
 
@@ -839,7 +888,7 @@ async function loadLoans() {
 }
 
 // Renderizar tabela de clientes
-function renderClientsTable() {
+function renderClientsTable(append = false) {
     const tbody = document.getElementById('clientsTableBody');
     
     if (filteredClients.length === 0) {
@@ -857,38 +906,155 @@ function renderClientsTable() {
         return;
     }
     
-    tbody.innerHTML = filteredClients.map(client => `
-        <tr class="table-row">
-            <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0 h-10 w-10">
-                        <div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
-                            <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
+    function createClientRow(client) {
+        return `
+            <tr class="table-row" data-client-id="${client.id}">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 h-10 w-10">
+                            <div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
+                                <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <div class="text-sm font-medium text-white">${client.name}</div>
                         </div>
                     </div>
-                    <div class="ml-4">
-                        <div class="text-sm font-medium text-white">${client.name}</div>
-                    </div>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.cpf}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.phone}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email}</td>
+                <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')" title="Ver informações">👁️</button>
+                    <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="openEditClientModal('${client.id}')" title="Editar cliente">✏️</button>
+                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
+                    <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')" title="Excluir cliente">🗑️</button>
+                </td>
+            </tr>
+        `;
+    }
+    
+    if (append) {
+        // Remove mensagem de carregamento se existir
+        const loadingRow = tbody.querySelector('.loading-row');
+        if (loadingRow) {
+            loadingRow.remove();
+        }
+        
+        // Calcular quantos clientes já estão na tabela
+        const currentRowCount = tbody.querySelectorAll('tr:not(.loading-row)').length;
+        
+        // Adicionar apenas os novos clientes (os que não estão na tabela ainda)
+        const newClients = filteredClients.slice(currentRowCount);
+        const newClientsHtml = newClients.map(createClientRow).join('');
+        
+        if (newClientsHtml) {
+            tbody.insertAdjacentHTML('beforeend', newClientsHtml);
+        }
+    } else {
+        // Renderizar todos os clientes do zero
+        const clientsHtml = filteredClients.map(createClientRow).join('');
+        tbody.innerHTML = clientsHtml;
+    }
+    
+    // Atualizar contador de clientes
+    updateClientsCount();
+}
+
+// Atualizar contador de clientes
+function updateClientsCount() {
+    const countElement = document.getElementById('clientsCount');
+    if (countElement) {
+        const displayedCount = filteredClients.length;
+        const totalCount = clientsPagination.totalClients;
+        
+        if (totalCount > displayedCount && clientsPagination.hasMore) {
+            countElement.textContent = `${displayedCount} de ${totalCount} clientes`;
+            countElement.className = "text-sm text-blue-400 bg-gray-700 px-3 py-1 rounded-full";
+        } else if (totalCount > 0) {
+            countElement.textContent = `${displayedCount} cliente${displayedCount !== 1 ? 's' : ''}`;
+            countElement.className = "text-sm text-gray-400 bg-gray-700 px-3 py-1 rounded-full";
+        } else {
+            countElement.textContent = "0 clientes";
+            countElement.className = "text-sm text-gray-400 bg-gray-700 px-3 py-1 rounded-full";
+        }
+    }
+}
+
+// Funções para indicador de carregamento de clientes
+function showClientsLoadingIndicator() {
+    const tbody = document.getElementById('clientsTableBody');
+    const existingLoading = tbody.querySelector('.loading-row');
+    
+    if (!existingLoading && tbody.children.length > 0) {
+        const loadingRow = document.createElement('tr');
+        loadingRow.className = 'loading-row';
+        loadingRow.innerHTML = `
+            <td colspan="6" class="px-6 py-4 text-center text-gray-400">
+                <div class="flex items-center justify-center space-x-2">
+                    <div class="animate-spin rounded-full h-4 w-4 border-b-2 border-blue-400"></div>
+                    <span>Carregando mais clientes...</span>
                 </div>
             </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.cpf}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.phone}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email}</td>
-            <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')" title="Ver informações">👁️</button>
-                <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="openEditClientModal('${client.id}')" title="Editar cliente">✏️</button>
-                <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
-                <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')" title="Excluir cliente">🗑️</button>
-            </td>
-        </tr>
-    `).join('');
+        `;
+        tbody.appendChild(loadingRow);
+    }
+}
+
+function hideClientsLoadingIndicator() {
+    const tbody = document.getElementById('clientsTableBody');
+    const loadingRow = tbody.querySelector('.loading-row');
+    if (loadingRow) {
+        loadingRow.remove();
+    }
+}
+
+// Configurar scroll infinito para clientes
+function setupClientsInfiniteScroll() {
+    const clientsSection = document.getElementById('clients');
+    const tableContainer = clientsSection.querySelector('.table-container');
+    
+    if (!tableContainer) return;
+    
+    // Debounce function para evitar múltiplas chamadas
+    let scrollTimeout;
+    
+    tableContainer.addEventListener('scroll', function() {
+        // Limpar timeout anterior
+        clearTimeout(scrollTimeout);
+        
+        // Definir novo timeout
+        scrollTimeout = setTimeout(function() {
+            // Verificar se está próximo do final da tabela
+            const scrollTop = tableContainer.scrollTop;
+            const scrollHeight = tableContainer.scrollHeight;
+            const clientHeight = tableContainer.clientHeight;
+            
+            // Se estiver a 200px do final e não estiver carregando
+            if (scrollHeight - scrollTop - clientHeight < 200) {
+                // Verificar se a seção de clientes está ativa
+                const isClientsActive = !clientsSection.classList.contains('hidden');
+                
+                if (isClientsActive && clientsPagination.hasMore && !clientsPagination.isLoading) {
+                    console.log('Carregando mais clientes... Página:', clientsPagination.currentPage + 1);
+                    loadClients(false); // false = não resetar, apenas adicionar mais
+                }
+            }
+        }, 100); // 100ms de debounce
+    });
 }
 
 // Função para buscar clientes
 function searchClients(searchTerm) {
     if (!searchTerm || searchTerm.trim() === '') {
-        filteredClients = [...clients];
+        // Se não há termo de busca, recarregar todos os clientes com paginação
+        if (clients.length === 0 || clientsPagination.currentPage === 1) {
+            loadClients(true); // Reset e carrega primeira página
+        } else {
+            filteredClients = [...clients];
+            renderClientsTable();
+        }
     } else {
         const term = searchTerm.toLowerCase().trim();
         filteredClients = clients.filter(client => {
@@ -900,8 +1066,8 @@ function searchClients(searchTerm) {
                 (client.address && client.address.toLowerCase().includes(term))
             );
         });
+        renderClientsTable();
     }
-    renderClientsTable();
 }
 
 // Função para limpar busca de clientes
@@ -909,8 +1075,8 @@ function clearClientSearch() {
     const searchInput = document.getElementById('clientSearchInput');
     if (searchInput) {
         searchInput.value = '';
-        filteredClients = [...clients];
-        renderClientsTable();
+        // Recarregar clientes com paginação
+        loadClients(true);
     }
 }
 
