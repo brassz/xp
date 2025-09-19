@@ -111,6 +111,16 @@ let emergencyContacts = [];
 let cashTransactions = [];
 let cashSettings = null;
 let capitalRaisings = [];
+
+// Controle de paginação para clientes
+let clientsPagination = {
+    currentPage: 0,
+    pageSize: 20,
+    totalClients: 0,
+    isLoading: false,
+    hasMore: true,
+    isSearching: false
+};
 let capitalRaisingClients = [];
 
 let charts = {};
@@ -343,13 +353,25 @@ function setupEventListeners() {
     });
 
     // Campo de busca de clientes na aba principal
+    let searchTimeout;
     document.getElementById('clientSearchInput').addEventListener('input', function(e) {
         const searchTerm = e.target.value;
-        searchClients(searchTerm);
+        
+        // Debounce para evitar muitas requisições
+        clearTimeout(searchTimeout);
+        searchTimeout = setTimeout(() => {
+            searchClients(searchTerm);
+        }, 300);
     });
 
     // Botão de limpar busca de clientes
     document.getElementById('clearClientSearch').addEventListener('click', clearClientSearch);
+
+    // Scroll infinito para a tabela de clientes
+    const clientsTableContainer = document.getElementById('clientsTableContainer');
+    if (clientsTableContainer) {
+        clientsTableContainer.addEventListener('scroll', handleClientsTableScroll);
+    }
 
     // Campo de busca de empréstimos
     document.getElementById('loanSearchInput').addEventListener('input', function(e) {
@@ -716,24 +738,89 @@ async function loadData() {
 }
 
 // Carregar clientes
-async function loadClients() {
+async function loadClients(resetPagination = true) {
+    if (clientsPagination.isLoading) return;
+    
     try {
+        clientsPagination.isLoading = true;
+        
+        if (resetPagination) {
+            clientsPagination.currentPage = 0;
+            clientsPagination.hasMore = true;
+            clients = [];
+            filteredClients = [];
+        }
+        
+        const offset = clientsPagination.currentPage * clientsPagination.pageSize;
+        
+        // Primeiro, obter o total de clientes
+        const { count, error: countError } = await supabase
+            .from('clients')
+            .select('*', { count: 'exact', head: true });
+            
+        if (countError) throw countError;
+        
+        clientsPagination.totalClients = count || 0;
+        
+        // Depois, carregar a página atual
         const { data, error } = await supabase
             .from('clients')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .range(offset, offset + clientsPagination.pageSize - 1);
         
         if (error) throw error;
         
-        clients = data || [];
-        filteredClients = [...clients];
+        const newClients = data || [];
+        
+        if (resetPagination) {
+            clients = newClients;
+            filteredClients = [...clients];
+        } else {
+            clients = [...clients, ...newClients];
+            if (!clientsPagination.isSearching) {
+                filteredClients = [...clients];
+            }
+        }
+        
+        // Verificar se há mais dados para carregar
+        clientsPagination.hasMore = clients.length < clientsPagination.totalClients;
+        
         renderClientsTable();
-        populateHistoryClientSelect();
+        
+        if (resetPagination) {
+            populateHistoryClientSelect();
+        }
         
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
-        clients = [];
+        if (resetPagination) {
+            clients = [];
+            filteredClients = [];
+        }
+    } finally {
+        clientsPagination.isLoading = false;
     }
+}
+
+// Carregar mais clientes (para scroll infinito)
+async function loadMoreClients() {
+    if (!clientsPagination.hasMore || clientsPagination.isLoading || clientsPagination.isSearching) {
+        return;
+    }
+    
+    clientsPagination.currentPage++;
+    await loadClients(false);
+}
+
+// Função utilitária para resetar paginação de clientes
+function resetClientsPagination() {
+    clientsPagination.currentPage = 0;
+    clientsPagination.hasMore = true;
+    clientsPagination.isLoading = false;
+    clientsPagination.isSearching = false;
+    clients = [];
+    filteredClients = [];
 }
 
 // Carregar avalistas
@@ -842,7 +929,7 @@ async function loadLoans() {
 function renderClientsTable() {
     const tbody = document.getElementById('clientsTableBody');
     
-    if (filteredClients.length === 0) {
+    if (filteredClients.length === 0 && !clientsPagination.isLoading) {
         const message = clients.length === 0 
             ? 'Nenhum cliente cadastrado ainda'
             : 'Nenhum cliente encontrado com os critérios de busca';
@@ -857,7 +944,7 @@ function renderClientsTable() {
         return;
     }
     
-    tbody.innerHTML = filteredClients.map(client => `
+    let html = filteredClients.map(client => `
         <tr class="table-row">
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="flex items-center">
@@ -883,13 +970,49 @@ function renderClientsTable() {
             </td>
         </tr>
     `).join('');
+    
+    // Adicionar indicador de carregamento se estiver carregando mais dados
+    if (clientsPagination.isLoading && filteredClients.length > 0) {
+        html += `
+            <tr id="clients-loading-row">
+                <td colspan="6" class="px-6 py-4 text-center text-gray-400">
+                    <div class="flex items-center justify-center py-2">
+                        <div class="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-400 mr-3"></div>
+                        <span class="text-sm">Carregando mais clientes...</span>
+                    </div>
+                </td>
+            </tr>
+        `;
+    } else if (clientsPagination.hasMore && !clientsPagination.isSearching && filteredClients.length > 0 && !clientsPagination.isLoading) {
+        html += `
+            <tr id="clients-load-more-row">
+                <td colspan="6" class="px-6 py-4 text-center">
+                    <button onclick="loadMoreClients()" class="text-blue-400 hover:text-blue-300 text-sm py-2 px-4 rounded hover:bg-gray-700 transition-colors">
+                        Carregar mais clientes (${filteredClients.length} de ${clientsPagination.totalClients})
+                    </button>
+                </td>
+            </tr>
+        `;
+    } else if (!clientsPagination.hasMore && !clientsPagination.isSearching && filteredClients.length > 0) {
+        html += `
+            <tr>
+                <td colspan="6" class="px-6 py-4 text-center text-gray-500 text-sm">
+                    Todos os clientes foram carregados (${filteredClients.length} total)
+                </td>
+            </tr>
+        `;
+    }
+    
+    tbody.innerHTML = html;
 }
 
 // Função para buscar clientes
 function searchClients(searchTerm) {
     if (!searchTerm || searchTerm.trim() === '') {
+        clientsPagination.isSearching = false;
         filteredClients = [...clients];
     } else {
+        clientsPagination.isSearching = true;
         const term = searchTerm.toLowerCase().trim();
         filteredClients = clients.filter(client => {
             return (
@@ -909,8 +1032,24 @@ function clearClientSearch() {
     const searchInput = document.getElementById('clientSearchInput');
     if (searchInput) {
         searchInput.value = '';
+        clientsPagination.isSearching = false;
         filteredClients = [...clients];
         renderClientsTable();
+    }
+}
+
+// Handler para scroll infinito na tabela de clientes
+function handleClientsTableScroll(event) {
+    const container = event.target;
+    const scrollTop = container.scrollTop;
+    const scrollHeight = container.scrollHeight;
+    const clientHeight = container.clientHeight;
+    
+    // Verificar se chegou perto do final (80% do scroll)
+    const scrollPercentage = (scrollTop + clientHeight) / scrollHeight;
+    
+    if (scrollPercentage >= 0.8 && !clientsPagination.isLoading && clientsPagination.hasMore && !clientsPagination.isSearching) {
+        loadMoreClients();
     }
 }
 
