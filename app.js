@@ -100,6 +100,10 @@ function getCurrentCompanyConfig() {
 let currentUser = null;
 let clients = [];
 let filteredClients = [];
+let currentPage = 1;
+const itemsPerPage = 50; // Limitar a 50 clientes por página
+let clientsLastLoaded = null; // Timestamp do último carregamento
+const CACHE_DURATION = 30000; // Cache por 30 segundos
 let loans = [];
 let filteredLoans = [];
 let expenses = [];
@@ -715,24 +719,75 @@ async function loadData() {
     }
 }
 
-// Carregar clientes
-async function loadClients() {
+// Carregar clientes com otimizações de performance e cache
+async function loadClients(forceReload = false) {
+    const now = Date.now();
+    
+    // Verificar se os dados ainda estão válidos no cache
+    if (!forceReload && clientsLastLoaded && (now - clientsLastLoaded) < CACHE_DURATION && clients.length > 0) {
+        console.log('Usando dados do cache para clientes');
+        renderClientsTable();
+        return;
+    }
+    
+    const loadingIndicator = document.getElementById('clientsLoadingIndicator');
+    
     try {
+        // Mostrar indicador de carregamento
+        if (loadingIndicator) {
+            loadingIndicator.classList.remove('hidden');
+        }
+        
+        console.log('Carregando clientes do servidor...');
+        
+        // Carregar apenas campos essenciais para a listagem inicial
         const { data, error } = await supabase
             .from('clients')
-            .select('*')
+            .select('id, name, cpf, phone, email, address, created_at')
             .order('created_at', { ascending: false });
         
         if (error) throw error;
         
         clients = data || [];
         filteredClients = [...clients];
+        currentPage = 1; // Resetar para primeira página
+        clientsLastLoaded = now; // Atualizar timestamp do cache
+        
+        console.log(`${clients.length} clientes carregados`);
+        
+        // Renderizar tabela e popular select do histórico de forma assíncrona
         renderClientsTable();
-        populateHistoryClientSelect();
+        
+        // Popular select do histórico de forma não-bloqueante
+        setTimeout(() => {
+            populateHistoryClientSelect();
+        }, 100);
         
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
         clients = [];
+        filteredClients = [];
+        
+        // Mostrar erro na tabela
+        const tbody = document.getElementById('clientsTableBody');
+        if (tbody) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-red-400">
+                        Erro ao carregar clientes. Tente novamente.
+                        <br>
+                        <button onclick="loadClients(true)" class="mt-2 text-blue-400 hover:text-blue-300 underline">
+                            Tentar novamente
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+    } finally {
+        // Esconder indicador de carregamento
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
     }
 }
 
@@ -838,70 +893,105 @@ async function loadLoans() {
     }
 }
 
-// Renderizar tabela de clientes
+// Renderizar tabela de clientes com paginação
 function renderClientsTable() {
     const tbody = document.getElementById('clientsTableBody');
+    const loadingIndicator = document.getElementById('clientsLoadingIndicator');
     
-    if (filteredClients.length === 0) {
-        const message = clients.length === 0 
-            ? 'Nenhum cliente cadastrado ainda'
-            : 'Nenhum cliente encontrado com os critérios de busca';
-        
-        tbody.innerHTML = `
-            <tr>
-                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
-                    ${message}
-                </td>
-            </tr>
-        `;
-        return;
+    // Mostrar indicador de carregamento
+    if (loadingIndicator) {
+        loadingIndicator.classList.remove('hidden');
     }
     
-    tbody.innerHTML = filteredClients.map(client => `
-        <tr class="table-row">
-            <td class="px-6 py-4 whitespace-nowrap">
-                <div class="flex items-center">
-                    <div class="flex-shrink-0 h-10 w-10">
-                        <div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
-                            <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
+    // Usar setTimeout para não bloquear a UI durante a renderização
+    setTimeout(() => {
+        if (filteredClients.length === 0) {
+            const message = clients.length === 0 
+                ? 'Nenhum cliente cadastrado ainda'
+                : 'Nenhum cliente encontrado com os critérios de busca';
+            
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-400">
+                        ${message}
+                    </td>
+                </tr>
+            `;
+            updatePaginationControls(0);
+            if (loadingIndicator) {
+                loadingIndicator.classList.add('hidden');
+            }
+            return;
+        }
+        
+        // Calcular índices para paginação
+        const startIndex = (currentPage - 1) * itemsPerPage;
+        const endIndex = Math.min(startIndex + itemsPerPage, filteredClients.length);
+        const clientsToShow = filteredClients.slice(startIndex, endIndex);
+        
+        // Renderizar apenas os clientes da página atual
+        tbody.innerHTML = clientsToShow.map(client => `
+            <tr class="table-row">
+                <td class="px-6 py-4 whitespace-nowrap">
+                    <div class="flex items-center">
+                        <div class="flex-shrink-0 h-10 w-10">
+                            <div class="h-10 w-10 rounded-full bg-gray-600 flex items-center justify-center">
+                                <span class="text-white font-semibold">${client.name.charAt(0).toUpperCase()}</span>
+                            </div>
+                        </div>
+                        <div class="ml-4">
+                            <div class="text-sm font-medium text-white">${client.name}</div>
                         </div>
                     </div>
-                    <div class="ml-4">
-                        <div class="text-sm font-medium text-white">${client.name}</div>
-                    </div>
-                </div>
-            </td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.cpf}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.phone}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email}</td>
-            <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address}</td>
-            <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')" title="Ver informações">👁️</button>
-                <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="openEditClientModal('${client.id}')" title="Editar cliente">✏️</button>
-                <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
-                <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')" title="Excluir cliente">🗑️</button>
-            </td>
-        </tr>
-    `).join('');
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.cpf}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.phone || ''}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${client.email || ''}</td>
+                <td class="px-6 py-4 text-sm text-gray-300 max-w-xs truncate">${client.address || ''}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editClient('${client.id}')" title="Ver informações">👁️</button>
+                    <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="openEditClientModal('${client.id}')" title="Editar cliente">✏️</button>
+                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="openClientDocuments('${client.id}', '${client.name}')" title="Documentos">📄</button>
+                    <button class="text-red-400 hover:text-red-300" onclick="deleteClient('${client.id}')" title="Excluir cliente">🗑️</button>
+                </td>
+            </tr>
+        `).join('');
+        
+        // Atualizar controles de paginação
+        updatePaginationControls(filteredClients.length);
+        
+        // Esconder indicador de carregamento
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
+    }, 10);
 }
 
-// Função para buscar clientes
+// Função para buscar clientes com debounce para melhor performance
+let searchTimeout;
 function searchClients(searchTerm) {
-    if (!searchTerm || searchTerm.trim() === '') {
-        filteredClients = [...clients];
-    } else {
-        const term = searchTerm.toLowerCase().trim();
-        filteredClients = clients.filter(client => {
-            return (
-                client.name.toLowerCase().includes(term) ||
-                client.cpf.toLowerCase().includes(term) ||
-                (client.phone && client.phone.toLowerCase().includes(term)) ||
-                (client.email && client.email.toLowerCase().includes(term)) ||
-                (client.address && client.address.toLowerCase().includes(term))
-            );
-        });
-    }
-    renderClientsTable();
+    // Limpar timeout anterior para implementar debounce
+    clearTimeout(searchTimeout);
+    
+    searchTimeout = setTimeout(() => {
+        currentPage = 1; // Resetar para primeira página ao buscar
+        
+        if (!searchTerm || searchTerm.trim() === '') {
+            filteredClients = [...clients];
+        } else {
+            const term = searchTerm.toLowerCase().trim();
+            filteredClients = clients.filter(client => {
+                return (
+                    client.name.toLowerCase().includes(term) ||
+                    client.cpf.toLowerCase().includes(term) ||
+                    (client.phone && client.phone.toLowerCase().includes(term)) ||
+                    (client.email && client.email.toLowerCase().includes(term)) ||
+                    (client.address && client.address.toLowerCase().includes(term))
+                );
+            });
+        }
+        renderClientsTable();
+    }, 300); // Aguardar 300ms após parar de digitar
 }
 
 // Função para limpar busca de clientes
@@ -910,8 +1000,94 @@ function clearClientSearch() {
     if (searchInput) {
         searchInput.value = '';
         filteredClients = [...clients];
+        currentPage = 1;
         renderClientsTable();
     }
+}
+
+// Função para atualizar controles de paginação
+function updatePaginationControls(totalItems) {
+    const totalPages = Math.ceil(totalItems / itemsPerPage);
+    const paginationContainer = document.getElementById('clientsPagination');
+    
+    if (!paginationContainer) return;
+    
+    if (totalPages <= 1) {
+        paginationContainer.classList.add('hidden');
+        return;
+    }
+    
+    paginationContainer.classList.remove('hidden');
+    
+    const startItem = totalItems === 0 ? 0 : (currentPage - 1) * itemsPerPage + 1;
+    const endItem = Math.min(currentPage * itemsPerPage, totalItems);
+    
+    paginationContainer.innerHTML = `
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-400">
+                Mostrando ${startItem} a ${endItem} de ${totalItems} clientes
+            </div>
+            <div class="flex items-center space-x-2">
+                <button 
+                    class="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onclick="changePage(${currentPage - 1})"
+                    ${currentPage <= 1 ? 'disabled' : ''}
+                >
+                    Anterior
+                </button>
+                
+                <div class="flex space-x-1">
+                    ${generatePageNumbers(currentPage, totalPages)}
+                </div>
+                
+                <button 
+                    class="px-3 py-1 text-sm bg-gray-700 text-white rounded hover:bg-gray-600 disabled:opacity-50 disabled:cursor-not-allowed"
+                    onclick="changePage(${currentPage + 1})"
+                    ${currentPage >= totalPages ? 'disabled' : ''}
+                >
+                    Próximo
+                </button>
+            </div>
+        </div>
+    `;
+}
+
+// Função para gerar números das páginas
+function generatePageNumbers(current, total) {
+    const pages = [];
+    const maxVisible = 5;
+    let start = Math.max(1, current - Math.floor(maxVisible / 2));
+    let end = Math.min(total, start + maxVisible - 1);
+    
+    if (end - start < maxVisible - 1) {
+        start = Math.max(1, end - maxVisible + 1);
+    }
+    
+    for (let i = start; i <= end; i++) {
+        const isActive = i === current;
+        pages.push(`
+            <button 
+                class="px-3 py-1 text-sm rounded ${isActive 
+                    ? 'bg-blue-600 text-white' 
+                    : 'bg-gray-700 text-gray-300 hover:bg-gray-600'}"
+                onclick="changePage(${i})"
+            >
+                ${i}
+            </button>
+        `);
+    }
+    
+    return pages.join('');
+}
+
+// Função para mudar página
+function changePage(newPage) {
+    const totalPages = Math.ceil(filteredClients.length / itemsPerPage);
+    
+    if (newPage < 1 || newPage > totalPages) return;
+    
+    currentPage = newPage;
+    renderClientsTable();
 }
 
 // Função para buscar empréstimos
@@ -1292,7 +1468,7 @@ async function handleNewClient(e) {
         document.getElementById('emergencyContactSection').classList.add('hidden');
         clearNewClientEmergencyContactForm();
         
-        await loadClients();
+        await loadClients(true); // Forçar reload para invalidar cache
         await loadGuarantors();
         await loadEmergencyContacts();
         await updateDashboard();
@@ -1634,7 +1810,7 @@ async function handleEditClient(e) {
         hideModal(editClientModal);
         
         // Recarregar dados
-        await loadClients();
+        await loadClients(true); // Forçar reload para invalidar cache
         await updateDashboard();
         
         // Mostrar mensagem de sucesso
@@ -4181,7 +4357,7 @@ async function performDeleteClient(clientId) {
         hideModal(document.getElementById('confirmationModal'));
         
         // Recarregar dados
-        await loadClients();
+        await loadClients(true); // Forçar reload para invalidar cache
         await updateDashboard();
         
         // Mostrar mensagem de sucesso
