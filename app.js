@@ -103,7 +103,44 @@ let filteredClients = [];
 let currentPage = 1;
 const itemsPerPage = 50; // Limitar a 50 clientes por página
 let clientsLastLoaded = null; // Timestamp do último carregamento
-const CACHE_DURATION = 30000; // Cache por 30 segundos
+const CACHE_DURATION = 120000; // Cache por 2 minutos para melhor performance
+
+// Função para invalidar todos os caches quando dados são modificados
+function invalidateCache() {
+    console.log('Invalidando caches para garantir dados atualizados');
+    clientsLastLoaded = null;
+    loansLastLoaded = null;
+    expensesLastLoaded = null;
+    cashTransactionsLastLoaded = null;
+}
+
+// Função para mostrar indicador de carregamento global
+function showGlobalLoading(message = 'Carregando dados...') {
+    const existingIndicator = document.getElementById('globalLoadingIndicator');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+    
+    const indicator = document.createElement('div');
+    indicator.id = 'globalLoadingIndicator';
+    indicator.className = 'fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2';
+    indicator.innerHTML = `
+        <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(indicator);
+}
+
+// Função para ocultar indicador de carregamento global
+function hideGlobalLoading() {
+    const indicator = document.getElementById('globalLoadingIndicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
 let loans = [];
 let filteredLoans = [];
 let expenses = [];
@@ -686,34 +723,54 @@ async function loadData() {
     }
     
     isLoadingData = true;
+    showGlobalLoading('Carregando dados essenciais...');
     console.log('Iniciando carregamento de dados...');
     
     try {
         // Primeiro, testar a conectividade com categorias
         await testCategoriesConnection();
         
+        // Carregar dados críticos primeiro
+        showGlobalLoading('Carregando clientes e configurações...');
         await Promise.all([
             loadClients(),
-            loadLoans(),
-            loadExpenses(),
             loadExpenseCategories(),
-            loadGuarantors(),
-            loadEmergencyContacts(),
-            loadCashTransactions(),
-            loadCashSettings(),
-            loadCapitalRaisings(),
-
+            loadCashSettings()
         ]);
         
-        // Carregar empréstimos quitados separadamente
-        await renderPaidLoansTable();
+        // Carregar dados principais em segundo plano
+        showGlobalLoading('Carregando empréstimos e despesas...');
+        await Promise.all([
+            loadLoans(),
+            loadExpenses(),
+            loadCashTransactions()
+        ]);
         
+        // Atualizar dashboard primeiro para mostrar dados principais
         await updateDashboard();
         await updateCharts();
         
-        console.log('Dados carregados com sucesso');
+        hideGlobalLoading();
+        
+        // Carregar dados complementares por último (lazy loading)
+        setTimeout(async () => {
+            console.log('Carregando dados complementares em segundo plano...');
+            await Promise.all([
+                loadGuarantors(),
+                loadEmergencyContacts(),
+                loadCapitalRaisings()
+            ]);
+        }, 500);
+        
+        // Carregar empréstimos quitados separadamente
+        setTimeout(() => {
+            renderPaidLoansTable();
+        }, 1000);
+        
+        console.log('Dados principais carregados com sucesso');
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
+        hideGlobalLoading();
     } finally {
         isLoadingData = false;
     }
@@ -866,26 +923,43 @@ async function loadClientEmergencyContacts(clientId) {
 }
 
 // Carregar empréstimos
-async function loadLoans() {
+// Cache para empréstimos
+let loansLastLoaded = null;
+
+async function loadLoans(forceReload = false) {
+    const now = Date.now();
+    
+    // Verificar cache
+    if (!forceReload && loansLastLoaded && (now - loansLastLoaded) < CACHE_DURATION && loans.length > 0) {
+        console.log('Usando dados do cache para empréstimos');
+        await renderLoansTable();
+        return;
+    }
+    
     try {
+        console.log('Carregando empréstimos do servidor...');
+        
+        // Consulta otimizada carregando apenas campos essenciais
         const { data, error } = await supabase
             .from('loans')
             .select(`
-                *,
+                id, amount, client_id, status, payment_method, due_date, created_at,
                 clients (
                     name,
-                    cpf,
-                    email,
-                    phone
+                    cpf
                 )
             `)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .limit(100); // Limitar consulta inicial
         
         if (error) throw error;
         
         loans = data || [];
-        filteredLoans = [...loans]; // Inicializar filteredLoans
+        filteredLoans = [...loans];
+        loansLastLoaded = now;
+        
         await renderLoansTable();
+        console.log(`${loans.length} empréstimos carregados`);
         
     } catch (error) {
         console.error('Erro ao carregar empréstimos:', error);
@@ -1468,6 +1542,7 @@ async function handleNewClient(e) {
         document.getElementById('emergencyContactSection').classList.add('hidden');
         clearNewClientEmergencyContactForm();
         
+        invalidateCache(); // Invalidar todos os caches
         await loadClients(true); // Forçar reload para invalidar cache
         await loadGuarantors();
         await loadEmergencyContacts();
@@ -1810,6 +1885,7 @@ async function handleEditClient(e) {
         hideModal(editClientModal);
         
         // Recarregar dados
+        invalidateCache(); // Invalidar todos os caches
         await loadClients(true); // Forçar reload para invalidar cache
         await updateDashboard();
         
@@ -4357,6 +4433,7 @@ async function performDeleteClient(clientId) {
         hideModal(document.getElementById('confirmationModal'));
         
         // Recarregar dados
+        invalidateCache(); // Invalidar todos os caches
         await loadClients(true); // Forçar reload para invalidar cache
         await updateDashboard();
         
@@ -5971,14 +6048,27 @@ async function handleNewExpense(e) {
 }
 
 // Carregar despesas
-async function loadExpenses() {
+// Cache para despesas
+let expensesLastLoaded = null;
+
+async function loadExpenses(forceReload = false) {
+    const now = Date.now();
+    
+    // Verificar cache
+    if (!forceReload && expensesLastLoaded && (now - expensesLastLoaded) < CACHE_DURATION && expenses.length > 0) {
+        console.log('Usando dados do cache para despesas');
+        renderExpensesTable();
+        return;
+    }
+    
     try {
-        // First, get the expenses with user information
+        console.log('Carregando despesas do servidor...');
+        
+        // Consulta otimizada carregando apenas campos essenciais
         let expensesQuery = supabase.from('expenses')
             .select(`
-                *,
-                users!expenses_user_id_fkey(full_name, email, role),
-                created_by_user:users!expenses_created_by_fkey(full_name, email, role)
+                id, description, amount, category_id, date, status, payment_method, user_id,
+                users!expenses_user_id_fkey(full_name)
             `);
         
         // Se não for admin ou manager, filtrar apenas despesas próprias
@@ -5987,7 +6077,8 @@ async function loadExpenses() {
         }
         
         const { data: expensesData, error: expensesError } = await expensesQuery
-            .order('date', { ascending: false });
+            .order('date', { ascending: false })
+            .limit(50); // Limitar consulta inicial
             
         if (expensesError) throw expensesError;
         
@@ -6011,8 +6102,11 @@ async function loadExpenses() {
             expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null
         }));
         
+        expensesLastLoaded = now;
+        
         displayExpenses();
         updateExpensesSummary();
+        console.log(`${expenses.length} despesas carregadas`);
         
     } catch (error) {
         console.error('Erro ao carregar despesas:', error);
@@ -7941,19 +8035,39 @@ function contactClient(clientId, phone) {
 // ===================================================
 
 // Carregar transações de caixa
-async function loadCashTransactions() {
+// Cache para transações de caixa
+let cashTransactionsLastLoaded = null;
+
+async function loadCashTransactions(forceReload = false) {
+    const now = Date.now();
+    
+    // Verificar cache
+    if (!forceReload && cashTransactionsLastLoaded && (now - cashTransactionsLastLoaded) < CACHE_DURATION && cashTransactions.length > 0) {
+        console.log('Usando dados do cache para transações de caixa');
+        renderCashTransactionsTable();
+        updateCashSummary();
+        updateCashFlowChart();
+        return;
+    }
+    
     try {
+        console.log('Carregando transações de caixa do servidor...');
+        
         const { data, error } = await supabase
             .from('cash_transactions')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select('id, type, amount, description, created_at')
+            .order('created_at', { ascending: false })
+            .limit(100); // Limitar consulta inicial
         
         if (error) throw error;
         
         cashTransactions = data || [];
+        cashTransactionsLastLoaded = now;
+        
         renderCashTransactionsTable();
         updateCashSummary();
         updateCashFlowChart();
+        console.log(`${cashTransactions.length} transações de caixa carregadas`);
         
     } catch (error) {
         console.error('Erro ao carregar transações de caixa:', error);
