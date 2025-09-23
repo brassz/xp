@@ -14,7 +14,7 @@ BEGIN
         'bruna@nexus.com',
         '1020', -- Mesma senha simples para demonstração
         'Bruna Nexus',
-        'user', -- Role de usuário normal (não admin)
+        'admin', -- Role de administrador
         true
     )
     ON CONFLICT (email) DO UPDATE SET
@@ -41,9 +41,9 @@ ORDER BY email;
 -- =====================================================
 -- 
 -- Após executar este script:
--- 1. O usuário bruna@nexus.com será criado com role 'user'
+-- 1. O usuário bruna@nexus.com será criado com role 'admin'
 -- 2. Ela poderá fazer login com senha '1020'
--- 3. Ela só verá suas próprias despesas
--- 4. O admin@nexus.com poderá ver todas as despesas (incluindo as da bruna)
+-- 3. Como admin, ela poderá ver todas as despesas e gerenciar todos os usuários
+-- 4. Ela terá os mesmos privilégios que admin@nexus.com
 --
 -- =====================================================
