@@ -103,7 +103,46 @@ let filteredClients = [];
 let currentPage = 1;
 const itemsPerPage = 50; // Limitar a 50 clientes por página
 let clientsLastLoaded = null; // Timestamp do último carregamento
-const CACHE_DURATION = 30000; // Cache por 30 segundos
+const CACHE_DURATION = 120000; // Cache por 2 minutos para melhor performance
+
+// Função para invalidar todos os caches quando dados são modificados
+function invalidateCache() {
+    console.log('Invalidando caches para garantir dados atualizados');
+    clientsLastLoaded = null;
+    loansLastLoaded = null;
+    expensesLastLoaded = null;
+    cashTransactionsLastLoaded = null;
+    paymentsCacheLastLoaded = null; // Invalidar cache de pagamentos também
+    paymentsCache = {}; // Limpar cache de pagamentos
+}
+
+// Função para mostrar indicador de carregamento global
+function showGlobalLoading(message = 'Carregando dados...') {
+    const existingIndicator = document.getElementById('globalLoadingIndicator');
+    if (existingIndicator) {
+        existingIndicator.remove();
+    }
+    
+    const indicator = document.createElement('div');
+    indicator.id = 'globalLoadingIndicator';
+    indicator.className = 'fixed top-4 right-4 z-50 bg-blue-600 text-white px-4 py-2 rounded-lg shadow-lg flex items-center space-x-2';
+    indicator.innerHTML = `
+        <svg class="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+            <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+            <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+        </svg>
+        <span>${message}</span>
+    `;
+    document.body.appendChild(indicator);
+}
+
+// Função para ocultar indicador de carregamento global
+function hideGlobalLoading() {
+    const indicator = document.getElementById('globalLoadingIndicator');
+    if (indicator) {
+        indicator.remove();
+    }
+}
 let loans = [];
 let filteredLoans = [];
 let expenses = [];
@@ -686,34 +725,54 @@ async function loadData() {
     }
     
     isLoadingData = true;
+    showGlobalLoading('Carregando dados essenciais...');
     console.log('Iniciando carregamento de dados...');
     
     try {
         // Primeiro, testar a conectividade com categorias
         await testCategoriesConnection();
         
+        // Carregar dados críticos primeiro
+        showGlobalLoading('Carregando clientes e configurações...');
         await Promise.all([
             loadClients(),
-            loadLoans(),
-            loadExpenses(),
             loadExpenseCategories(),
-            loadGuarantors(),
-            loadEmergencyContacts(),
-            loadCashTransactions(),
-            loadCashSettings(),
-            loadCapitalRaisings(),
-
+            loadCashSettings()
         ]);
         
-        // Carregar empréstimos quitados separadamente
-        await renderPaidLoansTable();
+        // Carregar dados principais em segundo plano
+        showGlobalLoading('Carregando empréstimos e despesas...');
+        await Promise.all([
+            loadLoans(),
+            loadExpenses(),
+            loadCashTransactions()
+        ]);
         
+        // Atualizar dashboard primeiro para mostrar dados principais
         await updateDashboard();
         await updateCharts();
         
-        console.log('Dados carregados com sucesso');
+        hideGlobalLoading();
+        
+        // Carregar dados complementares por último (lazy loading)
+        setTimeout(async () => {
+            console.log('Carregando dados complementares em segundo plano...');
+            await Promise.all([
+                loadGuarantors(),
+                loadEmergencyContacts(),
+                loadCapitalRaisings()
+            ]);
+        }, 500);
+        
+        // Carregar empréstimos quitados separadamente
+        setTimeout(() => {
+            renderPaidLoansTable();
+        }, 1000);
+        
+        console.log('Dados principais carregados com sucesso');
     } catch (error) {
         console.error('Erro ao carregar dados:', error);
+        hideGlobalLoading();
     } finally {
         isLoadingData = false;
     }
@@ -866,26 +925,43 @@ async function loadClientEmergencyContacts(clientId) {
 }
 
 // Carregar empréstimos
-async function loadLoans() {
+// Cache para empréstimos
+let loansLastLoaded = null;
+
+async function loadLoans(forceReload = false) {
+    const now = Date.now();
+    
+    // Verificar cache
+    if (!forceReload && loansLastLoaded && (now - loansLastLoaded) < CACHE_DURATION && loans.length > 0) {
+        console.log('Usando dados do cache para empréstimos');
+        await renderLoansTable();
+        return;
+    }
+    
     try {
+        console.log('Carregando empréstimos do servidor...');
+        
+        // Consulta otimizada carregando apenas campos essenciais
         const { data, error } = await supabase
             .from('loans')
             .select(`
-                *,
+                id, amount, client_id, status, payment_method, due_date, created_at,
                 clients (
                     name,
-                    cpf,
-                    email,
-                    phone
+                    cpf
                 )
             `)
-            .order('created_at', { ascending: false });
+            .order('created_at', { ascending: false })
+            .limit(100); // Limitar consulta inicial
         
         if (error) throw error;
         
         loans = data || [];
-        filteredLoans = [...loans]; // Inicializar filteredLoans
+        filteredLoans = [...loans];
+        loansLastLoaded = now;
+        
         await renderLoansTable();
+        console.log(`${loans.length} empréstimos carregados`);
         
     } catch (error) {
         console.error('Erro ao carregar empréstimos:', error);
@@ -1124,9 +1200,109 @@ function clearLoanSearch() {
     }
 }
 
-// Renderizar tabela de empréstimos
+// Cache para pagamentos por empréstimo
+let paymentsCache = {};
+let paymentsCacheLastLoaded = null;
+
+// Função para carregar todos os pagamentos em batch
+async function loadAllPaymentsBatch(loanIds) {
+    const now = Date.now();
+    
+    // Verificar cache (cache menor para pagamentos - 60 segundos)
+    if (paymentsCacheLastLoaded && (now - paymentsCacheLastLoaded) < 60000) {
+        console.log('Usando cache de pagamentos');
+        return paymentsCache;
+    }
+    
+    try {
+        // Carregar todos os pagamentos dos empréstimos em uma única consulta
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select('loan_id, amount, payment_type')
+            .in('loan_id', loanIds);
+        
+        if (error) throw error;
+        
+        // Organizar pagamentos por loan_id
+        const paymentsByLoan = {};
+        (payments || []).forEach(payment => {
+            if (!paymentsByLoan[payment.loan_id]) {
+                paymentsByLoan[payment.loan_id] = [];
+            }
+            paymentsByLoan[payment.loan_id].push(payment);
+        });
+        
+        paymentsCache = paymentsByLoan;
+        paymentsCacheLastLoaded = now;
+        
+        console.log(`Pagamentos de ${loanIds.length} empréstimos carregados em batch`);
+        return paymentsByLoan;
+    } catch (error) {
+        console.error('Erro ao carregar pagamentos em batch:', error);
+        return {};
+    }
+}
+
+// Função otimizada para calcular valor restante (sem consulta ao banco)
+function calculateRemainingAmountFast(loan, payments = []) {
+    const capitalAmount = parseFloat(loan.amount);
+    let interestRate = parseFloat(loan.interest_rate);
+    
+    // Ajustar taxa se necessário
+    if (interestRate > 100) {
+        interestRate = interestRate / 100;
+    }
+    
+    const interestAmount = capitalAmount * (interestRate / 100);
+    const totalWithInterest = capitalAmount + interestAmount;
+    
+    // Verificar se houve renovações
+    const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+    const hasRenewals = payments.some(p => p.payment_type === 'renewal');
+    
+    let totalPaid;
+    if (hasRenewals) {
+        // Se houve renovação, considerar apenas pagamentos após a última renovação
+        const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+        const paymentsAfterRenewal = realPayments.filter((payment, index) => {
+            const paymentIndex = payments.findIndex(p => p === payment);
+            return paymentIndex > lastRenewalIndex;
+        });
+        totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    } else {
+        totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    }
+    
+    // Calcular valor restante
+    let remainingAmount;
+    if (totalPaid === 0) {
+        remainingAmount = totalWithInterest;
+    } else {
+        const paidExactlyInterest = Math.abs(totalPaid - interestAmount) <= (interestAmount * 0.01);
+        const paidMoreThanInterest = totalPaid > interestAmount;
+        
+        if (paidExactlyInterest) {
+            remainingAmount = capitalAmount;
+        } else if (paidMoreThanInterest) {
+            const remainingCapital = Math.max(0, totalWithInterest - totalPaid);
+            remainingAmount = remainingCapital;
+        } else {
+            remainingAmount = totalWithInterest - totalPaid;
+        }
+    }
+    
+    return Math.max(0, remainingAmount);
+}
+
+// Renderizar tabela de empréstimos OTIMIZADA
 async function renderLoansTable() {
     const tbody = document.getElementById('loansTableBody');
+    const loadingIndicator = document.getElementById('loansLoadingIndicator');
+    
+    // Mostrar indicador de carregamento
+    if (loadingIndicator) {
+        loadingIndicator.classList.remove('hidden');
+    }
     
     // Usar filteredLoans se há um termo de busca ativo, senão usar loans
     const searchInput = document.getElementById('loanSearchInput');
@@ -1147,49 +1323,163 @@ async function renderLoansTable() {
                 </td>
             </tr>
         `;
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
         return;
     }
     
-    // Renderizar linhas com valores atualizados
-    let tableHTML = '';
-    for (const loan of activeLoans) {
-        const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-        const remainingAmount = await calculateLoanRemainingAmount(loan.id);
-        const status = getLoanStatus(loan.due_date, loan.status);
+    try {
+        // Paginação para renderização mais rápida
+        const itemsPerPageLoans = 50;
+        const loansToRender = activeLoans.slice(0, itemsPerPageLoans);
         
-        tableHTML += `
-            <tr class="table-row">
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
-                    <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.due_date)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                    <div>Original: R$ ${originalTotal.toFixed(2)}</div>
-                    <div class="text-blue-300">Restante: R$ ${remainingAmount.toFixed(2)}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
-                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
-                    <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
-                    <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
-                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
+        // Carregar todos os pagamentos em batch
+        const loanIds = loansToRender.map(loan => loan.id);
+        const paymentsByLoan = await loadAllPaymentsBatch(loanIds);
+        
+        // Renderizar linhas com valores calculados rapidamente
+        let tableHTML = '';
+        for (const loan of loansToRender) {
+            const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+            const loanPayments = paymentsByLoan[loan.id] || [];
+            const remainingAmount = calculateRemainingAmountFast(loan, loanPayments);
+            const status = getLoanStatus(loan.due_date, loan.status);
+            
+            tableHTML += `
+                <tr class="table-row">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                        <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.due_date)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        <div>Original: R$ ${originalTotal.toFixed(2)}</div>
+                        <div class="text-blue-300">Restante: R$ ${remainingAmount.toFixed(2)}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
+                        <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
+                        <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
+                        <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
+                        <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                        <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+        
+        tbody.innerHTML = tableHTML;
+        
+        // Mostrar informação de paginação se necessário
+        if (activeLoans.length > itemsPerPageLoans) {
+            tbody.innerHTML += `
+                <tr>
+                    <td colspan="8" class="px-6 py-4 text-center text-gray-400">
+                        Mostrando ${itemsPerPageLoans} de ${activeLoans.length} empréstimos ativos
+                        <button onclick="loadAllLoans()" class="ml-4 text-blue-400 hover:text-blue-300 underline">
+                            Carregar todos
+                        </button>
+                    </td>
+                </tr>
+            `;
+        }
+        
+        console.log(`${loansToRender.length} empréstimos renderizados com otimização`);
+        
+    } catch (error) {
+        console.error('Erro ao renderizar tabela de empréstimos:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="px-6 py-8 text-center text-red-400">
+                    Erro ao carregar empréstimos. 
+                    <button onclick="renderLoansTable()" class="ml-2 text-blue-400 hover:text-blue-300 underline">
+                        Tentar novamente
+                    </button>
                 </td>
             </tr>
         `;
+    } finally {
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
     }
-    
-    tbody.innerHTML = tableHTML;
 }
 
-
+// Função para carregar todos os empréstimos sem paginação
+async function loadAllLoans() {
+    const tbody = document.getElementById('loansTableBody');
+    const loadingIndicator = document.getElementById('loansLoadingIndicator');
+    
+    if (loadingIndicator) {
+        loadingIndicator.classList.remove('hidden');
+    }
+    
+    try {
+        const activeLoans = loans.filter(loan => loan.status !== 'paid');
+        const loanIds = activeLoans.map(loan => loan.id);
+        const paymentsByLoan = await loadAllPaymentsBatch(loanIds);
+        
+        let tableHTML = '';
+        for (const loan of activeLoans) {
+            const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+            const loanPayments = paymentsByLoan[loan.id] || [];
+            const remainingAmount = calculateRemainingAmountFast(loan, loanPayments);
+            const status = getLoanStatus(loan.due_date, loan.status);
+            
+            tableHTML += `
+                <tr class="table-row">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                        <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.due_date)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        <div>Original: R$ ${originalTotal.toFixed(2)}</div>
+                        <div class="text-blue-300">Restante: R$ ${remainingAmount.toFixed(2)}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
+                        <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
+                        <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
+                        <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
+                        <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                        <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+        }
+        
+        tbody.innerHTML = tableHTML;
+        console.log(`Todos os ${activeLoans.length} empréstimos carregados`);
+        
+    } catch (error) {
+        console.error('Erro ao carregar todos os empréstimos:', error);
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="8" class="px-6 py-8 text-center text-red-400">
+                    Erro ao carregar empréstimos.
+                </td>
+            </tr>
+        `;
+    } finally {
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
+    }
+}
 
 // Renderizar tabela de empréstimos quitados
 async function renderPaidLoansTable() {
@@ -1468,6 +1758,7 @@ async function handleNewClient(e) {
         document.getElementById('emergencyContactSection').classList.add('hidden');
         clearNewClientEmergencyContactForm();
         
+        invalidateCache(); // Invalidar todos os caches
         await loadClients(true); // Forçar reload para invalidar cache
         await loadGuarantors();
         await loadEmergencyContacts();
@@ -1810,6 +2101,7 @@ async function handleEditClient(e) {
         hideModal(editClientModal);
         
         // Recarregar dados
+        invalidateCache(); // Invalidar todos os caches
         await loadClients(true); // Forçar reload para invalidar cache
         await updateDashboard();
         
@@ -4357,6 +4649,7 @@ async function performDeleteClient(clientId) {
         hideModal(document.getElementById('confirmationModal'));
         
         // Recarregar dados
+        invalidateCache(); // Invalidar todos os caches
         await loadClients(true); // Forçar reload para invalidar cache
         await updateDashboard();
         
@@ -5971,14 +6264,27 @@ async function handleNewExpense(e) {
 }
 
 // Carregar despesas
-async function loadExpenses() {
+// Cache para despesas
+let expensesLastLoaded = null;
+
+async function loadExpenses(forceReload = false) {
+    const now = Date.now();
+    
+    // Verificar cache
+    if (!forceReload && expensesLastLoaded && (now - expensesLastLoaded) < CACHE_DURATION && expenses.length > 0) {
+        console.log('Usando dados do cache para despesas');
+        renderExpensesTable();
+        return;
+    }
+    
     try {
-        // First, get the expenses with user information
+        console.log('Carregando despesas do servidor...');
+        
+        // Consulta otimizada carregando apenas campos essenciais
         let expensesQuery = supabase.from('expenses')
             .select(`
-                *,
-                users!expenses_user_id_fkey(full_name, email, role),
-                created_by_user:users!expenses_created_by_fkey(full_name, email, role)
+                id, description, amount, category_id, date, status, payment_method, user_id,
+                users!expenses_user_id_fkey(full_name)
             `);
         
         // Se não for admin ou manager, filtrar apenas despesas próprias
@@ -5987,7 +6293,8 @@ async function loadExpenses() {
         }
         
         const { data: expensesData, error: expensesError } = await expensesQuery
-            .order('date', { ascending: false });
+            .order('date', { ascending: false })
+            .limit(50); // Limitar consulta inicial
             
         if (expensesError) throw expensesError;
         
@@ -6011,8 +6318,11 @@ async function loadExpenses() {
             expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null
         }));
         
+        expensesLastLoaded = now;
+        
         displayExpenses();
         updateExpensesSummary();
+        console.log(`${expenses.length} despesas carregadas`);
         
     } catch (error) {
         console.error('Erro ao carregar despesas:', error);
@@ -7941,19 +8251,39 @@ function contactClient(clientId, phone) {
 // ===================================================
 
 // Carregar transações de caixa
-async function loadCashTransactions() {
+// Cache para transações de caixa
+let cashTransactionsLastLoaded = null;
+
+async function loadCashTransactions(forceReload = false) {
+    const now = Date.now();
+    
+    // Verificar cache
+    if (!forceReload && cashTransactionsLastLoaded && (now - cashTransactionsLastLoaded) < CACHE_DURATION && cashTransactions.length > 0) {
+        console.log('Usando dados do cache para transações de caixa');
+        renderCashTransactionsTable();
+        updateCashSummary();
+        updateCashFlowChart();
+        return;
+    }
+    
     try {
+        console.log('Carregando transações de caixa do servidor...');
+        
         const { data, error } = await supabase
             .from('cash_transactions')
-            .select('*')
-            .order('created_at', { ascending: false });
+            .select('id, type, amount, description, created_at')
+            .order('created_at', { ascending: false })
+            .limit(100); // Limitar consulta inicial
         
         if (error) throw error;
         
         cashTransactions = data || [];
+        cashTransactionsLastLoaded = now;
+        
         renderCashTransactionsTable();
         updateCashSummary();
         updateCashFlowChart();
+        console.log(`${cashTransactions.length} transações de caixa carregadas`);
         
     } catch (error) {
         console.error('Erro ao carregar transações de caixa:', error);
