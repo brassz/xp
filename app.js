@@ -708,6 +708,9 @@ async function loadData() {
         // Carregar empréstimos quitados separadamente
         await renderPaidLoansTable();
         
+        // Preaquecer o cache de valores restantes durante o carregamento inicial
+        await updateRemainingAmounts();
+        
         await updateDashboard();
         await updateCharts();
         
@@ -1154,7 +1157,18 @@ async function renderLoansTable() {
     let tableHTML = '';
     for (const loan of activeLoans) {
         const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-        const remainingAmount = await calculateLoanRemainingAmount(loan.id);
+        // Usar cache quando possível, senão calcular
+        let remainingAmount;
+        if (remainingAmountsCache.has(loan.id)) {
+            const now = Date.now();
+            if ((now - cacheLastUpdated) < CACHE_REMAINING_DURATION) {
+                remainingAmount = remainingAmountsCache.get(loan.id);
+            } else {
+                remainingAmount = await calculateLoanRemainingAmount(loan.id);
+            }
+        } else {
+            remainingAmount = await calculateLoanRemainingAmount(loan.id);
+        }
         const status = getLoanStatus(loan.due_date, loan.status);
         
         tableHTML += `
@@ -1514,6 +1528,7 @@ async function handleNewLoan(e) {
         hideModal(newLoanModal);
         newLoanForm.reset();
         
+        invalidateRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
         
@@ -1707,7 +1722,9 @@ async function handlePayment(e) {
             if (loanError) throw loanError;
         }
         
-        // Recarregar dados primeiro
+        // Invalidar cache e recarregar dados
+        invalidateRemainingAmountsCache();
+        invalidateRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
         
@@ -1847,6 +1864,7 @@ async function handleEditLoan(e) {
         hideModal(editLoanModal);
         
         // Recarregar dados
+        invalidateRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
         
@@ -2525,65 +2543,227 @@ function formatDate(dateString) {
     }
 }
 
-// Atualizar dashboard
+// Cache para valores restantes dos empréstimos
+let remainingAmountsCache = new Map();
+let cacheLastUpdated = 0;
+const CACHE_REMAINING_DURATION = 30000; // 30 segundos
+
+// Atualizar dashboard com otimizações de performance
 async function updateDashboard() {
-    document.getElementById('totalClients').textContent = clients.length;
+    const loadingIndicator = document.getElementById('dashboardLoadingIndicator');
     
-    const totalLoaned = loans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
-    document.getElementById('totalLoaned').textContent = `R$ ${totalLoaned.toFixed(2)}`;
-    
-    const totalInterest = loans.reduce((sum, loan) => {
-        return sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-    }, 0);
-    document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
-    
-    // Calcular total restante considerando pagamentos
-    let totalRemaining = 0;
-    for (const loan of loans) {
-        const remainingAmount = await calculateLoanRemainingAmount(loan.id);
-        totalRemaining += remainingAmount;
-    }
-    document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
-    
-    const activeLoans = loans.filter(loan => loan.status !== 'paid').length;
-    document.getElementById('activeLoans').textContent = activeLoans;
-    
-    // Contar empréstimos quitados da tabela paid_loans
-    let paidLoansCount = 0;
     try {
-        const { count, error } = await supabase
+        console.log('Iniciando atualização do dashboard...');
+        
+        // Mostrar indicador de carregamento
+        if (loadingIndicator) {
+            loadingIndicator.classList.remove('hidden');
+        }
+        
+        // Calcular métricas básicas (sem consultas ao banco)
+        document.getElementById('totalClients').textContent = clients.length;
+        
+        const totalLoaned = loans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+        document.getElementById('totalLoaned').textContent = `R$ ${totalLoaned.toFixed(2)}`;
+        
+        const totalInterest = loans.reduce((sum, loan) => {
+            return sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+        }, 0);
+        document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
+        
+        const activeLoans = loans.filter(loan => loan.status !== 'paid').length;
+        document.getElementById('activeLoans').textContent = activeLoans;
+        
+        // Calcular total em caixa
+        const totalCash = cashSettings ? parseFloat(cashSettings.current_balance) : 0;
+        document.getElementById('totalCash').textContent = `R$ ${totalCash.toFixed(2)}`;
+        
+        // Executar operações em paralelo para melhor performance
+        const remainingAmountsPromise = updateRemainingAmounts();
+        const paidLoansPromise = supabase
             .from('paid_loans')
             .select('*', { count: 'exact', head: true });
         
-        if (!error) {
-            paidLoansCount = count || 0;
-        }
+        // Aguardar ambas as operações
+        const [_, paidLoansResult] = await Promise.all([
+            remainingAmountsPromise,
+            paidLoansPromise
+        ]);
+        
+        document.getElementById('paidLoans').textContent = paidLoansResult.count || 0;
+        
+        // Atualizar informações do usuário no header
+        updateUserInfo();
+        
+        console.log('Dashboard atualizado com sucesso');
     } catch (error) {
-        console.error('Erro ao contar empréstimos quitados:', error);
+        console.error('Erro ao atualizar dashboard:', error);
+    } finally {
+        // Esconder indicador de carregamento
+        if (loadingIndicator) {
+            loadingIndicator.classList.add('hidden');
+        }
     }
-    document.getElementById('paidLoans').textContent = paidLoansCount;
-    
-    // Calcular total em caixa
-    const totalCash = cashSettings ? parseFloat(cashSettings.current_balance) : 0;
-    document.getElementById('totalCash').textContent = `R$ ${totalCash.toFixed(2)}`;
-    
-    // Calcular total de empréstimos vencidos
-    const overdueLoans = loans.filter(loan => {
-        const dueDate = new Date(loan.due_date);
-        const today = new Date();
-        return dueDate < today && loan.status !== 'paid';
-    });
-    
-    let totalOverdue = 0;
-    for (const loan of overdueLoans) {
-        const remainingAmount = await calculateLoanRemainingAmount(loan.id);
-        totalOverdue += remainingAmount;
-    }
-    document.getElementById('overdueLoans').textContent = `R$ ${totalOverdue.toFixed(2)}`;
+}
 
+// Função otimizada para calcular valores restantes
+async function updateRemainingAmounts() {
+    const now = Date.now();
     
-    // Atualizar informações do usuário no header
-    updateUserInfo();
+    // Verificar se o cache ainda é válido
+    if (remainingAmountsCache.size > 0 && (now - cacheLastUpdated) < CACHE_REMAINING_DURATION) {
+        console.log('Usando cache para valores restantes');
+        updateDashboardWithCachedValues();
+        return;
+    }
+    
+    try {
+        // Buscar todos os pagamentos de uma só vez
+        const { data: allPayments, error } = await supabase
+            .from('payments')
+            .select('loan_id, amount, payment_type')
+            .in('loan_id', loans.map(loan => loan.id));
+        
+        if (error) throw error;
+        
+        // Agrupar pagamentos por loan_id
+        const paymentsByLoan = {};
+        if (allPayments) {
+            allPayments.forEach(payment => {
+                if (!paymentsByLoan[payment.loan_id]) {
+                    paymentsByLoan[payment.loan_id] = [];
+                }
+                paymentsByLoan[payment.loan_id].push(payment);
+            });
+        }
+        
+        // Calcular valores restantes para cada empréstimo
+        let totalRemaining = 0;
+        let totalOverdue = 0;
+        const today = new Date();
+        
+        remainingAmountsCache.clear();
+        
+        for (const loan of loans) {
+            const payments = paymentsByLoan[loan.id] || [];
+            const remainingAmount = calculateRemainingAmountFromPayments(loan, payments);
+            
+            remainingAmountsCache.set(loan.id, remainingAmount);
+            
+            // Somar ao total restante se não estiver pago
+            if (loan.status !== 'paid') {
+                totalRemaining += remainingAmount;
+            }
+            
+            // Verificar se está vencido
+            const dueDate = new Date(loan.due_date);
+            if (dueDate < today && loan.status !== 'paid') {
+                totalOverdue += remainingAmount;
+            }
+        }
+        
+        // Atualizar interface
+        document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
+        document.getElementById('overdueLoans').textContent = `R$ ${totalOverdue.toFixed(2)}`;
+        
+        // Atualizar cache timestamp
+        cacheLastUpdated = now;
+        
+        console.log('Valores restantes calculados e cache atualizado');
+        
+    } catch (error) {
+        console.error('Erro ao calcular valores restantes:', error);
+        // Fallback para valores básicos
+        document.getElementById('totalRemaining').textContent = 'R$ 0,00';
+        document.getElementById('overdueLoans').textContent = 'R$ 0,00';
+    }
+}
+
+// Atualizar dashboard com valores do cache
+function updateDashboardWithCachedValues() {
+    let totalRemaining = 0;
+    let totalOverdue = 0;
+    const today = new Date();
+    
+    for (const loan of loans) {
+        const remainingAmount = remainingAmountsCache.get(loan.id) || 0;
+        
+        if (loan.status !== 'paid') {
+            totalRemaining += remainingAmount;
+        }
+        
+        const dueDate = new Date(loan.due_date);
+        if (dueDate < today && loan.status !== 'paid') {
+            totalOverdue += remainingAmount;
+        }
+    }
+    
+    document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
+    document.getElementById('overdueLoans').textContent = `R$ ${totalOverdue.toFixed(2)}`;
+}
+
+// Função auxiliar para calcular valor restante a partir dos pagamentos
+function calculateRemainingAmountFromPayments(loan, payments) {
+    try {
+        const capitalAmount = parseFloat(loan.amount);
+        let interestRate = parseFloat(loan.interest_rate);
+        
+        // Ajustar taxa se necessário
+        if (interestRate > 100) {
+            interestRate = interestRate / 100;
+        }
+        
+        const interestAmount = capitalAmount * (interestRate / 100);
+        const totalWithInterest = capitalAmount + interestAmount;
+        
+        // Verificar se houve renovações
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        const hasRenewals = payments.some(p => p.payment_type === 'renewal');
+        
+        let totalPaid;
+        if (hasRenewals) {
+            // Se houve renovação, considerar apenas pagamentos após a última renovação
+            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
+                const paymentIndex = payments.findIndex(p => p === payment);
+                return paymentIndex > lastRenewalIndex;
+            });
+            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        } else {
+            // Lógica original
+            totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        }
+        
+        // Calcular valor restante usando a mesma lógica da função principal
+        let remainingAmount;
+        
+        if (totalPaid === 0) {
+            remainingAmount = totalWithInterest;
+        } else {
+            const paidExactlyInterest = Math.abs(totalPaid - interestAmount) <= (interestAmount * 0.01);
+            
+            if (paidExactlyInterest) {
+                remainingAmount = capitalAmount;
+            } else if (totalPaid < interestAmount) {
+                remainingAmount = totalWithInterest - totalPaid;
+            } else {
+                remainingAmount = totalWithInterest - totalPaid;
+            }
+        }
+        
+        return Math.max(0, remainingAmount);
+        
+    } catch (error) {
+        console.error('Erro ao calcular valor restante:', error);
+        return 0;
+    }
+}
+
+// Função para invalidar cache de valores restantes
+function invalidateRemainingAmountsCache() {
+    remainingAmountsCache.clear();
+    cacheLastUpdated = 0;
+    console.log('Cache de valores restantes invalidado');
 }
 
 // Atualizar gráficos
@@ -4229,6 +4409,7 @@ async function performDeletePayment(paymentId) {
         hideModal(document.getElementById('confirmationModal'));
         
         // Recarregar dados principais
+        invalidateRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
         
@@ -4250,19 +4431,16 @@ async function performDeletePayment(paymentId) {
 // Função para calcular valor restante de um empréstimo
 async function calculateLoanRemainingAmount(loanId) {
     try {
-        const loan = loans.find(l => l.id === loanId);
-        if (!loan) return 0;
-        
-        const capitalAmount = parseFloat(loan.amount);
-        let interestRate = parseFloat(loan.interest_rate);
-        
-        // Ajustar taxa se necessário
-        if (interestRate > 100) {
-            interestRate = interestRate / 100;
+        // Verificar se o valor está no cache
+        if (remainingAmountsCache.has(loanId)) {
+            const now = Date.now();
+            if ((now - cacheLastUpdated) < CACHE_REMAINING_DURATION) {
+                return remainingAmountsCache.get(loanId);
+            }
         }
         
-        const interestAmount = capitalAmount * (interestRate / 100);
-        const totalWithInterest = capitalAmount + interestAmount;
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) return 0;
         
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
@@ -4272,61 +4450,13 @@ async function calculateLoanRemainingAmount(loanId) {
         
         if (error) throw error;
         
-        // Verificar se houve renovações
-        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
-        const hasRenewals = payments.some(p => p.payment_type === 'renewal');
+        // Usar a função auxiliar para calcular
+        const remainingAmount = calculateRemainingAmountFromPayments(loan, payments || []);
         
-        let totalPaid;
-        if (hasRenewals) {
-            // Se houve renovação, considerar apenas pagamentos após a última renovação
-            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
-            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
-                const paymentIndex = payments.findIndex(p => p === payment);
-                return paymentIndex > lastRenewalIndex;
-            });
-            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        } else {
-            // Lógica original
-            totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        }
+        // Atualizar cache
+        remainingAmountsCache.set(loanId, remainingAmount);
         
-        // Calcular valor restante usando a mesma lógica da função principal
-        let remainingAmount;
-        
-        if (totalPaid === 0) {
-            remainingAmount = totalWithInterest;
-        } else {
-            const paidExactlyInterest = Math.abs(totalPaid - interestAmount) <= (interestAmount * 0.01);
-            const paidMoreThanInterest = totalPaid > interestAmount;
-            const paidLessThanInterest = totalPaid < interestAmount;
-            
-            if (paidExactlyInterest) {
-                // PAGOU APENAS JUROS: próximo período terá mesmo valor total
-                remainingAmount = capitalAmount + interestAmount;
-            } else if (paidMoreThanInterest) {
-                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
-                const paidCapital = totalPaid - interestAmount;
-                const newCapital = Math.max(0, capitalAmount - paidCapital);
-                
-                if (newCapital <= 0) {
-                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
-                    remainingAmount = 0;
-                } else {
-                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
-                    const newInterest = newCapital * (interestRate / 100);
-                    remainingAmount = newCapital + newInterest;
-                }
-            } else if (paidLessThanInterest) {
-                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
-                const unpaidInterest = interestAmount - totalPaid;
-                const newInterest = capitalAmount * (interestRate / 100);
-                remainingAmount = capitalAmount + unpaidInterest + newInterest;
-            } else {
-                remainingAmount = totalWithInterest - totalPaid;
-            }
-        }
-        
-        return Math.max(0, remainingAmount);
+        return remainingAmount;
         
     } catch (error) {
         console.error('Erro ao calcular valor restante:', error);
@@ -4381,6 +4511,7 @@ async function performDeleteLoan(loanId) {
         hideModal(document.getElementById('confirmationModal'));
         
         // Recarregar dados
+        invalidateRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
         
@@ -5837,6 +5968,7 @@ async function restorePaidLoan(paidLoanId) {
         if (deleteError) throw deleteError;
         
         // Recarregar dados
+        invalidateRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
         await updateCharts();
