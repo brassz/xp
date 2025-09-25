@@ -740,10 +740,10 @@ async function loadClients(forceReload = false) {
         
         console.log('Carregando clientes do servidor...');
         
-        // Carregar apenas campos essenciais para a listagem inicial
+        // Carregar campos essenciais incluindo RG e data de nascimento
         const { data, error } = await supabase
             .from('clients')
-            .select('id, name, cpf, phone, email, address, created_at')
+            .select('id, name, cpf, rg, phone, email, address, birth_date, created_at')
             .order('created_at', { ascending: false });
         
         if (error) throw error;
@@ -754,6 +754,16 @@ async function loadClients(forceReload = false) {
         clientsLastLoaded = now; // Atualizar timestamp do cache
         
         console.log(`${clients.length} clientes carregados`);
+        
+        // Debug: Log dos primeiros clientes para verificar se RG e birth_date estão sendo carregados
+        if (clients.length > 0) {
+            console.log('Exemplo de cliente carregado:', {
+                name: clients[0].name,
+                cpf: clients[0].cpf,
+                rg: clients[0].rg,
+                birth_date: clients[0].birth_date
+            });
+        }
         
         // Renderizar tabela e popular select do histórico de forma assíncrona
         renderClientsTable();
@@ -984,6 +994,7 @@ function searchClients(searchTerm) {
                 return (
                     client.name.toLowerCase().includes(term) ||
                     client.cpf.toLowerCase().includes(term) ||
+                    (client.rg && client.rg.toLowerCase().includes(term)) ||
                     (client.phone && client.phone.toLowerCase().includes(term)) ||
                     (client.email && client.email.toLowerCase().includes(term)) ||
                     (client.address && client.address.toLowerCase().includes(term))
@@ -5299,6 +5310,7 @@ function searchHistoryClients(searchTerm) {
     return clients.filter(client => 
         client.name.toLowerCase().includes(term) ||
         client.cpf.includes(term) ||
+        (client.rg && client.rg.toLowerCase().includes(term)) ||
         (client.email && client.email.toLowerCase().includes(term))
     );
 }
