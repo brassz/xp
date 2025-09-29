@@ -364,6 +364,23 @@ function setupEventListeners() {
     // Botão de limpar busca de empréstimos
     document.getElementById('clearLoanSearch').addEventListener('click', clearLoanSearch);
     
+    // Event listeners para os novos filtros
+    const creationDateFrom = document.getElementById('creationDateFrom');
+    const creationDateTo = document.getElementById('creationDateTo');
+    const dueDateFrom = document.getElementById('dueDateFrom');
+    const dueDateTo = document.getElementById('dueDateTo');
+    const sortBy = document.getElementById('sortBy');
+    const sortOrder = document.getElementById('sortOrder');
+    const clearAllFiltersBtn = document.getElementById('clearAllFilters');
+    
+    if (creationDateFrom) creationDateFrom.addEventListener('change', applyFiltersAndSort);
+    if (creationDateTo) creationDateTo.addEventListener('change', applyFiltersAndSort);
+    if (dueDateFrom) dueDateFrom.addEventListener('change', applyFiltersAndSort);
+    if (dueDateTo) dueDateTo.addEventListener('change', applyFiltersAndSort);
+    if (sortBy) sortBy.addEventListener('change', applyFiltersAndSort);
+    if (sortOrder) sortOrder.addEventListener('change', applyFiltersAndSort);
+    if (clearAllFiltersBtn) clearAllFiltersBtn.addEventListener('click', clearAllFilters);
+    
     // Esconder resultados ao clicar fora
     document.addEventListener('click', function(e) {
         const searchInput = document.getElementById('historyClientSearch');
@@ -1103,11 +1120,27 @@ function changePage(newPage) {
 
 // Função para buscar empréstimos
 function searchLoans(searchTerm) {
-    if (!searchTerm || searchTerm.trim() === '') {
-        filteredLoans = [...loans];
-    } else {
+    applyFiltersAndSort();
+}
+
+// Função principal para aplicar filtros e ordenação
+function applyFiltersAndSort() {
+    let result = [...loans];
+    
+    // Se não há empréstimos, não continuar
+    if (result.length === 0) {
+        filteredLoans = result;
+        renderLoansTable();
+        return;
+    }
+    
+    // Aplicar filtro de busca por texto
+    const searchInput = document.getElementById('loanSearchInput');
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+    
+    if (searchTerm !== '') {
         const term = searchTerm.toLowerCase().trim();
-        filteredLoans = loans.filter(loan => {
+        result = result.filter(loan => {
             // Encontrar o cliente associado ao empréstimo
             const client = clients.find(c => c.id === loan.client_id);
             const clientName = client ? client.name.toLowerCase() : '';
@@ -1122,6 +1155,92 @@ function searchLoans(searchTerm) {
             );
         });
     }
+    
+    // Aplicar filtro por data de criação
+    const creationDateFrom = document.getElementById('creationDateFrom')?.value;
+    const creationDateTo = document.getElementById('creationDateTo')?.value;
+    
+    if (creationDateFrom) {
+        result = result.filter(loan => {
+            if (!loan.loan_date) return false;
+            const loanDate = new Date(loan.loan_date);
+            const fromDate = new Date(creationDateFrom);
+            return !isNaN(loanDate.getTime()) && !isNaN(fromDate.getTime()) && loanDate >= fromDate;
+        });
+    }
+    
+    if (creationDateTo) {
+        result = result.filter(loan => {
+            if (!loan.loan_date) return false;
+            const loanDate = new Date(loan.loan_date);
+            const toDate = new Date(creationDateTo);
+            toDate.setHours(23, 59, 59, 999); // Incluir o dia inteiro
+            return !isNaN(loanDate.getTime()) && !isNaN(toDate.getTime()) && loanDate <= toDate;
+        });
+    }
+    
+    // Aplicar filtro por data de vencimento
+    const dueDateFrom = document.getElementById('dueDateFrom')?.value;
+    const dueDateTo = document.getElementById('dueDateTo')?.value;
+    
+    if (dueDateFrom) {
+        result = result.filter(loan => {
+            if (!loan.due_date) return false;
+            const dueDate = new Date(loan.due_date);
+            const fromDate = new Date(dueDateFrom);
+            return !isNaN(dueDate.getTime()) && !isNaN(fromDate.getTime()) && dueDate >= fromDate;
+        });
+    }
+    
+    if (dueDateTo) {
+        result = result.filter(loan => {
+            if (!loan.due_date) return false;
+            const dueDate = new Date(loan.due_date);
+            const toDate = new Date(dueDateTo);
+            toDate.setHours(23, 59, 59, 999); // Incluir o dia inteiro
+            return !isNaN(dueDate.getTime()) && !isNaN(toDate.getTime()) && dueDate <= toDate;
+        });
+    }
+    
+    // Aplicar ordenação
+    const sortBy = document.getElementById('sortBy')?.value || 'loan_date';
+    const sortOrder = document.getElementById('sortOrder')?.value || 'desc';
+    
+    result.sort((a, b) => {
+        let valueA, valueB;
+        
+        switch (sortBy) {
+            case 'loan_date':
+                valueA = a.loan_date ? new Date(a.loan_date) : new Date(0);
+                valueB = b.loan_date ? new Date(b.loan_date) : new Date(0);
+                break;
+            case 'due_date':
+                valueA = a.due_date ? new Date(a.due_date) : new Date(0);
+                valueB = b.due_date ? new Date(b.due_date) : new Date(0);
+                break;
+            case 'amount':
+                valueA = parseFloat(a.amount) || 0;
+                valueB = parseFloat(b.amount) || 0;
+                break;
+            case 'client_name':
+                const clientA = clients.find(c => c.id === a.client_id);
+                const clientB = clients.find(c => c.id === b.client_id);
+                valueA = clientA ? clientA.name.toLowerCase() : '';
+                valueB = clientB ? clientB.name.toLowerCase() : '';
+                break;
+            default:
+                valueA = a[sortBy] || '';
+                valueB = b[sortBy] || '';
+        }
+        
+        if (sortOrder === 'asc') {
+            return valueA > valueB ? 1 : valueA < valueB ? -1 : 0;
+        } else {
+            return valueA < valueB ? 1 : valueA > valueB ? -1 : 0;
+        }
+    });
+    
+    filteredLoans = result;
     renderLoansTable();
 }
 
@@ -1130,26 +1249,65 @@ function clearLoanSearch() {
     const searchInput = document.getElementById('loanSearchInput');
     if (searchInput) {
         searchInput.value = '';
-        filteredLoans = [...loans];
-        renderLoansTable();
+        applyFiltersAndSort();
     }
+}
+
+// Função para limpar todos os filtros
+function clearAllFilters() {
+    // Limpar campo de busca
+    const searchInput = document.getElementById('loanSearchInput');
+    if (searchInput) searchInput.value = '';
+    
+    // Limpar filtros de data
+    const creationDateFrom = document.getElementById('creationDateFrom');
+    const creationDateTo = document.getElementById('creationDateTo');
+    const dueDateFrom = document.getElementById('dueDateFrom');
+    const dueDateTo = document.getElementById('dueDateTo');
+    
+    if (creationDateFrom) creationDateFrom.value = '';
+    if (creationDateTo) creationDateTo.value = '';
+    if (dueDateFrom) dueDateFrom.value = '';
+    if (dueDateTo) dueDateTo.value = '';
+    
+    // Resetar ordenação
+    const sortBy = document.getElementById('sortBy');
+    const sortOrder = document.getElementById('sortOrder');
+    
+    if (sortBy) sortBy.value = 'loan_date';
+    if (sortOrder) sortOrder.value = 'desc';
+    
+    // Aplicar filtros
+    applyFiltersAndSort();
 }
 
 // Renderizar tabela de empréstimos
 async function renderLoansTable() {
     const tbody = document.getElementById('loansTableBody');
     
-    // Usar filteredLoans se há um termo de busca ativo, senão usar loans
+    // Verificar se há filtros ativos
     const searchInput = document.getElementById('loanSearchInput');
-    const hasSearchTerm = searchInput && searchInput.value.trim() !== '';
-    const loansToShow = hasSearchTerm ? filteredLoans : loans;
+    const creationDateFrom = document.getElementById('creationDateFrom');
+    const creationDateTo = document.getElementById('creationDateTo');
+    const dueDateFrom = document.getElementById('dueDateFrom');
+    const dueDateTo = document.getElementById('dueDateTo');
+    const sortBy = document.getElementById('sortBy');
+    
+    const hasActiveFilters = (searchInput && searchInput.value.trim() !== '') ||
+                           (creationDateFrom && creationDateFrom.value !== '') ||
+                           (creationDateTo && creationDateTo.value !== '') ||
+                           (dueDateFrom && dueDateFrom.value !== '') ||
+                           (dueDateTo && dueDateTo.value !== '') ||
+                           (sortBy && sortBy.value !== 'loan_date');
+    
+    const loansToShow = hasActiveFilters ? filteredLoans : loans;
     
     // Filtrar apenas empréstimos ativos (não quitados)
     const activeLoans = loansToShow.filter(loan => loan.status !== 'paid');
     
     if (activeLoans.length === 0) {
-        const message = hasSearchTerm 
-            ? 'Nenhum empréstimo encontrado para o termo de busca'
+        const message = hasActiveFilters 
+            ? 'Nenhum empréstimo encontrado com os filtros aplicados'
             : 'Nenhum empréstimo ativo';
         tbody.innerHTML = `
             <tr>
