@@ -109,6 +109,7 @@ let filteredLoans = [];
 let expenses = [];
 let expenseCategories = [];
 let installments = [];
+let filteredInstallments = [];
 let installmentPayments = [];
 let guarantors = [];
 let emergencyContacts = [];
@@ -380,6 +381,27 @@ function setupEventListeners() {
     if (sortBy) sortBy.addEventListener('change', applyFiltersAndSort);
     if (sortOrder) sortOrder.addEventListener('change', applyFiltersAndSort);
     if (clearAllFiltersBtn) clearAllFiltersBtn.addEventListener('click', clearAllFilters);
+    
+    // Event listeners para os filtros de parcelamentos
+    const installmentSearchInput = document.getElementById('installmentSearchInput');
+    const clearInstallmentSearchBtn = document.getElementById('clearInstallmentSearch');
+    const installmentCreationDateFrom = document.getElementById('installmentCreationDateFrom');
+    const installmentCreationDateTo = document.getElementById('installmentCreationDateTo');
+    const installmentDueDateFrom = document.getElementById('installmentDueDateFrom');
+    const installmentDueDateTo = document.getElementById('installmentDueDateTo');
+    const installmentSortBy = document.getElementById('installmentSortBy');
+    const installmentSortOrder = document.getElementById('installmentSortOrder');
+    const clearAllInstallmentFiltersBtn = document.getElementById('clearAllInstallmentFilters');
+    
+    if (installmentSearchInput) installmentSearchInput.addEventListener('input', applyInstallmentFiltersAndSort);
+    if (clearInstallmentSearchBtn) clearInstallmentSearchBtn.addEventListener('click', clearInstallmentSearch);
+    if (installmentCreationDateFrom) installmentCreationDateFrom.addEventListener('change', applyInstallmentFiltersAndSort);
+    if (installmentCreationDateTo) installmentCreationDateTo.addEventListener('change', applyInstallmentFiltersAndSort);
+    if (installmentDueDateFrom) installmentDueDateFrom.addEventListener('change', applyInstallmentFiltersAndSort);
+    if (installmentDueDateTo) installmentDueDateTo.addEventListener('change', applyInstallmentFiltersAndSort);
+    if (installmentSortBy) installmentSortBy.addEventListener('change', applyInstallmentFiltersAndSort);
+    if (installmentSortOrder) installmentSortOrder.addEventListener('change', applyInstallmentFiltersAndSort);
+    if (clearAllInstallmentFiltersBtn) clearAllInstallmentFiltersBtn.addEventListener('click', clearAllInstallmentFilters);
     
     // Esconder resultados ao clicar fora
     document.addEventListener('click', function(e) {
@@ -1302,6 +1324,203 @@ function clearAllFilters() {
     
     // Aplicar filtros
     applyFiltersAndSort();
+}
+
+// ===== FUNÇÕES DE FILTRO PARA PARCELAMENTOS =====
+
+// Função para buscar parcelamentos
+function searchInstallments(searchTerm) {
+    applyInstallmentFiltersAndSort();
+}
+
+// Função principal para aplicar filtros e ordenação nos parcelamentos
+function applyInstallmentFiltersAndSort() {
+    let result = [...installments];
+    
+    // Se não há parcelamentos, não continuar
+    if (result.length === 0) {
+        filteredInstallments = result;
+        renderInstallmentsTable();
+        return;
+    }
+    
+    // Aplicar filtro de busca por texto
+    const searchInput = document.getElementById('installmentSearchInput');
+    const searchTerm = searchInput ? searchInput.value.trim() : '';
+    
+    if (searchTerm !== '') {
+        const term = searchTerm.toLowerCase().trim();
+        result = result.filter(installment => {
+            // Encontrar o cliente associado ao parcelamento
+            const client = clients.find(c => c.id === installment.client_id);
+            const clientName = client ? client.name.toLowerCase() : '';
+            
+            return clientName.includes(term);
+        });
+    }
+    
+    // Aplicar filtro por data de criação
+    const creationDateFrom = document.getElementById('installmentCreationDateFrom')?.value;
+    const creationDateTo = document.getElementById('installmentCreationDateTo')?.value;
+    
+    if (creationDateFrom) {
+        result = result.filter(installment => {
+            if (!installment.created_at) return false;
+            const installmentDate = new Date(installment.created_at);
+            const fromDate = new Date(creationDateFrom);
+            return installmentDate >= fromDate;
+        });
+    }
+    
+    if (creationDateTo) {
+        result = result.filter(installment => {
+            if (!installment.created_at) return false;
+            const installmentDate = new Date(installment.created_at);
+            const toDate = new Date(creationDateTo);
+            toDate.setHours(23, 59, 59, 999); // Incluir todo o dia
+            return installmentDate <= toDate;
+        });
+    }
+    
+    // Aplicar filtro por próximo vencimento
+    const dueDateFrom = document.getElementById('installmentDueDateFrom')?.value;
+    const dueDateTo = document.getElementById('installmentDueDateTo')?.value;
+    
+    if (dueDateFrom || dueDateTo) {
+        result = result.filter(installment => {
+            // Calcular próximo vencimento
+            const unpaidPayments = installment.installment_payments?.filter(p => p.status === 'pending') || [];
+            if (unpaidPayments.length === 0) return false;
+            
+            const nextDueDate = new Date(Math.min(...unpaidPayments.map(p => new Date(p.due_date))));
+            
+            if (dueDateFrom) {
+                const fromDate = new Date(dueDateFrom);
+                if (nextDueDate < fromDate) return false;
+            }
+            
+            if (dueDateTo) {
+                const toDate = new Date(dueDateTo);
+                toDate.setHours(23, 59, 59, 999);
+                if (nextDueDate > toDate) return false;
+            }
+            
+            return true;
+        });
+    }
+    
+    // Aplicar ordenação
+    const sortBy = document.getElementById('installmentSortBy')?.value || 'created_at';
+    const sortOrder = document.getElementById('installmentSortOrder')?.value || 'desc';
+    
+    result.sort((a, b) => {
+        let aValue, bValue;
+        
+        switch (sortBy) {
+            case 'created_at':
+                aValue = new Date(a.created_at || 0);
+                bValue = new Date(b.created_at || 0);
+                break;
+            case 'next_due_date':
+                // Calcular próximo vencimento para ordenação
+                const aUnpaid = a.installment_payments?.filter(p => p.status === 'pending') || [];
+                const bUnpaid = b.installment_payments?.filter(p => p.status === 'pending') || [];
+                
+                aValue = aUnpaid.length > 0 ? new Date(Math.min(...aUnpaid.map(p => new Date(p.due_date)))) : new Date(0);
+                bValue = bUnpaid.length > 0 ? new Date(Math.min(...bUnpaid.map(p => new Date(p.due_date)))) : new Date(0);
+                break;
+            case 'vence_hoje':
+                // Priorizar parcelamentos que vencem hoje
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const aUnpaidToday = a.installment_payments?.filter(p => p.status === 'pending') || [];
+                const bUnpaidToday = b.installment_payments?.filter(p => p.status === 'pending') || [];
+                
+                const aNextDue = aUnpaidToday.length > 0 ? new Date(Math.min(...aUnpaidToday.map(p => new Date(p.due_date)))) : null;
+                const bNextDue = bUnpaidToday.length > 0 ? new Date(Math.min(...bUnpaidToday.map(p => new Date(p.due_date)))) : null;
+                
+                if (aNextDue) aNextDue.setHours(0, 0, 0, 0);
+                if (bNextDue) bNextDue.setHours(0, 0, 0, 0);
+                
+                const aVenceHoje = aNextDue && aNextDue.getTime() === today.getTime();
+                const bVenceHoje = bNextDue && bNextDue.getTime() === today.getTime();
+                
+                if (aVenceHoje && !bVenceHoje) {
+                    aValue = 1; bValue = 0; // a vence hoje, prioridade
+                } else if (!aVenceHoje && bVenceHoje) {
+                    aValue = 0; bValue = 1; // b vence hoje, prioridade
+                } else if (aVenceHoje && bVenceHoje) {
+                    // Ambos vencem hoje, ordenar por data de criação
+                    aValue = new Date(a.created_at || 0);
+                    bValue = new Date(b.created_at || 0);
+                } else {
+                    // Nenhum vence hoje, ordenar por próximo vencimento
+                    aValue = aNextDue || new Date(0);
+                    bValue = bNextDue || new Date(0);
+                }
+                break;
+            case 'total_amount':
+                aValue = parseFloat(a.total_amount || 0);
+                bValue = parseFloat(b.total_amount || 0);
+                break;
+            case 'client_name':
+                const clientA = clients.find(c => c.id === a.client_id);
+                const clientB = clients.find(c => c.id === b.client_id);
+                aValue = clientA ? clientA.name.toLowerCase() : '';
+                bValue = clientB ? clientB.name.toLowerCase() : '';
+                break;
+            default:
+                aValue = a[sortBy] || '';
+                bValue = b[sortBy] || '';
+        }
+        
+        if (sortOrder === 'asc') {
+            return aValue > bValue ? 1 : aValue < bValue ? -1 : 0;
+        } else {
+            return aValue < bValue ? 1 : aValue > bValue ? -1 : 0;
+        }
+    });
+    
+    filteredInstallments = result;
+    renderInstallmentsTable();
+}
+
+// Função para limpar busca de parcelamentos
+function clearInstallmentSearch() {
+    const searchInput = document.getElementById('installmentSearchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        applyInstallmentFiltersAndSort();
+    }
+}
+
+// Função para limpar todos os filtros de parcelamentos
+function clearAllInstallmentFilters() {
+    // Limpar campo de busca
+    const searchInput = document.getElementById('installmentSearchInput');
+    if (searchInput) searchInput.value = '';
+    
+    // Limpar filtros de data
+    const creationDateFrom = document.getElementById('installmentCreationDateFrom');
+    const creationDateTo = document.getElementById('installmentCreationDateTo');
+    const dueDateFrom = document.getElementById('installmentDueDateFrom');
+    const dueDateTo = document.getElementById('installmentDueDateTo');
+    
+    if (creationDateFrom) creationDateFrom.value = '';
+    if (creationDateTo) creationDateTo.value = '';
+    if (dueDateFrom) dueDateFrom.value = '';
+    if (dueDateTo) dueDateTo.value = '';
+    
+    // Resetar ordenação
+    const sortBy = document.getElementById('installmentSortBy');
+    const sortOrder = document.getElementById('installmentSortOrder');
+    
+    if (sortBy) sortBy.value = 'created_at';
+    if (sortOrder) sortOrder.value = 'desc';
+    
+    // Aplicar filtros
+    applyInstallmentFiltersAndSort();
 }
 
 // Renderizar tabela de empréstimos
@@ -7774,6 +7993,7 @@ async function loadInstallments() {
         if (error) throw error;
 
         installments = data || [];
+        filteredInstallments = [...installments]; // Inicializar filteredInstallments
         renderInstallmentsTable();
 
     } catch (error) {
@@ -7788,18 +8008,39 @@ function renderInstallmentsTable() {
     
     if (!tableBody) return;
 
-    if (installments.length === 0) {
+    // Verificar se há filtros ativos
+    const searchInput = document.getElementById('installmentSearchInput');
+    const creationDateFrom = document.getElementById('installmentCreationDateFrom');
+    const creationDateTo = document.getElementById('installmentCreationDateTo');
+    const dueDateFrom = document.getElementById('installmentDueDateFrom');
+    const dueDateTo = document.getElementById('installmentDueDateTo');
+    const sortBy = document.getElementById('installmentSortBy');
+    
+    const hasActiveFilters = (searchInput && searchInput.value.trim() !== '') ||
+                           (creationDateFrom && creationDateFrom.value !== '') ||
+                           (creationDateTo && creationDateTo.value !== '') ||
+                           (dueDateFrom && dueDateFrom.value !== '') ||
+                           (dueDateTo && dueDateTo.value !== '') ||
+                           (sortBy && sortBy.value !== 'created_at');
+    
+    const installmentsToShow = hasActiveFilters ? filteredInstallments : installments;
+
+    if (installmentsToShow.length === 0) {
+        const message = installments.length === 0 
+            ? 'Nenhum parcelamento ativo encontrado'
+            : 'Nenhum parcelamento encontrado com os critérios de busca';
+        
         tableBody.innerHTML = `
             <tr>
                 <td colspan="7" class="px-6 py-4 text-center text-gray-400">
-                    Nenhum parcelamento ativo encontrado
+                    ${message}
                 </td>
             </tr>
         `;
         return;
     }
 
-    tableBody.innerHTML = installments.map(installment => {
+    tableBody.innerHTML = installmentsToShow.map(installment => {
         // Calcular próximo vencimento
         const unpaidPayments = installment.installment_payments.filter(p => p.status === 'pending');
         const nextDueDate = unpaidPayments.length > 0 

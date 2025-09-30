@@ -757,6 +757,111 @@
                         </button>
                     </div>
 
+                    <!-- Filtros e Busca para Parcelamentos -->
+                    <div class="glass-card p-6 rounded-xl mb-6">
+                        <div class="flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4 mb-4">
+                            <h3 class="text-lg font-semibold text-white">Filtrar Parcelamentos</h3>
+                        </div>
+                        
+                        <!-- Campo de busca -->
+                        <div class="mb-4">
+                            <div class="relative">
+                                <input 
+                                    type="text" 
+                                    id="installmentSearchInput" 
+                                    placeholder="Buscar por cliente..." 
+                                    class="w-full bg-gray-700 border border-gray-600 rounded-lg pl-10 pr-12 py-3 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent"
+                                >
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                    </svg>
+                                </div>
+                                <button id="clearInstallmentSearch" class="absolute inset-y-0 right-0 pr-3 flex items-center text-gray-400 hover:text-white transition-colors">
+                                    <svg class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </button>
+                            </div>
+                        </div>
+                        
+                        <!-- Filtros Avançados -->
+                        <div class="mt-4 pt-4 border-t border-gray-700">
+                            <div class="flex items-center justify-between mb-4">
+                                <h4 class="text-sm font-medium text-gray-300">Filtros e Ordenação</h4>
+                                <button id="clearAllInstallmentFilters" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
+                                    Limpar Filtros
+                                </button>
+                            </div>
+                            <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <!-- Filtro por Data de Criação -->
+                                <div class="space-y-2">
+                                    <label class="text-xs font-medium text-gray-300">Data de Criação</label>
+                                    <div class="flex space-x-2">
+                                        <input 
+                                            type="date" 
+                                            id="installmentCreationDateFrom" 
+                                            class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent flex-1"
+                                            placeholder="De"
+                                        >
+                                        <input 
+                                            type="date" 
+                                            id="installmentCreationDateTo" 
+                                            class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent flex-1"
+                                            placeholder="Até"
+                                        >
+                                    </div>
+                                </div>
+                                
+                                <!-- Filtro por Data de Vencimento -->
+                                <div class="space-y-2">
+                                    <label class="text-xs font-medium text-gray-300">Próximo Vencimento</label>
+                                    <div class="flex space-x-2">
+                                        <input 
+                                            type="date" 
+                                            id="installmentDueDateFrom" 
+                                            class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent flex-1"
+                                            placeholder="De"
+                                        >
+                                        <input 
+                                            type="date" 
+                                            id="installmentDueDateTo" 
+                                            class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent flex-1"
+                                            placeholder="Até"
+                                        >
+                                    </div>
+                                </div>
+                                
+                                <!-- Ordenar Por -->
+                                <div class="space-y-2">
+                                    <label class="text-xs font-medium text-gray-300">Ordenar Por</label>
+                                    <select 
+                                        id="installmentSortBy" 
+                                        class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
+                                    >
+                                        <option value="created_at">Data de Criação</option>
+                                        <option value="next_due_date">Próximo Vencimento</option>
+                                        <option value="vence_hoje">Vence Hoje</option>
+                                        <option value="total_amount">Valor Total</option>
+                                        <option value="client_name">Cliente</option>
+                                    </select>
+                                </div>
+                                
+                                <!-- Ordem -->
+                                <div class="space-y-2">
+                                    <label class="text-xs font-medium text-gray-300">Ordem</label>
+                                    <select 
+                                        id="installmentSortOrder" 
+                                        class="bg-gray-700 border border-gray-600 rounded-lg px-3 py-2 text-white text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full"
+                                    >
+                                        <option value="desc">Decrescente</option>
+                                        <option value="asc">Crescente</option>
+                                    </select>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
                     <!-- Active Installments Table -->
                     <div class="table-container mb-8">
                         <div class="table-header px-6 py-4">
