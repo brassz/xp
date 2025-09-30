@@ -1429,6 +1429,37 @@ function applyInstallmentFiltersAndSort() {
                 aValue = aUnpaid.length > 0 ? new Date(Math.min(...aUnpaid.map(p => new Date(p.due_date)))) : new Date(0);
                 bValue = bUnpaid.length > 0 ? new Date(Math.min(...bUnpaid.map(p => new Date(p.due_date)))) : new Date(0);
                 break;
+            case 'vence_hoje':
+                // Priorizar parcelamentos que vencem hoje
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const aUnpaidToday = a.installment_payments?.filter(p => p.status === 'pending') || [];
+                const bUnpaidToday = b.installment_payments?.filter(p => p.status === 'pending') || [];
+                
+                const aNextDue = aUnpaidToday.length > 0 ? new Date(Math.min(...aUnpaidToday.map(p => new Date(p.due_date)))) : null;
+                const bNextDue = bUnpaidToday.length > 0 ? new Date(Math.min(...bUnpaidToday.map(p => new Date(p.due_date)))) : null;
+                
+                if (aNextDue) aNextDue.setHours(0, 0, 0, 0);
+                if (bNextDue) bNextDue.setHours(0, 0, 0, 0);
+                
+                const aVenceHoje = aNextDue && aNextDue.getTime() === today.getTime();
+                const bVenceHoje = bNextDue && bNextDue.getTime() === today.getTime();
+                
+                if (aVenceHoje && !bVenceHoje) {
+                    aValue = 1; bValue = 0; // a vence hoje, prioridade
+                } else if (!aVenceHoje && bVenceHoje) {
+                    aValue = 0; bValue = 1; // b vence hoje, prioridade
+                } else if (aVenceHoje && bVenceHoje) {
+                    // Ambos vencem hoje, ordenar por data de criação
+                    aValue = new Date(a.created_at || 0);
+                    bValue = new Date(b.created_at || 0);
+                } else {
+                    // Nenhum vence hoje, ordenar por próximo vencimento
+                    aValue = aNextDue || new Date(0);
+                    bValue = bNextDue || new Date(0);
+                }
+                break;
             case 'total_amount':
                 aValue = parseFloat(a.total_amount || 0);
                 bValue = parseFloat(b.total_amount || 0);
