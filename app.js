@@ -1218,6 +1218,29 @@ function applyFiltersAndSort() {
                 valueA = a.due_date ? new Date(a.due_date) : new Date(0);
                 valueB = b.due_date ? new Date(b.due_date) : new Date(0);
                 break;
+            case 'vence_hoje':
+                // Ordenar por empréstimos que vencem hoje primeiro
+                const today = new Date();
+                today.setHours(0, 0, 0, 0);
+                
+                const dueDateA = a.due_date ? new Date(a.due_date) : new Date(0);
+                const dueDateB = b.due_date ? new Date(b.due_date) : new Date(0);
+                dueDateA.setHours(0, 0, 0, 0);
+                dueDateB.setHours(0, 0, 0, 0);
+                
+                const venceHojeA = dueDateA.getTime() === today.getTime() ? 1 : 0;
+                const venceHojeB = dueDateB.getTime() === today.getTime() ? 1 : 0;
+                
+                // Se ambos vencem hoje ou ambos não vencem hoje, ordenar por data de vencimento
+                if (venceHojeA === venceHojeB) {
+                    valueA = dueDateA;
+                    valueB = dueDateB;
+                } else {
+                    // Priorizar os que vencem hoje
+                    valueA = venceHojeA;
+                    valueB = venceHojeB;
+                }
+                break;
             case 'amount':
                 valueA = parseFloat(a.amount) || 0;
                 valueB = parseFloat(b.amount) || 0;
