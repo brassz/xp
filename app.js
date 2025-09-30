@@ -7991,6 +7991,9 @@ async function openInstallmentPaymentModal(paymentId) {
         
         // Definir data padrão como hoje
         document.getElementById('installmentPaidDate').value = formatDateForInput(new Date());
+        
+        // Definir método de pagamento padrão como dinheiro
+        document.getElementById('installmentPaymentMethod').value = 'dinheiro';
 
         installmentPaymentModal.classList.remove('hidden');
 
@@ -8011,6 +8014,13 @@ document.getElementById('installmentPaymentForm').addEventListener('submit', asy
 
     if (!paidAmount || !paidDate) {
         showNotification('Preencha o valor pago e a data', 'error');
+        return;
+    }
+    
+    // Validar método de pagamento permitido para parcelamentos
+    const allowedPaymentMethods = ['dinheiro', 'pix'];
+    if (!paymentMethod || !allowedPaymentMethods.includes(paymentMethod)) {
+        showNotification('Selecione um método de pagamento válido (Dinheiro ou PIX)', 'error');
         return;
     }
 
