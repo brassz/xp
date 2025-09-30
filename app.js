@@ -5213,6 +5213,43 @@ function showInfoMessage(message) {
     }, 4000);
 }
 
+// Função unificada para notificações (compatibilidade com código existente)
+function showNotification(message, type = 'info') {
+    switch(type) {
+        case 'success':
+            showSuccessMessage(message);
+            break;
+        case 'error':
+            showErrorMessage(message);
+            break;
+        case 'info':
+        default:
+            showInfoMessage(message);
+            break;
+    }
+}
+
+// Função para tratar erros de autenticação
+function handleAuthError(error) {
+    console.error('Erro de autenticação:', error);
+    
+    if (error.message && error.message.includes('401')) {
+        showNotification('Sessão expirada. Redirecionando para login...', 'error');
+        setTimeout(() => {
+            handleLogout();
+        }, 2000);
+        return true;
+    } else if (error.code === 'PGRST301' || error.message?.includes('JWT')) {
+        showNotification('Erro de autenticação. Faça login novamente.', 'error');
+        setTimeout(() => {
+            handleLogout();
+        }, 2000);
+        return true;
+    }
+    
+    return false;
+}
+
 // Criar tabelas no Supabase se não existirem
 async function createTablesIfNotExist() {
     try {
@@ -7619,6 +7656,18 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
     }
 
     try {
+        // Verificar se o usuário está autenticado
+        if (!currentUser || !currentUser.id) {
+            showNotification('Usuário não autenticado. Faça login novamente.', 'error');
+            return;
+        }
+
+        // Verificar se o Supabase está inicializado
+        if (!supabase) {
+            showNotification('Erro de configuração. Recarregue a página.', 'error');
+            return;
+        }
+
         // Calcular valor da parcela
         let installmentAmount;
         if (interestRate > 0) {
@@ -7688,7 +7737,18 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
         
     } catch (error) {
         console.error('Erro ao criar parcelamento:', error);
-        showNotification('Erro ao criar parcelamento', 'error');
+        
+        // Tratar erros de autenticação primeiro
+        if (handleAuthError(error)) {
+            return;
+        }
+        
+        // Tratar outros tipos de erro
+        if (error.message) {
+            showNotification(`Erro ao criar parcelamento: ${error.message}`, 'error');
+        } else {
+            showNotification('Erro ao criar parcelamento. Tente novamente.', 'error');
+        }
     }
 });
 
