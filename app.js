@@ -7467,8 +7467,8 @@ function openInstallmentModal() {
     document.getElementById('newInstallmentForm').reset();
     document.getElementById('installmentSummary').classList.add('hidden');
     
-    // Carregar empréstimos vencidos
-    loadOverdueLoansForInstallment();
+    // Carregar empréstimos ativos
+    loadActiveLoansForInstallment();
     
     // Definir data padrão como próximo mês
     const nextMonth = new Date();
@@ -7478,10 +7478,10 @@ function openInstallmentModal() {
     newInstallmentModal.classList.remove('hidden');
 }
 
-// Carregar empréstimos vencidos para parcelamento
-async function loadOverdueLoansForInstallment() {
+// Carregar empréstimos ativos para parcelamento
+async function loadActiveLoansForInstallment() {
     try {
-        const { data: overdueLoans, error } = await supabase
+        const { data: activeLoans, error } = await supabase
             .from('loans')
             .select(`
                 id,
@@ -7491,20 +7491,32 @@ async function loadOverdueLoansForInstallment() {
                 due_date,
                 clients (name)
             `)
-            .lt('due_date', new Date().toISOString())
             .eq('status', 'active')
             .order('due_date', { ascending: true });
 
         if (error) throw error;
 
         const loanSelect = document.getElementById('installmentLoanId');
-        loanSelect.innerHTML = '<option value="">Selecione um empréstimo vencido</option>';
+        loanSelect.innerHTML = '<option value="">Selecione um empréstimo</option>';
 
-        overdueLoans.forEach(loan => {
-            const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
+        activeLoans.forEach(loan => {
+            const dueDate = new Date(loan.due_date);
+            const today = new Date();
+            const isOverdue = dueDate < today;
+            const daysDiff = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+            
+            let statusText = '';
+            if (isOverdue) {
+                statusText = ` (${daysDiff} dias vencido)`;
+            } else if (daysDiff < 0) {
+                statusText = ` (vence em ${Math.abs(daysDiff)} dias)`;
+            } else {
+                statusText = ' (vence hoje)';
+            }
+            
             const option = document.createElement('option');
             option.value = loan.id;
-            option.textContent = `${loan.clients.name} - R$ ${loan.total_amount.toFixed(2)} (${daysOverdue} dias vencido)`;
+            option.textContent = `${loan.clients.name} - R$ ${loan.total_amount.toFixed(2)}${statusText}`;
             option.dataset.clientName = loan.clients.name;
             option.dataset.totalAmount = loan.total_amount;
             option.dataset.clientId = loan.client_id;
@@ -7512,8 +7524,8 @@ async function loadOverdueLoansForInstallment() {
         });
 
     } catch (error) {
-        console.error('Erro ao carregar empréstimos vencidos:', error);
-        showNotification('Erro ao carregar empréstimos vencidos', 'error');
+        console.error('Erro ao carregar empréstimos:', error);
+        showNotification('Erro ao carregar empréstimos', 'error');
     }
 }
 
