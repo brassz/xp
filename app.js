@@ -7126,8 +7126,23 @@ async function generateMonthlyLoansPDF() {
             return loanDate >= oneMonthAgo;
         });
 
-        if (monthlyLoans.length === 0) {
-            showInfoMessage('Nenhum empréstimo foi encontrado no último mês.');
+        // Buscar empréstimos quitados do último mês
+        const { data: monthlyPaidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select(`
+                *,
+                clients(name, cpf)
+            `)
+            .gte('paid_date', oneMonthAgo.toISOString())
+            .order('paid_date', { ascending: false });
+
+        if (paidLoansError) {
+            console.error('Erro ao buscar empréstimos quitados:', paidLoansError);
+        }
+
+        const totalItems = monthlyLoans.length + (monthlyPaidLoans?.length || 0);
+        if (totalItems === 0) {
+            showInfoMessage('Nenhum empréstimo ou quitação foi encontrada no último mês.');
             return;
         }
 
@@ -7168,6 +7183,10 @@ async function generateMonthlyLoansPDF() {
         const totalInterest = monthlyLoans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
         const totalWithInterest = totalAmount + totalInterest;
         
+        // Calcular totais de quitações
+        const totalPaidAmount = (monthlyPaidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
+        const totalReceivedFromPaid = (monthlyPaidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
+        
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de empréstimos: ${monthlyLoans.length}`, 20, yPosition);
@@ -7177,6 +7196,16 @@ async function generateMonthlyLoansPDF() {
         doc.text(`Total de juros: R$ ${totalInterest.toFixed(2).replace('.', ',')}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Valor total com juros: R$ ${totalWithInterest.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 10;
+        
+        // Seção de quitações
+        doc.setFont('helvetica', 'bold');
+        doc.text(`QUITAÇÕES: ${(monthlyPaidLoans || []).length}`, 20, yPosition);
+        yPosition += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Valor original quitado: R$ ${totalPaidAmount.toFixed(2).replace('.', ',')}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total recebido das quitações: R$ ${totalReceivedFromPaid.toFixed(2).replace('.', ',')}`, 20, yPosition);
         yPosition += 15;
         
         // Cabeçalho da tabela
@@ -7241,6 +7270,46 @@ async function generateMonthlyLoansPDF() {
             doc.text(loan.status === 'active' ? 'Ativo' : loan.status === 'paid' ? 'Pago' : 'Cancelado', 175, yPosition);
             
             yPosition += 6;
+        }
+        
+        // Adicionar seção de quitações detalhadas
+        if (monthlyPaidLoans && monthlyPaidLoans.length > 0) {
+            yPosition += 15;
+            
+            // Verificar se precisa de nova página
+            if (yPosition > 250) {
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('QUITAÇÕES DO ÚLTIMO MÊS', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            
+            monthlyPaidLoans.forEach(paidLoan => {
+                const clientName = paidLoan.clients?.name || 'Cliente não encontrado';
+                const paidDate = new Date(paidLoan.paid_date).toLocaleDateString('pt-BR');
+                const originalAmount = parseFloat(paidLoan.original_amount || 0);
+                const totalPaid = parseFloat(paidLoan.total_paid || 0);
+                
+                // Verificar se precisa de nova página
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                // Truncar nome do cliente se for muito longo
+                const truncatedName = clientName.length > 30 ? clientName.substring(0, 27) + '...' : clientName;
+                
+                doc.text(`${truncatedName} - ${paidDate}`, 20, yPosition);
+                yPosition += 4;
+                doc.text(`  Original: R$ ${originalAmount.toFixed(2).replace('.', ',')} | Recebido: R$ ${totalPaid.toFixed(2).replace('.', ',')} | PGTO QUITAÇÃO`, 20, yPosition);
+                yPosition += 6;
+            });
         }
         
         // Rodapé
@@ -10036,8 +10105,22 @@ document.addEventListener('DOMContentLoaded', function() {
 // Função para gerar PDF do resumo total de empréstimos
 async function generateTotalReportPDF() {
     try {
-        if (loans.length === 0) {
-            showInfoMessage('Nenhum empréstimo foi encontrado.');
+        // Buscar todos os empréstimos quitados
+        const { data: allPaidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select(`
+                *,
+                clients(name, cpf)
+            `)
+            .order('paid_date', { ascending: false });
+
+        if (paidLoansError) {
+            console.error('Erro ao buscar empréstimos quitados:', paidLoansError);
+        }
+
+        const totalItems = loans.length + (allPaidLoans?.length || 0);
+        if (totalItems === 0) {
+            showInfoMessage('Nenhum empréstimo ou quitação foi encontrada.');
             return;
         }
 
@@ -10073,6 +10156,10 @@ async function generateTotalReportPDF() {
         const totalInterest = loans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
         const totalWithInterest = totalAmount + totalInterest;
         
+        // Calcular totais de quitações
+        const totalPaidAmount = (allPaidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
+        const totalReceivedFromPaid = (allPaidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
+        
         // Calcular estatísticas por período
         const now = new Date();
         const last7Days = new Date(now.getTime() - (7 * 24 * 60 * 60 * 1000));
@@ -10087,13 +10174,23 @@ async function generateTotalReportPDF() {
         
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Total de empréstimos: ${loans.length}`, 20, yPosition);
+        doc.text(`Total de empréstimos ativos: ${loans.length}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Valor total emprestado: R$ ${totalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Total de juros: R$ ${totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Valor total com juros: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 10;
+        
+        // Seção de quitações
+        doc.setFont('helvetica', 'bold');
+        doc.text(`TOTAL DE QUITAÇÕES: ${(allPaidLoans || []).length}`, 20, yPosition);
+        yPosition += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Valor original quitado: R$ ${totalPaidAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total recebido das quitações: R$ ${totalReceivedFromPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 15;
         
         // Estatísticas por período
@@ -10134,7 +10231,52 @@ async function generateTotalReportPDF() {
         doc.text(`Empréstimos ativos: ${activeLoans}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Empréstimos vencidos: ${overdueLoans}`, 20, yPosition);
-        yPosition += 6;
+        
+        // Adicionar seção de quitações detalhadas (últimas 20)
+        if (allPaidLoans && allPaidLoans.length > 0) {
+            yPosition += 15;
+            
+            // Verificar se precisa de nova página
+            if (yPosition > 250) {
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('ÚLTIMAS QUITAÇÕES (20 MAIS RECENTES)', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            
+            // Mostrar apenas as 20 quitações mais recentes
+            const recentPaidLoans = allPaidLoans.slice(0, 20);
+            
+            recentPaidLoans.forEach(paidLoan => {
+                const clientName = paidLoan.clients?.name || 'Cliente não encontrado';
+                const paidDate = new Date(paidLoan.paid_date).toLocaleDateString('pt-BR');
+                const originalAmount = parseFloat(paidLoan.original_amount || 0);
+                const totalPaid = parseFloat(paidLoan.total_paid || 0);
+                
+                // Verificar se precisa de nova página
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                doc.text(`${clientName} - ${paidDate}`, 20, yPosition);
+                yPosition += 5;
+                doc.text(`  Original: R$ ${originalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Recebido: R$ ${totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | PGTO QUITAÇÃO`, 20, yPosition);
+                yPosition += 8;
+            });
+            
+            if (allPaidLoans.length > 20) {
+                yPosition += 5;
+                doc.setFont('helvetica', 'italic');
+                doc.text(`... e mais ${allPaidLoans.length - 20} quitações anteriores`, 20, yPosition);
+            }
+        }
         
         // Salvar o PDF
         const fileName = `relatorio_total_emprestimos_${new Date().getTime()}.pdf`;
@@ -10160,8 +10302,23 @@ async function generateWeeklyReportPDF() {
             return loanDate >= last7Days;
         });
 
-        if (weeklyLoans.length === 0) {
-            showInfoMessage('Nenhum empréstimo foi encontrado nos últimos 7 dias.');
+        // Buscar empréstimos quitados dos últimos 7 dias
+        const { data: weeklyPaidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select(`
+                *,
+                clients(name, cpf)
+            `)
+            .gte('paid_date', last7Days.toISOString())
+            .order('paid_date', { ascending: false });
+
+        if (paidLoansError) {
+            console.error('Erro ao buscar empréstimos quitados:', paidLoansError);
+        }
+
+        const totalItems = weeklyLoans.length + (weeklyPaidLoans?.length || 0);
+        if (totalItems === 0) {
+            showInfoMessage('Nenhum empréstimo ou quitação foi encontrada nos últimos 7 dias.');
             return;
         }
 
@@ -10202,6 +10359,10 @@ async function generateWeeklyReportPDF() {
         const totalInterest = weeklyLoans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
         const totalWithInterest = totalAmount + totalInterest;
         
+        // Calcular totais de quitações
+        const totalPaidAmount = (weeklyPaidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
+        const totalReceivedFromPaid = (weeklyPaidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
+        
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de empréstimos: ${weeklyLoans.length}`, 20, yPosition);
@@ -10211,6 +10372,16 @@ async function generateWeeklyReportPDF() {
         doc.text(`Total de juros: R$ ${totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Valor total com juros: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 10;
+        
+        // Seção de quitações
+        doc.setFont('helvetica', 'bold');
+        doc.text(`QUITAÇÕES: ${(weeklyPaidLoans || []).length}`, 20, yPosition);
+        yPosition += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Valor original quitado: R$ ${totalPaidAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total recebido das quitações: R$ ${totalReceivedFromPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 15;
         
         // Distribuição diária
@@ -10239,6 +10410,36 @@ async function generateWeeklyReportPDF() {
             yPosition += 6;
         });
         
+        // Adicionar seção de quitações detalhadas
+        if (weeklyPaidLoans && weeklyPaidLoans.length > 0) {
+            yPosition += 10;
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('QUITAÇÕES DA SEMANA', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            
+            weeklyPaidLoans.forEach(paidLoan => {
+                const clientName = paidLoan.clients?.name || 'Cliente não encontrado';
+                const paidDate = new Date(paidLoan.paid_date).toLocaleDateString('pt-BR');
+                const originalAmount = parseFloat(paidLoan.original_amount || 0);
+                const totalPaid = parseFloat(paidLoan.total_paid || 0);
+                
+                // Verificar se precisa de nova página
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                doc.text(`${clientName} - ${paidDate}`, 20, yPosition);
+                yPosition += 5;
+                doc.text(`  Original: R$ ${originalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Recebido: R$ ${totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | PGTO QUITAÇÃO`, 20, yPosition);
+                yPosition += 8;
+            });
+        }
+        
         // Salvar o PDF
         const fileName = `relatorio_semanal_emprestimos_${new Date().getTime()}.pdf`;
         doc.save(fileName);
@@ -10263,8 +10464,23 @@ async function generateMonthlyReportPDF() {
             return loanDate >= currentMonth;
         });
 
-        if (monthlyLoans.length === 0) {
-            showInfoMessage('Nenhum empréstimo foi encontrado no mês atual.');
+        // Buscar empréstimos quitados do mês atual
+        const { data: monthlyPaidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select(`
+                *,
+                clients(name, cpf)
+            `)
+            .gte('paid_date', currentMonth.toISOString())
+            .order('paid_date', { ascending: false });
+
+        if (paidLoansError) {
+            console.error('Erro ao buscar empréstimos quitados:', paidLoansError);
+        }
+
+        const totalItems = monthlyLoans.length + (monthlyPaidLoans?.length || 0);
+        if (totalItems === 0) {
+            showInfoMessage('Nenhum empréstimo ou quitação foi encontrada no mês atual.');
             return;
         }
 
@@ -10306,6 +10522,10 @@ async function generateMonthlyReportPDF() {
         const totalInterest = monthlyLoans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
         const totalWithInterest = totalAmount + totalInterest;
         
+        // Calcular totais de quitações
+        const totalPaidAmount = (monthlyPaidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
+        const totalReceivedFromPaid = (monthlyPaidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
+        
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de empréstimos: ${monthlyLoans.length}`, 20, yPosition);
@@ -10315,6 +10535,16 @@ async function generateMonthlyReportPDF() {
         doc.text(`Total de juros: R$ ${totalInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Valor total com juros: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 10;
+        
+        // Seção de quitações
+        doc.setFont('helvetica', 'bold');
+        doc.text(`QUITAÇÕES: ${(monthlyPaidLoans || []).length}`, 20, yPosition);
+        yPosition += 6;
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Valor original quitado: R$ ${totalPaidAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total recebido das quitações: R$ ${totalReceivedFromPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 15;
         
         // Comparação com mês anterior
@@ -10354,6 +10584,43 @@ async function generateMonthlyReportPDF() {
         doc.text(`Empréstimos ativos: ${activeMonthly}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Empréstimos vencidos: ${overdueMonthly}`, 20, yPosition);
+        
+        // Adicionar seção de quitações detalhadas
+        if (monthlyPaidLoans && monthlyPaidLoans.length > 0) {
+            yPosition += 15;
+            
+            // Verificar se precisa de nova página
+            if (yPosition > 250) {
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('QUITAÇÕES DO MÊS', 20, yPosition);
+            yPosition += 10;
+            
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'normal');
+            
+            monthlyPaidLoans.forEach(paidLoan => {
+                const clientName = paidLoan.clients?.name || 'Cliente não encontrado';
+                const paidDate = new Date(paidLoan.paid_date).toLocaleDateString('pt-BR');
+                const originalAmount = parseFloat(paidLoan.original_amount || 0);
+                const totalPaid = parseFloat(paidLoan.total_paid || 0);
+                
+                // Verificar se precisa de nova página
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                doc.text(`${clientName} - ${paidDate}`, 20, yPosition);
+                yPosition += 5;
+                doc.text(`  Original: R$ ${originalAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Recebido: R$ ${totalPaid.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | PGTO QUITAÇÃO`, 20, yPosition);
+                yPosition += 8;
+            });
+        }
         
         // Salvar o PDF
         const fileName = `relatorio_mensal_emprestimos_${monthName.replace(/\s/g, '_')}_${new Date().getTime()}.pdf`;
