@@ -7125,9 +7125,18 @@ async function generateMonthlyLoansPDF() {
             const loanDate = new Date(loan.created_at);
             return loanDate >= oneMonthAgo;
         });
+        
+        // Buscar empréstimos quitados no último mês
+        const { data: monthlyPaidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select('*')
+            .gte('paid_date', oneMonthAgo.toISOString().split('T')[0])
+            .order('paid_date', { ascending: true });
+            
+        if (paidLoansError) throw paidLoansError;
 
-        if (monthlyLoans.length === 0) {
-            showInfoMessage('Nenhum empréstimo foi encontrado no último mês.');
+        if (monthlyLoans.length === 0 && (!monthlyPaidLoans || monthlyPaidLoans.length === 0)) {
+            showInfoMessage('Nenhum empréstimo ou quitação foi encontrada no último mês.');
             return;
         }
 
@@ -7168,6 +7177,10 @@ async function generateMonthlyLoansPDF() {
         const totalInterest = monthlyLoans.reduce((sum, loan) => sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100), 0);
         const totalWithInterest = totalAmount + totalInterest;
         
+        // Calcular totais de quitações no mês
+        const totalPaidAmount = (monthlyPaidLoans || []).reduce((sum, paidLoan) => sum + parseFloat(paidLoan.total_paid || 0), 0);
+        const totalSettlements = (monthlyPaidLoans || []).length;
+        
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de empréstimos: ${monthlyLoans.length}`, 20, yPosition);
@@ -7177,12 +7190,25 @@ async function generateMonthlyLoansPDF() {
         doc.text(`Total de juros: R$ ${totalInterest.toFixed(2).replace('.', ',')}`, 20, yPosition);
         yPosition += 6;
         doc.text(`Valor total com juros: R$ ${totalWithInterest.toFixed(2).replace('.', ',')}`, 20, yPosition);
-        yPosition += 15;
+        yPosition += 8;
+        
+        // Adicionar informações sobre quitações
+        if (totalSettlements > 0) {
+            doc.setFont('helvetica', 'bold');
+            doc.text(`QUITAÇÕES NO PERÍODO:`, 20, yPosition);
+            yPosition += 6;
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Total de quitações: ${totalSettlements}`, 20, yPosition);
+            yPosition += 6;
+            doc.text(`Valor total quitado: R$ ${totalPaidAmount.toFixed(2).replace('.', ',')}`, 20, yPosition);
+            yPosition += 8;
+        }
+        yPosition += 7;
         
         // Cabeçalho da tabela
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text('DETALHAMENTO DOS EMPRÉSTIMOS', 20, yPosition);
+        doc.text('DETALHAMENTO DOS EMPRÉSTIMOS E QUITAÇÕES', 20, yPosition);
         yPosition += 10;
         
         // Cabeçalhos das colunas
@@ -7190,10 +7216,10 @@ async function generateMonthlyLoansPDF() {
         doc.setFont('helvetica', 'bold');
         doc.text('Data', 20, yPosition);
         doc.text('Cliente', 40, yPosition);
-        doc.text('Valor', 100, yPosition);
-        doc.text('Juros%', 130, yPosition);
-        doc.text('Total', 150, yPosition);
-        doc.text('Status', 175, yPosition);
+        doc.text('Valor', 95, yPosition);
+        doc.text('Juros%', 120, yPosition);
+        doc.text('Total', 140, yPosition);
+        doc.text('Status/Tipo', 165, yPosition);
         yPosition += 5;
         
         // Linha divisória
@@ -7214,10 +7240,10 @@ async function generateMonthlyLoansPDF() {
                 doc.setFont('helvetica', 'bold');
                 doc.text('Data', 20, yPosition);
                 doc.text('Cliente', 40, yPosition);
-                doc.text('Valor', 100, yPosition);
-                doc.text('Juros%', 130, yPosition);
-                doc.text('Total', 150, yPosition);
-                doc.text('Status', 175, yPosition);
+                doc.text('Valor', 95, yPosition);
+                doc.text('Juros%', 120, yPosition);
+                doc.text('Total', 140, yPosition);
+                doc.text('Status/Tipo', 165, yPosition);
                 yPosition += 5;
                 doc.line(20, yPosition, 190, yPosition);
                 yPosition += 5;
@@ -7235,12 +7261,72 @@ async function generateMonthlyLoansPDF() {
             
             doc.text(loanDate, 20, yPosition);
             doc.text(truncatedName, 40, yPosition);
-            doc.text(`R$ ${amount.toFixed(2).replace('.', ',')}`, 100, yPosition);
-            doc.text(`${interestRate.toFixed(1)}%`, 130, yPosition);
-            doc.text(`R$ ${totalWithInterestLoan.toFixed(2).replace('.', ',')}`, 150, yPosition);
-            doc.text(loan.status === 'active' ? 'Ativo' : loan.status === 'paid' ? 'Pago' : 'Cancelado', 175, yPosition);
+            doc.text(`R$ ${amount.toFixed(2).replace('.', ',')}`, 95, yPosition);
+            doc.text(`${interestRate.toFixed(1)}%`, 120, yPosition);
+            doc.text(`R$ ${totalWithInterestLoan.toFixed(2).replace('.', ',')}`, 140, yPosition);
+            doc.text(loan.status === 'active' ? 'Ativo' : loan.status === 'paid' ? 'Pago' : 'Cancelado', 165, yPosition);
             
             yPosition += 6;
+        }
+        
+        // Adicionar quitações do mês
+        if (monthlyPaidLoans && monthlyPaidLoans.length > 0) {
+            // Adicionar separador se houver empréstimos anteriores
+            if (monthlyLoans.length > 0) {
+                yPosition += 5;
+                doc.setFont('helvetica', 'bold');
+                doc.text('--- QUITAÇÕES DO PERÍODO ---', 20, yPosition);
+                yPosition += 8;
+                doc.setFont('helvetica', 'normal');
+            }
+            
+            // Buscar dados dos clientes para as quitações
+            const clientIds = monthlyPaidLoans.map(pl => pl.client_id);
+            const { data: paidLoanClients } = await supabase
+                .from('clients')
+                .select('id, name, phone')
+                .in('id', clientIds);
+            
+            for (const paidLoan of monthlyPaidLoans) {
+                // Verificar se precisa de nova página
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                    
+                    // Repetir cabeçalho na nova página
+                    doc.setFontSize(8);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Data', 20, yPosition);
+                    doc.text('Cliente', 40, yPosition);
+                    doc.text('Valor', 95, yPosition);
+                    doc.text('Juros%', 120, yPosition);
+                    doc.text('Total', 140, yPosition);
+                    doc.text('Status/Tipo', 165, yPosition);
+                    yPosition += 5;
+                    doc.line(20, yPosition, 190, yPosition);
+                    yPosition += 5;
+                    doc.setFont('helvetica', 'normal');
+                }
+                
+                const client = paidLoanClients?.find(c => c.id === paidLoan.client_id);
+                const paidDate = formatDate(paidLoan.paid_date);
+                const clientName = client ? client.name : 'Cliente não encontrado';
+                const originalAmount = parseFloat(paidLoan.original_amount || 0);
+                const interestRate = parseFloat(paidLoan.interest_rate || 0);
+                const totalPaid = parseFloat(paidLoan.total_paid || 0);
+                
+                // Truncar nome do cliente se for muito longo
+                const truncatedName = clientName.length > 25 ? clientName.substring(0, 22) + '...' : clientName;
+                
+                doc.text(paidDate, 20, yPosition);
+                doc.text(truncatedName, 40, yPosition);
+                doc.text(`R$ ${originalAmount.toFixed(2).replace('.', ',')}`, 95, yPosition);
+                doc.text(`${interestRate.toFixed(1)}%`, 120, yPosition);
+                doc.text(`R$ ${totalPaid.toFixed(2).replace('.', ',')}`, 140, yPosition);
+                doc.text('QUITAÇÃO', 165, yPosition);
+                
+                yPosition += 6;
+            }
         }
         
         // Rodapé
@@ -7257,7 +7343,12 @@ async function generateMonthlyLoansPDF() {
         const fileName = `Emprestimos_Ultimo_Mes_${new Date().toISOString().split('T')[0]}.pdf`;
         doc.save(fileName);
 
-        showSuccessMessage(`PDF gerado com sucesso! ${monthlyLoans.length} empréstimos encontrados.`);
+        let message = `PDF gerado com sucesso! ${monthlyLoans.length} empréstimos encontrados`;
+        if (totalSettlements > 0) {
+            message += ` e ${totalSettlements} quitações`;
+        }
+        message += '.';
+        showSuccessMessage(message);
 
     } catch (error) {
         console.error('Erro ao gerar PDF dos empréstimos:', error);
@@ -7300,10 +7391,52 @@ async function generateWeeklyPaymentsPDF() {
             .lte('payment_date', endOfWeek.toISOString().split('T')[0])
             .order('payment_date', { ascending: true });
 
-        if (error) throw error;
+        // Buscar empréstimos quitados na semana
+        const { data: weeklyPaidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select('*')
+            .gte('paid_date', startOfWeek.toISOString().split('T')[0])
+            .lte('paid_date', endOfWeek.toISOString().split('T')[0])
+            .order('paid_date', { ascending: true });
 
-        if (!weeklyPayments || weeklyPayments.length === 0) {
-            showInfoMessage('Nenhum pagamento foi encontrado na semana atual.');
+        if (error) throw error;
+        if (paidLoansError) throw paidLoansError;
+
+        // Combinar pagamentos regulares com quitações
+        const allWeeklyPayments = [...(weeklyPayments || [])];
+        
+        // Adicionar quitações como pagamentos especiais
+        if (weeklyPaidLoans && weeklyPaidLoans.length > 0) {
+            // Buscar dados dos clientes para as quitações
+            const clientIds = weeklyPaidLoans.map(pl => pl.client_id);
+            const { data: paidLoanClients } = await supabase
+                .from('clients')
+                .select('id, name, phone')
+                .in('id', clientIds);
+            
+            for (const paidLoan of weeklyPaidLoans) {
+                const client = paidLoanClients?.find(c => c.id === paidLoan.client_id);
+                allWeeklyPayments.push({
+                    id: `quitacao_${paidLoan.id}`,
+                    payment_date: paidLoan.paid_date,
+                    amount: paidLoan.total_paid,
+                    payment_type: 'quitacao',
+                    loans: {
+                        id: paidLoan.loan_id,
+                        amount: paidLoan.original_amount,
+                        interest_rate: paidLoan.interest_rate,
+                        clients: client || { name: 'Cliente não encontrado', phone: '' }
+                    },
+                    is_settlement: true
+                });
+            }
+        }
+        
+        // Ordenar por data
+        allWeeklyPayments.sort((a, b) => new Date(a.payment_date) - new Date(b.payment_date));
+
+        if (!allWeeklyPayments || allWeeklyPayments.length === 0) {
+            showInfoMessage('Nenhum pagamento ou quitação foi encontrada na semana atual.');
             return;
         }
 
@@ -7341,8 +7474,8 @@ async function generateWeeklyPaymentsPDF() {
         yPosition += 10;
         
         // Calcular totais
-        const totalPayments = weeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        const totalCapital = weeklyPayments.reduce((sum, payment) => {
+        const totalPayments = allWeeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalCapital = allWeeklyPayments.reduce((sum, payment) => {
             const loan = payment.loans;
             const loanAmount = parseFloat(loan.amount);
             const interestAmount = loanAmount * parseFloat(loan.interest_rate) / 100;
@@ -7354,7 +7487,7 @@ async function generateWeeklyPaymentsPDF() {
         
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Total de Pagamentos: ${weeklyPayments.length}`, 20, yPosition);
+        doc.text(`Total de Pagamentos: ${allWeeklyPayments.length}`, 20, yPosition);
         yPosition += 8;
         doc.text(`Total Recebido: R$ ${totalPayments.toFixed(2)}`, 20, yPosition);
         yPosition += 8;
@@ -7378,9 +7511,10 @@ async function generateWeeklyPaymentsPDF() {
         doc.setFont('helvetica', 'bold');
         doc.text('Data', 20, yPosition);
         doc.text('Cliente', 45, yPosition);
-        doc.text('Valor Pago', 110, yPosition);
-        doc.text('Juros', 140, yPosition);
-        doc.text('Capital', 165, yPosition);
+        doc.text('Valor Pago', 100, yPosition);
+        doc.text('Juros', 130, yPosition);
+        doc.text('Capital', 150, yPosition);
+        doc.text('Tipo', 170, yPosition);
         yPosition += 8;
         
         // Linha dos cabeçalhos
@@ -7390,7 +7524,7 @@ async function generateWeeklyPaymentsPDF() {
         // Dados dos pagamentos
         doc.setFont('helvetica', 'normal');
         
-        for (const payment of weeklyPayments) {
+        for (const payment of allWeeklyPayments) {
             if (yPosition > 270) {
                 doc.addPage();
                 yPosition = 20;
@@ -7400,9 +7534,10 @@ async function generateWeeklyPaymentsPDF() {
                 doc.setFont('helvetica', 'bold');
                 doc.text('Data', 20, yPosition);
                 doc.text('Cliente', 45, yPosition);
-                doc.text('Valor Pago', 110, yPosition);
-                doc.text('Juros', 140, yPosition);
-                doc.text('Capital', 165, yPosition);
+                doc.text('Valor Pago', 100, yPosition);
+                doc.text('Juros', 130, yPosition);
+                doc.text('Capital', 150, yPosition);
+                doc.text('Tipo', 170, yPosition);
                 yPosition += 8;
                 doc.line(20, yPosition - 2, 190, yPosition - 2);
                 yPosition += 5;
@@ -7419,22 +7554,31 @@ async function generateWeeklyPaymentsPDF() {
             // Calcular quanto foi de juros e quanto foi de capital
             let interestPaid = 0;
             let capitalPaid = 0;
+            let paymentTypeText = '';
             
-            if (paymentAmount <= interestAmount) {
+            if (payment.is_settlement) {
+                // Quitação total
+                interestPaid = interestAmount;
+                capitalPaid = paymentAmount - interestAmount;
+                paymentTypeText = 'QUITAÇÃO';
+            } else if (paymentAmount <= interestAmount) {
                 // Pagamento apenas de juros
                 interestPaid = paymentAmount;
                 capitalPaid = 0;
+                paymentTypeText = 'JUROS';
             } else {
                 // Pagamento de juros + capital
                 interestPaid = interestAmount;
                 capitalPaid = paymentAmount - interestAmount;
+                paymentTypeText = 'PGTO';
             }
             
             doc.text(formatDate(payment.payment_date), 20, yPosition);
-            doc.text(client.name.substring(0, 25), 45, yPosition);
-            doc.text(`R$ ${paymentAmount.toFixed(2)}`, 110, yPosition);
-            doc.text(`R$ ${interestPaid.toFixed(2)}`, 140, yPosition);
-            doc.text(`R$ ${capitalPaid.toFixed(2)}`, 165, yPosition);
+            doc.text(client.name.substring(0, 20), 45, yPosition);
+            doc.text(`R$ ${paymentAmount.toFixed(2)}`, 100, yPosition);
+            doc.text(`R$ ${interestPaid.toFixed(2)}`, 130, yPosition);
+            doc.text(`R$ ${capitalPaid.toFixed(2)}`, 150, yPosition);
+            doc.text(paymentTypeText, 170, yPosition);
             
             yPosition += 8;
         }
@@ -7446,9 +7590,9 @@ async function generateWeeklyPaymentsPDF() {
         
         doc.setFont('helvetica', 'bold');
         doc.text('TOTAIS DA SEMANA:', 20, yPosition);
-        doc.text(`R$ ${totalPayments.toFixed(2)}`, 110, yPosition);
-        doc.text(`R$ ${totalInterest.toFixed(2)}`, 140, yPosition);
-        doc.text(`R$ ${totalCapital.toFixed(2)}`, 165, yPosition);
+        doc.text(`R$ ${totalPayments.toFixed(2)}`, 100, yPosition);
+        doc.text(`R$ ${totalInterest.toFixed(2)}`, 130, yPosition);
+        doc.text(`R$ ${totalCapital.toFixed(2)}`, 150, yPosition);
         
         // Informações da empresa no rodapé
         const pageCount = doc.internal.getNumberOfPages();
@@ -7464,7 +7608,13 @@ async function generateWeeklyPaymentsPDF() {
         const fileName = `Pagamentos_Semana_${startOfWeek.toLocaleDateString('pt-BR').replace(/\//g, '-')}_a_${endOfWeek.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`;
         doc.save(fileName);
 
-        showSuccessMessage(`PDF gerado com sucesso! ${weeklyPayments.length} pagamentos encontrados na semana.`);
+        const regularPayments = allWeeklyPayments.filter(p => !p.is_settlement).length;
+        const settlements = allWeeklyPayments.filter(p => p.is_settlement).length;
+        let message = `PDF gerado com sucesso! ${allWeeklyPayments.length} registros encontrados na semana`;
+        if (settlements > 0) {
+            message += ` (${regularPayments} pagamentos + ${settlements} quitações)`;
+        }
+        showSuccessMessage(message);
 
     } catch (error) {
         console.error('Erro ao gerar PDF dos pagamentos semanais:', error);
