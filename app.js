@@ -7129,13 +7129,7 @@ async function generateMonthlyLoansPDF() {
         // Buscar empréstimos quitados no último mês
         const { data: monthlyPaidLoans, error: paidLoansError } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients!inner (
-                    name,
-                    phone
-                )
-            `)
+            .select('*')
             .gte('paid_date', oneMonthAgo.toISOString().split('T')[0])
             .order('paid_date', { ascending: true });
             
@@ -7286,6 +7280,13 @@ async function generateMonthlyLoansPDF() {
                 doc.setFont('helvetica', 'normal');
             }
             
+            // Buscar dados dos clientes para as quitações
+            const clientIds = monthlyPaidLoans.map(pl => pl.client_id);
+            const { data: paidLoanClients } = await supabase
+                .from('clients')
+                .select('id, name, phone')
+                .in('id', clientIds);
+            
             for (const paidLoan of monthlyPaidLoans) {
                 // Verificar se precisa de nova página
                 if (yPosition > 270) {
@@ -7307,8 +7308,9 @@ async function generateMonthlyLoansPDF() {
                     doc.setFont('helvetica', 'normal');
                 }
                 
+                const client = paidLoanClients?.find(c => c.id === paidLoan.client_id);
                 const paidDate = formatDate(paidLoan.paid_date);
-                const clientName = paidLoan.clients ? paidLoan.clients.name : 'Cliente não encontrado';
+                const clientName = client ? client.name : 'Cliente não encontrado';
                 const originalAmount = parseFloat(paidLoan.original_amount || 0);
                 const interestRate = parseFloat(paidLoan.interest_rate || 0);
                 const totalPaid = parseFloat(paidLoan.total_paid || 0);
@@ -7392,13 +7394,7 @@ async function generateWeeklyPaymentsPDF() {
         // Buscar empréstimos quitados na semana
         const { data: weeklyPaidLoans, error: paidLoansError } = await supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients!inner (
-                    name,
-                    phone
-                )
-            `)
+            .select('*')
             .gte('paid_date', startOfWeek.toISOString().split('T')[0])
             .lte('paid_date', endOfWeek.toISOString().split('T')[0])
             .order('paid_date', { ascending: true });
@@ -7411,7 +7407,15 @@ async function generateWeeklyPaymentsPDF() {
         
         // Adicionar quitações como pagamentos especiais
         if (weeklyPaidLoans && weeklyPaidLoans.length > 0) {
+            // Buscar dados dos clientes para as quitações
+            const clientIds = weeklyPaidLoans.map(pl => pl.client_id);
+            const { data: paidLoanClients } = await supabase
+                .from('clients')
+                .select('id, name, phone')
+                .in('id', clientIds);
+            
             for (const paidLoan of weeklyPaidLoans) {
+                const client = paidLoanClients?.find(c => c.id === paidLoan.client_id);
                 allWeeklyPayments.push({
                     id: `quitacao_${paidLoan.id}`,
                     payment_date: paidLoan.paid_date,
@@ -7421,7 +7425,7 @@ async function generateWeeklyPaymentsPDF() {
                         id: paidLoan.loan_id,
                         amount: paidLoan.original_amount,
                         interest_rate: paidLoan.interest_rate,
-                        clients: paidLoan.clients
+                        clients: client || { name: 'Cliente não encontrado', phone: '' }
                     },
                     is_settlement: true
                 });
