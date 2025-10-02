@@ -4489,6 +4489,113 @@ Após o vencimento, será aplicada uma multa diária de R$ 50,00.`;
     }
 }
 
+// Função para enviar mensagem de cobrança de parcela via WhatsApp
+async function sendInstallmentWhatsAppMessage(installmentId) {
+    try {
+        // Buscar dados do parcelamento com relacionamentos
+        const { data: installment, error } = await supabase
+            .from('installments')
+            .select(`
+                *,
+                clients (name, phone, cpf),
+                loans (amount, due_date),
+                installment_payments (*)
+            `)
+            .eq('id', installmentId)
+            .single();
+
+        if (error) throw error;
+
+        if (!installment) {
+            showNotification('Parcelamento não encontrado!', 'error');
+            return;
+        }
+
+        const client = installment.clients;
+        if (!client) {
+            showNotification('Dados do cliente não encontrados!', 'error');
+            return;
+        }
+
+        // Verificar se o cliente tem telefone
+        if (!client.phone) {
+            showNotification('Cliente não possui telefone cadastrado!', 'error');
+            return;
+        }
+
+        // Calcular informações das parcelas
+        const allPayments = installment.installment_payments || [];
+        const paidPayments = allPayments.filter(p => p.status === 'paid');
+        const pendingPayments = allPayments.filter(p => p.status === 'pending');
+        
+        // Encontrar próxima parcela vencida ou a vencer
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const nextPayment = pendingPayments
+            .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0];
+
+        if (!nextPayment) {
+            showNotification('Não há parcelas pendentes para este parcelamento', 'info');
+            return;
+        }
+
+        // Calcular informações relevantes
+        const remainingInstallments = pendingPayments.length;
+        const totalRemaining = pendingPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        const nextDueDate = formatDate(nextPayment.due_date);
+        const installmentAmount = parseFloat(nextPayment.amount);
+        
+        // Verificar se está vencida
+        const paymentDueDate = new Date(nextPayment.due_date);
+        paymentDueDate.setHours(0, 0, 0, 0);
+        const isOverdue = today > paymentDueDate;
+        const daysOverdue = isOverdue ? Math.floor((today - paymentDueDate) / (1000 * 60 * 60 * 24)) : 0;
+
+        // Montar mensagem do WhatsApp
+        let message = `📋 *PARCELAMENTO* - ${client.name}
+
+💰 *Valor da Parcela:* R$ ${installmentAmount.toFixed(2)}
+📅 *Vencimento:* ${nextDueDate}
+📊 *Parcelas Restantes:* ${remainingInstallments} de ${installment.total_installments}
+💵 *Valor Total Restante:* R$ ${totalRemaining.toFixed(2)}`;
+
+        if (isOverdue) {
+            message += `\n\n⚠️ *ATENÇÃO - PARCELA VENCIDA*
+🚨 Venceu há ${daysOverdue} dia${daysOverdue > 1 ? 's' : ''}
+📞 Entre em contato conosco para regularizar sua situação`;
+        } else {
+            message += `\n\n✅ Parcela ainda dentro do prazo
+📞 Entre em contato para efetuar o pagamento`;
+        }
+
+        message += `\n\n💳 *Formas de pagamento disponíveis:*
+• PIX
+• Dinheiro
+
+📱 *Nexus Gestão Financeira*`;
+
+        // Limpar o número de telefone (remover caracteres especiais)
+        const cleanPhone = client.phone.replace(/\D/g, '');
+
+        // Verificar se o número tem o código do país
+        const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+        // Criar URL do WhatsApp
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+        // Abrir WhatsApp em nova aba
+        window.open(whatsappUrl, '_blank');
+
+        // Mostrar mensagem de sucesso
+        showNotification(`Mensagem de cobrança da parcela enviada para ${client.name} (${client.phone})`, 'success');
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem do WhatsApp do parcelamento:', error);
+        showNotification('Erro ao preparar mensagem do WhatsApp: ' + error.message, 'error');
+    }
+}
+
 async function loadPaymentHistory(loanId) {
     try {
         const { data, error } = await supabase
@@ -8069,6 +8176,11 @@ function renderInstallmentsTable() {
                     <button onclick="viewInstallmentDetails('${installment.id}')" 
                             class="text-blue-400 hover:text-blue-300 text-sm font-medium mr-3">
                         Ver Detalhes
+                    </button>
+                    <button onclick="sendInstallmentWhatsAppMessage('${installment.id}')" 
+                            class="text-green-400 hover:text-green-300 text-sm font-medium mr-3" 
+                            title="Enviar cobrança via WhatsApp">
+                        💬 WhatsApp
                     </button>
                     <button onclick="cancelInstallment('${installment.id}')" 
                             class="text-red-400 hover:text-red-300 text-sm font-medium">
