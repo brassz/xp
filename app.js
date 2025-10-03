@@ -4920,7 +4920,6 @@ async function generatePaymentReceipt(paymentId, loanId) {
 
 💰 *VALORES:*
 • Valor Total do Empréstimo: R$ ${totalWithInterest.toFixed(2)}
-• Valor Pago Hoje: R$ ${paymentAmount.toFixed(2)}
 • Total Já Pago: R$ ${totalPaid.toFixed(2)}
 • Valor Restante: R$ ${remainingAmount.toFixed(2)}
 
