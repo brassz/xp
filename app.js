@@ -4706,6 +4706,7 @@ async function loadPaymentHistory(loanId) {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="text-green-400 hover:text-green-300 mr-3" onclick="generatePaymentReceipt('${payment.id}', '${loanId}')" title="Gerar comprovante via WhatsApp">📄</button>
                         <button class="text-red-400 hover:text-red-300" onclick="deletePayment('${payment.id}')">🗑️</button>
                     </td>
                 </tr>
@@ -4844,6 +4845,115 @@ async function performDeletePayment(paymentId) {
     } catch (error) {
         console.error('Erro ao excluir pagamento:', error);
         alert('Erro ao excluir pagamento: ' + error.message);
+    }
+}
+
+// Função para gerar comprovante de pagamento e enviar via WhatsApp
+async function generatePaymentReceipt(paymentId, loanId) {
+    try {
+        // Buscar dados do pagamento
+        const { data: payment, error: paymentError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('id', paymentId)
+            .single();
+        
+        if (paymentError) throw paymentError;
+        if (!payment) {
+            alert('Pagamento não encontrado!');
+            return;
+        }
+
+        // Buscar dados do empréstimo com informações do cliente
+        const { data: loan, error: loanError } = await supabase
+            .from('loans')
+            .select(`
+                *,
+                clients (
+                    name,
+                    cpf,
+                    phone
+                )
+            `)
+            .eq('id', loanId)
+            .single();
+        
+        if (loanError) throw loanError;
+        if (!loan) {
+            alert('Empréstimo não encontrado!');
+            return;
+        }
+
+        // Buscar todos os pagamentos do empréstimo para calcular totais
+        const { data: allPayments, error: allPaymentsError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('loan_id', loanId);
+        
+        if (allPaymentsError) throw allPaymentsError;
+
+        // Calcular valores
+        const loanAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const totalWithInterest = loanAmount + (loanAmount * interestRate / 100);
+        const totalPaid = allPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        const remainingAmount = totalWithInterest - totalPaid;
+        const paymentAmount = parseFloat(payment.amount);
+
+        // Calcular próxima data de vencimento (assumindo vencimento semanal)
+        const currentDueDate = new Date(loan.due_date);
+        const nextDueDate = new Date(currentDueDate);
+        nextDueDate.setDate(nextDueDate.getDate() + 7); // Próxima semana
+
+        // Formatar dados do cliente
+        const clientName = loan.clients?.name || 'Cliente não encontrado';
+        const clientCPF = loan.clients?.cpf || 'CPF não informado';
+        const clientPhone = loan.clients?.phone || '';
+
+        // Gerar mensagem do comprovante
+        const receiptMessage = `
+🧾 *COMPROVANTE DE PAGAMENTO*
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+👤 *Cliente:* ${clientName}
+📋 *CPF:* ${clientCPF}
+📅 *Data do Pagamento:* ${formatDate(payment.payment_date)}
+
+💰 *VALORES:*
+• Valor Total do Empréstimo: R$ ${totalWithInterest.toFixed(2)}
+• Valor Pago Hoje: R$ ${paymentAmount.toFixed(2)}
+• Total Já Pago: R$ ${totalPaid.toFixed(2)}
+• Valor Restante: R$ ${remainingAmount.toFixed(2)}
+
+📅 *Próximo Vencimento:* ${formatDate(nextDueDate)}
+
+⚠️ *LEMBRETE:* 
+Não esqueça de efetuar o próximo pagamento na data de vencimento: ${formatDate(nextDueDate)}
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━
+Obrigado pela confiança! 💙
+        `.trim();
+
+        // Abrir WhatsApp com a mensagem
+        if (clientPhone) {
+            const phoneNumber = clientPhone.replace(/\D/g, ''); // Remove caracteres não numéricos
+            const whatsappUrl = `https://wa.me/55${phoneNumber}?text=${encodeURIComponent(receiptMessage)}`;
+            window.open(whatsappUrl, '_blank');
+        } else {
+            // Se não tiver telefone, copiar mensagem para clipboard
+            navigator.clipboard.writeText(receiptMessage).then(() => {
+                alert('Comprovante copiado para área de transferência!\n\nO cliente não possui telefone cadastrado. Cole a mensagem no WhatsApp manualmente.');
+            }).catch(() => {
+                // Fallback: mostrar mensagem em um modal
+                alert('Comprovante gerado:\n\n' + receiptMessage);
+            });
+        }
+
+        showSuccessMessage('Comprovante gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar comprovante:', error);
+        alert('Erro ao gerar comprovante: ' + error.message);
     }
 }
 
