@@ -11,15 +11,16 @@ Modificar a funcionalidade de parcelamentos para usar apenas clientes ao invés 
 - ✅ Substituído campo "Empréstimo" por "Cliente" no modal de novo parcelamento
 - ✅ Atualizado `installmentLoanId` para `installmentClientId`
 - ✅ Mantido campo de nome do cliente (preenchido automaticamente)
+- ✅ Atualizada descrição da seção de empréstimos vencidos
 
 ### 2. **Lógica JavaScript**
 - ✅ Substituída função `loadActiveLoansForInstallment()` por `loadActiveClientsForInstallment()`
 - ✅ Atualizado event listener para usar `installmentClientId`
 - ✅ Modificada criação de parcelamentos para não depender de `loan_id`
 - ✅ Removida atualização de status de empréstimo após criação de parcelamento
-- ✅ Atualizada função `createInstallmentFromLoan()` para `createInstallmentFromClient()`
-- ✅ Modificada função `sendToInstallment()` para `sendClientToInstallment()`
-- ✅ Atualizadas chamadas nos botões de "Parcelar" para usar `client_id`
+- ✅ **REMOVIDAS** funções `createInstallmentFromClient()` e `sendClientToInstallment()`
+- ✅ **REMOVIDOS** todos os botões "Parcelar" das tabelas de empréstimos vencidos
+- ✅ **REMOVIDA** função `loadOverdueLoansForInstallmentTable()`
 
 ### 3. **Consultas ao Banco de Dados**
 - ✅ Removidas referências ao campo `loans` nas consultas de parcelamentos
@@ -52,16 +53,17 @@ Modificar a funcionalidade de parcelamentos para usar apenas clientes ao invés 
 5. Define número de parcelas e taxa de juros
 6. Confirma criação
 
-### ✅ **Compatibilidade Mantida**
-- Parcelamentos existentes continuam funcionando
-- Botões "Parcelar" em empréstimos vencidos agora direcionam para o cliente
-- Todas as funcionalidades de pagamento e visualização mantidas
+### ✅ **Separação Completa de Funcionalidades**
+- **Parcelamentos**: Criados independentemente, apenas com base em clientes
+- **Empréstimos Vencidos**: Mantidos para controle e contato com clientes
+- **Nenhuma vinculação**: Parcelamentos não são mais criados a partir de empréstimos
 
 ### ✅ **Benefícios da Mudança**
-- ✅ Maior flexibilidade: parcelamentos não dependem de empréstimos
-- ✅ Simplicidade: processo mais direto e intuitivo
-- ✅ Versatilidade: permite parcelar qualquer valor para qualquer cliente
-- ✅ Compatibilidade: mantém funcionalidades existentes
+- ✅ **Independência total**: Parcelamentos completamente desvinculados de empréstimos
+- ✅ **Simplicidade**: Processo mais direto e intuitivo
+- ✅ **Versatilidade**: Permite parcelar qualquer valor para qualquer cliente
+- ✅ **Clareza**: Separação clara entre gestão de empréstimos e parcelamentos
+- ✅ **Compatibilidade**: Mantém funcionalidades existentes de pagamento e visualização
 
 ## 📋 Próximos Passos
 

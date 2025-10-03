@@ -8644,83 +8644,9 @@ async function cancelInstallment(installmentId) {
     }
 }
 
-// Carregar empréstimos vencidos para a tabela de parcelamento
-async function loadOverdueLoansForInstallmentTable() {
-    try {
-        const { data: overdueLoans, error } = await supabase
-            .from('loans')
-            .select(`
-                id,
-                client_id,
-                amount,
-                total_amount,
-                due_date,
-                clients (name)
-            `)
-            .lt('due_date', new Date().toISOString())
-            .eq('status', 'active')
-            .order('due_date', { ascending: true });
+// Função removida - parcelamentos não são mais baseados em empréstimos vencidos
 
-        if (error) throw error;
-
-        const tableBody = document.getElementById('overdueForInstallmentTableBody');
-        
-        if (!tableBody) return;
-
-        if (overdueLoans.length === 0) {
-            tableBody.innerHTML = `
-                <tr>
-                    <td colspan="5" class="px-6 py-4 text-center text-gray-400">
-                        Nenhum empréstimo vencido encontrado
-                    </td>
-                </tr>
-            `;
-            return;
-        }
-
-        tableBody.innerHTML = overdueLoans.map(loan => {
-            const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
-            
-            return `
-                <tr class="table-row hover:bg-gray-700 transition-colors">
-                    <td class="px-6 py-4 text-white">${loan.clients.name}</td>
-                    <td class="px-6 py-4 text-white">R$ ${loan.amount.toFixed(2)}</td>
-                    <td class="px-6 py-4 text-white">R$ ${loan.total_amount.toFixed(2)}</td>
-                    <td class="px-6 py-4">
-                        <span class="px-2 py-1 text-xs font-medium rounded-full bg-red-900 text-red-300">
-                            ${daysOverdue} dias
-                        </span>
-                    </td>
-                    <td class="px-6 py-4">
-                        <button onclick="sendClientToInstallment('${loan.client_id}')" 
-                                class="text-blue-400 hover:text-blue-300 text-sm font-medium">
-                            Parcelar
-                        </button>
-                    </td>
-                </tr>
-            `;
-        }).join('');
-
-    } catch (error) {
-        console.error('Erro ao carregar empréstimos vencidos:', error);
-        showNotification('Erro ao carregar empréstimos vencidos', 'error');
-    }
-}
-
-// Criar parcelamento a partir de um cliente específico
-function createInstallmentFromClient(clientId) {
-    openInstallmentModal();
-    
-    // Aguardar um pouco para o modal carregar
-    setTimeout(() => {
-        const clientSelect = document.getElementById('installmentClientId');
-        clientSelect.value = clientId;
-        
-        // Trigger change event para preencher dados automaticamente
-        const changeEvent = new Event('change');
-        clientSelect.dispatchEvent(changeEvent);
-    }, 100);
-}
+// Função removida - parcelamentos agora são criados apenas através do modal principal
 
 // Event listeners para modais
 document.getElementById('closeInstallmentModal').addEventListener('click', closeInstallmentModal);
@@ -8813,16 +8739,10 @@ async function loadOverdueLoans() {
                     </td>
                     <td class="px-6 py-4 text-white">R$ ${accumulatedInterest.toFixed(2)}</td>
                     <td class="px-6 py-4">
-                        <div class="flex space-x-2">
-                            <button onclick="sendClientToInstallment('${loan.client_id}')" 
-                                    class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
-                                Parcelar
-                            </button>
-                            <button onclick="contactClient('${loan.client_id}', '${loan.clients.phone || ''}')" 
-                                    class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
-                                Contatar
-                            </button>
-                        </div>
+                        <button onclick="contactClient('${loan.client_id}', '${loan.clients.phone || ''}')" 
+                                class="bg-green-600 hover:bg-green-500 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
+                            Contatar
+                        </button>
                     </td>
                 </tr>
             `;
@@ -8834,20 +8754,7 @@ async function loadOverdueLoans() {
     }
 }
 
-// Enviar cliente para a aba de parcelamento
-function sendClientToInstallment(clientId) {
-    // Navegar para a aba de parcelamentos
-    const installmentsLink = document.querySelector('a[href="#installments"]');
-    if (installmentsLink) {
-        installmentsLink.click();
-    }
-    
-    // Aguardar um pouco para a aba carregar e abrir o modal de parcelamento
-    setTimeout(() => {
-        createInstallmentFromClient(clientId);
-        showNotification('Cliente selecionado para parcelamento', 'success');
-    }, 300);
-}
+// Função removida - parcelamentos agora são criados apenas através do modal principal
 
 // Função para contatar cliente (pode abrir WhatsApp ou mostrar informações)
 function contactClient(clientId, phone) {
