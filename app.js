@@ -4900,19 +4900,10 @@ async function generatePaymentReceipt(paymentId, loanId) {
         const remainingAmount = totalWithInterest - totalPaid;
         const paymentAmount = parseFloat(payment.amount);
 
-        // Calcular próxima data de vencimento de forma inteligente
-        const currentDueDate = new Date(loan.due_date);
+        // Calcular próxima data de vencimento (30 dias a partir de hoje)
         const today = new Date();
-        let nextDueDate = new Date(currentDueDate);
-        
-        // Se a data de vencimento já passou, calcular a próxima baseada em hoje
-        if (currentDueDate < today) {
-            nextDueDate = new Date(today);
-            nextDueDate.setDate(today.getDate() + 7); // Próxima semana a partir de hoje
-        } else {
-            // Se ainda não venceu, a próxima é uma semana após o vencimento atual
-            nextDueDate.setDate(currentDueDate.getDate() + 7);
-        }
+        const nextDueDate = new Date(today);
+        nextDueDate.setDate(today.getDate() + 30); // 30 dias a partir de hoje
 
         // Formatar dados do cliente
         const clientName = loan.clients?.name || 'Cliente não encontrado';
