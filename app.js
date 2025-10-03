@@ -4462,6 +4462,7 @@ async function sendWhatsAppMessage(loanId) {
 💰 CLIENTE: ${client.name}
 💵 Capital: R$ ${principalAmount.toFixed(2)}
 📊 Juros: R$ ${interestAmount.toFixed(2)}
+💳 VALOR RESTANTE: R$ ${remainingAmount.toFixed(2)}
 ❌ Multa atual: R$ ${currentFine.toFixed(2)}
 
 ⚠️🚨 ATENÇÃO!
