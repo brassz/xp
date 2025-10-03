@@ -4904,6 +4904,9 @@ async function generatePaymentReceipt(paymentId, loanId) {
         const today = new Date();
         const nextDueDate = new Date(today);
         nextDueDate.setDate(today.getDate() + 30); // 30 dias a partir de hoje
+        
+        // Converter para string no formato correto
+        const nextDueDateString = formatDateForInput(nextDueDate);
 
         // Formatar dados do cliente
         const clientName = loan.clients?.name || 'Cliente não encontrado';
@@ -4923,10 +4926,10 @@ async function generatePaymentReceipt(paymentId, loanId) {
 • Total Já Pago: R$ ${totalPaid.toFixed(2)}
 • Valor Restante: R$ ${remainingAmount.toFixed(2)}
 
-📅 *Próximo Vencimento:* ${formatDate(nextDueDate)}
+📅 *Próximo Vencimento:* ${formatDate(nextDueDateString)}
 
 ⚠️ *LEMBRETE:* 
-Não esqueça de efetuar o próximo pagamento na data de vencimento: ${formatDate(nextDueDate)}
+Não esqueça de efetuar o próximo pagamento na data de vencimento: ${formatDate(nextDueDateString)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Obrigado pela confiança! 💙`;
