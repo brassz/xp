@@ -4444,7 +4444,44 @@ async function sendWhatsAppMessage(loanId) {
         const principalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
         const interestAmount = principalAmount * (interestRate / 100);
-        const remainingAmount = await calculateLoanRemainingAmount(loanId);
+        const totalWithInterest = principalAmount + interestAmount;
+        
+        // Buscar histórico de pagamentos
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('amount, payment_date, payment_type')
+            .eq('loan_id', loanId)
+            .order('payment_date', { ascending: true });
+
+        if (paymentsError) throw paymentsError;
+
+        // Verificar se houve renovações e calcular total pago corretamente
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        const hasRenewals = payments.some(p => p.payment_type === 'renewal' || p.payment_type === 'interest_renewal');
+        
+        let totalPaid;
+        if (hasRenewals) {
+            // Se houve renovação, considerar apenas pagamentos após a última renovação
+            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+            const lastInterestRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('interest_renewal');
+            const lastRenewalIdx = Math.max(lastRenewalIndex, lastInterestRenewalIndex);
+            
+            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
+                const paymentIndex = payments.findIndex(p => p === payment);
+                return paymentIndex > lastRenewalIdx;
+            });
+            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        } else {
+            // Lógica original - excluir renovações
+            const validPayments = realPayments.filter(p => 
+                p.payment_type !== 'renewal' && 
+                p.payment_type !== 'interest_renewal'
+            );
+            totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        }
+        
+        // Calcular valor restante
+        const remainingAmount = Math.max(0, totalWithInterest - totalPaid);
         
         // Calcular multa se estiver vencido
         const dueDate = new Date(loan.due_date);
@@ -4456,13 +4493,47 @@ async function sendWhatsAppMessage(loanId) {
         // Formatar data de vencimento
         const formattedDueDate = formatDate(loan.due_date);
 
+        // Montar histórico de pagamentos para a mensagem (apenas pagamentos válidos)
+        let paymentHistory = '';
+        let validPaymentsForHistory;
+        
+        if (hasRenewals) {
+            // Mostrar apenas pagamentos após a última renovação
+            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+            const lastInterestRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('interest_renewal');
+            const lastRenewalIdx = Math.max(lastRenewalIndex, lastInterestRenewalIndex);
+            
+            validPaymentsForHistory = realPayments.filter((payment, index) => {
+                const paymentIndex = payments.findIndex(p => p === payment);
+                return paymentIndex > lastRenewalIdx;
+            });
+        } else {
+            // Mostrar todos os pagamentos válidos (excluindo renovações)
+            validPaymentsForHistory = realPayments.filter(p => 
+                p.payment_type !== 'renewal' && 
+                p.payment_type !== 'interest_renewal'
+            );
+        }
+        
+        if (validPaymentsForHistory.length > 0) {
+            paymentHistory = '\n\n📋 *HISTÓRICO DE PAGAMENTOS:*\n';
+            validPaymentsForHistory.forEach((payment, index) => {
+                const paymentDate = formatDate(payment.payment_date);
+                paymentHistory += `${index + 1}. R$ ${parseFloat(payment.amount).toFixed(2)} - ${paymentDate}\n`;
+            });
+            paymentHistory += `\n💰 *Total Pago:* R$ ${totalPaid.toFixed(2)}`;
+        } else {
+            paymentHistory = '\n\n📋 *HISTÓRICO DE PAGAMENTOS:*\nNenhum pagamento registrado ainda.';
+        }
+
         // Montar mensagem do WhatsApp
         const message = `📅 VENCIMENTO: ${formattedDueDate}
 
 💰 CLIENTE: ${client.name}
 💵 Capital: R$ ${principalAmount.toFixed(2)}
-📊 Juros: R$ ${interestAmount.toFixed(2)}
-❌ Multa atual: R$ ${currentFine.toFixed(2)}
+📊 Juros (${interestRate}%): R$ ${interestAmount.toFixed(2)}
+💸 Total com Juros: R$ ${totalWithInterest.toFixed(2)}
+💳 VALOR RESTANTE: R$ ${remainingAmount.toFixed(2)}${daysOverdue > 0 ? `\n❌ Multa (${daysOverdue} dias): R$ ${currentFine.toFixed(2)}` : ''}${paymentHistory}
 
 ⚠️🚨 ATENÇÃO!
 O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
