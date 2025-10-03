@@ -8184,9 +8184,8 @@ function openInstallmentModal() {
     document.getElementById('newInstallmentForm').reset();
     document.getElementById('installmentSummary').classList.add('hidden');
     
-    // Carregar clientes e empréstimos
+    // Carregar clientes
     loadClientsForInstallment();
-    loadActiveLoansForInstallment();
     
     // Definir data padrão como próximo mês
     const nextMonth = new Date();
@@ -8223,132 +8222,10 @@ async function loadClientsForInstallment() {
     }
 }
 
-// Carregar empréstimos ativos para parcelamento
-async function loadActiveLoansForInstallment() {
-    try {
-        const { data: activeLoans, error } = await supabase
-            .from('loans')
-            .select(`
-                id,
-                client_id,
-                amount,
-                total_amount,
-                due_date,
-                clients (name)
-            `)
-            .eq('status', 'active')
-            .order('due_date', { ascending: true });
 
-        if (error) throw error;
-
-        const loanSelect = document.getElementById('installmentLoanId');
-        loanSelect.innerHTML = '<option value="">Novo parcelamento sem empréstimo vinculado</option>';
-
-        activeLoans.forEach(loan => {
-            const dueDate = new Date(loan.due_date);
-            const today = new Date();
-            const isOverdue = dueDate < today;
-            const daysDiff = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-            
-            let statusText = '';
-            if (isOverdue) {
-                statusText = ` (${daysDiff} dias vencido)`;
-            } else if (daysDiff < 0) {
-                statusText = ` (vence em ${Math.abs(daysDiff)} dias)`;
-            } else {
-                statusText = ' (vence hoje)';
-            }
-            
-            const option = document.createElement('option');
-            option.value = loan.id;
-            option.textContent = `${loan.clients.name} - R$ ${loan.total_amount.toFixed(2)}${statusText}`;
-            option.dataset.clientName = loan.clients.name;
-            option.dataset.totalAmount = loan.total_amount;
-            option.dataset.clientId = loan.client_id;
-            loanSelect.appendChild(option);
-        });
-
-    } catch (error) {
-        console.error('Erro ao carregar empréstimos:', error);
-        showNotification('Erro ao carregar empréstimos', 'error');
-    }
-}
-
-// Filtrar empréstimos por cliente selecionado
-async function filterLoansByClient(clientId) {
-    try {
-        const { data: clientLoans, error } = await supabase
-            .from('loans')
-            .select(`
-                id,
-                client_id,
-                amount,
-                total_amount,
-                due_date,
-                clients (name)
-            `)
-            .eq('status', 'active')
-            .eq('client_id', clientId)
-            .order('due_date', { ascending: true });
-
-        if (error) throw error;
-
-        const loanSelect = document.getElementById('installmentLoanId');
-        loanSelect.innerHTML = '<option value="">Novo parcelamento sem empréstimo vinculado</option>';
-
-        clientLoans.forEach(loan => {
-            const dueDate = new Date(loan.due_date);
-            const today = new Date();
-            const isOverdue = dueDate < today;
-            const daysDiff = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-            
-            let statusText = '';
-            if (isOverdue) {
-                statusText = ` (vencido há ${daysDiff} dias)`;
-            } else if (daysDiff === 0) {
-                statusText = ' (vence hoje)';
-            }
-            
-            const option = document.createElement('option');
-            option.value = loan.id;
-            option.textContent = `Empréstimo R$ ${loan.total_amount.toFixed(2)}${statusText}`;
-            option.dataset.totalAmount = loan.total_amount;
-            option.dataset.clientId = loan.client_id;
-            loanSelect.appendChild(option);
-        });
-
-    } catch (error) {
-        console.error('Erro ao filtrar empréstimos do cliente:', error);
-        showNotification('Erro ao carregar empréstimos do cliente', 'error');
-    }
-}
 
 // Atualizar informações quando um cliente é selecionado
 document.getElementById('installmentClientId').addEventListener('change', function() {
-    const selectedClientId = this.value;
-    
-    if (selectedClientId) {
-        // Filtrar empréstimos do cliente selecionado
-        filterLoansByClient(selectedClientId);
-    } else {
-        // Limpar seleção de empréstimo
-        const loanSelect = document.getElementById('installmentLoanId');
-        loanSelect.innerHTML = '<option value="">Novo parcelamento sem empréstimo vinculado</option>';
-        document.getElementById('installmentTotalAmount').value = '';
-    }
-    
-    // Esconder o resumo quando os dados mudarem
-    document.getElementById('installmentSummary').classList.add('hidden');
-});
-
-// Atualizar informações quando um empréstimo é selecionado
-document.getElementById('installmentLoanId').addEventListener('change', function() {
-    const selectedOption = this.options[this.selectedIndex];
-    if (selectedOption.value) {
-        document.getElementById('installmentTotalAmount').value = selectedOption.dataset.totalAmount;
-    } else {
-        document.getElementById('installmentTotalAmount').value = '';
-    }
     // Esconder o resumo quando os dados mudarem
     document.getElementById('installmentSummary').classList.add('hidden');
 });
@@ -8393,7 +8270,6 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
     e.preventDefault();
 
     const clientId = document.getElementById('installmentClientId').value;
-    const loanId = document.getElementById('installmentLoanId').value || null; // Pode ser null para parcelamentos independentes
     const totalAmount = parseFloat(document.getElementById('installmentTotalAmount').value);
     const totalInstallments = parseInt(document.getElementById('installmentTotalInstallments').value);
     const interestRate = parseFloat(document.getElementById('installmentInterestRate').value) || 0;
@@ -8433,7 +8309,6 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
             .from('installments')
             .insert([
                 {
-                    loan_id: loanId,
                     client_id: clientId,
                     total_amount: totalAmount,
                     total_installments: totalInstallments,
@@ -8929,7 +8804,7 @@ async function loadOverdueLoansForInstallmentTable() {
                         </span>
                     </td>
                     <td class="px-6 py-4">
-                        <button onclick="createInstallmentFromLoan('${loan.id}')" 
+                        <button onclick="createInstallmentForClient('${loan.client_id}')" 
                                 class="text-blue-400 hover:text-blue-300 text-sm font-medium">
                             Parcelar
                         </button>
@@ -8944,33 +8819,19 @@ async function loadOverdueLoansForInstallmentTable() {
     }
 }
 
-// Criar parcelamento a partir de um empréstimo específico
-function createInstallmentFromLoan(loanId) {
+// Criar parcelamento para um cliente específico
+function createInstallmentForClient(clientId) {
     openInstallmentModal();
     
     // Aguardar um pouco para o modal carregar
     setTimeout(() => {
-        // Encontrar o empréstimo nos dados carregados para obter o client_id
-        const loan = loans.find(l => l.id === loanId);
-        if (loan) {
-            // Selecionar o cliente primeiro
-            const clientSelect = document.getElementById('installmentClientId');
-            clientSelect.value = loan.client_id;
-            
-            // Trigger change event para carregar empréstimos do cliente
-            const clientChangeEvent = new Event('change');
-            clientSelect.dispatchEvent(clientChangeEvent);
-            
-            // Aguardar um pouco mais para os empréstimos carregarem e então selecionar o empréstimo específico
-            setTimeout(() => {
-                const loanSelect = document.getElementById('installmentLoanId');
-                loanSelect.value = loanId;
-                
-                // Trigger change event para preencher dados automaticamente
-                const loanChangeEvent = new Event('change');
-                loanSelect.dispatchEvent(loanChangeEvent);
-            }, 200);
-        }
+        // Selecionar o cliente
+        const clientSelect = document.getElementById('installmentClientId');
+        clientSelect.value = clientId;
+        
+        // Trigger change event
+        const clientChangeEvent = new Event('change');
+        clientSelect.dispatchEvent(clientChangeEvent);
     }, 100);
 }
 
@@ -9086,8 +8947,15 @@ async function loadOverdueLoans() {
     }
 }
 
-// Enviar empréstimo vencido para a aba de parcelamento
+// Enviar cliente para a aba de parcelamento
 function sendToInstallment(loanId) {
+    // Encontrar o empréstimo para obter o client_id
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showNotification('Empréstimo não encontrado', 'error');
+        return;
+    }
+    
     // Navegar para a aba de parcelamentos
     const installmentsLink = document.querySelector('a[href="#installments"]');
     if (installmentsLink) {
@@ -9096,8 +8964,8 @@ function sendToInstallment(loanId) {
     
     // Aguardar um pouco para a aba carregar e abrir o modal de parcelamento
     setTimeout(() => {
-        createInstallmentFromLoan(loanId);
-        showNotification('Empréstimo selecionado para parcelamento', 'success');
+        createInstallmentForClient(loan.client_id);
+        showNotification('Cliente selecionado para parcelamento', 'success');
     }, 300);
 }
 

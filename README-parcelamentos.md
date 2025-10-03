@@ -7,8 +7,7 @@
 1. **✨ Criação de Parcelamentos**
    - Modal intuitivo para criar novos parcelamentos
    - **NOVO**: Seleção direta de qualquer cliente cadastrado no sistema
-   - **NOVO**: Criação de parcelamentos independentes (sem empréstimo vinculado)
-   - Seleção opcional de empréstimos existentes do cliente
+   - **NOVO**: Parcelamentos completamente independentes (sem vinculação a empréstimos)
    - Cálculo automático de parcelas com ou sem juros
    - Visualização de resumo antes da criação
    - Suporte a juros compostos mensais
@@ -38,7 +37,7 @@
 #### `installments` - Parcelamentos
 ```sql
 - id (UUID): Identificador único
-- loan_id (UUID): Referência ao empréstimo original (OPCIONAL - pode ser NULL)
+- loan_id (UUID): Sempre NULL (campo mantido para compatibilidade)
 - client_id (UUID): Referência ao cliente (OBRIGATÓRIO)
 - total_amount (DECIMAL): Valor total a ser parcelado
 - total_installments (INTEGER): Número total de parcelas
@@ -78,15 +77,14 @@ cat setup-installments-table.sql
 1. Acesse a aba "Parcelamento"
 2. Clique em "Criar Parcelamento para Cliente"
 3. **Selecione o cliente** (obrigatório)
-4. **Opcionalmente** selecione um empréstimo existente do cliente ou deixe em branco para criar um parcelamento independente
-5. Configure:
+4. Configure:
    - Valor total a parcelar
    - Número de parcelas (2-60)
    - Taxa de juros (opcional)
    - Data do primeiro vencimento
    - Observações
-6. Clique em "Calcular Parcelas" para visualizar o resumo
-7. Confirme a criação
+5. Clique em "Calcular Parcelas" para visualizar o resumo
+6. Confirme a criação
 
 ### 3. **Gerenciar Pagamentos**
 1. Na tabela de parcelamentos ativos, clique em "Ver Detalhes"
@@ -130,10 +128,10 @@ valorParcela = valorTotal * (taxaMensal * fator) / (fator - 1)
 - ✅ **Validações**: Constraints e validações de dados
 
 ### Integrações
-- 🔗 **Empréstimos**: Vinculação opcional com empréstimos existentes
 - 🔗 **Clientes**: Associação direta e obrigatória com clientes
 - 🔗 **Usuários**: Rastreamento de quem criou cada parcelamento
-- ✨ **Parcelamentos Independentes**: Criação de acordos de pagamento sem necessidade de empréstimo vinculado
+- ✨ **Parcelamentos Independentes**: Sistema completamente independente de empréstimos
+- 🎯 **Flexibilidade Total**: Criação de acordos de pagamento personalizados
 
 ## 📋 Interface do Usuário
 
@@ -158,10 +156,8 @@ valorParcela = valorTotal * (taxaMensal * fator) / (fator - 1)
 
 ```mermaid
 graph TD
-    A[Selecionar Cliente] --> B[Criar Parcelamento]
-    A1[Empréstimo Existente] --> B
-    A2[Parcelamento Independente] --> B
-    B --> C[Definir Parcelas]
+    A[Selecionar Cliente] --> B[Definir Valor Total]
+    B --> C[Configurar Parcelas]
     C --> D[Calcular Valores]
     D --> E[Confirmar Criação]
     E --> F[Parcelamento Ativo]
