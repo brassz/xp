@@ -4569,7 +4569,6 @@ async function sendInstallmentWhatsAppMessage(installmentId) {
             .select(`
                 *,
                 clients (name, phone, cpf),
-                loans (amount, due_date),
                 installment_payments (*)
             `)
             .eq('id', installmentId)
@@ -8074,8 +8073,8 @@ function openInstallmentModal() {
     document.getElementById('newInstallmentForm').reset();
     document.getElementById('installmentSummary').classList.add('hidden');
     
-    // Carregar empréstimos ativos
-    loadActiveLoansForInstallment();
+    // Carregar clientes ativos
+    loadActiveClientsForInstallment();
     
     // Definir data padrão como próximo mês
     const nextMonth = new Date();
@@ -8085,63 +8084,44 @@ function openInstallmentModal() {
     newInstallmentModal.classList.remove('hidden');
 }
 
-// Carregar empréstimos ativos para parcelamento
-async function loadActiveLoansForInstallment() {
+// Carregar clientes ativos para parcelamento
+async function loadActiveClientsForInstallment() {
     try {
-        const { data: activeLoans, error } = await supabase
-            .from('loans')
-            .select(`
-                id,
-                client_id,
-                amount,
-                total_amount,
-                due_date,
-                clients (name)
-            `)
+        const { data: activeClients, error } = await supabase
+            .from('clients')
+            .select('id, name, phone, cpf')
             .eq('status', 'active')
-            .order('due_date', { ascending: true });
+            .order('name', { ascending: true });
 
         if (error) throw error;
 
-        const loanSelect = document.getElementById('installmentLoanId');
-        loanSelect.innerHTML = '<option value="">Selecione um empréstimo</option>';
+        const clientSelect = document.getElementById('installmentClientId');
+        clientSelect.innerHTML = '<option value="">Selecione um cliente</option>';
 
-        activeLoans.forEach(loan => {
-            const dueDate = new Date(loan.due_date);
-            const today = new Date();
-            const isOverdue = dueDate < today;
-            const daysDiff = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
-            
-            let statusText = '';
-            if (isOverdue) {
-                statusText = ` (${daysDiff} dias vencido)`;
-            } else if (daysDiff < 0) {
-                statusText = ` (vence em ${Math.abs(daysDiff)} dias)`;
-            } else {
-                statusText = ' (vence hoje)';
-            }
-            
+        activeClients.forEach(client => {
             const option = document.createElement('option');
-            option.value = loan.id;
-            option.textContent = `${loan.clients.name} - R$ ${loan.total_amount.toFixed(2)}${statusText}`;
-            option.dataset.clientName = loan.clients.name;
-            option.dataset.totalAmount = loan.total_amount;
-            option.dataset.clientId = loan.client_id;
-            loanSelect.appendChild(option);
+            option.value = client.id;
+            option.textContent = client.name;
+            option.dataset.clientName = client.name;
+            option.dataset.clientPhone = client.phone || '';
+            option.dataset.clientCpf = client.cpf || '';
+            
+            clientSelect.appendChild(option);
         });
 
     } catch (error) {
-        console.error('Erro ao carregar empréstimos:', error);
-        showNotification('Erro ao carregar empréstimos', 'error');
+        console.error('Erro ao carregar clientes:', error);
+        showNotification('Erro ao carregar clientes', 'error');
     }
 }
 
-// Atualizar informações quando um empréstimo é selecionado
-document.getElementById('installmentLoanId').addEventListener('change', function() {
+// Atualizar informações quando um cliente é selecionado
+document.getElementById('installmentClientId').addEventListener('change', function() {
     const selectedOption = this.options[this.selectedIndex];
     if (selectedOption.value) {
         document.getElementById('installmentClientName').value = selectedOption.dataset.clientName;
-        document.getElementById('installmentTotalAmount').value = selectedOption.dataset.totalAmount;
+        // Limpar o valor total para que o usuário possa inserir manualmente
+        document.getElementById('installmentTotalAmount').value = '';
     } else {
         document.getElementById('installmentClientName').value = '';
         document.getElementById('installmentTotalAmount').value = '';
@@ -8189,15 +8169,14 @@ document.getElementById('calculateInstallment').addEventListener('click', functi
 document.getElementById('newInstallmentForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
-    const loanId = document.getElementById('installmentLoanId').value;
-    const clientId = document.getElementById('installmentLoanId').options[document.getElementById('installmentLoanId').selectedIndex].dataset.clientId;
+    const clientId = document.getElementById('installmentClientId').value;
     const totalAmount = parseFloat(document.getElementById('installmentTotalAmount').value);
     const totalInstallments = parseInt(document.getElementById('installmentTotalInstallments').value);
     const interestRate = parseFloat(document.getElementById('installmentInterestRate').value) || 0;
     const firstDueDate = document.getElementById('installmentFirstDueDate').value;
     const notes = document.getElementById('installmentNotes').value;
 
-    if (!loanId || !totalAmount || !totalInstallments || !firstDueDate) {
+    if (!clientId || !totalAmount || !totalInstallments || !firstDueDate) {
         showNotification('Preencha todos os campos obrigatórios', 'error');
         return;
     }
@@ -8230,7 +8209,6 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
             .from('installments')
             .insert([
                 {
-                    loan_id: loanId,
                     client_id: clientId,
                     total_amount: totalAmount,
                     total_installments: totalInstallments,
@@ -8268,16 +8246,6 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
 
         if (paymentsError) throw paymentsError;
 
-        // Atualizar status do empréstimo para "partial_paid" (parcelamento ativo)
-        const { error: loanUpdateError } = await supabase
-            .from('loans')
-            .update({ status: 'partial_paid' })
-            .eq('id', loanId);
-
-        if (loanUpdateError) {
-            console.warn('Aviso: Não foi possível atualizar o status do empréstimo:', loanUpdateError);
-        }
-
         closeInstallmentModal();
         showNotification('Parcelamento criado com sucesso!', 'success');
         loadInstallments();
@@ -8312,7 +8280,6 @@ async function loadInstallments() {
             .select(`
                 *,
                 clients (name),
-                loans (amount, due_date),
                 installment_payments (status, due_date, paid_date)
             `)
             .eq('status', 'active')
@@ -8421,7 +8388,6 @@ async function viewInstallmentDetails(installmentId) {
             .select(`
                 *,
                 clients (name, cpf),
-                loans (amount, due_date),
                 installment_payments (*)
             `)
             .eq('id', installmentId)
@@ -8726,7 +8692,7 @@ async function loadOverdueLoansForInstallmentTable() {
                         </span>
                     </td>
                     <td class="px-6 py-4">
-                        <button onclick="createInstallmentFromLoan('${loan.id}')" 
+                        <button onclick="sendClientToInstallment('${loan.client_id}')" 
                                 class="text-blue-400 hover:text-blue-300 text-sm font-medium">
                             Parcelar
                         </button>
@@ -8741,18 +8707,18 @@ async function loadOverdueLoansForInstallmentTable() {
     }
 }
 
-// Criar parcelamento a partir de um empréstimo específico
-function createInstallmentFromLoan(loanId) {
+// Criar parcelamento a partir de um cliente específico
+function createInstallmentFromClient(clientId) {
     openInstallmentModal();
     
     // Aguardar um pouco para o modal carregar
     setTimeout(() => {
-        const loanSelect = document.getElementById('installmentLoanId');
-        loanSelect.value = loanId;
+        const clientSelect = document.getElementById('installmentClientId');
+        clientSelect.value = clientId;
         
         // Trigger change event para preencher dados automaticamente
         const changeEvent = new Event('change');
-        loanSelect.dispatchEvent(changeEvent);
+        clientSelect.dispatchEvent(changeEvent);
     }, 100);
 }
 
@@ -8848,7 +8814,7 @@ async function loadOverdueLoans() {
                     <td class="px-6 py-4 text-white">R$ ${accumulatedInterest.toFixed(2)}</td>
                     <td class="px-6 py-4">
                         <div class="flex space-x-2">
-                            <button onclick="sendToInstallment('${loan.id}')" 
+                            <button onclick="sendClientToInstallment('${loan.client_id}')" 
                                     class="bg-blue-600 hover:bg-blue-500 text-white px-3 py-1 rounded text-sm font-medium transition-colors">
                                 Parcelar
                             </button>
@@ -8868,8 +8834,8 @@ async function loadOverdueLoans() {
     }
 }
 
-// Enviar empréstimo vencido para a aba de parcelamento
-function sendToInstallment(loanId) {
+// Enviar cliente para a aba de parcelamento
+function sendClientToInstallment(clientId) {
     // Navegar para a aba de parcelamentos
     const installmentsLink = document.querySelector('a[href="#installments"]');
     if (installmentsLink) {
@@ -8878,8 +8844,8 @@ function sendToInstallment(loanId) {
     
     // Aguardar um pouco para a aba carregar e abrir o modal de parcelamento
     setTimeout(() => {
-        createInstallmentFromLoan(loanId);
-        showNotification('Empréstimo selecionado para parcelamento', 'success');
+        createInstallmentFromClient(clientId);
+        showNotification('Cliente selecionado para parcelamento', 'success');
     }, 300);
 }
 
