@@ -4706,6 +4706,7 @@ async function loadPaymentHistory(loanId) {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="text-green-400 hover:text-green-300 mr-3" onclick="confirmPaymentWhatsApp('${payment.id}', '${loanId}')" title="Confirmar pagamento via WhatsApp">✅</button>
                         <button class="text-red-400 hover:text-red-300" onclick="deletePayment('${payment.id}')">🗑️</button>
                     </td>
                 </tr>
@@ -4785,6 +4786,98 @@ async function editPayment(paymentId) {
     } catch (error) {
         console.error('Erro ao carregar pagamento para edição:', error);
         alert('Erro ao carregar dados do pagamento: ' + error.message);
+    }
+}
+
+async function confirmPaymentWhatsApp(paymentId, loanId) {
+    try {
+        // Buscar dados do pagamento
+        const { data: payment, error: paymentError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('id', paymentId)
+            .single();
+        
+        if (paymentError) throw paymentError;
+        if (!payment) {
+            alert('Pagamento não encontrado!');
+            return;
+        }
+
+        // Buscar dados do empréstimo e cliente
+        const { data: loan, error: loanError } = await supabase
+            .from('loans')
+            .select(`
+                *,
+                clients (
+                    name,
+                    phone,
+                    cpf
+                )
+            `)
+            .eq('id', loanId)
+            .single();
+        
+        if (loanError) throw loanError;
+        if (!loan) {
+            alert('Empréstimo não encontrado!');
+            return;
+        }
+
+        // Buscar todos os pagamentos do empréstimo para calcular totais
+        const { data: allPayments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('amount')
+            .eq('loan_id', loanId);
+        
+        if (paymentsError) throw paymentsError;
+
+        // Calcular valores
+        const principalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = principalAmount * (interestRate / 100);
+        const totalWithInterest = principalAmount + interestAmount;
+        
+        const totalPaid = allPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        const remainingAmount = Math.max(0, totalWithInterest - totalPaid);
+        
+        const paymentAmount = parseFloat(payment.amount);
+        const paymentDate = formatDate(payment.payment_date);
+        const paymentType = getPaymentTypeText(payment.payment_type);
+        
+        // Calcular próximo vencimento (30 dias a partir de hoje se ainda há valor restante)
+        const nextDueDate = remainingAmount > 0 ? 
+            formatDate(new Date(Date.now() + 30 * 24 * 60 * 60 * 1000)) : 
+            'Empréstimo quitado';
+
+        // Gerar mensagem do comprovante
+        const clientName = loan.clients?.name || 'Cliente';
+        const clientPhone = loan.clients?.phone || '';
+        
+        const message = `🧾 *COMPROVANTE DE PAGAMENTO*
+👤 *Cliente:* ${clientName}
+📅 *Data do Pagamento:* ${paymentDate}
+💰 *Valor Pago:* R$ ${paymentAmount.toFixed(2)}
+💳 *Forma de Pagamento:* ${paymentType}
+📊 *RESUMO DO EMPRÉSTIMO:*
+💵 *Valor Total:* R$ ${totalWithInterest.toFixed(2)}
+✅ *Total Pago:* R$ ${totalPaid.toFixed(2)}
+⏳ *Valor Restante:* R$ ${remainingAmount.toFixed(2)}
+⚠️ *Lembrete:* Não esqueça do próximo pagamento!
+---
+✨ Obrigado pela confiança!
+💼 Sistema de Gestão Financeira`;
+
+        // Abrir WhatsApp
+        const whatsappUrl = `https://wa.me/${clientPhone.replace(/\D/g, '')}?text=${encodeURIComponent(message)}`;
+        window.open(whatsappUrl, '_blank');
+        
+        // Mostrar mensagem de sucesso
+        showInfoMessage(`Comprovante gerado para ${clientName}! WhatsApp aberto.`);
+        
+    } catch (error) {
+        console.error('Erro ao gerar comprovante:', error);
+        alert('Erro ao gerar comprovante: ' + error.message);
     }
 }
 
