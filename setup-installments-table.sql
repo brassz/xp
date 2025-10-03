@@ -9,7 +9,7 @@
 -- =====================================================
 CREATE TABLE IF NOT EXISTS installments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    loan_id UUID NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
+    loan_id UUID REFERENCES loans(id) ON DELETE CASCADE, -- Removido NOT NULL para permitir parcelamentos independentes
     client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     total_amount DECIMAL(15,2) NOT NULL,
     total_installments INTEGER NOT NULL CHECK (total_installments > 0),
@@ -26,7 +26,7 @@ CREATE TABLE IF NOT EXISTS installments (
 -- Comentários da tabela de parcelamentos
 COMMENT ON TABLE installments IS 'Tabela para armazenar planos de parcelamento de empréstimos vencidos';
 COMMENT ON COLUMN installments.id IS 'Identificador único do parcelamento';
-COMMENT ON COLUMN installments.loan_id IS 'Referência ao empréstimo original que está sendo parcelado';
+COMMENT ON COLUMN installments.loan_id IS 'Referência ao empréstimo original (opcional - pode ser NULL para parcelamentos independentes)';
 COMMENT ON COLUMN installments.client_id IS 'Referência ao cliente que possui o parcelamento';
 COMMENT ON COLUMN installments.total_amount IS 'Valor total a ser parcelado';
 COMMENT ON COLUMN installments.total_installments IS 'Número total de parcelas';
