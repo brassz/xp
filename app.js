@@ -8084,13 +8084,12 @@ function openInstallmentModal() {
     newInstallmentModal.classList.remove('hidden');
 }
 
-// Carregar clientes ativos para parcelamento
+// Carregar clientes para parcelamento
 async function loadActiveClientsForInstallment() {
     try {
         const { data: activeClients, error } = await supabase
             .from('clients')
             .select('id, name, phone, cpf')
-            .eq('status', 'active')
             .order('name', { ascending: true });
 
         if (error) throw error;
@@ -8098,16 +8097,18 @@ async function loadActiveClientsForInstallment() {
         const clientSelect = document.getElementById('installmentClientId');
         clientSelect.innerHTML = '<option value="">Selecione um cliente</option>';
 
-        activeClients.forEach(client => {
-            const option = document.createElement('option');
-            option.value = client.id;
-            option.textContent = client.name;
-            option.dataset.clientName = client.name;
-            option.dataset.clientPhone = client.phone || '';
-            option.dataset.clientCpf = client.cpf || '';
-            
-            clientSelect.appendChild(option);
-        });
+        if (activeClients && activeClients.length > 0) {
+            activeClients.forEach(client => {
+                const option = document.createElement('option');
+                option.value = client.id;
+                option.textContent = client.name;
+                option.dataset.clientName = client.name;
+                option.dataset.clientPhone = client.phone || '';
+                option.dataset.clientCpf = client.cpf || '';
+                
+                clientSelect.appendChild(option);
+            });
+        }
 
     } catch (error) {
         console.error('Erro ao carregar clientes:', error);
