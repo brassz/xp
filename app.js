@@ -4900,10 +4900,19 @@ async function generatePaymentReceipt(paymentId, loanId) {
         const remainingAmount = totalWithInterest - totalPaid;
         const paymentAmount = parseFloat(payment.amount);
 
-        // Calcular próxima data de vencimento (assumindo vencimento semanal)
+        // Calcular próxima data de vencimento de forma inteligente
         const currentDueDate = new Date(loan.due_date);
-        const nextDueDate = new Date(currentDueDate);
-        nextDueDate.setDate(nextDueDate.getDate() + 7); // Próxima semana
+        const today = new Date();
+        let nextDueDate = new Date(currentDueDate);
+        
+        // Se a data de vencimento já passou, calcular a próxima baseada em hoje
+        if (currentDueDate < today) {
+            nextDueDate = new Date(today);
+            nextDueDate.setDate(today.getDate() + 7); // Próxima semana a partir de hoje
+        } else {
+            // Se ainda não venceu, a próxima é uma semana após o vencimento atual
+            nextDueDate.setDate(currentDueDate.getDate() + 7);
+        }
 
         // Formatar dados do cliente
         const clientName = loan.clients?.name || 'Cliente não encontrado';
@@ -4911,8 +4920,7 @@ async function generatePaymentReceipt(paymentId, loanId) {
         const clientPhone = loan.clients?.phone || '';
 
         // Gerar mensagem do comprovante
-        const receiptMessage = `
-🧾 *COMPROVANTE DE PAGAMENTO*
+        const receiptMessage = `🧾 *COMPROVANTE DE PAGAMENTO*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
 👤 *Cliente:* ${clientName}
@@ -4931,8 +4939,7 @@ async function generatePaymentReceipt(paymentId, loanId) {
 Não esqueça de efetuar o próximo pagamento na data de vencimento: ${formatDate(nextDueDate)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Obrigado pela confiança! 💙
-        `.trim();
+Obrigado pela confiança! 💙`;
 
         // Abrir WhatsApp com a mensagem
         if (clientPhone) {
