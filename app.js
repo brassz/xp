@@ -4449,7 +4449,7 @@ async function sendWhatsAppMessage(loanId) {
         // Buscar histórico de pagamentos
         const { data: payments, error: paymentsError } = await supabase
             .from('payments')
-            .select('amount, payment_date, payment_method, payment_type')
+            .select('amount, payment_date, payment_type')
             .eq('loan_id', loanId)
             .order('payment_date', { ascending: true });
 
@@ -4519,8 +4519,7 @@ async function sendWhatsAppMessage(loanId) {
             paymentHistory = '\n\n📋 *HISTÓRICO DE PAGAMENTOS:*\n';
             validPaymentsForHistory.forEach((payment, index) => {
                 const paymentDate = formatDate(payment.payment_date);
-                const paymentMethod = payment.payment_method || 'N/A';
-                paymentHistory += `${index + 1}. R$ ${parseFloat(payment.amount).toFixed(2)} - ${paymentDate} (${paymentMethod})\n`;
+                paymentHistory += `${index + 1}. R$ ${parseFloat(payment.amount).toFixed(2)} - ${paymentDate}\n`;
             });
             paymentHistory += `\n💰 *Total Pago:* R$ ${totalPaid.toFixed(2)}`;
         } else {
