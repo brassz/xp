@@ -4855,21 +4855,15 @@ async function confirmPaymentWhatsApp(paymentId, loanId) {
         const clientPhone = loan.clients?.phone || '';
         
         const message = `🧾 *COMPROVANTE DE PAGAMENTO*
-        
 👤 *Cliente:* ${clientName}
 📅 *Data do Pagamento:* ${paymentDate}
 💰 *Valor Pago:* R$ ${paymentAmount.toFixed(2)}
 💳 *Forma de Pagamento:* ${paymentType}
-
 📊 *RESUMO DO EMPRÉSTIMO:*
 💵 *Valor Total:* R$ ${totalWithInterest.toFixed(2)}
 ✅ *Total Pago:* R$ ${totalPaid.toFixed(2)}
 ⏳ *Valor Restante:* R$ ${remainingAmount.toFixed(2)}
-
-${remainingAmount > 0 ? `📅 *Próximo Vencimento:* ${nextDueDate}` : '🎉 *EMPRÉSTIMO QUITADO!*'}
-
-${remainingAmount > 0 ? `⚠️ *Lembrete:* Não esqueça do próximo pagamento!` : ''}
-
+⚠️ *Lembrete:* Não esqueça do próximo pagamento!
 ---
 ✨ Obrigado pela confiança!
 💼 Sistema de Gestão Financeira`;
