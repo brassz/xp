@@ -6,7 +6,8 @@
 
 1. **✨ Criação de Parcelamentos**
    - Modal intuitivo para criar novos parcelamentos
-   - Seleção de empréstimos vencidos disponíveis
+   - **NOVO**: Seleção direta de qualquer cliente cadastrado no sistema
+   - **NOVO**: Parcelamentos completamente independentes (sem vinculação a empréstimos)
    - Cálculo automático de parcelas com ou sem juros
    - Visualização de resumo antes da criação
    - Suporte a juros compostos mensais
@@ -36,8 +37,8 @@
 #### `installments` - Parcelamentos
 ```sql
 - id (UUID): Identificador único
-- loan_id (UUID): Referência ao empréstimo original
-- client_id (UUID): Referência ao cliente
+- loan_id (UUID): Sempre NULL (campo mantido para compatibilidade)
+- client_id (UUID): Referência ao cliente (OBRIGATÓRIO)
 - total_amount (DECIMAL): Valor total a ser parcelado
 - total_installments (INTEGER): Número total de parcelas
 - installment_amount (DECIMAL): Valor de cada parcela
@@ -74,9 +75,10 @@ cat setup-installments-table.sql
 
 ### 2. **Criar um Parcelamento**
 1. Acesse a aba "Parcelamento"
-2. Clique em "Criar Novo Parcelamento"
-3. Selecione um empréstimo vencido
+2. Clique em "Criar Parcelamento para Cliente"
+3. **Selecione o cliente** (obrigatório)
 4. Configure:
+   - Valor total a parcelar
    - Número de parcelas (2-60)
    - Taxa de juros (opcional)
    - Data do primeiro vencimento
@@ -126,9 +128,10 @@ valorParcela = valorTotal * (taxaMensal * fator) / (fator - 1)
 - ✅ **Validações**: Constraints e validações de dados
 
 ### Integrações
-- 🔗 **Empréstimos**: Vinculação automática com empréstimos vencidos
-- 🔗 **Clientes**: Associação direta com clientes
+- 🔗 **Clientes**: Associação direta e obrigatória com clientes
 - 🔗 **Usuários**: Rastreamento de quem criou cada parcelamento
+- ✨ **Parcelamentos Independentes**: Sistema completamente independente de empréstimos
+- 🎯 **Flexibilidade Total**: Criação de acordos de pagamento personalizados
 
 ## 📋 Interface do Usuário
 
@@ -153,8 +156,8 @@ valorParcela = valorTotal * (taxaMensal * fator) / (fator - 1)
 
 ```mermaid
 graph TD
-    A[Empréstimo Vencido] --> B[Criar Parcelamento]
-    B --> C[Definir Parcelas]
+    A[Selecionar Cliente] --> B[Definir Valor Total]
+    B --> C[Configurar Parcelas]
     C --> D[Calcular Valores]
     D --> E[Confirmar Criação]
     E --> F[Parcelamento Ativo]
