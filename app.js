@@ -8202,7 +8202,6 @@ async function loadClientsForInstallment() {
         const { data: allClients, error } = await supabase
             .from('clients')
             .select('id, name, cpf')
-            .eq('active', true)
             .order('name', { ascending: true });
 
         if (error) throw error;
@@ -8213,7 +8212,8 @@ async function loadClientsForInstallment() {
         allClients.forEach(client => {
             const option = document.createElement('option');
             option.value = client.id;
-            option.textContent = `${client.name} - CPF: ${client.cpf}`;
+            const cpfText = client.cpf ? ` - CPF: ${client.cpf}` : '';
+            option.textContent = `${client.name}${cpfText}`;
             clientSelect.appendChild(option);
         });
 
