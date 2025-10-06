@@ -12,6 +12,7 @@
     <script src="https://ucarecdn.com/libs/widget/3.x/uploadcare.full.min.js"></script>
     <link rel="stylesheet" href="https://ucarecdn.com/libs/widget/3.x/uploadcare.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
     <style>
         :root {
             --primary: #1e40af;
@@ -252,6 +253,144 @@
         </div>
     </div>
 
+    <!-- 2FA Setup Page -->
+    <div id="twoFactorSetupPage" class="hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
+        <div class="glass-card p-8 rounded-2xl w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                    <img src="assets/images/nexus-logo-circular.png" alt="Nexus Logo" class="w-20 h-20 object-contain">
+                </div>
+                <h1 class="text-2xl font-bold text-white mb-2">Configurar 2FA</h1>
+                <p class="text-blue-200">Adicione uma camada extra de segurança</p>
+            </div>
+            
+            <div id="setupStep1" class="space-y-6">
+                <div class="text-center">
+                    <p class="text-blue-200 mb-4">Escaneie o QR Code com seu aplicativo autenticador:</p>
+                    <div class="bg-white p-4 rounded-lg inline-block">
+                        <canvas id="qrCodeCanvas" class="mx-auto"></canvas>
+                    </div>
+                    <p class="text-xs text-blue-300 mt-2">Google Authenticator, Authy, Microsoft Authenticator</p>
+                </div>
+                
+                <div class="text-center">
+                    <p class="text-blue-200 mb-2">Ou digite manualmente:</p>
+                    <div class="bg-gray-800 p-3 rounded-lg">
+                        <code id="manualSecret" class="text-green-400 text-sm break-all"></code>
+                    </div>
+                </div>
+                
+                <button id="continueSetupBtn" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white">
+                    Continuar
+                </button>
+            </div>
+            
+            <div id="setupStep2" class="hidden space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-blue-200 mb-2">Digite o código do seu aplicativo:</label>
+                    <input type="text" id="verificationCode" class="form-input w-full text-center text-2xl tracking-widest" 
+                           placeholder="000000" maxlength="6" pattern="[0-9]{6}">
+                </div>
+                
+                <div class="space-y-3">
+                    <button id="verify2FABtn" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white">
+                        Verificar e Ativar 2FA
+                    </button>
+                    <button id="backToStep1Btn" class="w-full py-3 px-4 rounded-lg font-semibold text-blue-200 border border-blue-300 hover:bg-blue-800">
+                        Voltar
+                    </button>
+                </div>
+            </div>
+            
+            <div id="setupStep3" class="hidden space-y-6">
+                <div class="text-center">
+                    <div class="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center mx-auto mb-4">
+                        <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    <h2 class="text-xl font-bold text-white mb-2">2FA Ativado!</h2>
+                    <p class="text-blue-200 mb-6">Sua conta agora está protegida com autenticação de dois fatores.</p>
+                </div>
+                
+                <div class="bg-yellow-900 border border-yellow-600 rounded-lg p-4">
+                    <h3 class="text-yellow-200 font-semibold mb-2">Códigos de Backup</h3>
+                    <p class="text-yellow-100 text-sm mb-3">Guarde estes códigos em local seguro. Use-os se perder acesso ao seu aplicativo autenticador:</p>
+                    <div id="backupCodes" class="grid grid-cols-2 gap-2 text-xs font-mono">
+                        <!-- Códigos serão inseridos aqui -->
+                    </div>
+                </div>
+                
+                <button id="finishSetupBtn" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white">
+                    Finalizar
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- 2FA Verification Page -->
+    <div id="twoFactorVerifyPage" class="hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
+        <div class="glass-card p-8 rounded-2xl w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                    <img src="assets/images/nexus-logo-circular.png" alt="Nexus Logo" class="w-20 h-20 object-contain">
+                </div>
+                <h1 class="text-2xl font-bold text-white mb-2">Verificação 2FA</h1>
+                <p class="text-blue-200">Digite o código do seu aplicativo autenticador</p>
+            </div>
+            
+            <form id="twoFactorForm" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-blue-200 mb-2">Código de 6 dígitos:</label>
+                    <input type="text" id="twoFactorCode" class="form-input w-full text-center text-2xl tracking-widest" 
+                           placeholder="000000" maxlength="6" pattern="[0-9]{6}" required>
+                </div>
+                
+                <div class="space-y-3">
+                    <button type="submit" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white">
+                        Verificar
+                    </button>
+                    <button type="button" id="useBackupCodeBtn" class="w-full py-3 px-4 rounded-lg font-semibold text-blue-200 border border-blue-300 hover:bg-blue-800">
+                        Usar código de backup
+                    </button>
+                    <button type="button" id="backToLoginBtn" class="w-full py-2 px-4 text-sm text-blue-300 hover:text-white">
+                        Voltar ao login
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Backup Code Verification -->
+    <div id="backupCodePage" class="hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
+        <div class="glass-card p-8 rounded-2xl w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                    <img src="assets/images/nexus-logo-circular.png" alt="Nexus Logo" class="w-20 h-20 object-contain">
+                </div>
+                <h1 class="text-2xl font-bold text-white mb-2">Código de Backup</h1>
+                <p class="text-blue-200">Digite um dos seus códigos de backup</p>
+            </div>
+            
+            <form id="backupCodeForm" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-blue-200 mb-2">Código de backup:</label>
+                    <input type="text" id="backupCodeInput" class="form-input w-full text-center" 
+                           placeholder="12345678" maxlength="8" required>
+                </div>
+                
+                <div class="space-y-3">
+                    <button type="submit" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white">
+                        Verificar
+                    </button>
+                    <button type="button" id="backTo2FABtn" class="w-full py-3 px-4 rounded-lg font-semibold text-blue-200 border border-blue-300 hover:bg-blue-800">
+                        Voltar para 2FA
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <!-- Dashboard -->
     <div id="dashboard" class="hidden min-h-screen bg-gray-900">
         <!-- Sidebar -->
@@ -348,7 +487,13 @@
 
             </nav>
             
-            <div class="absolute bottom-4 left-4 right-4">
+            <div class="absolute bottom-4 left-4 right-4 space-y-2">
+                <button id="setup2FABtn" class="w-full flex items-center justify-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                    <span id="setup2FAText">Configurar 2FA</span>
+                </button>
                 <button id="logoutBtn" class="w-full flex items-center justify-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
                     <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
@@ -3050,6 +3195,7 @@
         </div>
     </div>
 
+    <script src="2fa-module.js"></script>
     <script src="app.js"></script>
 </body>
 </html> 
