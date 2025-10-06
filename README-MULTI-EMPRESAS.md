@@ -88,6 +88,9 @@ O sistema agora utiliza variáveis de ambiente para maior segurança e flexibili
 #### Variáveis Necessárias no Vercel:
 
 ```bash
+# Configuração Padrão (Fallback)
+NEXT_PUBLIC_SUPABASE_URL=https://mhtxyxizfnxupwmilith.supabase.co
+
 # Empresa 1 - NEXUS (Principal)
 NEXT_PUBLIC_SUPABASE_URL_EMPRESA1=https://mhtxyxizfnxupwmilith.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...

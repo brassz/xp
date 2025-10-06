@@ -14,6 +14,12 @@ Para fazer o deploy do sistema Nexus com suporte a múltiplas empresas no Vercel
 
 Adicione cada uma das variáveis abaixo:
 
+#### Configuração Padrão (Fallback)
+
+|| Variable Name | Value |
+||---------------|-------|
+|| `NEXT_PUBLIC_SUPABASE_URL` | `https://mhtxyxizfnxupwmilith.supabase.co` |
+
 #### Empresa 1 - NEXUS (Principal)
 
 | Variable Name | Value |
@@ -97,6 +103,9 @@ Após o deploy:
 Para facilitar, aqui estão os comandos que você pode usar no terminal do Vercel CLI:
 
 ```bash
+# Configuração Padrão (Fallback)
+vercel env add NEXT_PUBLIC_SUPABASE_URL
+
 # Empresa 1 - NEXUS (Principal)
 vercel env add NEXT_PUBLIC_SUPABASE_URL_EMPRESA1
 vercel env add NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1  
