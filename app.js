@@ -11194,6 +11194,35 @@ function getWeekInfo(date) {
     return { year, week, startDate, endDate };
 }
 
+// Função unificada para calcular datas de uma semana específica
+function getWeekDatesFromWeekKey(weekKey) {
+    const [year, weekStr] = weekKey.split('-W');
+    const weekNumber = parseInt(weekStr);
+    const yearNum = parseInt(year);
+    
+    // Encontrar o primeiro dia do ano
+    const firstDayOfYear = new Date(yearNum, 0, 1);
+    
+    // Calcular quantos dias até a primeira segunda-feira
+    const firstDayWeekday = firstDayOfYear.getDay();
+    const daysToFirstMonday = firstDayWeekday === 0 ? 1 : (8 - firstDayWeekday);
+    
+    // Data da primeira segunda-feira do ano
+    const firstMonday = new Date(yearNum, 0, 1 + daysToFirstMonday);
+    
+    // Calcular início da semana desejada
+    const weekStart = new Date(firstMonday);
+    weekStart.setDate(firstMonday.getDate() + (weekNumber - 1) * 7);
+    weekStart.setHours(0, 0, 0, 0);
+    
+    // Calcular fim da semana (domingo)
+    const weekEnd = new Date(weekStart);
+    weekEnd.setDate(weekStart.getDate() + 6);
+    weekEnd.setHours(23, 59, 59, 999);
+    
+    return { startDate: weekStart, endDate: weekEnd };
+}
+
 // Função para lidar com mudança de semana
 async function handleWeekChange() {
     const weekSelector = document.getElementById('weekSelector');
@@ -11597,8 +11626,8 @@ async function getAvailableWeeksForPDF() {
 // Função para gerar PDF de uma semana específica (chamada pelo modal)
 async function generatePDFForSpecificWeek(weekKey, startDateISO, endDateISO) {
     try {
-        const startDate = new Date(startDateISO);
-        const endDate = new Date(endDateISO);
+        // Usar função unificada para garantir consistência
+        const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
         
         await generateWeeklyPaymentsPDFForDates(startDate, endDate);
         
@@ -11617,8 +11646,8 @@ async function generatePDFForSpecificWeek(weekKey, startDateISO, endDateISO) {
 // Função para mostrar detalhes de uma semana no modal
 async function showWeekDetailsInModal(weekKey, startDateISO, endDateISO) {
     try {
-        const startDate = new Date(startDateISO);
-        const endDate = new Date(endDateISO);
+        // Usar função unificada para garantir consistência
+        const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
         
         // Simular seleção da semana e mostrar modal de clientes
         selectedWeekData = {
@@ -11645,24 +11674,11 @@ async function showWeekDetailsInModal(weekKey, startDateISO, endDateISO) {
 // Função para regenerar PDF de uma semana específica
 async function regeneratePDFForWeek(weekKey) {
     try {
-        const [year, weekStr] = weekKey.split('-W');
-        const weekNumber = parseInt(weekStr);
-        
-        // Calcular datas da semana
-        const firstDayOfYear = new Date(parseInt(year), 0, 1);
-        const daysOffset = (weekNumber - 1) * 7;
-        const weekStart = new Date(firstDayOfYear.getTime() + daysOffset * 24 * 60 * 60 * 1000);
-        
-        // Ajustar para segunda-feira
-        const dayOfWeek = weekStart.getDay();
-        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
-        weekStart.setDate(weekStart.getDate() + mondayOffset);
-        
-        const weekEnd = new Date(weekStart);
-        weekEnd.setDate(weekStart.getDate() + 6);
+        // Usar função unificada para calcular datas
+        const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
         
         // Gerar PDF para essa semana específica
-        await generateWeeklyPaymentsPDFForDates(weekStart, weekEnd);
+        await generateWeeklyPaymentsPDFForDates(startDate, endDate);
         
         showSuccessMessage(`PDF da ${weekKey} gerado novamente com sucesso!`);
         
@@ -11685,6 +11701,16 @@ async function generateWeeklyPaymentsPDFForSelectedWeek() {
 // Função para gerar PDF para datas específicas
 async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
     try {
+        // Garantir que as datas estão no formato correto e no início/fim do dia
+        const startDateFormatted = new Date(startDate);
+        startDateFormatted.setHours(0, 0, 0, 0);
+        
+        const endDateFormatted = new Date(endDate);
+        endDateFormatted.setHours(23, 59, 59, 999);
+        
+        const startDateStr = startDateFormatted.toISOString().split('T')[0];
+        const endDateStr = endDateFormatted.toISOString().split('T')[0];
+        
         // Buscar todos os pagamentos da semana especificada
         const { data: weeklyPayments, error } = await supabase
             .from('payments')
@@ -11700,8 +11726,8 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
                     )
                 )
             `)
-            .gte('payment_date', startDate.toISOString().split('T')[0])
-            .lte('payment_date', endDate.toISOString().split('T')[0])
+            .gte('payment_date', startDateStr)
+            .lte('payment_date', endDateStr)
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
