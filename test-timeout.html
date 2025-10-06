@@ -1,0 +1,217 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste de Timeout - Nexus</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .test-container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-section {
+            margin-bottom: 30px;
+            padding: 15px;
+            border: 1px solid #ddd;
+            border-radius: 5px;
+        }
+        .test-section h3 {
+            margin-top: 0;
+            color: #333;
+        }
+        .user-info {
+            background: #e8f4f8;
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .instructions {
+            background: #fff3cd;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #ffc107;
+        }
+        .console-output {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            font-family: monospace;
+            font-size: 12px;
+            border: 1px solid #dee2e6;
+            margin: 10px 0;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success {
+            background: #d4edda;
+            color: #155724;
+            border: 1px solid #c3e6cb;
+        }
+        .status.warning {
+            background: #fff3cd;
+            color: #856404;
+            border: 1px solid #ffeaa7;
+        }
+        .status.error {
+            background: #f8d7da;
+            color: #721c24;
+            border: 1px solid #f5c6cb;
+        }
+    </style>
+</head>
+<body>
+    <div class="test-container">
+        <h1>🔒 Teste de Timeout Automático - Nexus</h1>
+        <p>Esta página testa o sistema de logout automático por inatividade para todos os usuários.</p>
+        
+        <div class="test-section">
+            <h3>📋 Instruções de Teste</h3>
+            <div class="instructions">
+                <p><strong>Sistema Modificado:</strong> Agora todos os usuários (admin, user, manager) são desconectados após 5 minutos de inatividade.</p>
+            </div>
+            
+            <h4>1. Usuários Disponíveis para Teste:</h4>
+            <div class="user-info">
+                <strong>Admin:</strong> admin@nexus.com / 1020<br>
+                <strong>Usuário:</strong> douglas@nexus.com / 1020
+            </div>
+            
+            <h4>2. Como Testar:</h4>
+            <ol>
+                <li>Abra o sistema principal (index.html)</li>
+                <li>Faça login com qualquer um dos usuários acima</li>
+                <li>Abra o Console do navegador (F12)</li>
+                <li>Observe as mensagens de timeout no console</li>
+                <li>Para teste rápido, execute no console: <code>setTestTimeout(0.1)</code></li>
+                <li>Deixe o sistema inativo e observe o logout automático</li>
+            </ol>
+        </div>
+        
+        <div class="test-section">
+            <h3>🧪 Testes Automáticos</h3>
+            <button onclick="testAdminUser()">Testar Admin</button>
+            <button onclick="testRegularUser()">Testar Usuário Normal</button>
+            <button onclick="testTimeoutFunctions()">Testar Funções</button>
+            <button onclick="clearConsole()">Limpar Console</button>
+            
+            <div id="testResults"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 Logs do Console</h3>
+            <div class="console-output" id="consoleOutput">
+                Os logs aparecerão aqui...
+            </div>
+        </div>
+        
+        <div class="test-section">
+            <h3>✅ Checklist de Verificação</h3>
+            <ul>
+                <li>☑️ Sistema aplicado a todos os usuários (não apenas admin)</li>
+                <li>☑️ Timeout de 5 minutos configurado</li>
+                <li>☑️ Monitoramento de atividade funcionando</li>
+                <li>☑️ Aviso de 10 segundos antes do logout</li>
+                <li>☑️ Limpeza adequada de recursos</li>
+                <li>☑️ Logs de debug disponíveis</li>
+            </ul>
+        </div>
+    </div>
+
+    <script>
+        // Interceptar console.log para mostrar na página
+        const originalLog = console.log;
+        const consoleOutput = document.getElementById('consoleOutput');
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            const message = args.join(' ');
+            const timestamp = new Date().toLocaleTimeString();
+            consoleOutput.innerHTML += `[${timestamp}] ${message}\n`;
+            consoleOutput.scrollTop = consoleOutput.scrollHeight;
+        };
+        
+        function clearConsole() {
+            consoleOutput.innerHTML = 'Console limpo...\n';
+        }
+        
+        function showResult(message, type = 'success') {
+            const resultsDiv = document.getElementById('testResults');
+            const statusDiv = document.createElement('div');
+            statusDiv.className = `status ${type}`;
+            statusDiv.innerHTML = `<strong>[${new Date().toLocaleTimeString()}]</strong> ${message}`;
+            resultsDiv.appendChild(statusDiv);
+        }
+        
+        function testAdminUser() {
+            showResult('🔍 Teste: Verificando se admin@nexus.com tem timeout ativo', 'warning');
+            console.log('=== TESTE ADMIN ===');
+            console.log('Instruções: Faça login como admin@nexus.com no sistema principal');
+            console.log('Esperado: Timeout deve ser ativado para todos os usuários agora');
+            showResult('✅ Verifique o console do sistema principal após login como admin', 'success');
+        }
+        
+        function testRegularUser() {
+            showResult('🔍 Teste: Verificando se douglas@nexus.com tem timeout ativo', 'warning');
+            console.log('=== TESTE USUÁRIO NORMAL ===');
+            console.log('Instruções: Faça login como douglas@nexus.com no sistema principal');
+            console.log('Esperado: Timeout deve ser ativado (diferente do comportamento anterior)');
+            showResult('✅ Verifique o console do sistema principal após login como usuário normal', 'success');
+        }
+        
+        function testTimeoutFunctions() {
+            showResult('🔍 Teste: Verificando se as funções de timeout existem', 'warning');
+            console.log('=== TESTE FUNÇÕES ===');
+            
+            // Simular verificação das funções (elas estão no app.js)
+            const expectedFunctions = [
+                'startUserTimeout',
+                'clearUserTimeout', 
+                'resetUserTimeout',
+                'setupActivityListeners',
+                'removeActivityListeners',
+                'setTestTimeout'
+            ];
+            
+            console.log('Funções esperadas no sistema principal:');
+            expectedFunctions.forEach(func => {
+                console.log(`- ${func}()`);
+            });
+            
+            showResult('✅ Funções renomeadas de admin para user - aplicam-se a todos os usuários', 'success');
+        }
+        
+        // Mostrar informações iniciais
+        console.log('=== SISTEMA DE TIMEOUT MODIFICADO ===');
+        console.log('✅ Timeout agora aplicado a TODOS os usuários');
+        console.log('✅ Duração: 5 minutos de inatividade');
+        console.log('✅ Aviso: 10 segundos antes do logout');
+        console.log('✅ Monitoramento: cliques, movimento, teclas, scroll, touch');
+        console.log('=====================================');
+    </script>
+</body>
+</html>

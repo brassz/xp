@@ -113,10 +113,10 @@ let filteredInstallments = [];
 let installmentPayments = [];
 let guarantors = [];
 
-// Sistema de timeout para admin (5 minutos de inatividade)
-let adminTimeoutId = null;
+// Sistema de timeout para todos os usuários (5 minutos de inatividade)
+let userTimeoutId = null;
 let lastActivityTime = Date.now();
-const ADMIN_TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutos em milissegundos
+const USER_TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutos em milissegundos
 
 // Função para teste - permite definir timeout menor para demonstração
 function setTestTimeout(minutes = 5) {
@@ -124,15 +124,15 @@ function setTestTimeout(minutes = 5) {
     console.log(`Timeout de teste definido para ${minutes} minuto(s)`);
     
     // Limpar timeout atual se existir
-    clearAdminTimeout();
+    clearUserTimeout();
     
     // Definir novo timeout com duração personalizada
-    if (currentUser && currentUser.role === 'admin') {
-        adminTimeoutId = setTimeout(() => {
+    if (currentUser) {
+        userTimeoutId = setTimeout(() => {
             showNotification('Sessão expirada por inatividade. Você será desconectado em 10 segundos...', 'warning');
             
             setTimeout(() => {
-                if (currentUser && currentUser.role === 'admin') {
+                if (currentUser) {
                     showNotification('Desconectado por inatividade.', 'error');
                     handleLogout();
                 }
@@ -678,8 +678,8 @@ async function handleLogin(e) {
 }
 
 async function handleLogout() {
-    // Limpar timeout do admin se existir
-    clearAdminTimeout();
+    // Limpar timeout do usuário se existir
+    clearUserTimeout();
     
     currentUser = null;
     currentCompany = null;
@@ -689,48 +689,48 @@ async function handleLogout() {
     showLogin();
 }
 
-// Funções para gerenciar timeout do admin
-function startAdminTimeout() {
-    // Só iniciar timeout se o usuário for admin
-    if (!currentUser || currentUser.role !== 'admin') {
+// Funções para gerenciar timeout de usuários
+function startUserTimeout() {
+    // Só iniciar timeout se houver usuário logado
+    if (!currentUser) {
         return;
     }
     
     // Limpar timeout anterior se existir
-    clearAdminTimeout();
+    clearUserTimeout();
     
-    console.log('Admin timeout iniciado - 5 minutos para logout automático');
+    console.log('Timeout de usuário iniciado - 5 minutos para logout automático');
     
     // Definir novo timeout
-    adminTimeoutId = setTimeout(() => {
+    userTimeoutId = setTimeout(() => {
         showNotification('Sessão expirada por inatividade. Você será desconectado em 10 segundos...', 'warning');
         
         // Dar 10 segundos de aviso antes de desconectar
         setTimeout(() => {
-            if (currentUser && currentUser.role === 'admin') {
+            if (currentUser) {
                 showNotification('Desconectado por inatividade de 5 minutos.', 'error');
                 handleLogout();
             }
         }, 10000);
-    }, ADMIN_TIMEOUT_DURATION);
+    }, USER_TIMEOUT_DURATION);
 }
 
-function clearAdminTimeout() {
-    if (adminTimeoutId) {
-        clearTimeout(adminTimeoutId);
-        adminTimeoutId = null;
+function clearUserTimeout() {
+    if (userTimeoutId) {
+        clearTimeout(userTimeoutId);
+        userTimeoutId = null;
     }
 }
 
-function resetAdminTimeout() {
-    // Só resetar se o usuário for admin
-    if (!currentUser || currentUser.role !== 'admin') {
+function resetUserTimeout() {
+    // Só resetar se houver usuário logado
+    if (!currentUser) {
         return;
     }
     
     lastActivityTime = Date.now();
-    console.log('Admin timeout resetado devido à atividade do usuário');
-    startAdminTimeout();
+    console.log('Timeout de usuário resetado devido à atividade');
+    startUserTimeout();
 }
 
 // Variável para controlar se os listeners já foram adicionados
@@ -738,8 +738,8 @@ let activityListenersAdded = false;
 let activityHandler = null;
 
 function setupActivityListeners() {
-    // Só configurar listeners se o usuário for admin
-    if (!currentUser || currentUser.role !== 'admin') {
+    // Só configurar listeners se houver usuário logado
+    if (!currentUser) {
         return;
     }
     
@@ -755,7 +755,7 @@ function setupActivityListeners() {
         const now = Date.now();
         // Só resetar o timeout se passou pelo menos 1 segundo desde o último reset
         if (now - lastResetTime > 1000) {
-            resetAdminTimeout();
+            resetUserTimeout();
             lastResetTime = now;
         }
     };
@@ -768,7 +768,7 @@ function setupActivityListeners() {
     activityListenersAdded = true;
     
     // Iniciar o timeout
-    startAdminTimeout();
+    startUserTimeout();
 }
 
 function removeActivityListeners() {
@@ -2487,8 +2487,8 @@ function showLogin() {
     loginPage.classList.remove('hidden');
     dashboard.classList.add('hidden');
     
-    // Limpar timeout do admin e remover listeners
-    clearAdminTimeout();
+    // Limpar timeout do usuário e remover listeners
+    clearUserTimeout();
     removeActivityListeners();
 }
 
@@ -2503,7 +2503,7 @@ function showDashboard() {
         companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
     }
     
-    // Configurar timeout para admin se necessário
+    // Configurar timeout para usuário logado
     setupActivityListeners();
 }
 
