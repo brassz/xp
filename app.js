@@ -7925,17 +7925,14 @@ async function generateMonthlyLoansPDF() {
 // Função para gerar PDF dos pagamentos da semana (segunda a domingo)
 async function generateWeeklyPaymentsPDF() {
     try {
-        // Calcular início e fim da semana atual (segunda a domingo)
+        // Usar a função getWeekInfo para obter as datas corretas da semana atual
         const now = new Date();
-        const dayOfWeek = now.getDay(); // 0 = domingo, 1 = segunda, etc.
-        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek; // Se for domingo, voltar 6 dias
+        const weekInfo = getWeekInfo(now);
         
-        const startOfWeek = new Date(now);
-        startOfWeek.setDate(now.getDate() + mondayOffset);
+        const startOfWeek = new Date(weekInfo.startDate);
         startOfWeek.setHours(0, 0, 0, 0);
         
-        const endOfWeek = new Date(startOfWeek);
-        endOfWeek.setDate(startOfWeek.getDate() + 6);
+        const endOfWeek = new Date(weekInfo.endDate);
         endOfWeek.setHours(23, 59, 59, 999);
 
         // Buscar todos os pagamentos da semana
