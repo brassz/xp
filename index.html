@@ -9,6 +9,8 @@
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+    <script src="emailjs-config.js"></script>
     <script src="https://ucarecdn.com/libs/widget/3.x/uploadcare.full.min.js"></script>
     <link rel="stylesheet" href="https://ucarecdn.com/libs/widget/3.x/uploadcare.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
@@ -249,6 +251,55 @@
                          <div class="mt-6 text-center">
                  <p class="text-sm text-blue-300">Desenvolvido por Bruno Assoni</p>
              </div>
+        </div>
+    </div>
+
+    <!-- Access Code Verification Page -->
+    <div id="accessCodePage" class="hidden min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
+        <div class="glass-card p-8 rounded-2xl w-full max-w-md">
+            <div class="text-center mb-8">
+                <div class="w-20 h-20 flex items-center justify-center mx-auto mb-4">
+                    <img src="assets/images/nexus-logo-circular.png" alt="Nexus Logo" class="w-20 h-20 object-contain">
+                </div>
+                <h1 class="text-3xl font-bold text-white mb-2">Verificação de Acesso</h1>
+                <p class="text-blue-200">Digite o código enviado para seu email</p>
+            </div>
+            
+            <form id="accessCodeForm" class="space-y-6">
+                <div>
+                    <label class="block text-sm font-medium text-blue-200 mb-2">Código de Acesso</label>
+                    <input type="text" id="accessCode" class="form-input w-full text-center text-2xl tracking-widest" 
+                           placeholder="000000" maxlength="6" pattern="[0-9]{6}" required>
+                    <p class="text-xs text-blue-300 mt-2">Código de 6 dígitos enviado para <span id="verificationEmail" class="font-semibold"></span></p>
+                </div>
+                
+                <button type="submit" class="btn-primary w-full py-3 px-4 rounded-lg font-semibold text-white">
+                    Verificar Código
+                </button>
+                
+                <div class="text-center">
+                    <button type="button" id="resendCodeBtn" class="text-blue-300 hover:text-blue-200 text-sm underline">
+                        Reenviar código
+                    </button>
+                </div>
+                
+                <div class="text-center">
+                    <button type="button" id="backToLoginBtn" class="text-blue-400 hover:text-blue-300 text-sm">
+                        ← Voltar ao login
+                    </button>
+                </div>
+                
+                <!-- Botão para desenvolvimento - mostrar último código -->
+                <div class="text-center mt-4" id="devHelper" style="display: none;">
+                    <button type="button" id="showLastCodeBtn" class="text-yellow-400 hover:text-yellow-300 text-xs underline">
+                        [DEV] Mostrar último código
+                    </button>
+                </div>
+            </form>
+            
+            <div class="mt-6 text-center">
+                <p class="text-sm text-blue-300">Desenvolvido por Bruno Assoni</p>
+            </div>
         </div>
     </div>
 

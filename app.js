@@ -152,8 +152,10 @@ let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
 // Elementos DOM
 const loginPage = document.getElementById('loginPage');
+const accessCodePage = document.getElementById('accessCodePage');
 const dashboard = document.getElementById('dashboard');
 const loginForm = document.getElementById('loginForm');
+const accessCodeForm = document.getElementById('accessCodeForm');
 const logoutBtn = document.getElementById('logoutBtn');
 
 // Navegação
@@ -244,6 +246,44 @@ function setupEventListeners() {
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
+    
+    // Sistema de códigos de acesso
+    if (accessCodeForm) {
+        accessCodeForm.addEventListener('submit', handleAccessCode);
+    }
+    
+    const resendCodeBtn = document.getElementById('resendCodeBtn');
+    if (resendCodeBtn) {
+        resendCodeBtn.addEventListener('click', handleResendCode);
+    }
+    
+    const backToLoginBtn = document.getElementById('backToLoginBtn');
+    if (backToLoginBtn) {
+        backToLoginBtn.addEventListener('click', showLoginPage);
+    }
+    
+    // Botão de desenvolvimento para mostrar último código
+    const showLastCodeBtn = document.getElementById('showLastCodeBtn');
+    if (showLastCodeBtn) {
+        showLastCodeBtn.addEventListener('click', function() {
+            const lastCode = localStorage.getItem('lastAccessCode');
+            if (lastCode) {
+                const codeData = JSON.parse(lastCode);
+                alert(`Último código gerado: ${codeData.code}\nPara: ${codeData.email}\nEm: ${new Date(codeData.timestamp).toLocaleString('pt-BR')}`);
+            } else {
+                alert('Nenhum código foi gerado ainda.');
+            }
+        });
+    }
+    
+    // Formatar input do código (apenas números)
+    const accessCodeInput = document.getElementById('accessCode');
+    if (accessCodeInput) {
+        accessCodeInput.addEventListener('input', function(e) {
+            // Permitir apenas números
+            e.target.value = e.target.value.replace(/[^0-9]/g, '');
+        });
+    }
     
     // Navegação
     navLinks.forEach(link => {
@@ -622,6 +662,179 @@ function setupUploadcare() {
 
 
 
+// Sistema de Códigos de Acesso
+let pendingLoginData = null;
+
+// Gerar código de 6 dígitos
+function generateAccessCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
+
+// Enviar código de acesso por email
+async function sendAccessCode(email, code, userInfo) {
+    try {
+        // Salvar código no banco de dados
+        const { error } = await supabase
+            .from('access_codes')
+            .insert([{
+                email: email,
+                code: code,
+                expires_at: new Date(Date.now() + 5 * 60 * 1000).toISOString(), // 5 minutos
+                ip_address: await getUserIP(),
+                user_agent: navigator.userAgent
+            }]);
+
+        if (error) {
+            console.error('Erro ao salvar código:', error);
+            throw error;
+        }
+
+        // Enviar email para brasszgc@gmail.com
+        const emailData = {
+            to: 'brasszgc@gmail.com',
+            subject: 'Código de Acesso - Sistema Nexus',
+            html: `
+                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
+                    <h2 style="color: #1e40af;">Solicitação de Acesso - Sistema Nexus</h2>
+                    <p>Uma tentativa de login foi realizada no sistema Nexus:</p>
+                    
+                    <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
+                        <h3 style="color: #374151; margin-top: 0;">Código de Acesso:</h3>
+                        <div style="font-size: 32px; font-weight: bold; color: #1e40af; text-align: center; background-color: white; padding: 15px; border-radius: 4px; letter-spacing: 4px;">
+                            ${code}
+                        </div>
+                    </div>
+                    
+                    <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
+                        <h4 style="color: #92400e; margin-top: 0;">Detalhes da Tentativa:</h4>
+                        <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
+                        <p style="margin: 5px 0;"><strong>Nome:</strong> ${userInfo.name || 'N/A'}</p>
+                        <p style="margin: 5px 0;"><strong>Empresa:</strong> ${userInfo.company || 'N/A'}</p>
+                        <p style="margin: 5px 0;"><strong>Data/Hora:</strong> ${new Date().toLocaleString('pt-BR')}</p>
+                        <p style="margin: 5px 0;"><strong>IP:</strong> ${await getUserIP()}</p>
+                    </div>
+                    
+                    <p style="color: #6b7280; font-size: 14px;">
+                        Este código expira em 5 minutos. Se você não autorizou esta tentativa de login, ignore este email.
+                    </p>
+                </div>
+            `
+        };
+
+        // Usar EmailJS para enviar email
+        try {
+            // Verificar se EmailJS está disponível e configurado
+            if (typeof emailjs !== 'undefined' && window.EMAILJS_CONFIG) {
+                emailjs.init(window.EMAILJS_CONFIG.publicKey);
+                
+                const templateParams = {
+                    to_email: 'brasszgc@gmail.com',
+                    subject: 'Código de Acesso - Sistema Nexus',
+                    access_code: code,
+                    user_email: email,
+                    user_name: userInfo.name || 'N/A',
+                    company: userInfo.company || 'N/A',
+                    login_time: new Date().toLocaleString('pt-BR'),
+                    user_ip: await getUserIP()
+                };
+                
+                await emailjs.send(window.EMAILJS_CONFIG.serviceId, window.EMAILJS_CONFIG.templateId, templateParams);
+                console.log('Email enviado com sucesso para brasszgc@gmail.com');
+            } else {
+                // Fallback: Mostrar código no console para desenvolvimento
+                console.log('='.repeat(50));
+                console.log('CÓDIGO DE ACESSO GERADO:');
+                console.log('Email:', email);
+                console.log('Código:', code);
+                console.log('Usuário:', userInfo.name);
+                console.log('Empresa:', userInfo.company);
+                console.log('Horário:', new Date().toLocaleString('pt-BR'));
+                console.log('='.repeat(50));
+                
+                // Salvar no localStorage para facilitar testes
+                localStorage.setItem('lastAccessCode', JSON.stringify({
+                    code: code,
+                    email: email,
+                    timestamp: Date.now()
+                }));
+            }
+        } catch (emailError) {
+            console.error('Erro ao enviar email:', emailError);
+            // Fallback: Mostrar código no console
+            console.log('CÓDIGO DE ACESSO (fallback):', code);
+        }
+        
+        return true;
+    } catch (error) {
+        console.error('Erro ao enviar código:', error);
+        throw error;
+    }
+}
+
+// Obter IP do usuário
+async function getUserIP() {
+    try {
+        const response = await fetch('https://api.ipify.org?format=json');
+        const data = await response.json();
+        return data.ip;
+    } catch (error) {
+        return 'Unknown';
+    }
+}
+
+// Verificar código de acesso
+async function verifyAccessCode(email, code) {
+    try {
+        // Buscar código válido no banco
+        const { data, error } = await supabase
+            .from('access_codes')
+            .select('*')
+            .eq('email', email)
+            .eq('code', code)
+            .eq('used', false)
+            .gt('expires_at', new Date().toISOString())
+            .order('created_at', { ascending: false })
+            .limit(1)
+            .single();
+
+        if (error || !data) {
+            return false;
+        }
+
+        // Marcar código como usado
+        await supabase
+            .from('access_codes')
+            .update({ used: true })
+            .eq('id', data.id);
+
+        return true;
+    } catch (error) {
+        console.error('Erro ao verificar código:', error);
+        return false;
+    }
+}
+
+// Mostrar página de código de acesso
+function showAccessCodePage(email) {
+    loginPage.classList.add('hidden');
+    accessCodePage.classList.remove('hidden');
+    document.getElementById('verificationEmail').textContent = email;
+    document.getElementById('accessCode').focus();
+    
+    // Mostrar botão de desenvolvimento se EmailJS não estiver configurado
+    const devHelper = document.getElementById('devHelper');
+    if (devHelper && (!window.EMAILJS_CONFIG || !window.EMAILJS_CONFIG.publicKey || window.EMAILJS_CONFIG.publicKey === "YOUR_PUBLIC_KEY_HERE")) {
+        devHelper.style.display = 'block';
+    }
+}
+
+// Voltar para login
+function showLoginPage() {
+    accessCodePage.classList.add('hidden');
+    loginPage.classList.remove('hidden');
+    pendingLoginData = null;
+}
+
 // Handlers de autenticação
 async function handleLogin(e) {
     e.preventDefault();
@@ -651,23 +864,29 @@ async function handleLogin(e) {
             throw new Error('Usuário não encontrado ou inativo');
         }
         
-        // Para demonstração, aceitar senha simples
-        // Em produção, implementar hash de senha
+        // Verificar senha
         if (password === '1020' || password === 'user123') {
-            currentUser = userData;
+            // Gerar e enviar código de acesso
+            const accessCode = generateAccessCode();
             
-            // Salvar usuário no localStorage
-            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+            // Salvar dados do login pendente
+            pendingLoginData = {
+                companyId,
+                email,
+                userData
+            };
             
-            showDashboard();
-            await loadData();
+            // Enviar código de acesso
+            await sendAccessCode(email, accessCode, {
+                name: userData.name,
+                company: companyId.toUpperCase()
+            });
             
-            // Atualizar último login
-            await supabase
-                .from('users')
-                .update({ last_login: new Date().toISOString() })
-                .eq('id', currentUser.id);
-                
+            // Mostrar página de verificação de código
+            showAccessCodePage(email);
+            
+            alert('Código de acesso enviado para brasszgc@gmail.com. Aguarde a autorização.');
+            
         } else {
             throw new Error('Senha incorreta');
         }
@@ -687,6 +906,82 @@ async function handleLogout() {
     localStorage.removeItem('nexusUser');
     localStorage.removeItem('selectedCompany');
     showLogin();
+}
+
+// Handler para verificação de código de acesso
+async function handleAccessCode(e) {
+    e.preventDefault();
+    
+    const code = document.getElementById('accessCode').value;
+    
+    if (!pendingLoginData) {
+        alert('Sessão expirada. Faça login novamente.');
+        showLoginPage();
+        return;
+    }
+    
+    if (code.length !== 6) {
+        alert('Por favor, digite um código de 6 dígitos');
+        return;
+    }
+    
+    try {
+        // Verificar código de acesso
+        const isValidCode = await verifyAccessCode(pendingLoginData.email, code);
+        
+        if (isValidCode) {
+            // Código válido - completar login
+            currentUser = pendingLoginData.userData;
+            
+            // Salvar usuário no localStorage
+            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+            
+            // Mostrar dashboard
+            accessCodePage.classList.add('hidden');
+            showDashboard();
+            await loadData();
+            
+            // Atualizar último login
+            await supabase
+                .from('users')
+                .update({ last_login: new Date().toISOString() })
+                .eq('id', currentUser.id);
+            
+            // Limpar dados pendentes
+            pendingLoginData = null;
+            
+        } else {
+            alert('Código inválido ou expirado. Tente novamente.');
+            document.getElementById('accessCode').value = '';
+            document.getElementById('accessCode').focus();
+        }
+        
+    } catch (error) {
+        alert('Erro ao verificar código: ' + error.message);
+    }
+}
+
+// Reenviar código de acesso
+async function handleResendCode() {
+    if (!pendingLoginData) {
+        alert('Sessão expirada. Faça login novamente.');
+        showLoginPage();
+        return;
+    }
+    
+    try {
+        const accessCode = generateAccessCode();
+        
+        await sendAccessCode(pendingLoginData.email, accessCode, {
+            name: pendingLoginData.userData.name,
+            company: pendingLoginData.companyId.toUpperCase()
+        });
+        
+        alert('Novo código enviado para brasszgc@gmail.com');
+        
+    } catch (error) {
+        alert('Erro ao reenviar código: ' + error.message);
+    }
 }
 
 // Funções para gerenciar timeout de usuários
