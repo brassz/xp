@@ -11132,16 +11132,14 @@ async function populateWeekSelector() {
             const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
             
             if (!weeks.has(weekKey)) {
-                // Usar função unificada para calcular datas corretas
-                const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
-                
+                // Usar as datas originais do getWeekInfo para manter consistência
                 weeks.set(weekKey, {
                     key: weekKey,
                     year: weekInfo.year,
                     week: weekInfo.week,
-                    startDate: startDate,
-                    endDate: endDate,
-                    label: `Semana ${weekInfo.week}/${weekInfo.year} (${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')})`
+                    startDate: weekInfo.startDate,
+                    endDate: weekInfo.endDate,
+                    label: `Semana ${weekInfo.week}/${weekInfo.year} (${weekInfo.startDate.toLocaleDateString('pt-BR')} - ${weekInfo.endDate.toLocaleDateString('pt-BR')})`
                 });
             }
         });
@@ -11150,16 +11148,13 @@ async function populateWeekSelector() {
         const currentWeekInfo = getWeekInfo(now);
         const currentWeekKey = `${currentWeekInfo.year}-W${currentWeekInfo.week}`;
         if (!weeks.has(currentWeekKey)) {
-            // Usar função unificada para calcular datas corretas
-            const { startDate, endDate } = getWeekDatesFromWeekKey(currentWeekKey);
-            
             weeks.set(currentWeekKey, {
                 key: currentWeekKey,
                 year: currentWeekInfo.year,
                 week: currentWeekInfo.week,
-                startDate: startDate,
-                endDate: endDate,
-                label: `Semana ${currentWeekInfo.week}/${currentWeekInfo.year} (${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}) - ATUAL`
+                startDate: currentWeekInfo.startDate,
+                endDate: currentWeekInfo.endDate,
+                label: `Semana ${currentWeekInfo.week}/${currentWeekInfo.year} (${currentWeekInfo.startDate.toLocaleDateString('pt-BR')} - ${currentWeekInfo.endDate.toLocaleDateString('pt-BR')}) - ATUAL`
             });
         }
 
@@ -11643,15 +11638,12 @@ async function getAvailableWeeksForPDF() {
             const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
             
             if (!weeks.has(weekKey)) {
-                // Usar função unificada para calcular datas corretas
-                const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
-                
                 weeks.set(weekKey, {
                     key: weekKey,
                     year: weekInfo.year,
                     week: weekInfo.week,
-                    startDate: startDate,
-                    endDate: endDate,
+                    startDate: weekInfo.startDate,
+                    endDate: weekInfo.endDate,
                     payments: [],
                     totalAmount: 0,
                     paymentCount: 0,
@@ -11689,8 +11681,12 @@ async function getAvailableWeeksForPDF() {
 // Função para gerar PDF de uma semana específica (chamada pelo modal)
 async function generatePDFForSpecificWeek(weekKey, startDateISO, endDateISO) {
     try {
-        // Usar função unificada para garantir consistência
-        const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
+        // Usar as datas originais passadas pelo modal
+        const startDate = new Date(startDateISO);
+        const endDate = new Date(endDateISO);
+        
+        console.log(`🎯 Gerando PDF do modal para: ${weekKey}`);
+        console.log(`📅 Usando datas originais: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
         
         await generateWeeklyPaymentsPDFForDates(startDate, endDate);
         
@@ -11709,8 +11705,12 @@ async function generatePDFForSpecificWeek(weekKey, startDateISO, endDateISO) {
 // Função para mostrar detalhes de uma semana no modal
 async function showWeekDetailsInModal(weekKey, startDateISO, endDateISO) {
     try {
-        // Usar função unificada para garantir consistência
-        const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
+        // Usar as datas originais passadas pelo modal
+        const startDate = new Date(startDateISO);
+        const endDate = new Date(endDateISO);
+        
+        console.log(`🎯 Mostrando detalhes para: ${weekKey}`);
+        console.log(`📅 Usando datas originais: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
         
         // Simular seleção da semana e mostrar modal de clientes
         selectedWeekData = {
@@ -11737,13 +11737,8 @@ async function showWeekDetailsInModal(weekKey, startDateISO, endDateISO) {
 // Função para regenerar PDF de uma semana específica
 async function regeneratePDFForWeek(weekKey) {
     try {
-        // Usar função unificada para calcular datas
-        const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
-        
-        // Gerar PDF para essa semana específica
-        await generateWeeklyPaymentsPDFForDates(startDate, endDate);
-        
-        showSuccessMessage(`PDF da ${weekKey} gerado novamente com sucesso!`);
+        // Esta função não deveria ser chamada mais, mas mantendo para compatibilidade
+        showErrorMessage('Use a função "Gerar Novamente" no modal de semanas passadas');
         
     } catch (error) {
         console.error('Erro ao regenerar PDF:', error);
@@ -11757,6 +11752,9 @@ async function generateWeeklyPaymentsPDFForSelectedWeek() {
         showErrorMessage('Selecione uma semana primeiro');
         return;
     }
+    
+    console.log(`🎯 Gerando PDF para semana selecionada: ${selectedWeekData.key}`);
+    console.log(`📅 Usando datas da seleção: ${selectedWeekData.startDate.toLocaleDateString('pt-BR')} - ${selectedWeekData.endDate.toLocaleDateString('pt-BR')}`);
     
     await generateWeeklyPaymentsPDFForDates(selectedWeekData.startDate, selectedWeekData.endDate);
 }
