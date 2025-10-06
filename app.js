@@ -11419,48 +11419,227 @@ function renderWeekClientsModal(clients, weekData) {
 }
 
 // Função para mostrar modal de histórico de PDFs
-function showPDFHistoryModal() {
+async function showPDFHistoryModal() {
     const modal = document.getElementById('pdfHistoryModal');
     const content = document.getElementById('pdfHistoryContent');
     
     showModal(modal);
     
-    const history = getWeeklyPDFHistory();
-    
-    if (history.length === 0) {
-        content.innerHTML = `
-            <div class="text-center py-8 text-gray-400">
-                <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
-                </svg>
-                <p class="text-lg font-semibold">Nenhum PDF foi gerado ainda</p>
-                <p class="text-sm mt-2">Os PDFs gerados aparecerão aqui</p>
-            </div>
-        `;
-        return;
-    }
-
+    // Mostrar loading
     content.innerHTML = `
-        <div class="mb-4">
-            <p class="text-gray-400">Total de PDFs gerados: <span class="text-white font-semibold">${history.length}</span></p>
-        </div>
-        
-        <div class="space-y-3">
-            ${history.reverse().map((entry, index) => `
-                <div class="bg-gray-700 rounded-lg p-4 flex justify-between items-center">
-                    <div>
-                        <h5 class="text-white font-semibold">${entry.week}</h5>
-                        <p class="text-sm text-gray-400">Gerado em: ${entry.date}</p>
-                    </div>
-                    <div class="flex space-x-2">
-                        <button onclick="regeneratePDFForWeek('${entry.week}')" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm text-white transition-colors">
-                            Gerar Novamente
-                        </button>
-                    </div>
-                </div>
-            `).join('')}
+        <div class="text-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="text-gray-400 mt-2">Carregando semanas disponíveis...</p>
         </div>
     `;
+
+    try {
+        // Buscar todas as semanas que têm pagamentos
+        const availableWeeks = await getAvailableWeeksForPDF();
+        
+        if (availableWeeks.length === 0) {
+            content.innerHTML = `
+                <div class="text-center py-8 text-gray-400">
+                    <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <p class="text-lg font-semibold">Nenhuma semana com pagamentos encontrada</p>
+                    <p class="text-sm mt-2">Quando houver pagamentos registrados, as semanas aparecerão aqui</p>
+                </div>
+            `;
+            return;
+        }
+
+        // Obter histórico local de PDFs gerados
+        const localHistory = getWeeklyPDFHistory();
+        const generatedWeeks = new Set(localHistory.map(entry => entry.week));
+
+        content.innerHTML = `
+            <div class="mb-6">
+                <h4 class="text-lg font-semibold text-white mb-2">Semanas Disponíveis para PDF</h4>
+                <p class="text-gray-400">Total de semanas com pagamentos: <span class="text-white font-semibold">${availableWeeks.length}</span></p>
+                <p class="text-gray-400">PDFs já gerados: <span class="text-green-400 font-semibold">${generatedWeeks.size}</span></p>
+            </div>
+            
+            <div class="space-y-3">
+                ${availableWeeks.map(week => {
+                    const wasGenerated = generatedWeeks.has(week.key);
+                    const generatedInfo = wasGenerated ? localHistory.find(entry => entry.week === week.key) : null;
+                    
+                    return `
+                        <div class="bg-gray-700 rounded-lg p-4">
+                            <div class="flex justify-between items-start mb-3">
+                                <div class="flex-1">
+                                    <div class="flex items-center space-x-2 mb-1">
+                                        <h5 class="text-white font-semibold">${week.key}</h5>
+                                        ${wasGenerated ? `
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                                                <svg class="w-3 h-3 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                                                </svg>
+                                                PDF Gerado
+                                            </span>
+                                        ` : `
+                                            <span class="inline-flex items-center px-2 py-1 rounded-full text-xs font-medium bg-gray-100 text-gray-800">
+                                                Disponível
+                                            </span>
+                                        `}
+                                    </div>
+                                    <p class="text-sm text-gray-400">${week.startDate.toLocaleDateString('pt-BR')} - ${week.endDate.toLocaleDateString('pt-BR')}</p>
+                                    <div class="flex items-center space-x-4 mt-2 text-xs text-gray-400">
+                                        <span>💰 ${week.totalAmount.toFixed(2)}</span>
+                                        <span>📊 ${week.paymentCount} pagamentos</span>
+                                        <span>👥 ${week.clientCount} clientes</span>
+                                    </div>
+                                    ${wasGenerated && generatedInfo ? `
+                                        <p class="text-xs text-green-400 mt-1">Último PDF gerado em: ${generatedInfo.date}</p>
+                                    ` : ''}
+                                </div>
+                                <div class="flex flex-col space-y-2 ml-4">
+                                    <button onclick="generatePDFForSpecificWeek('${week.key}', '${week.startDate.toISOString()}', '${week.endDate.toISOString()}')" 
+                                            class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm text-white transition-colors whitespace-nowrap">
+                                        ${wasGenerated ? 'Gerar Novamente' : 'Gerar PDF'}
+                                    </button>
+                                    <button onclick="showWeekDetailsInModal('${week.key}', '${week.startDate.toISOString()}', '${week.endDate.toISOString()}')" 
+                                            class="bg-green-600 hover:bg-green-700 px-3 py-1 rounded text-sm text-white transition-colors whitespace-nowrap">
+                                        Ver Detalhes
+                                    </button>
+                                </div>
+                            </div>
+                        </div>
+                    `;
+                }).join('')}
+            </div>
+        `;
+
+    } catch (error) {
+        console.error('Erro ao carregar histórico de PDFs:', error);
+        content.innerHTML = `
+            <div class="text-center py-8 text-red-400">
+                <p class="text-lg font-semibold">Erro ao carregar dados</p>
+                <p class="text-sm mt-2">${error.message}</p>
+                <button onclick="showPDFHistoryModal()" class="mt-4 bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white transition-colors">
+                    Tentar Novamente
+                </button>
+            </div>
+        `;
+    }
+}
+
+// Função para obter todas as semanas disponíveis para PDF
+async function getAvailableWeeksForPDF() {
+    try {
+        // Buscar todos os pagamentos com informações dos clientes
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select(`
+                payment_date,
+                amount,
+                loans (
+                    clients (
+                        id
+                    )
+                )
+            `)
+            .order('payment_date', { ascending: false });
+
+        if (error) throw error;
+
+        // Agrupar por semanas
+        const weeks = new Map();
+
+        payments.forEach(payment => {
+            const date = new Date(payment.payment_date);
+            const weekInfo = getWeekInfo(date);
+            const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
+            
+            if (!weeks.has(weekKey)) {
+                weeks.set(weekKey, {
+                    key: weekKey,
+                    year: weekInfo.year,
+                    week: weekInfo.week,
+                    startDate: weekInfo.startDate,
+                    endDate: weekInfo.endDate,
+                    payments: [],
+                    totalAmount: 0,
+                    paymentCount: 0,
+                    clients: new Set()
+                });
+            }
+
+            const weekData = weeks.get(weekKey);
+            weekData.payments.push(payment);
+            weekData.totalAmount += payment.amount;
+            weekData.paymentCount++;
+            
+            // Adicionar cliente único
+            if (payment.loans?.clients?.id) {
+                weekData.clients.add(payment.loans.clients.id);
+            }
+        });
+
+        // Converter para array e adicionar contagem de clientes
+        const availableWeeks = Array.from(weeks.values()).map(week => ({
+            ...week,
+            clientCount: week.clients.size,
+            clients: undefined // Remove o Set para não causar problemas na serialização
+        }));
+
+        // Ordenar por data (mais recentes primeiro)
+        return availableWeeks.sort((a, b) => b.startDate - a.startDate);
+
+    } catch (error) {
+        console.error('Erro ao buscar semanas disponíveis:', error);
+        throw error;
+    }
+}
+
+// Função para gerar PDF de uma semana específica (chamada pelo modal)
+async function generatePDFForSpecificWeek(weekKey, startDateISO, endDateISO) {
+    try {
+        const startDate = new Date(startDateISO);
+        const endDate = new Date(endDateISO);
+        
+        await generateWeeklyPaymentsPDFForDates(startDate, endDate);
+        
+        // Fechar modal e mostrar novamente para atualizar status
+        hideModal(document.getElementById('pdfHistoryModal'));
+        setTimeout(() => {
+            showPDFHistoryModal();
+        }, 500);
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        showErrorMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// Função para mostrar detalhes de uma semana no modal
+async function showWeekDetailsInModal(weekKey, startDateISO, endDateISO) {
+    try {
+        const startDate = new Date(startDateISO);
+        const endDate = new Date(endDateISO);
+        
+        // Simular seleção da semana e mostrar modal de clientes
+        selectedWeekData = {
+            key: weekKey,
+            startDate,
+            endDate,
+            label: `${weekKey} (${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')})`
+        };
+        
+        // Fechar modal de histórico
+        hideModal(document.getElementById('pdfHistoryModal'));
+        
+        // Mostrar modal de clientes após pequeno delay
+        setTimeout(() => {
+            showWeekClientsModal();
+        }, 300);
+        
+    } catch (error) {
+        console.error('Erro ao mostrar detalhes da semana:', error);
+        showErrorMessage('Erro ao carregar detalhes da semana');
+    }
 }
 
 // Função para regenerar PDF de uma semana específica
