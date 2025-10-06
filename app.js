@@ -5055,13 +5055,7 @@ async function generatePaymentReceipt(paymentId, loanId) {
 
 💰 *VALORES:*
 • Valor Total do Empréstimo: R$ ${totalWithInterest.toFixed(2)}
-• Total Já Pago: R$ ${totalPaid.toFixed(2)}
 • Valor Restante: R$ ${remainingAmount.toFixed(2)}
-
-📅 *Próximo Vencimento:* ${formatDate(nextDueDateString)}
-
-⚠️ *LEMBRETE:* 
-Não esqueça de efetuar o próximo pagamento na data de vencimento: ${formatDate(nextDueDateString)}
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
 Obrigado pela confiança! 💙`;
