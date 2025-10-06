@@ -770,11 +770,29 @@ async function sendAccessCode(email, code, userInfo) {
     }
 }
 
-// Método 1: Resend API Direto (Mais Simples)
+// Método 1: Resend SDK Oficial (Recomendado)
 async function sendViaResendDirect(loginData) {
     try {
         if (!window.RESEND_CONFIG || !window.RESEND_CONFIG.apiKey) {
             throw new Error('Resend não configurado');
+        }
+
+        // Tentar usar SDK do Resend, se não disponível usar fetch
+        let useSDK = false;
+        let resend = null;
+        
+        if (typeof window.Resend !== 'undefined') {
+            try {
+                resend = new window.Resend(window.RESEND_CONFIG.apiKey);
+                useSDK = true;
+                console.log('🔧 Usando Resend SDK oficial');
+            } catch (sdkError) {
+                console.warn('Erro ao inicializar SDK, usando fetch:', sdkError);
+                useSDK = false;
+            }
+        } else {
+            console.log('🔧 SDK não disponível, usando fetch direto');
+            useSDK = false;
         }
 
         const emailHtml = `
@@ -864,32 +882,47 @@ async function sendViaResendDirect(loginData) {
             </html>
         `;
 
-        const response = await fetch('https://api.resend.com/emails', {
-            method: 'POST',
-            headers: {
-                'Authorization': `Bearer ${window.RESEND_CONFIG.apiKey}`,
-                'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-                from: window.RESEND_CONFIG.fromEmail,
-                to: [window.RESEND_CONFIG.toEmail],
-                subject: '🔐 Código de Acesso - Sistema Nexus',
-                html: emailHtml,
-            }),
-        });
+        let result;
 
-        if (!response.ok) {
-            const error = await response.text();
-            throw new Error(`Erro Resend: ${error}`);
+        if (useSDK && resend) {
+            // Usar o SDK oficial do Resend
+            result = await resend.emails.send({
+                from: 'Sistema Nexus <onboarding@resend.dev>',
+                to: [window.RESEND_CONFIG.toEmail],
+                subject: '🔐 CÓDIGO DE ACESSO - Sistema Nexus',
+                html: emailHtml,
+            });
+            console.log('✅ Email enviado via Resend SDK:', result);
+        } else {
+            // Fallback: usar fetch direto
+            const response = await fetch('https://api.resend.com/emails', {
+                method: 'POST',
+                headers: {
+                    'Authorization': `Bearer ${window.RESEND_CONFIG.apiKey}`,
+                    'Content-Type': 'application/json',
+                },
+                body: JSON.stringify({
+                    from: 'Sistema Nexus <onboarding@resend.dev>',
+                    to: [window.RESEND_CONFIG.toEmail],
+                    subject: '🔐 CÓDIGO DE ACESSO - Sistema Nexus',
+                    html: emailHtml,
+                }),
+            });
+
+            if (!response.ok) {
+                const error = await response.text();
+                throw new Error(`Erro Resend API: ${error}`);
+            }
+
+            result = await response.json();
+            console.log('✅ Email enviado via Resend API (fetch):', result);
         }
 
-        const result = await response.json();
-        console.log('✅ Email enviado via Resend API:', result);
         return true;
 
     } catch (error) {
-        console.error('Erro no Resend Direct:', error);
-        throw new Error('Falha no envio via Resend');
+        console.error('Erro no Resend SDK:', error);
+        throw new Error('Falha no envio via Resend SDK');
     }
 }
 
