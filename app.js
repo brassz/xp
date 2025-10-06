@@ -4667,8 +4667,6 @@ async function sendWhatsAppMessage(loanId) {
   Juros: R$ ${interestAmount.toFixed(2)}
   Multa atual: R$ ${currentFine.toFixed(2)}
   
-    VALOR RESTANTE: R$ ${remainingAmount.toFixed(2)}
-
    ATENÇÃO!
 O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
 Após o vencimento, será aplicada uma multa diária de R$ 50,00.`;
