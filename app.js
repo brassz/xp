@@ -11365,33 +11365,53 @@ async function populateWeekSelector() {
     }
 }
 
-// Função para obter informações da semana - LÓGICA DINÂMICA E CORRETA
+// Função para obter informações da semana - LÓGICA FIXA E SIMPLES
 function getWeekInfo(date) {
     const d = new Date(date);
+    const year = d.getFullYear();
     
-    // Garantir que estamos trabalhando com uma data local sem problemas de timezone
-    const localDate = new Date(d.getFullYear(), d.getMonth(), d.getDate());
+    // Definir semanas fixas manualmente
+    const weekRanges = [
+        { start: new Date(2024, 8, 29), end: new Date(2024, 9, 5), week: 40 },   // 29/09 - 05/10
+        { start: new Date(2024, 9, 6), end: new Date(2024, 9, 12), week: 41 },   // 06/10 - 12/10
+        { start: new Date(2024, 9, 13), end: new Date(2024, 9, 19), week: 42 },  // 13/10 - 19/10
+        { start: new Date(2024, 9, 20), end: new Date(2024, 9, 26), week: 43 },  // 20/10 - 26/10
+        { start: new Date(2024, 9, 27), end: new Date(2024, 10, 2), week: 44 },  // 27/10 - 02/11
+        { start: new Date(2024, 10, 3), end: new Date(2024, 10, 9), week: 45 },  // 03/11 - 09/11
+        { start: new Date(2024, 10, 10), end: new Date(2024, 10, 16), week: 46 }, // 10/11 - 16/11
+    ];
     
-    // Encontrar o domingo da semana (início da semana)
-    const dayOfWeek = localDate.getDay(); // 0 = domingo, 1 = segunda, etc.
-    const startDate = new Date(localDate);
-    startDate.setDate(localDate.getDate() - dayOfWeek);
+    // Encontrar em qual semana a data se encaixa
+    for (const range of weekRanges) {
+        range.start.setHours(0, 0, 0, 0);
+        range.end.setHours(23, 59, 59, 999);
+        
+        if (d >= range.start && d <= range.end) {
+            return {
+                year: year,
+                week: range.week,
+                startDate: new Date(range.start),
+                endDate: new Date(range.end)
+            };
+        }
+    }
+    
+    // Se não encontrou, calcular dinamicamente baseado na última semana definida
+    const lastWeek = weekRanges[weekRanges.length - 1];
+    const daysDiff = Math.floor((d - lastWeek.end) / (24 * 60 * 60 * 1000));
+    const weeksAfter = Math.floor(daysDiff / 7) + 1;
+    
+    const startDate = new Date(lastWeek.end);
+    startDate.setDate(lastWeek.end.getDate() + 1 + ((weeksAfter - 1) * 7));
     startDate.setHours(0, 0, 0, 0);
     
-    // Encontrar o sábado da semana (fim da semana)
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
     
-    // Calcular número da semana no ano
-    const year = localDate.getFullYear();
-    const firstDayOfYear = new Date(year, 0, 1);
-    const daysSinceStartOfYear = Math.floor((localDate - firstDayOfYear) / (24 * 60 * 60 * 1000));
-    const weekNumber = Math.ceil((daysSinceStartOfYear + firstDayOfYear.getDay() + 1) / 7);
-    
     return {
         year: year,
-        week: weekNumber,
+        week: lastWeek.week + weeksAfter,
         startDate: startDate,
         endDate: endDate
     };
@@ -11410,13 +11430,8 @@ async function handleWeekChange() {
         return;
     }
 
-    // Usar parseLocalDate para garantir parsing correto das datas
-    const startDate = parseLocalDate(selectedOption.dataset.startDate) || new Date(selectedOption.dataset.startDate);
-    const endDate = parseLocalDate(selectedOption.dataset.endDate) || new Date(selectedOption.dataset.endDate);
-    
-    // Garantir que as datas estão no horário correto
-    startDate.setHours(0, 0, 0, 0);
-    endDate.setHours(23, 59, 59, 999);
+    const startDate = new Date(selectedOption.dataset.startDate);
+    const endDate = new Date(selectedOption.dataset.endDate);
     
     selectedWeekData = {
         key: selectedOption.value,
@@ -11425,7 +11440,7 @@ async function handleWeekChange() {
         label: selectedOption.textContent
     };
 
-    // Atualizar display do período com formatação consistente
+    // Atualizar display do período - APENAS CORRIGIR A EXIBIÇÃO VISUAL
     updatePaymentPeriodDisplay(`${formatDate(startDate.toISOString().split('T')[0])} - ${formatDate(endDate.toISOString().split('T')[0])}`);
 
     // Carregar dados da semana selecionada
