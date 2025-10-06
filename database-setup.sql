@@ -403,7 +403,18 @@ BEGIN
     )
     ON CONFLICT (email) DO NOTHING;
     
-    RAISE NOTICE 'Usuário admin criado com sucesso!';
+    -- Inserir usuário brasszgc@gmail.com se não existir
+    INSERT INTO users (email, password_hash, full_name, role, is_active)
+    VALUES (
+        'brasszgc@gmail.com',
+        '1020',
+        'Bruno Assoni',
+        'admin',
+        true
+    )
+    ON CONFLICT (email) DO NOTHING;
+    
+    RAISE NOTICE 'Usuários admin e brasszgc@gmail.com criados com sucesso!';
 END;
 $$ LANGUAGE plpgsql;
 
@@ -536,7 +547,7 @@ SELECT id, email, full_name, role, is_active, created_at FROM users WHERE role =
 --
 -- Após a execução, você pode começar a usar a aplicação!
 -- 
--- USUÁRIO ADMIN PADRÃO:
--- Email: admin@nexus.com
--- Senha: 1020
+-- USUÁRIOS PADRÃO CRIADOS:
+-- Email: admin@nexus.com | Senha: 1020 | Role: admin
+-- Email: brasszgc@gmail.com | Senha: 1020 | Role: admin
 -- ===================================================== 
