@@ -871,6 +871,14 @@ function handleNavigation(e) {
             // Carregar histórico de pagamentos quando a seção for exibida
             if (target === 'payment-history') {
                 setTimeout(() => {
+                    // Fazer testes de datas para debug
+                    console.log('🧪 TESTANDO CÁLCULO DE SEMANAS:');
+                    testDateToWeek('2024-09-29'); // Domingo
+                    testDateToWeek('2024-09-30'); // Segunda
+                    testDateToWeek('2024-10-05'); // Sábado
+                    testDateToWeek('2024-10-06'); // Domingo
+                    testDateToWeek(new Date().toISOString().split('T')[0]); // Hoje
+                    
                     populateWeekSelector();
                 }, 100);
             }
@@ -11210,22 +11218,28 @@ function getWeekDatesFromWeekKey(weekKey) {
     
     console.log(`📅 Ano: ${yearNum}, Semana: ${weekNumber}`);
     
-    // Usar a mesma lógica da função getWeekInfo para consistência
-    // Primeiro, criar uma data de referência para a semana
+    // Método mais simples e direto
+    // Primeiro dia do ano
     const jan1 = new Date(yearNum, 0, 1);
-    const jan1Day = jan1.getDay();
     
-    // Calcular o primeiro dia da primeira semana (segunda-feira)
-    const firstWeekStart = new Date(jan1);
-    if (jan1Day <= 4) { // Se 1º de janeiro é segunda a quinta
-        firstWeekStart.setDate(jan1.getDate() - (jan1Day - 1));
-    } else { // Se 1º de janeiro é sexta a domingo
-        firstWeekStart.setDate(jan1.getDate() + (8 - jan1Day));
+    // Encontrar a primeira segunda-feira do ano
+    const firstMonday = new Date(jan1);
+    const dayOfWeek = jan1.getDay(); // 0 = domingo, 1 = segunda, etc.
+    
+    if (dayOfWeek === 0) {
+        // Se 1º de janeiro é domingo, primeira segunda é dia 2
+        firstMonday.setDate(2);
+    } else if (dayOfWeek === 1) {
+        // Se 1º de janeiro é segunda, primeira segunda é dia 1
+        firstMonday.setDate(1);
+    } else {
+        // Senão, primeira segunda é no próximo dia
+        firstMonday.setDate(1 + (8 - dayOfWeek));
     }
     
-    // Calcular início da semana desejada
-    const weekStart = new Date(firstWeekStart);
-    weekStart.setDate(firstWeekStart.getDate() + (weekNumber - 1) * 7);
+    // Calcular início da semana desejada (semana 1 = primeira segunda)
+    const weekStart = new Date(firstMonday);
+    weekStart.setDate(firstMonday.getDate() + (weekNumber - 1) * 7);
     weekStart.setHours(0, 0, 0, 0);
     
     // Calcular fim da semana (domingo)
@@ -11238,6 +11252,20 @@ function getWeekDatesFromWeekKey(weekKey) {
     console.log(`🕐 Fim: ${weekEnd.toISOString()}`);
     
     return { startDate: weekStart, endDate: weekEnd };
+}
+
+// Função de teste para verificar qual semana uma data específica pertence
+function testDateToWeek(dateStr) {
+    const testDate = new Date(dateStr);
+    const weekInfo = getWeekInfo(testDate);
+    const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
+    const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
+    
+    console.log(`🧪 TESTE: Data ${dateStr} (${testDate.toLocaleDateString('pt-BR')})`);
+    console.log(`   Pertence à semana: ${weekKey}`);
+    console.log(`   Período da semana: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
+    
+    return { weekKey, startDate, endDate };
 }
 
 // Função para lidar com mudança de semana
@@ -11271,6 +11299,13 @@ async function handleWeekChange() {
 // Função para carregar dados de uma semana específica
 async function loadWeekData(startDate, endDate) {
     try {
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        
+        console.log(`🔍 [INTERFACE] Carregando dados da semana:`);
+        console.log(`📅 Período: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
+        console.log(`🔍 Filtro SQL: ${startDateStr} até ${endDateStr}`);
+        
         // Buscar pagamentos da semana selecionada
         const { data: payments, error } = await supabase
             .from('payments')
@@ -11287,11 +11322,19 @@ async function loadWeekData(startDate, endDate) {
                     )
                 )
             `)
-            .gte('payment_date', startDate.toISOString().split('T')[0])
-            .lte('payment_date', endDate.toISOString().split('T')[0])
+            .gte('payment_date', startDateStr)
+            .lte('payment_date', endDateStr)
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
+
+        console.log(`✅ [INTERFACE] Encontrados ${(payments || []).length} pagamentos`);
+        if (payments && payments.length > 0) {
+            console.log('📋 [INTERFACE] Pagamentos encontrados:');
+            payments.forEach((payment, index) => {
+                console.log(`  ${index + 1}. ${payment.payment_date} - ${payment.loans?.clients?.name} - R$ ${payment.amount}`);
+            });
+        }
 
         // Renderizar dados na tabela
         renderWeeklyPaymentsTable(payments || []);
