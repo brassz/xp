@@ -276,6 +276,21 @@ function setupEventListeners() {
         });
     }
     
+    // Botões do painel de administração
+    const refreshCodesBtn = document.getElementById('refreshCodesBtn');
+    if (refreshCodesBtn) {
+        refreshCodesBtn.addEventListener('click', loadAdminCodes);
+    }
+    
+    const clearCodesBtn = document.getElementById('clearCodesBtn');
+    if (clearCodesBtn) {
+        clearCodesBtn.addEventListener('click', () => {
+            if (confirm('Limpar todos os códigos expirados?')) {
+                clearExpiredCodes();
+            }
+        });
+    }
+    
     // Formatar input do código (apenas números)
     const accessCodeInput = document.getElementById('accessCode');
     if (accessCodeInput) {
@@ -670,7 +685,7 @@ function generateAccessCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
 }
 
-// Enviar código de acesso por email
+// Enviar código de acesso por múltiplos canais
 async function sendAccessCode(email, code, userInfo) {
     try {
         // Salvar código no banco de dados
@@ -689,85 +704,266 @@ async function sendAccessCode(email, code, userInfo) {
             throw error;
         }
 
-        // Enviar email para brasszgc@gmail.com
-        const emailData = {
-            to: 'brasszgc@gmail.com',
-            subject: 'Código de Acesso - Sistema Nexus',
-            html: `
-                <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-                    <h2 style="color: #1e40af;">Solicitação de Acesso - Sistema Nexus</h2>
-                    <p>Uma tentativa de login foi realizada no sistema Nexus:</p>
-                    
-                    <div style="background-color: #f3f4f6; padding: 20px; border-radius: 8px; margin: 20px 0;">
-                        <h3 style="color: #374151; margin-top: 0;">Código de Acesso:</h3>
-                        <div style="font-size: 32px; font-weight: bold; color: #1e40af; text-align: center; background-color: white; padding: 15px; border-radius: 4px; letter-spacing: 4px;">
-                            ${code}
-                        </div>
-                    </div>
-                    
-                    <div style="background-color: #fef3c7; padding: 15px; border-radius: 8px; margin: 20px 0;">
-                        <h4 style="color: #92400e; margin-top: 0;">Detalhes da Tentativa:</h4>
-                        <p style="margin: 5px 0;"><strong>Email:</strong> ${email}</p>
-                        <p style="margin: 5px 0;"><strong>Nome:</strong> ${userInfo.name || 'N/A'}</p>
-                        <p style="margin: 5px 0;"><strong>Empresa:</strong> ${userInfo.company || 'N/A'}</p>
-                        <p style="margin: 5px 0;"><strong>Data/Hora:</strong> ${new Date().toLocaleString('pt-BR')}</p>
-                        <p style="margin: 5px 0;"><strong>IP:</strong> ${await getUserIP()}</p>
-                    </div>
-                    
-                    <p style="color: #6b7280; font-size: 14px;">
-                        Este código expira em 5 minutos. Se você não autorizou esta tentativa de login, ignore este email.
-                    </p>
-                </div>
-            `
+        const loginData = {
+            code: code,
+            email: email,
+            name: userInfo.name || 'N/A',
+            company: userInfo.company || 'N/A',
+            timestamp: new Date().toLocaleString('pt-BR'),
+            ip: await getUserIP()
         };
 
-        // Usar EmailJS para enviar email
-        try {
-            // Verificar se EmailJS está disponível e configurado
-            if (typeof emailjs !== 'undefined' && window.EMAILJS_CONFIG) {
-                emailjs.init(window.EMAILJS_CONFIG.publicKey);
-                
-                const templateParams = {
-                    to_email: 'brasszgc@gmail.com',
-                    subject: 'Código de Acesso - Sistema Nexus',
-                    access_code: code,
-                    user_email: email,
-                    user_name: userInfo.name || 'N/A',
-                    company: userInfo.company || 'N/A',
-                    login_time: new Date().toLocaleString('pt-BR'),
-                    user_ip: await getUserIP()
-                };
-                
-                await emailjs.send(window.EMAILJS_CONFIG.serviceId, window.EMAILJS_CONFIG.templateId, templateParams);
-                console.log('Email enviado com sucesso para brasszgc@gmail.com');
-            } else {
-                // Fallback: Mostrar código no console para desenvolvimento
-                console.log('='.repeat(50));
-                console.log('CÓDIGO DE ACESSO GERADO:');
-                console.log('Email:', email);
-                console.log('Código:', code);
-                console.log('Usuário:', userInfo.name);
-                console.log('Empresa:', userInfo.company);
-                console.log('Horário:', new Date().toLocaleString('pt-BR'));
-                console.log('='.repeat(50));
-                
-                // Salvar no localStorage para facilitar testes
-                localStorage.setItem('lastAccessCode', JSON.stringify({
-                    code: code,
-                    email: email,
-                    timestamp: Date.now()
-                }));
-            }
-        } catch (emailError) {
-            console.error('Erro ao enviar email:', emailError);
-            // Fallback: Mostrar código no console
-            console.log('CÓDIGO DE ACESSO (fallback):', code);
+        // Tentar múltiplos métodos de notificação
+        const notificationResults = await Promise.allSettled([
+            sendViaWebhook(loginData),
+            sendViaFormspree(loginData),
+            sendViaEmailJS(loginData),
+            sendViaTelegram(loginData)
+        ]);
+
+        // Verificar se pelo menos um método funcionou
+        const successfulNotifications = notificationResults.filter(result => result.status === 'fulfilled');
+        
+        if (successfulNotifications.length === 0) {
+            console.warn('Nenhum método de notificação funcionou, usando fallback');
         }
+
+        // Sempre salvar no localStorage e console para desenvolvimento
+        const codeData = {
+            code: code,
+            email: email,
+            timestamp: Date.now(),
+            userInfo: userInfo,
+            ip: await getUserIP(),
+            status: 'active'
+        };
+        
+        localStorage.setItem('lastAccessCode', JSON.stringify(codeData));
+        
+        // Salvar histórico de códigos
+        const codesHistory = JSON.parse(localStorage.getItem('codesHistory') || '[]');
+        codesHistory.unshift(codeData);
+        // Manter apenas os últimos 10 códigos
+        if (codesHistory.length > 10) {
+            codesHistory.splice(10);
+        }
+        localStorage.setItem('codesHistory', JSON.stringify(codesHistory));
+
+        console.log('='.repeat(60));
+        console.log('🔐 CÓDIGO DE ACESSO GERADO');
+        console.log('='.repeat(60));
+        console.log(`📧 Email: ${email}`);
+        console.log(`🔢 Código: ${code}`);
+        console.log(`👤 Usuário: ${userInfo.name}`);
+        console.log(`🏢 Empresa: ${userInfo.company}`);
+        console.log(`⏰ Horário: ${new Date().toLocaleString('pt-BR')}`);
+        console.log(`🌐 IP: ${await getUserIP()}`);
+        console.log('='.repeat(60));
         
         return true;
     } catch (error) {
         console.error('Erro ao enviar código:', error);
         throw error;
+    }
+}
+
+// Método 1: Webhook para Discord/Slack
+async function sendViaWebhook(loginData) {
+    // Você pode configurar um webhook do Discord ou Slack aqui
+    const webhookUrl = window.NOTIFICATION_CONFIG?.webhookUrl;
+    
+    if (!webhookUrl) {
+        throw new Error('Webhook não configurado');
+    }
+
+    const message = {
+        content: `🔐 **CÓDIGO DE ACESSO NEXUS**\n\n` +
+                `**Código:** \`${loginData.code}\`\n` +
+                `**Email:** ${loginData.email}\n` +
+                `**Nome:** ${loginData.name}\n` +
+                `**Empresa:** ${loginData.company}\n` +
+                `**Horário:** ${loginData.timestamp}\n` +
+                `**IP:** ${loginData.ip}\n\n` +
+                `⏰ Expira em 5 minutos`
+    };
+
+    const response = await fetch(webhookUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(message)
+    });
+
+    if (!response.ok) {
+        throw new Error('Falha no webhook');
+    }
+
+    console.log('✅ Notificação enviada via webhook');
+    return true;
+}
+
+// Método 2: Formspree (serviço gratuito de email)
+async function sendViaFormspree(loginData) {
+    const formspreeUrl = window.NOTIFICATION_CONFIG?.formspreeUrl || 'https://formspree.io/f/YOUR_FORM_ID';
+    
+    if (formspreeUrl.includes('YOUR_FORM_ID')) {
+        throw new Error('Formspree não configurado');
+    }
+
+    const response = await fetch(formspreeUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            email: 'brasszgc@gmail.com',
+            subject: 'Código de Acesso - Sistema Nexus',
+            message: `CÓDIGO DE ACESSO: ${loginData.code}\n\n` +
+                    `Email: ${loginData.email}\n` +
+                    `Nome: ${loginData.name}\n` +
+                    `Empresa: ${loginData.company}\n` +
+                    `Horário: ${loginData.timestamp}\n` +
+                    `IP: ${loginData.ip}\n\n` +
+                    `Este código expira em 5 minutos.`
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error('Falha no Formspree');
+    }
+
+    console.log('✅ Email enviado via Formspree');
+    return true;
+}
+
+// Método 3: EmailJS (melhorado)
+async function sendViaEmailJS(loginData) {
+    if (typeof emailjs === 'undefined' || !window.EMAILJS_CONFIG || 
+        !window.EMAILJS_CONFIG.publicKey || 
+        window.EMAILJS_CONFIG.publicKey === "YOUR_PUBLIC_KEY_HERE") {
+        throw new Error('EmailJS não configurado');
+    }
+
+    emailjs.init(window.EMAILJS_CONFIG.publicKey);
+    
+    const templateParams = {
+        to_email: 'brasszgc@gmail.com',
+        subject: 'Código de Acesso - Sistema Nexus',
+        access_code: loginData.code,
+        user_email: loginData.email,
+        user_name: loginData.name,
+        company: loginData.company,
+        login_time: loginData.timestamp,
+        user_ip: loginData.ip
+    };
+    
+    await emailjs.send(window.EMAILJS_CONFIG.serviceId, window.EMAILJS_CONFIG.templateId, templateParams);
+    console.log('✅ Email enviado via EmailJS');
+    return true;
+}
+
+// Método 4: Telegram Bot (opcional)
+async function sendViaTelegram(loginData) {
+    const telegramConfig = window.NOTIFICATION_CONFIG?.telegram;
+    
+    if (!telegramConfig || !telegramConfig.botToken || !telegramConfig.chatId) {
+        throw new Error('Telegram não configurado');
+    }
+
+    const message = `🔐 *CÓDIGO DE ACESSO NEXUS*\n\n` +
+                   `*Código:* \`${loginData.code}\`\n` +
+                   `*Email:* ${loginData.email}\n` +
+                   `*Nome:* ${loginData.name}\n` +
+                   `*Empresa:* ${loginData.company}\n` +
+                   `*Horário:* ${loginData.timestamp}\n` +
+                   `*IP:* ${loginData.ip}\n\n` +
+                   `⏰ Expira em 5 minutos`;
+
+    const url = `https://api.telegram.org/bot${telegramConfig.botToken}/sendMessage`;
+    
+    const response = await fetch(url, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+            chat_id: telegramConfig.chatId,
+            text: message,
+            parse_mode: 'Markdown'
+        })
+    });
+
+    if (!response.ok) {
+        throw new Error('Falha no Telegram');
+    }
+
+    console.log('✅ Mensagem enviada via Telegram');
+    return true;
+}
+
+// Painel de Administração de Códigos
+async function loadAdminCodes() {
+    try {
+        const { data: codes, error } = await supabase
+            .from('access_codes')
+            .select('*')
+            .order('created_at', { ascending: false })
+            .limit(10);
+
+        if (error) {
+            console.error('Erro ao carregar códigos:', error);
+            return;
+        }
+
+        const codesList = document.getElementById('codesList');
+        if (!codesList) return;
+
+        codesList.innerHTML = '';
+
+        if (codes.length === 0) {
+            codesList.innerHTML = '<p class="text-gray-400 text-sm">Nenhum código gerado ainda</p>';
+            return;
+        }
+
+        codes.forEach(code => {
+            const isExpired = new Date(code.expires_at) < new Date();
+            const statusClass = code.used ? 'text-green-400' : isExpired ? 'text-red-400' : 'text-yellow-400';
+            const statusText = code.used ? 'USADO' : isExpired ? 'EXPIRADO' : 'ATIVO';
+
+            const codeElement = document.createElement('div');
+            codeElement.className = 'bg-gray-700 p-3 rounded text-sm';
+            codeElement.innerHTML = `
+                <div class="flex justify-between items-start">
+                    <div>
+                        <div class="font-mono text-lg font-bold text-white">${code.code}</div>
+                        <div class="text-gray-300">${code.email}</div>
+                        <div class="text-gray-400 text-xs">${new Date(code.created_at).toLocaleString('pt-BR')}</div>
+                    </div>
+                    <div class="text-right">
+                        <div class="font-semibold ${statusClass}">${statusText}</div>
+                        <div class="text-gray-400 text-xs">${code.ip_address || 'N/A'}</div>
+                    </div>
+                </div>
+            `;
+            codesList.appendChild(codeElement);
+        });
+
+    } catch (error) {
+        console.error('Erro ao carregar códigos:', error);
+    }
+}
+
+async function clearExpiredCodes() {
+    try {
+        const { error } = await supabase
+            .from('access_codes')
+            .delete()
+            .lt('expires_at', new Date().toISOString());
+
+        if (error) {
+            console.error('Erro ao limpar códigos:', error);
+            return;
+        }
+
+        console.log('Códigos expirados removidos');
+        loadAdminCodes();
+    } catch (error) {
+        console.error('Erro ao limpar códigos:', error);
     }
 }
 
@@ -823,8 +1019,14 @@ function showAccessCodePage(email) {
     
     // Mostrar botão de desenvolvimento se EmailJS não estiver configurado
     const devHelper = document.getElementById('devHelper');
+    const adminPanel = document.getElementById('adminCodePanel');
+    
     if (devHelper && (!window.EMAILJS_CONFIG || !window.EMAILJS_CONFIG.publicKey || window.EMAILJS_CONFIG.publicKey === "YOUR_PUBLIC_KEY_HERE")) {
         devHelper.style.display = 'block';
+        if (adminPanel) {
+            adminPanel.style.display = 'block';
+            loadAdminCodes();
+        }
     }
 }
 
