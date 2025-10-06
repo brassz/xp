@@ -3212,8 +3212,9 @@
     </div>
 
     <!-- Modal para visualizar clientes da semana -->
-    <div id="weekClientsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+    <div id="weekClientsModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold text-white">Clientes que Pagaram na Semana</h3>
                 <button id="closeWeekClientsModal" class="text-gray-400 hover:text-white">
@@ -3229,12 +3230,14 @@
                     <p class="text-gray-400 mt-2">Carregando clientes...</p>
                 </div>
             </div>
+            </div>
         </div>
     </div>
 
     <!-- Modal para histórico de PDFs -->
-    <div id="pdfHistoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
-        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+    <div id="pdfHistoryModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-4xl p-6 max-h-[90vh] overflow-y-auto">
             <div class="flex justify-between items-center mb-6">
                 <h3 class="text-xl font-bold text-white">Semanas Disponíveis para PDF</h3>
                 <button id="closePdfHistoryModal" class="text-gray-400 hover:text-white">
@@ -3249,6 +3252,7 @@
                     <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
                     <p class="text-gray-400 mt-2">Carregando histórico...</p>
                 </div>
+            </div>
             </div>
         </div>
     </div>
