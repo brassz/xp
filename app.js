@@ -4660,18 +4660,16 @@ async function sendWhatsAppMessage(loanId) {
         }
 
         // Montar mensagem do WhatsApp
-        const message = `VENCIMENTO: ${formattedDueDate}
+        const message = ` VENCIMENTO: ${formattedDueDate}
 
   CLIENTE: ${client.name}
   Capital: R$ ${principalAmount.toFixed(2)}
   Juros: R$ ${interestAmount.toFixed(2)}
   Multa atual: R$ ${currentFine.toFixed(2)}
   
-  💰 VALOR RESTANTE: R$ ${remainingAmount.toFixed(2)}
-
    ATENÇÃO!
 O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
-Após o vencimento, será aplicada uma multa diária de R$ 50,00.${paymentHistory}`;
+Após o vencimento, será aplicada uma multa diária de R$ 50,00.`;
 
         // Limpar o número de telefone (remover caracteres especiais)
         const cleanPhone = client.phone.replace(/\D/g, '');
