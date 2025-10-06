@@ -4,8 +4,10 @@
   "description": "Sistema de Gestão Financeira Nexus com 2FA",
   "main": "app.js",
   "scripts": {
-    "start": "http-server . -p 8080",
-    "dev": "http-server . -p 8080 -o"
+    "start": "node server-2fa.js",
+    "dev": "node server-2fa.js",
+    "test": "http-server . -p 8080 -o",
+    "test-2fa": "node server-2fa.js & sleep 2 && open http://localhost:3001/test-google-authenticator.html"
   },
   "dependencies": {
     "body-parser": "^2.2.0",

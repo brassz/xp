@@ -1,0 +1,313 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Google Authenticator - Nexus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        .qr-container {
+            background: white;
+            padding: 20px;
+            border-radius: 10px;
+            display: inline-block;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-white min-h-screen">
+    <div class="container mx-auto px-4 py-8">
+        <div class="max-w-2xl mx-auto">
+            <h1 class="text-3xl font-bold text-center mb-8">
+                🔐 Teste Google Authenticator
+            </h1>
+            
+            <div class="bg-gray-800 rounded-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">📱 Instruções</h2>
+                <ol class="list-decimal list-inside space-y-2 text-gray-300">
+                    <li>Instale o <strong>Google Authenticator</strong> no seu celular</li>
+                    <li>Clique em "Configurar 2FA" abaixo</li>
+                    <li>Escaneie o QR Code com o Google Authenticator</li>
+                    <li>Digite o código de 6 dígitos que aparecer no app</li>
+                    <li>Teste o login com 2FA</li>
+                </ol>
+            </div>
+
+            <!-- Configuração 2FA -->
+            <div id="setupSection" class="bg-gray-800 rounded-lg p-6 mb-6">
+                <h2 class="text-xl font-semibold mb-4">⚙️ Configurar 2FA</h2>
+                
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Email do usuário:</label>
+                    <input type="email" id="userEmail" value="teste@nexus.com" 
+                           class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500">
+                </div>
+
+                <button id="setupBtn" class="bg-blue-600 hover:bg-blue-700 px-6 py-2 rounded font-medium">
+                    🚀 Configurar 2FA
+                </button>
+
+                <div id="setupResult" class="mt-6 hidden">
+                    <div class="text-center mb-4">
+                        <h3 class="text-lg font-semibold mb-2">📱 Escaneie com Google Authenticator</h3>
+                        <div class="qr-container">
+                            <img id="qrCodeImage" src="" alt="QR Code" class="max-w-xs">
+                        </div>
+                    </div>
+
+                    <div class="bg-gray-700 p-4 rounded mb-4">
+                        <h4 class="font-semibold mb-2">🔑 Código Manual (alternativa):</h4>
+                        <code id="manualKey" class="text-green-400 break-all"></code>
+                    </div>
+
+                    <div class="mb-4">
+                        <label class="block text-sm font-medium mb-2">Digite o código do Google Authenticator:</label>
+                        <input type="text" id="verifyToken" maxlength="6" placeholder="000000"
+                               class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 text-center text-2xl tracking-widest">
+                    </div>
+
+                    <button id="verifyBtn" class="bg-green-600 hover:bg-green-700 px-6 py-2 rounded font-medium">
+                        ✅ Verificar Código
+                    </button>
+                </div>
+            </div>
+
+            <!-- Teste de Login -->
+            <div id="loginSection" class="bg-gray-800 rounded-lg p-6 mb-6 hidden">
+                <h2 class="text-xl font-semibold mb-4">🔓 Teste de Login 2FA</h2>
+                
+                <div class="bg-green-900 border border-green-600 rounded p-4 mb-4">
+                    <p class="text-green-200">✅ 2FA configurado com sucesso!</p>
+                    <p class="text-sm text-green-300">Agora teste o login com o código do Google Authenticator</p>
+                </div>
+
+                <div class="mb-4">
+                    <label class="block text-sm font-medium mb-2">Código do Google Authenticator:</label>
+                    <input type="text" id="loginToken" maxlength="6" placeholder="000000"
+                           class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600 focus:border-blue-500 text-center text-2xl tracking-widest">
+                </div>
+
+                <button id="loginBtn" class="bg-purple-600 hover:bg-purple-700 px-6 py-2 rounded font-medium">
+                    🔐 Testar Login
+                </button>
+
+                <div id="loginResult" class="mt-4"></div>
+            </div>
+
+            <!-- Códigos de Backup -->
+            <div id="backupSection" class="bg-gray-800 rounded-lg p-6 hidden">
+                <h2 class="text-xl font-semibold mb-4">💾 Códigos de Backup</h2>
+                <p class="text-gray-300 mb-4">Guarde estes códigos em local seguro. Use-os se perder acesso ao Google Authenticator:</p>
+                <div id="backupCodes" class="grid grid-cols-2 gap-2"></div>
+            </div>
+
+            <!-- Log de Atividades -->
+            <div class="bg-gray-800 rounded-lg p-6">
+                <h2 class="text-xl font-semibold mb-4">📋 Log de Atividades</h2>
+                <div id="activityLog" class="bg-black p-4 rounded font-mono text-sm h-40 overflow-y-auto"></div>
+                <button id="clearLogBtn" class="mt-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm">
+                    🗑️ Limpar Log
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE = 'http://localhost:3001/api/2fa';
+        let currentSecret = null;
+        let currentBackupCodes = null;
+
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('activityLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const icon = type === 'success' ? '✅' : type === 'error' ? '❌' : 'ℹ️';
+            logDiv.innerHTML += `[${timestamp}] ${icon} ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // Configurar 2FA
+        document.getElementById('setupBtn').addEventListener('click', async () => {
+            try {
+                const userEmail = document.getElementById('userEmail').value;
+                if (!userEmail) {
+                    log('Por favor, digite um email válido', 'error');
+                    return;
+                }
+
+                log(`Configurando 2FA para: ${userEmail}`);
+
+                const response = await fetch(`${API_BASE}/setup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userEmail: userEmail,
+                        companyName: 'Nexus'
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    currentSecret = data.data.secret;
+                    currentBackupCodes = data.data.backupCodes;
+
+                    // Mostrar QR Code
+                    document.getElementById('qrCodeImage').src = data.data.qrCode;
+                    document.getElementById('manualKey').textContent = data.data.manualEntryKey;
+                    
+                    // Mostrar seção de configuração
+                    document.getElementById('setupResult').classList.remove('hidden');
+                    
+                    log('QR Code gerado com sucesso! Escaneie com Google Authenticator', 'success');
+                    log(`Secret: ${data.data.secret.substring(0, 10)}...`);
+                    log(`URL: ${data.data.otpauthUrl}`);
+                } else {
+                    log(`Erro: ${data.error}`, 'error');
+                }
+
+            } catch (error) {
+                log(`Erro na requisição: ${error.message}`, 'error');
+            }
+        });
+
+        // Verificar código de configuração
+        document.getElementById('verifyBtn').addEventListener('click', async () => {
+            try {
+                const token = document.getElementById('verifyToken').value;
+                const userEmail = document.getElementById('userEmail').value;
+
+                if (!token || token.length !== 6) {
+                    log('Digite um código de 6 dígitos', 'error');
+                    return;
+                }
+
+                log(`Verificando código: ${token}`);
+
+                const response = await fetch(`${API_BASE}/verify-setup`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        userEmail: userEmail,
+                        token: token
+                    })
+                });
+
+                const data = await response.json();
+
+                if (data.success) {
+                    log('Código verificado com sucesso! 2FA ativado', 'success');
+                    
+                    // Mostrar seção de login
+                    document.getElementById('loginSection').classList.remove('hidden');
+                    
+                    // Mostrar códigos de backup
+                    showBackupCodes(currentBackupCodes);
+                    
+                    // Limpar campo
+                    document.getElementById('verifyToken').value = '';
+                } else {
+                    log(`Erro na verificação: ${data.error}`, 'error');
+                }
+
+            } catch (error) {
+                log(`Erro na requisição: ${error.message}`, 'error');
+            }
+        });
+
+        // Testar login
+        document.getElementById('loginBtn').addEventListener('click', async () => {
+            try {
+                const token = document.getElementById('loginToken').value;
+
+                if (!token || token.length !== 6) {
+                    log('Digite um código de 6 dígitos', 'error');
+                    return;
+                }
+
+                if (!currentSecret) {
+                    log('Configure o 2FA primeiro', 'error');
+                    return;
+                }
+
+                log(`Testando login com código: ${token}`);
+
+                const response = await fetch(`${API_BASE}/verify-login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        secret: currentSecret,
+                        token: token
+                    })
+                });
+
+                const data = await response.json();
+                const resultDiv = document.getElementById('loginResult');
+
+                if (data.success && data.verified) {
+                    resultDiv.innerHTML = '<div class="bg-green-900 border border-green-600 rounded p-3 text-green-200">✅ Login autorizado! Código válido</div>';
+                    log('Login autorizado com sucesso!', 'success');
+                } else {
+                    resultDiv.innerHTML = '<div class="bg-red-900 border border-red-600 rounded p-3 text-red-200">❌ Login negado! Código inválido</div>';
+                    log('Login negado - código inválido', 'error');
+                }
+
+                // Limpar resultado após 5 segundos
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 5000);
+
+                // Limpar campo
+                document.getElementById('loginToken').value = '';
+
+            } catch (error) {
+                log(`Erro na requisição: ${error.message}`, 'error');
+            }
+        });
+
+        // Mostrar códigos de backup
+        function showBackupCodes(codes) {
+            const container = document.getElementById('backupCodes');
+            container.innerHTML = '';
+            
+            codes.forEach(code => {
+                const div = document.createElement('div');
+                div.className = 'bg-gray-700 p-3 rounded text-center font-mono border border-gray-600';
+                div.textContent = code;
+                container.appendChild(div);
+            });
+
+            document.getElementById('backupSection').classList.remove('hidden');
+            log(`${codes.length} códigos de backup gerados`);
+        }
+
+        // Limpar log
+        document.getElementById('clearLogBtn').addEventListener('click', () => {
+            document.getElementById('activityLog').innerHTML = '';
+        });
+
+        // Auto-focus nos campos de código
+        document.getElementById('verifyToken').addEventListener('input', (e) => {
+            if (e.target.value.length === 6) {
+                document.getElementById('verifyBtn').focus();
+            }
+        });
+
+        document.getElementById('loginToken').addEventListener('input', (e) => {
+            if (e.target.value.length === 6) {
+                document.getElementById('loginBtn').focus();
+            }
+        });
+
+        // Log inicial
+        log('🚀 Teste Google Authenticator carregado');
+        log('📱 Certifique-se de ter o Google Authenticator instalado');
+        log('🌐 Servidor deve estar rodando em localhost:3001');
+    </script>
+</body>
+</html>

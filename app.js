@@ -251,20 +251,29 @@ function setup2FAEventListeners() {
 // Iniciar configuração de 2FA para um usuário
 async function start2FASetup(userEmail) {
     try {
-        // Gerar secret e códigos de backup
-        currentSetupSecret = twoFactorAuth.generateSecret();
-        currentSetupBackupCodes = twoFactorAuth.generateBackupCodes();
-
-        // Gerar URL do QR Code
+        // Usar o novo cliente 2FA
         const companyName = currentCompany?.name || 'Nexus';
-        const qrUrl = twoFactorAuth.generateQRCodeURL(currentSetupSecret, userEmail, companyName);
+        const setupData = await twoFactorClient.setupTwoFactor(userEmail, companyName);
 
-        // Renderizar QR Code
+        // Armazenar dados temporários
+        currentSetupSecret = setupData.secret;
+        currentSetupBackupCodes = setupData.backupCodes;
+
+        // Renderizar QR Code (usar imagem em vez de canvas)
         const canvas = document.getElementById('qrCodeCanvas');
-        await twoFactorAuth.renderQRCode(qrUrl, canvas);
+        const ctx = canvas.getContext('2d');
+        const img = new Image();
+        
+        img.onload = function() {
+            canvas.width = 200;
+            canvas.height = 200;
+            ctx.drawImage(img, 0, 0, 200, 200);
+        };
+        
+        img.src = setupData.qrCode;
 
         // Mostrar secret manual
-        document.getElementById('manualSecret').textContent = currentSetupSecret;
+        document.getElementById('manualSecret').textContent = setupData.manualEntryKey;
 
         // Mostrar tela de configuração
         show2FASetup();
@@ -285,10 +294,10 @@ async function handle2FASetupVerification() {
             return;
         }
 
-        // Verificar código TOTP
-        const isValid = await twoFactorAuth.verifyTOTP(code, currentSetupSecret);
+        // Verificar código usando o cliente 2FA
+        const verificationResult = await twoFactorClient.verifySetup(currentUser.email, code);
         
-        if (!isValid) {
+        if (!verificationResult.success) {
             alert('Código inválido. Verifique o código no seu aplicativo autenticador.');
             return;
         }
@@ -311,6 +320,9 @@ async function handle2FASetupVerification() {
         // Atualizar dados do usuário atual
         currentUser.two_factor_enabled = true;
         localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+
+        // Limpar dados temporários no servidor
+        await twoFactorClient.cleanup(currentUser.email);
 
         // Mostrar códigos de backup
         displayBackupCodes();
@@ -358,8 +370,8 @@ async function handle2FAVerification(e) {
             throw new Error('Dados de sessão inválidos');
         }
 
-        // Verificar código TOTP
-        const isValid = await twoFactorAuth.verifyTOTP(code, tempUserData.two_factor_secret);
+        // Verificar código usando o cliente 2FA
+        const isValid = await twoFactorClient.verifyLogin(tempUserData.two_factor_secret, code);
         
         if (!isValid) {
             alert('Código inválido. Verifique o código no seu aplicativo autenticador.');
@@ -395,22 +407,23 @@ async function handleBackupCodeVerification(e) {
             throw new Error('Dados de sessão inválidos');
         }
 
-        // Verificar se o código está na lista
-        const backupCodes = tempUserData.two_factor_backup_codes;
-        const codeIndex = backupCodes.indexOf(code);
+        // Verificar código de backup usando o cliente 2FA
+        const verificationResult = await twoFactorClient.verifyBackupCode(
+            tempUserData.email, 
+            code, 
+            tempUserData.two_factor_backup_codes
+        );
         
-        if (codeIndex === -1) {
+        if (!verificationResult.verified) {
             alert('Código de backup inválido');
             return;
         }
 
-        // Remover código usado da lista
-        backupCodes.splice(codeIndex, 1);
-        
-        // Atualizar no banco
+        // Atualizar códigos de backup no banco
+        const updatedBackupCodes = verificationResult.data.updatedBackupCodes;
         const { error } = await supabase
             .from('users')
-            .update({ two_factor_backup_codes: backupCodes })
+            .update({ two_factor_backup_codes: updatedBackupCodes })
             .eq('id', tempUserData.id);
 
         if (error) {
