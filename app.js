@@ -2184,6 +2184,26 @@ async function handlePayment(e) {
                             `Juros pagos: R$ ${recalcInfo.paidAmount.toFixed(2)} | ` +
                             `Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
                             `Nova data vencimento: ${recalcInfo.newDueDate}`;
+            } else if (recalcInfo.isEarlyPaymentPartialInterest) {
+                actionType = 'early_payment_partial_interest';
+                actionNotes = `PAGAMENTO ANTECIPADO PARCIAL DE JUROS: ` +
+                            `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
+                            `Juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+            } else if (recalcInfo.isEarlyPaymentInterestRenewal) {
+                actionType = 'early_payment_interest_renewal';
+                actionNotes = `PAGAMENTO ANTECIPADO - RENOVAÇÃO: ` +
+                            `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
+                            `Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
+            } else if (recalcInfo.isEarlyPaymentCapitalReduction) {
+                actionType = 'early_payment_capital_reduction';
+                actionNotes = `PAGAMENTO ANTECIPADO COM REDUÇÃO DE CAPITAL: ` +
+                            `Capital anterior: R$ ${recalcInfo.originalAmount.toFixed(2)} | ` +
+                            `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
+                            `Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)} | ` +
+                            `Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
+                            `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
             } else if (recalcInfo.isCapitalReduction) {
                 actionType = 'capital_payment';
                 actionNotes = `PAGAMENTO DE CAPITAL: ` +
@@ -2297,6 +2317,26 @@ async function handlePayment(e) {
                                 `• Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
                                 `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}\n` +
                                 `• Nova data de vencimento: ${formatDate(recalcInfo.newDueDate)}`;
+            } else if (recalcInfo.isEarlyPaymentPartialInterest) {
+                successMessage += `\n\n⚡ PAGAMENTO ANTECIPADO PARCIAL DE JUROS!\n` +
+                                `• Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
+                                `• Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)}\n` +
+                                `• Juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
+                                `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}`;
+            } else if (recalcInfo.isEarlyPaymentInterestRenewal) {
+                successMessage += `\n\n⚡ PAGAMENTO ANTECIPADO - RENOVAÇÃO!\n` +
+                                `• Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
+                                `• Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)}\n` +
+                                `• Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
+                                `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}`;
+            } else if (recalcInfo.isEarlyPaymentCapitalReduction) {
+                successMessage += `\n\n⚡ PAGAMENTO ANTECIPADO COM REDUÇÃO DE CAPITAL!\n` +
+                                `• Capital anterior: R$ ${recalcInfo.originalAmount.toFixed(2)}\n` +
+                                `• Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)}\n` +
+                                `• Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)}\n` +
+                                `• Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)}\n` +
+                                `• Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}\n` +
+                                `• Próximo total: R$ ${recalcInfo.newTotalAmount.toFixed(2)}`;
             } else if (recalcInfo.isCapitalReduction) {
                 successMessage += `\n\n💰 PAGAMENTO DE CAPITAL APLICADO!\n` +
                                 `• Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)}\n` +
@@ -2556,6 +2596,19 @@ function validatePaymentAmount() {
     const remainingText = document.getElementById('paymentRemainingAmount').textContent;
     const minimumText = document.getElementById('paymentMinimumAmount').textContent;
     
+    // Verificar se é pagamento antecipado
+    const loanId = document.getElementById('paymentForm').dataset.loanId;
+    const loan = loans.find(l => l.id === loanId);
+    let isEarlyPayment = false;
+    
+    if (loan) {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDate = new Date(loan.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        isEarlyPayment = today < dueDate;
+    }
+    
     if (!remainingText || !minimumText) {
         feedbackDiv.className = 'mt-2 text-sm hidden';
         return;
@@ -2600,8 +2653,38 @@ function validatePaymentAmount() {
         document.getElementById('paymentAmount').classList.remove('border-red-500');
         document.getElementById('paymentAmount').classList.add('border-yellow-500');
     } else if (paymentAmount < remainingAmount) {
-        if (paymentAmount > currentInterestAmount) {
-            // Pagamento de capital + juros
+        if (isEarlyPayment) {
+            // PAGAMENTO ANTECIPADO: Verificar se valor é maior que juros
+            if (paymentAmount <= currentInterestAmount) {
+                // Paga apenas juros (parcial ou total)
+                const remainingInterest = Math.max(0, currentInterestAmount - paymentAmount);
+                const interestRate = currentInterestAmount / currentCapital;
+                
+                if (remainingInterest > 0) {
+                    // Pagamento parcial de juros
+                    const newInterest = remainingInterest + (currentCapital * interestRate);
+                    newRemainingAmount = currentCapital + newInterest;
+                    feedbackText = `⚡ PAGAMENTO ANTECIPADO PARCIAL DE JUROS: Capital mantido R$ ${currentCapital.toFixed(2)}, juros acumulados R$ ${newInterest.toFixed(2)}, próximo total: R$ ${newRemainingAmount.toFixed(2)}`;
+                } else {
+                    // Pagamento exato dos juros (renovação antecipada)
+                    const newInterest = currentCapital * interestRate;
+                    newRemainingAmount = currentCapital + newInterest;
+                    feedbackText = `⚡ PAGAMENTO ANTECIPADO - RENOVAÇÃO: Capital mantido R$ ${currentCapital.toFixed(2)}, próximos juros R$ ${newInterest.toFixed(2)}, próximo total: R$ ${newRemainingAmount.toFixed(2)}`;
+                }
+                feedbackColor = 'text-purple-400';
+            } else {
+                // Paga juros + parte do capital
+                const paidCapital = paymentAmount - currentInterestAmount;
+                const newCapital = Math.max(0, currentCapital - paidCapital);
+                const interestRate = currentInterestAmount / currentCapital;
+                const newInterest = newCapital * interestRate;
+                newRemainingAmount = newCapital + newInterest;
+                
+                feedbackText = `⚡ PAGAMENTO ANTECIPADO COM REDUÇÃO DE CAPITAL: Novo capital R$ ${newCapital.toFixed(2)}, novos juros R$ ${newInterest.toFixed(2)}, próximo total: R$ ${newRemainingAmount.toFixed(2)}`;
+                feedbackColor = 'text-purple-400';
+            }
+        } else if (paymentAmount > currentInterestAmount) {
+            // Pagamento de capital + juros (pagamento normal após vencimento)
             const paidCapital = paymentAmount - currentInterestAmount;
             const newCapital = Math.max(0, currentCapital - paidCapital);
             const interestRate = currentInterestAmount / currentCapital;
@@ -2621,16 +2704,16 @@ function validatePaymentAmount() {
             feedbackColor = 'text-orange-400';
         }
         document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500');
-        document.getElementById('paymentAmount').classList.add('border-blue-500');
+        document.getElementById('paymentAmount').classList.add(isEarlyPayment ? 'border-purple-500' : 'border-blue-500');
     } else if (paymentAmount >= remainingAmount) {
         newRemainingAmount = 0;
         feedbackText = `✅ Pagamento quitará o empréstimo completamente. Valor restante: R$ 0,00`;
         feedbackColor = 'text-green-400';
-        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500');
+        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-purple-500');
         document.getElementById('paymentAmount').classList.add('border-green-500');
     } else {
         feedbackDiv.className = 'mt-2 text-sm hidden';
-        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+        document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500', 'border-purple-500');
         return;
     }
     
@@ -2664,7 +2747,7 @@ function showPaymentModal(loanId) {
     // Limpar validação anterior
     const feedbackDiv = document.getElementById('paymentValidationFeedback');
     feedbackDiv.className = 'mt-2 text-sm hidden';
-    document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500');
+    document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500', 'border-purple-500');
     
     // Armazenar ID do empréstimo
     document.getElementById('paymentForm').dataset.loanId = loanId;
@@ -2870,6 +2953,13 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
         const currentInterestAmount = currentCapital * (interestRate / 100);
         const currentTotal = currentCapital + currentInterestAmount;
         
+        // Verificar se é pagamento antecipado (antes da data de vencimento)
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDate = new Date(loan.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        const isEarlyPayment = today < dueDate;
+        
         // Buscar pagamentos anteriores para entender o estado atual
         const { data: payments, error } = await supabase
             .from('payments')
@@ -2899,12 +2989,116 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
         });
         
         console.log('Análise do que será pago:', {
-            isInterestOnlyPayment,
+            isEarlyPayment,
             paidMoreThanInterest: paymentAmount > currentInterestAmount,
             paidLessThanInterest: paymentAmount < currentInterestAmount,
             tolerance: currentInterestAmount * 0.01,
             difference: Math.abs(paymentAmount - currentInterestAmount)
         });
+        
+        // LÓGICA PARA PAGAMENTO ANTECIPADO
+        if (isEarlyPayment) {
+            console.log('=== PROCESSANDO PAGAMENTO ANTECIPADO ===');
+            console.log('Pagamento antes do vencimento detectado:', {
+                paymentAmount,
+                currentCapital,
+                currentInterestAmount,
+                interestRate: interestRate * 100 + '%'
+            });
+            
+            // Para pagamento antecipado: verificar se valor é maior que os juros
+            if (paymentAmount <= currentInterestAmount) {
+                // PAGAMENTO ANTECIPADO APENAS DE JUROS (valor <= juros)
+                // Capital permanece o mesmo, apenas paga parte ou todos os juros
+                const paidInterest = paymentAmount;
+                const remainingInterest = currentInterestAmount - paidInterest;
+                
+                if (remainingInterest > 0) {
+                    // Pagamento parcial de juros - juros restantes + novos juros do próximo período
+                    const newInterestAmount = remainingInterest + (currentCapital * (interestRate / 100));
+                    const newTotal = currentCapital + newInterestAmount;
+                    
+                    console.log('Pagamento antecipado parcial de juros:', {
+                        paidInterest,
+                        remainingInterest,
+                        newInterestAmount,
+                        newTotal
+                    });
+                    
+                    return {
+                        shouldRecalculate: true,
+                        isEarlyPaymentPartialInterest: true,
+                        newAmount: currentCapital, // Capital permanece igual
+                        newInterestAmount: newInterestAmount,
+                        newTotalAmount: newTotal,
+                        originalAmount: currentCapital,
+                        paidAmount: paymentAmount,
+                        paidInterest: paidInterest,
+                        paidCapital: 0,
+                        interestRate: interestRate
+                    };
+                } else {
+                    // Pagamento exato dos juros - renovação antecipada
+                    const newInterestAmount = currentCapital * (interestRate / 100);
+                    const newTotal = currentCapital + newInterestAmount;
+                    
+                    console.log('Pagamento antecipado exato dos juros (renovação):', {
+                        paidInterest,
+                        newInterestAmount,
+                        newTotal
+                    });
+                    
+                    return {
+                        shouldRecalculate: true,
+                        isEarlyPaymentInterestRenewal: true,
+                        newAmount: currentCapital, // Capital permanece igual
+                        newInterestAmount: newInterestAmount,
+                        newTotalAmount: newTotal,
+                        originalAmount: currentCapital,
+                        paidAmount: paymentAmount,
+                        paidInterest: paidInterest,
+                        paidCapital: 0,
+                        interestRate: interestRate
+                    };
+                }
+            } else {
+                // PAGAMENTO ANTECIPADO COM REDUÇÃO DE CAPITAL (valor > juros)
+                const paidInterest = currentInterestAmount;
+                const paidCapital = paymentAmount - currentInterestAmount;
+                const newCapital = Math.max(0, currentCapital - paidCapital);
+                
+                if (newCapital > 0) {
+                    // Capital parcialmente pago
+                    const newInterestAmount = newCapital * (interestRate / 100);
+                    const newTotal = newCapital + newInterestAmount;
+                    
+                    console.log('Pagamento antecipado com redução de capital:', {
+                        paidInterest,
+                        paidCapital,
+                        newCapital,
+                        newInterestAmount,
+                        newTotal
+                    });
+                    
+                    return {
+                        shouldRecalculate: true,
+                        isEarlyPaymentCapitalReduction: true,
+                        newAmount: newCapital,
+                        newInterestAmount: newInterestAmount,
+                        newTotalAmount: newTotal,
+                        originalAmount: currentCapital,
+                        paidAmount: paymentAmount,
+                        paidInterest: paidInterest,
+                        paidCapital: paidCapital,
+                        interestRate: interestRate
+                    };
+                } else {
+                    // Capital totalmente pago com pagamento antecipado
+                    console.log('Capital totalmente quitado com pagamento antecipado!');
+                    return { shouldRecalculate: false, isFullyPaid: true };
+                }
+            }
+        }
         
         // Verificar se o pagamento é apenas os juros pendentes (renovação)
         const isInterestOnlyPayment = Math.abs(paymentAmount - currentInterestAmount) <= (currentInterestAmount * 0.01);
