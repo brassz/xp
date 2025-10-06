@@ -228,6 +228,8 @@ async function initializeApp() {
             // Aguardar um pouco para garantir que o DOM esteja pronto
             setTimeout(async () => {
                 await loadData();
+                // Inicializar sistema de PDFs semanais automáticos
+                initializeWeeklyPDFCheck();
             }, 100);
         } catch (error) {
             localStorage.removeItem('nexusUser');
@@ -268,6 +270,22 @@ function setupEventListeners() {
     const generateWeeklyPaymentsPdfBtn = document.getElementById('generateWeeklyPaymentsPdfBtn');
     if (generateWeeklyPaymentsPdfBtn) {
         generateWeeklyPaymentsPdfBtn.addEventListener('click', generateWeeklyPaymentsPDF);
+    }
+
+    // Event listeners para a nova seção de histórico de pagamentos
+    const generateWeeklyPaymentsPDFBtn = document.getElementById('generateWeeklyPaymentsPDFBtn');
+    if (generateWeeklyPaymentsPDFBtn) {
+        generateWeeklyPaymentsPDFBtn.addEventListener('click', generateWeeklyCustomerPaymentsPDF);
+    }
+
+    const refreshPaymentsBtn = document.getElementById('refreshPaymentsBtn');
+    if (refreshPaymentsBtn) {
+        refreshPaymentsBtn.addEventListener('click', loadWeeklyPaymentHistory);
+    }
+
+    const showPDFHistoryBtn = document.getElementById('showPDFHistoryBtn');
+    if (showPDFHistoryBtn) {
+        showPDFHistoryBtn.addEventListener('click', showWeeklyPDFHistory);
     }
     
     // Adicionar event listener para o botão de PDF das despesas
@@ -661,6 +679,8 @@ async function handleLogin(e) {
             
             showDashboard();
             await loadData();
+            // Inicializar sistema de PDFs semanais automáticos
+            initializeWeeklyPDFCheck();
             
             // Atualizar último login
             await supabase
@@ -809,6 +829,14 @@ function handleNavigation(e) {
                     updateOverdueLoansChart();
                     updateGrowthChart();
                     updateDistributionChart();
+                }, 100);
+            }
+            
+            // Carregar histórico de pagamentos quando a seção for exibida
+            if (target === 'payment-history') {
+                console.log('Seção de histórico de pagamentos ativada, carregando dados...');
+                setTimeout(() => {
+                    loadWeeklyPaymentHistory();
                 }, 100);
             }
             
@@ -10800,4 +10828,354 @@ async function generateMonthlyReportPDF() {
         console.error('Erro ao gerar PDF do relatório mensal:', error);
         showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
+}
+
+// =====================================================
+// FUNÇÕES DE HISTÓRICO DE PAGAMENTOS SEMANAIS
+// =====================================================
+
+// Função para carregar histórico de pagamentos dos últimos 7 dias
+async function loadWeeklyPaymentHistory() {
+    try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        
+        // Buscar pagamentos dos últimos 7 dias
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select(`
+                *,
+                loans (
+                    id,
+                    amount,
+                    client_id,
+                    clients (
+                        id,
+                        name,
+                        phone
+                    )
+                )
+            `)
+            .gte('payment_date', sevenDaysAgo.toISOString().split('T')[0])
+            .order('payment_date', { ascending: false });
+
+        if (paymentsError) throw paymentsError;
+
+        // Renderizar dados na tabela
+        renderWeeklyPaymentsTable(payments || []);
+        updateWeeklyPaymentsSummary(payments || []);
+
+    } catch (error) {
+        console.error('Erro ao carregar histórico de pagamentos:', error);
+        showErrorMessage('Erro ao carregar histórico de pagamentos: ' + error.message);
+    }
+}
+
+// Função para renderizar tabela de pagamentos semanais
+function renderWeeklyPaymentsTable(payments) {
+    const tbody = document.getElementById('paymentsTableBody');
+    const emptyState = document.getElementById('paymentsTableEmpty');
+    
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (payments.length === 0) {
+        tbody.style.display = 'none';
+        if (emptyState) emptyState.classList.remove('hidden');
+        return;
+    }
+
+    tbody.style.display = '';
+    if (emptyState) emptyState.classList.add('hidden');
+
+    payments.forEach(payment => {
+        const client = payment.loans?.clients;
+        const loan = payment.loans;
+        
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-800 transition-colors';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-white">${formatDate(payment.payment_date)}</div>
+                <div class="text-xs text-gray-400">${new Date(payment.payment_date).toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' })}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-white">${client?.name || 'Cliente não encontrado'}</div>
+                <div class="text-xs text-gray-400">${client?.phone || ''}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-white">Empréstimo #${loan?.id || payment.loan_id}</div>
+                <div class="text-xs text-gray-400">Valor: R$ ${(loan?.amount || 0).toFixed(2)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
+                    ${getPaymentMethodText(payment.payment_method)}
+                </span>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                    Confirmado
+                </span>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
+}
+
+// Função para atualizar resumo dos pagamentos semanais
+function updateWeeklyPaymentsSummary(payments) {
+    const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalCount = payments.length;
+    const uniqueClients = new Set(payments.map(p => p.loans?.client_id).filter(Boolean)).size;
+
+    // Atualizar elementos do DOM
+    const totalAmountEl = document.getElementById('totalPaymentsAmount');
+    const totalCountEl = document.getElementById('totalPaymentsCount');
+    const uniqueClientsEl = document.getElementById('uniqueClientsCount');
+
+    if (totalAmountEl) totalAmountEl.textContent = `R$ ${totalAmount.toFixed(2)}`;
+    if (totalCountEl) totalCountEl.textContent = totalCount.toString();
+    if (uniqueClientsEl) uniqueClientsEl.textContent = uniqueClients.toString();
+}
+
+// Função para obter classe CSS do método de pagamento
+function getPaymentMethodBadgeClass(method) {
+    const classes = {
+        'pix': 'bg-purple-100 text-purple-800',
+        'dinheiro': 'bg-green-100 text-green-800',
+        'transferencia': 'bg-blue-100 text-blue-800',
+        'cartao': 'bg-yellow-100 text-yellow-800',
+        'cheque': 'bg-gray-100 text-gray-800'
+    };
+    return classes[method] || 'bg-gray-100 text-gray-800';
+}
+
+// Função para obter texto do método de pagamento
+function getPaymentMethodText(method) {
+    const methods = {
+        'pix': 'PIX',
+        'dinheiro': 'Dinheiro',
+        'transferencia': 'Transferência',
+        'cartao': 'Cartão',
+        'cheque': 'Cheque'
+    };
+    return methods[method] || method;
+}
+
+// Função para gerar PDF do histórico semanal de pagamentos
+async function generateWeeklyCustomerPaymentsPDF() {
+    try {
+        const sevenDaysAgo = new Date();
+        sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+        
+        // Buscar pagamentos dos últimos 7 dias
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select(`
+                *,
+                loans (
+                    id,
+                    amount,
+                    client_id,
+                    clients (
+                        id,
+                        name,
+                        phone
+                    )
+                )
+            `)
+            .gte('payment_date', sevenDaysAgo.toISOString().split('T')[0])
+            .order('payment_date', { ascending: false });
+
+        if (paymentsError) throw paymentsError;
+
+        // Criar PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configurar fonte
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(16);
+        doc.text('HISTÓRICO DE PAGAMENTOS DE CLIENTES - ÚLTIMOS 7 DIAS', 105, 20, { align: 'center' });
+        
+        // Data do relatório
+        doc.setFontSize(10);
+        doc.text(`Período: ${formatDate(sevenDaysAgo)} a ${formatDate(new Date())}`, 105, 30, { align: 'center' });
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 105, 35, { align: 'center' });
+        
+        let yPosition = 50;
+        
+        // Resumo
+        const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+        const totalCount = payments.length;
+        const uniqueClients = new Set(payments.map(p => p.loans?.client_id).filter(Boolean)).size;
+        
+        doc.setFontSize(12);
+        doc.text('RESUMO EXECUTIVO', 20, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(10);
+        doc.text(`• Total Recebido: R$ ${totalAmount.toFixed(2)}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`• Número de Pagamentos: ${totalCount}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`• Clientes Únicos: ${uniqueClients}`, 20, yPosition);
+        yPosition += 15;
+        
+        // Tabela de pagamentos
+        if (payments.length > 0) {
+            doc.setFontSize(12);
+            doc.text('DETALHAMENTO DOS PAGAMENTOS', 20, yPosition);
+            yPosition += 10;
+            
+            // Cabeçalho da tabela
+            doc.setFontSize(8);
+            doc.text('Data', 20, yPosition);
+            doc.text('Cliente', 45, yPosition);
+            doc.text('Empréstimo', 90, yPosition);
+            doc.text('Valor', 130, yPosition);
+            doc.text('Método', 160, yPosition);
+            yPosition += 5;
+            
+            // Linha separadora
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 5;
+            
+            payments.forEach((payment, index) => {
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                const client = payment.loans?.clients;
+                const loan = payment.loans;
+                
+                doc.text(formatDate(payment.payment_date), 20, yPosition);
+                doc.text((client?.name || 'N/A').substring(0, 25), 45, yPosition);
+                doc.text(`#${loan?.id || payment.loan_id}`, 90, yPosition);
+                doc.text(`R$ ${payment.amount.toFixed(2)}`, 130, yPosition);
+                doc.text(getPaymentMethodText(payment.payment_method), 160, yPosition);
+                
+                yPosition += 6;
+            });
+        } else {
+            doc.text('Nenhum pagamento encontrado no período.', 20, yPosition);
+        }
+        
+        // Rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.text(`Página ${i} de ${pageCount}`, 105, 290, { align: 'center' });
+        }
+        
+        // Salvar PDF
+        const fileName = `historico_pagamentos_clientes_${new Date().getTime()}.pdf`;
+        doc.save(fileName);
+        
+        // Adicionar ao histórico
+        const now = new Date();
+        const currentWeek = getWeekNumber(now);
+        const currentYear = now.getFullYear();
+        const currentWeekKey = `${currentYear}-W${currentWeek}`;
+        addToWeeklyPDFHistory(currentWeekKey);
+        
+        showSuccessMessage('PDF do histórico de pagamentos gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF do histórico de pagamentos:', error);
+        showErrorMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// =====================================================
+// SISTEMA DE GERAÇÃO AUTOMÁTICA DE PDFs SEMANAIS
+// =====================================================
+
+// Função para verificar se deve gerar PDF automático semanal
+function checkAndGenerateWeeklyPDF() {
+    const lastGeneratedKey = 'lastWeeklyPDFGenerated';
+    const lastGenerated = localStorage.getItem(lastGeneratedKey);
+    const now = new Date();
+    const currentWeek = getWeekNumber(now);
+    const currentYear = now.getFullYear();
+    const currentWeekKey = `${currentYear}-W${currentWeek}`;
+    
+    // Se não foi gerado esta semana, gerar automaticamente
+    if (lastGenerated !== currentWeekKey) {
+        console.log('Gerando PDF semanal automático...');
+        generateWeeklyCustomerPaymentsPDF();
+        localStorage.setItem(lastGeneratedKey, currentWeekKey);
+        addToWeeklyPDFHistory(currentWeekKey);
+    }
+}
+
+// Função para obter número da semana do ano
+function getWeekNumber(date) {
+    const d = new Date(Date.UTC(date.getFullYear(), date.getMonth(), date.getDate()));
+    const dayNum = d.getUTCDay() || 7;
+    d.setUTCDate(d.getUTCDate() + 4 - dayNum);
+    const yearStart = new Date(Date.UTC(d.getUTCFullYear(), 0, 1));
+    return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+}
+
+// Inicializar verificação automática de PDF semanal
+function initializeWeeklyPDFCheck() {
+    // Verificar imediatamente
+    checkAndGenerateWeeklyPDF();
+    
+    // Verificar a cada hora (3600000 ms)
+    setInterval(checkAndGenerateWeeklyPDF, 3600000);
+}
+
+// Função para mostrar histórico de PDFs gerados
+function showWeeklyPDFHistory() {
+    const history = getWeeklyPDFHistory();
+    let historyText = 'Histórico de PDFs Semanais Gerados:\n\n';
+    
+    if (history.length === 0) {
+        historyText += 'Nenhum PDF semanal foi gerado ainda.';
+    } else {
+        history.forEach((entry, index) => {
+            historyText += `${index + 1}. Semana ${entry.week} - ${entry.date}\n`;
+        });
+    }
+    
+    alert(historyText);
+}
+
+// Função para obter histórico de PDFs gerados
+function getWeeklyPDFHistory() {
+    const historyKey = 'weeklyPDFHistory';
+    const history = localStorage.getItem(historyKey);
+    return history ? JSON.parse(history) : [];
+}
+
+// Função para adicionar entrada ao histórico
+function addToWeeklyPDFHistory(weekKey) {
+    const historyKey = 'weeklyPDFHistory';
+    const history = getWeeklyPDFHistory();
+    const now = new Date();
+    
+    history.push({
+        week: weekKey,
+        date: now.toLocaleDateString('pt-BR'),
+        timestamp: now.getTime()
+    });
+    
+    // Manter apenas os últimos 12 registros (3 meses)
+    if (history.length > 12) {
+        history.splice(0, history.length - 12);
+    }
+    
+    localStorage.setItem(historyKey, JSON.stringify(history));
 }
