@@ -11176,22 +11176,30 @@ async function populateWeekSelector() {
     }
 }
 
-// Função para obter informações da semana (domingo a sábado)
+// Função para obter informações da semana com padrão fixo
 function getWeekInfo(date) {
     const d = new Date(date);
     const year = d.getFullYear();
-    const week = getWeekNumber(d);
     
-    // Calcular início da semana (domingo)
-    const dayOfWeek = d.getDay(); // 0 = domingo, 1 = segunda, etc.
-    const startDate = new Date(d);
-    startDate.setDate(d.getDate() - dayOfWeek); // Voltar para o domingo
+    // Definir semana de referência: 29/09/2024 (domingo) como início
+    const referenceDate = new Date(2024, 8, 29); // 29 de setembro de 2024 (mês 8 = setembro)
+    const daysDiff = Math.floor((d - referenceDate) / (24 * 60 * 60 * 1000));
+    
+    // Calcular qual semana é baseada na diferença de dias
+    const weekNumber = Math.floor(daysDiff / 7);
+    
+    // Calcular início da semana (sempre domingo)
+    const startDate = new Date(referenceDate);
+    startDate.setDate(referenceDate.getDate() + (weekNumber * 7));
     startDate.setHours(0, 0, 0, 0);
     
-    // Calcular fim da semana (sábado)
+    // Calcular fim da semana (sempre sábado)
     const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6); // +6 dias = sábado
+    endDate.setDate(startDate.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
+    
+    // Gerar número da semana baseado na referência
+    const week = Math.abs(weekNumber) + 40; // Começar na semana 40
     
     return { year, week, startDate, endDate };
 }
