@@ -879,10 +879,13 @@ function handleNavigation(e) {
                     console.log(`   05/10/2024 é ${new Date('2024-10-05').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
                     console.log(`   06/10/2024 é ${new Date('2024-10-06').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
                     
-                    testDateToWeek('2024-09-29'); // Domingo
-                    testDateToWeek('2024-09-30'); // Segunda
-                    testDateToWeek('2024-10-05'); // Sábado
-                    testDateToWeek('2024-10-06'); // Domingo
+                    // Testar padrão esperado: 29/09-05/10, 06/10-12/10
+                    testDateToWeek('2024-09-29'); // Deve ser semana 29/09-05/10
+                    testDateToWeek('2024-09-30'); // Deve ser semana 29/09-05/10
+                    testDateToWeek('2024-10-05'); // Deve ser semana 29/09-05/10
+                    testDateToWeek('2024-10-06'); // Deve ser semana 06/10-12/10
+                    testDateToWeek('2024-10-07'); // Deve ser semana 06/10-12/10
+                    testDateToWeek('2024-10-12'); // Deve ser semana 06/10-12/10
                     testDateToWeek(new Date().toISOString().split('T')[0]); // Hoje
                     
                     populateWeekSelector();
@@ -11263,13 +11266,31 @@ function testDateToWeek(dateStr) {
     const testDate = new Date(dateStr);
     const weekInfo = getWeekInfo(testDate);
     const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
-    const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
     
     console.log(`🧪 TESTE: Data ${dateStr} (${testDate.toLocaleDateString('pt-BR')})`);
     console.log(`   Pertence à semana: ${weekKey}`);
-    console.log(`   Período da semana: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
+    console.log(`   Período da semana: ${weekInfo.startDate.toLocaleDateString('pt-BR')} - ${weekInfo.endDate.toLocaleDateString('pt-BR')}`);
     
-    return { weekKey, startDate, endDate };
+    // Verificar se está no padrão correto
+    const expectedWeeks = {
+        '2024-09-29': '29/09/2024 - 05/10/2024',
+        '2024-09-30': '29/09/2024 - 05/10/2024', 
+        '2024-10-05': '29/09/2024 - 05/10/2024',
+        '2024-10-06': '06/10/2024 - 12/10/2024',
+        '2024-10-07': '06/10/2024 - 12/10/2024',
+        '2024-10-12': '06/10/2024 - 12/10/2024'
+    };
+    
+    const actualPeriod = `${weekInfo.startDate.toLocaleDateString('pt-BR')} - ${weekInfo.endDate.toLocaleDateString('pt-BR')}`;
+    const expectedPeriod = expectedWeeks[dateStr];
+    
+    if (expectedPeriod && actualPeriod === expectedPeriod) {
+        console.log(`   ✅ CORRETO: Período confere com o esperado`);
+    } else if (expectedPeriod) {
+        console.log(`   ❌ ERRO: Esperado ${expectedPeriod}, obtido ${actualPeriod}`);
+    }
+    
+    return { weekKey, startDate: weekInfo.startDate, endDate: weekInfo.endDate };
 }
 
 // Função para lidar com mudança de semana
