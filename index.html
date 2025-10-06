@@ -74,18 +74,20 @@
             opacity: 1;
             visibility: visible;
             transform: translateX(0);
+            pointer-events: auto;
         }
 
         .reports-submenu {
             pointer-events: none;
-        }
-
-        .reports-menu-container:hover .reports-submenu {
-            pointer-events: auto;
+            transition: all 0.3s ease;
         }
 
         .submenu-item {
             transition: all 0.2s ease;
+        }
+
+        .submenu-item:hover {
+            background-color: rgba(55, 65, 81, 1);
         }
 
         .fade-in {
@@ -341,7 +343,7 @@
                     </a>
                     
                     <!-- Submenu -->
-                    <div class="reports-submenu absolute left-full top-0 ml-2 w-64 bg-gray-800 rounded-lg shadow-xl border border-gray-700 opacity-0 invisible transform translate-x-2 transition-all duration-200 z-50">
+                    <div class="reports-submenu absolute left-full top-0 ml-2 w-64 bg-gray-800 rounded-lg shadow-xl border border-gray-700 opacity-0 invisible transform translate-x-2 transition-all duration-300 z-50">
                         <div class="p-2">
                             <a href="#reports" class="submenu-item flex items-center space-x-3 px-3 py-2 text-gray-300 hover:text-white hover:bg-gray-700 rounded-lg transition-all">
                                 <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1092,11 +1094,11 @@
                     <!-- PDF Generation and Filters -->
                     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
                         <div class="flex flex-wrap items-center gap-4">
-                            <button id="generateWeeklyPaymentsPDFBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white flex items-center space-x-2">
+                            <button id="generateWeeklyPaymentsPDFBtn" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold text-white flex items-center space-x-2 transition-colors">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                 </svg>
-                                <span>Gerar PDF Semanal</span>
+                                <span>📊 PDF Pagamentos Semana</span>
                             </button>
                             <button id="refreshPaymentsBtn" class="bg-gray-600 hover:bg-gray-500 px-4 py-3 rounded-lg font-semibold text-white flex items-center space-x-2 transition-all">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
