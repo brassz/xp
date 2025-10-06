@@ -112,6 +112,34 @@ let installments = [];
 let filteredInstallments = [];
 let installmentPayments = [];
 let guarantors = [];
+
+// Sistema de timeout para todos os usuários (5 minutos de inatividade)
+let userTimeoutId = null;
+let lastActivityTime = Date.now();
+const USER_TIMEOUT_DURATION = 5 * 60 * 1000; // 5 minutos em milissegundos
+
+// Função para teste - permite definir timeout menor para demonstração
+function setTestTimeout(minutes = 5) {
+    const testDuration = minutes * 60 * 1000;
+    console.log(`Timeout de teste definido para ${minutes} minuto(s)`);
+    
+    // Limpar timeout atual se existir
+    clearUserTimeout();
+    
+    // Definir novo timeout com duração personalizada
+    if (currentUser) {
+        userTimeoutId = setTimeout(() => {
+            showNotification('Sessão expirada por inatividade. Você será desconectado em 10 segundos...', 'warning');
+            
+            setTimeout(() => {
+                if (currentUser) {
+                    showNotification('Desconectado por inatividade.', 'error');
+                    handleLogout();
+                }
+            }, 10000);
+        }, testDuration);
+    }
+}
 let emergencyContacts = [];
 let cashTransactions = [];
 let cashSettings = null;
@@ -650,12 +678,110 @@ async function handleLogin(e) {
 }
 
 async function handleLogout() {
+    // Limpar timeout do usuário se existir
+    clearUserTimeout();
+    
     currentUser = null;
     currentCompany = null;
     supabase = null;
     localStorage.removeItem('nexusUser');
     localStorage.removeItem('selectedCompany');
     showLogin();
+}
+
+// Funções para gerenciar timeout de usuários
+function startUserTimeout() {
+    // Só iniciar timeout se houver usuário logado
+    if (!currentUser) {
+        return;
+    }
+    
+    // Limpar timeout anterior se existir
+    clearUserTimeout();
+    
+    console.log('Timeout de usuário iniciado - 5 minutos para logout automático');
+    
+    // Definir novo timeout
+    userTimeoutId = setTimeout(() => {
+        showNotification('Sessão expirada por inatividade. Você será desconectado em 10 segundos...', 'warning');
+        
+        // Dar 10 segundos de aviso antes de desconectar
+        setTimeout(() => {
+            if (currentUser) {
+                showNotification('Desconectado por inatividade de 5 minutos.', 'error');
+                handleLogout();
+            }
+        }, 10000);
+    }, USER_TIMEOUT_DURATION);
+}
+
+function clearUserTimeout() {
+    if (userTimeoutId) {
+        clearTimeout(userTimeoutId);
+        userTimeoutId = null;
+    }
+}
+
+function resetUserTimeout() {
+    // Só resetar se houver usuário logado
+    if (!currentUser) {
+        return;
+    }
+    
+    lastActivityTime = Date.now();
+    console.log('Timeout de usuário resetado devido à atividade');
+    startUserTimeout();
+}
+
+// Variável para controlar se os listeners já foram adicionados
+let activityListenersAdded = false;
+let activityHandler = null;
+
+function setupActivityListeners() {
+    // Só configurar listeners se houver usuário logado
+    if (!currentUser) {
+        return;
+    }
+    
+    // Remover listeners anteriores se existirem
+    removeActivityListeners();
+    
+    // Eventos que indicam atividade do usuário
+    const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+    
+    // Função para lidar com atividade (com throttling para evitar muitas chamadas)
+    let lastResetTime = 0;
+    activityHandler = () => {
+        const now = Date.now();
+        // Só resetar o timeout se passou pelo menos 1 segundo desde o último reset
+        if (now - lastResetTime > 1000) {
+            resetUserTimeout();
+            lastResetTime = now;
+        }
+    };
+    
+    // Adicionar listeners para todos os eventos de atividade
+    activityEvents.forEach(event => {
+        document.addEventListener(event, activityHandler, true);
+    });
+    
+    activityListenersAdded = true;
+    
+    // Iniciar o timeout
+    startUserTimeout();
+}
+
+function removeActivityListeners() {
+    if (activityListenersAdded && activityHandler) {
+        const activityEvents = ['mousedown', 'mousemove', 'keypress', 'scroll', 'touchstart', 'click'];
+        
+        activityEvents.forEach(event => {
+            document.removeEventListener(event, activityHandler, true);
+        });
+        
+        activityListenersAdded = false;
+        activityHandler = null;
+    }
 }
 
 // Navegação
@@ -2360,6 +2486,10 @@ function hideModal(modal) {
 function showLogin() {
     loginPage.classList.remove('hidden');
     dashboard.classList.add('hidden');
+    
+    // Limpar timeout do usuário e remover listeners
+    clearUserTimeout();
+    removeActivityListeners();
 }
 
 function showDashboard() {
@@ -2372,6 +2502,9 @@ function showDashboard() {
         const config = getCurrentCompanyConfig();
         companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
     }
+    
+    // Configurar timeout para usuário logado
+    setupActivityListeners();
 }
 
 function populateClientSelect() {
