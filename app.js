@@ -174,10 +174,330 @@ const newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
 const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 
+// ==========================================
+// FUNÇÕES DE 2FA (Two-Factor Authentication)
+// ==========================================
+
+let currentSetupSecret = null;
+let currentSetupBackupCodes = null;
+
+// Configurar event listeners para 2FA
+function setup2FAEventListeners() {
+    // Configuração 2FA - Step 1
+    const continueSetupBtn = document.getElementById('continueSetupBtn');
+    if (continueSetupBtn) {
+        continueSetupBtn.addEventListener('click', () => {
+            document.getElementById('setupStep1').classList.add('hidden');
+            document.getElementById('setupStep2').classList.remove('hidden');
+        });
+    }
+
+    // Configuração 2FA - Step 2
+    const verify2FABtn = document.getElementById('verify2FABtn');
+    if (verify2FABtn) {
+        verify2FABtn.addEventListener('click', handle2FASetupVerification);
+    }
+
+    const backToStep1Btn = document.getElementById('backToStep1Btn');
+    if (backToStep1Btn) {
+        backToStep1Btn.addEventListener('click', () => {
+            document.getElementById('setupStep2').classList.add('hidden');
+            document.getElementById('setupStep1').classList.remove('hidden');
+        });
+    }
+
+    // Configuração 2FA - Step 3
+    const finishSetupBtn = document.getElementById('finishSetupBtn');
+    if (finishSetupBtn) {
+        finishSetupBtn.addEventListener('click', () => {
+            showDashboard();
+        });
+    }
+
+    // Verificação 2FA no login
+    const twoFactorForm = document.getElementById('twoFactorForm');
+    if (twoFactorForm) {
+        twoFactorForm.addEventListener('submit', handle2FAVerification);
+    }
+
+    const useBackupCodeBtn = document.getElementById('useBackupCodeBtn');
+    if (useBackupCodeBtn) {
+        useBackupCodeBtn.addEventListener('click', showBackupCodeVerification);
+    }
+
+    const backToLoginBtn = document.getElementById('backToLoginBtn');
+    if (backToLoginBtn) {
+        backToLoginBtn.addEventListener('click', showLogin);
+    }
+
+    // Verificação código de backup
+    const backupCodeForm = document.getElementById('backupCodeForm');
+    if (backupCodeForm) {
+        backupCodeForm.addEventListener('submit', handleBackupCodeVerification);
+    }
+
+    const backTo2FABtn = document.getElementById('backTo2FABtn');
+    if (backTo2FABtn) {
+        backTo2FABtn.addEventListener('click', show2FAVerification);
+    }
+
+    // Botão para configurar 2FA no dashboard
+    const setup2FABtn = document.getElementById('setup2FABtn');
+    if (setup2FABtn) {
+        setup2FABtn.addEventListener('click', handle2FASetupRequest);
+    }
+}
+
+// Iniciar configuração de 2FA para um usuário
+async function start2FASetup(userEmail) {
+    try {
+        // Gerar secret e códigos de backup
+        currentSetupSecret = twoFactorAuth.generateSecret();
+        currentSetupBackupCodes = twoFactorAuth.generateBackupCodes();
+
+        // Gerar URL do QR Code
+        const companyName = currentCompany?.name || 'Nexus';
+        const qrUrl = twoFactorAuth.generateQRCodeURL(currentSetupSecret, userEmail, companyName);
+
+        // Renderizar QR Code
+        const canvas = document.getElementById('qrCodeCanvas');
+        await twoFactorAuth.renderQRCode(qrUrl, canvas);
+
+        // Mostrar secret manual
+        document.getElementById('manualSecret').textContent = currentSetupSecret;
+
+        // Mostrar tela de configuração
+        show2FASetup();
+
+    } catch (error) {
+        console.error('Erro ao iniciar configuração 2FA:', error);
+        alert('Erro ao configurar 2FA: ' + error.message);
+    }
+}
+
+// Verificar código durante a configuração
+async function handle2FASetupVerification() {
+    try {
+        const code = document.getElementById('verificationCode').value;
+        
+        if (!code || code.length !== 6) {
+            alert('Por favor, digite um código de 6 dígitos');
+            return;
+        }
+
+        // Verificar código TOTP
+        const isValid = await twoFactorAuth.verifyTOTP(code, currentSetupSecret);
+        
+        if (!isValid) {
+            alert('Código inválido. Verifique o código no seu aplicativo autenticador.');
+            return;
+        }
+
+        // Salvar 2FA no banco de dados
+        const { error } = await supabase
+            .from('users')
+            .update({
+                two_factor_secret: currentSetupSecret,
+                two_factor_enabled: true,
+                two_factor_backup_codes: currentSetupBackupCodes,
+                two_factor_setup_at: new Date().toISOString()
+            })
+            .eq('id', currentUser.id);
+
+        if (error) {
+            throw error;
+        }
+
+        // Atualizar dados do usuário atual
+        currentUser.two_factor_enabled = true;
+        localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+
+        // Mostrar códigos de backup
+        displayBackupCodes();
+
+        // Ir para step 3
+        document.getElementById('setupStep2').classList.add('hidden');
+        document.getElementById('setupStep3').classList.remove('hidden');
+
+    } catch (error) {
+        console.error('Erro ao verificar 2FA:', error);
+        alert('Erro ao ativar 2FA: ' + error.message);
+    }
+}
+
+// Exibir códigos de backup
+function displayBackupCodes() {
+    const container = document.getElementById('backupCodes');
+    container.innerHTML = '';
+    
+    currentSetupBackupCodes.forEach(code => {
+        const codeElement = document.createElement('div');
+        codeElement.className = 'bg-gray-800 p-2 rounded text-center';
+        codeElement.textContent = code;
+        container.appendChild(codeElement);
+    });
+}
+
+// Verificar código 2FA no login
+async function handle2FAVerification(e) {
+    e.preventDefault();
+    
+    try {
+        const code = document.getElementById('twoFactorCode').value;
+        
+        if (!code || code.length !== 6) {
+            alert('Por favor, digite um código de 6 dígitos');
+            return;
+        }
+
+        // Recuperar dados temporários
+        const tempUserData = JSON.parse(sessionStorage.getItem('tempUserData'));
+        const tempCompanyId = sessionStorage.getItem('tempCompanyId');
+        
+        if (!tempUserData || !tempUserData.two_factor_secret) {
+            throw new Error('Dados de sessão inválidos');
+        }
+
+        // Verificar código TOTP
+        const isValid = await twoFactorAuth.verifyTOTP(code, tempUserData.two_factor_secret);
+        
+        if (!isValid) {
+            alert('Código inválido. Verifique o código no seu aplicativo autenticador.');
+            return;
+        }
+
+        // Completar login
+        await completeLogin(tempUserData, tempCompanyId);
+
+    } catch (error) {
+        console.error('Erro na verificação 2FA:', error);
+        alert('Erro na verificação 2FA: ' + error.message);
+    }
+}
+
+// Verificar código de backup
+async function handleBackupCodeVerification(e) {
+    e.preventDefault();
+    
+    try {
+        const code = document.getElementById('backupCodeInput').value.trim();
+        
+        if (!code) {
+            alert('Por favor, digite um código de backup');
+            return;
+        }
+
+        // Recuperar dados temporários
+        const tempUserData = JSON.parse(sessionStorage.getItem('tempUserData'));
+        const tempCompanyId = sessionStorage.getItem('tempCompanyId');
+        
+        if (!tempUserData || !tempUserData.two_factor_backup_codes) {
+            throw new Error('Dados de sessão inválidos');
+        }
+
+        // Verificar se o código está na lista
+        const backupCodes = tempUserData.two_factor_backup_codes;
+        const codeIndex = backupCodes.indexOf(code);
+        
+        if (codeIndex === -1) {
+            alert('Código de backup inválido');
+            return;
+        }
+
+        // Remover código usado da lista
+        backupCodes.splice(codeIndex, 1);
+        
+        // Atualizar no banco
+        const { error } = await supabase
+            .from('users')
+            .update({ two_factor_backup_codes: backupCodes })
+            .eq('id', tempUserData.id);
+
+        if (error) {
+            console.error('Erro ao atualizar códigos de backup:', error);
+        }
+
+        // Completar login
+        await completeLogin(tempUserData, tempCompanyId);
+
+    } catch (error) {
+        console.error('Erro na verificação do código de backup:', error);
+        alert('Erro na verificação do código de backup: ' + error.message);
+    }
+}
+
+// Lidar com solicitação de configuração 2FA
+async function handle2FASetupRequest() {
+    if (!currentUser) {
+        alert('Usuário não autenticado');
+        return;
+    }
+
+    if (currentUser.two_factor_enabled) {
+        // Se já tem 2FA, perguntar se quer desabilitar
+        const confirm = window.confirm('2FA já está ativo. Deseja desabilitar?');
+        if (confirm) {
+            await disable2FA(currentUser.id);
+            updateSetup2FAButton();
+        }
+    } else {
+        // Configurar 2FA
+        await start2FASetup(currentUser.email);
+    }
+}
+
+// Atualizar texto do botão 2FA baseado no status
+function updateSetup2FAButton() {
+    const setup2FAText = document.getElementById('setup2FAText');
+    if (setup2FAText && currentUser) {
+        if (currentUser.two_factor_enabled) {
+            setup2FAText.textContent = 'Desabilitar 2FA';
+        } else {
+            setup2FAText.textContent = 'Configurar 2FA';
+        }
+    }
+}
+
+// Desabilitar 2FA (função administrativa)
+async function disable2FA(userId) {
+    try {
+        const { error } = await supabase
+            .from('users')
+            .update({
+                two_factor_secret: null,
+                two_factor_enabled: false,
+                two_factor_backup_codes: null,
+                two_factor_setup_at: null
+            })
+            .eq('id', userId);
+
+        if (error) {
+            throw error;
+        }
+
+        alert('2FA desabilitado com sucesso');
+        
+        // Atualizar dados do usuário atual se for o mesmo
+        if (currentUser && currentUser.id === userId) {
+            currentUser.two_factor_enabled = false;
+            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+        }
+
+    } catch (error) {
+        console.error('Erro ao desabilitar 2FA:', error);
+        alert('Erro ao desabilitar 2FA: ' + error.message);
+    }
+}
+
+// ==========================================
+// FIM DAS FUNÇÕES DE 2FA
+// ==========================================
+
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
+    setup2FAEventListeners();
     setupUploadcare();
 });
 
@@ -626,26 +946,55 @@ async function handleLogin(e) {
         // Para demonstração, aceitar senha simples
         // Em produção, implementar hash de senha
         if (password === '1020' || password === 'user123') {
-            currentUser = userData;
-            
-            // Salvar usuário no localStorage
-            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
-            
-            showDashboard();
-            await loadData();
-            
-            // Atualizar último login
-            await supabase
-                .from('users')
-                .update({ last_login: new Date().toISOString() })
-                .eq('id', currentUser.id);
+            // Verificar se o usuário tem 2FA habilitado
+            if (userData.two_factor_enabled) {
+                // Salvar dados temporários para verificação 2FA
+                sessionStorage.setItem('tempUserData', JSON.stringify(userData));
+                sessionStorage.setItem('tempCompanyId', companyId);
                 
+                // Mostrar tela de verificação 2FA
+                show2FAVerification();
+            } else {
+                // Login direto se não tiver 2FA
+                await completeLogin(userData, companyId);
+            }
         } else {
             throw new Error('Senha incorreta');
         }
         
     } catch (error) {
         alert('Erro no login: ' + error.message);
+    }
+}
+
+// Função para completar o login após verificação 2FA (ou login direto)
+async function completeLogin(userData, companyId) {
+    try {
+        currentUser = userData;
+        
+        // Salvar usuário no localStorage
+        localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+        localStorage.setItem('selectedCompany', companyId);
+        
+        // Limpar dados temporários se existirem
+        sessionStorage.removeItem('tempUserData');
+        sessionStorage.removeItem('tempCompanyId');
+        
+        showDashboard();
+        await loadData();
+        
+        // Atualizar botão 2FA
+        updateSetup2FAButton();
+        
+        // Atualizar último login
+        await supabase
+            .from('users')
+            .update({ last_login: new Date().toISOString() })
+            .eq('id', currentUser.id);
+            
+    } catch (error) {
+        console.error('Erro ao completar login:', error);
+        alert('Erro ao completar login: ' + error.message);
     }
 }
 
@@ -2357,13 +2706,9 @@ function hideModal(modal) {
     }
 }
 
-function showLogin() {
-    loginPage.classList.remove('hidden');
-    dashboard.classList.add('hidden');
-}
-
 function showDashboard() {
-    loginPage.classList.add('hidden');
+    // Ocultar todas as telas
+    hideAllScreens();
     dashboard.classList.remove('hidden');
     
     // Atualizar indicador da empresa
@@ -2372,6 +2717,43 @@ function showDashboard() {
         const config = getCurrentCompanyConfig();
         companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
     }
+}
+
+function showLogin() {
+    hideAllScreens();
+    loginPage.classList.remove('hidden');
+}
+
+function show2FASetup() {
+    hideAllScreens();
+    document.getElementById('twoFactorSetupPage').classList.remove('hidden');
+}
+
+function show2FAVerification() {
+    hideAllScreens();
+    document.getElementById('twoFactorVerifyPage').classList.remove('hidden');
+}
+
+function showBackupCodeVerification() {
+    hideAllScreens();
+    document.getElementById('backupCodePage').classList.remove('hidden');
+}
+
+function hideAllScreens() {
+    const screens = [
+        'loginPage',
+        'twoFactorSetupPage', 
+        'twoFactorVerifyPage',
+        'backupCodePage',
+        'dashboard'
+    ];
+    
+    screens.forEach(screenId => {
+        const screen = document.getElementById(screenId);
+        if (screen) {
+            screen.classList.add('hidden');
+        }
+    });
 }
 
 function populateClientSelect() {

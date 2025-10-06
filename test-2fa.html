@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste 2FA - Nexus</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/qrcode@1.5.3/build/qrcode.min.js"></script>
+    <script src="2fa-module.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8">Teste do Sistema 2FA</h1>
+        
+        <div class="space-y-6">
+            <!-- Teste 1: Gerar Secret -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">1. Gerar Secret</h2>
+                <button id="generateSecret" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded">
+                    Gerar Secret
+                </button>
+                <div id="secretResult" class="mt-4 p-3 bg-gray-700 rounded font-mono text-sm"></div>
+            </div>
+
+            <!-- Teste 2: Gerar QR Code -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">2. Gerar QR Code</h2>
+                <input type="email" id="testEmail" placeholder="teste@email.com" 
+                       class="bg-gray-700 text-white px-3 py-2 rounded mr-2">
+                <button id="generateQR" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded">
+                    Gerar QR Code
+                </button>
+                <div class="mt-4 flex flex-col items-center">
+                    <canvas id="testQRCanvas" class="bg-white p-2 rounded"></canvas>
+                    <div id="qrUrl" class="mt-2 text-xs text-gray-400 break-all"></div>
+                </div>
+            </div>
+
+            <!-- Teste 3: Gerar e Verificar TOTP -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">3. Gerar e Verificar TOTP</h2>
+                <button id="generateTOTP" class="bg-purple-600 hover:bg-purple-700 px-4 py-2 rounded mr-2">
+                    Gerar Código TOTP
+                </button>
+                <div id="totpResult" class="mt-4 p-3 bg-gray-700 rounded">
+                    <div>Código atual: <span id="currentTOTP" class="font-mono text-2xl text-green-400">------</span></div>
+                    <div class="text-sm text-gray-400">Atualiza a cada 30 segundos</div>
+                </div>
+                
+                <div class="mt-4">
+                    <input type="text" id="verifyCode" placeholder="Digite o código para verificar" 
+                           class="bg-gray-700 text-white px-3 py-2 rounded mr-2" maxlength="6">
+                    <button id="verifyTOTP" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-2 rounded">
+                        Verificar
+                    </button>
+                    <div id="verifyResult" class="mt-2"></div>
+                </div>
+            </div>
+
+            <!-- Teste 4: Códigos de Backup -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">4. Códigos de Backup</h2>
+                <button id="generateBackup" class="bg-orange-600 hover:bg-orange-700 px-4 py-2 rounded">
+                    Gerar Códigos de Backup
+                </button>
+                <div id="backupCodes" class="mt-4 grid grid-cols-2 gap-2"></div>
+            </div>
+
+            <!-- Log de Testes -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">Log de Testes</h2>
+                <div id="testLog" class="bg-black p-3 rounded font-mono text-sm h-40 overflow-y-auto"></div>
+                <button id="clearLog" class="mt-2 bg-red-600 hover:bg-red-700 px-4 py-2 rounded text-sm">
+                    Limpar Log
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let currentSecret = null;
+        let totpInterval = null;
+
+        function log(message) {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            logDiv.innerHTML += `[${timestamp}] ${message}\n`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+            console.log(message);
+        }
+
+        // Teste 1: Gerar Secret
+        document.getElementById('generateSecret').addEventListener('click', () => {
+            try {
+                currentSecret = twoFactorAuth.generateSecret();
+                document.getElementById('secretResult').textContent = currentSecret;
+                log(`✅ Secret gerado com sucesso: ${currentSecret.substring(0, 10)}...`);
+            } catch (error) {
+                log(`❌ Erro ao gerar secret: ${error.message}`);
+            }
+        });
+
+        // Teste 2: Gerar QR Code
+        document.getElementById('generateQR').addEventListener('click', async () => {
+            try {
+                if (!currentSecret) {
+                    log('⚠️ Gere um secret primeiro');
+                    return;
+                }
+
+                const email = document.getElementById('testEmail').value || 'teste@nexus.com';
+                const qrUrl = twoFactorAuth.generateQRCodeURL(currentSecret, email, 'Nexus Test');
+                
+                document.getElementById('qrUrl').textContent = qrUrl;
+                
+                const canvas = document.getElementById('testQRCanvas');
+                await twoFactorAuth.renderQRCode(qrUrl, canvas);
+                
+                log(`✅ QR Code gerado para: ${email}`);
+            } catch (error) {
+                log(`❌ Erro ao gerar QR Code: ${error.message}`);
+            }
+        });
+
+        // Teste 3: Gerar TOTP
+        document.getElementById('generateTOTP').addEventListener('click', async () => {
+            try {
+                if (!currentSecret) {
+                    log('⚠️ Gere um secret primeiro');
+                    return;
+                }
+
+                // Parar intervalo anterior se existir
+                if (totpInterval) {
+                    clearInterval(totpInterval);
+                }
+
+                // Função para atualizar TOTP
+                const updateTOTP = async () => {
+                    try {
+                        const code = await twoFactorAuth.generateTOTP(currentSecret);
+                        document.getElementById('currentTOTP').textContent = code;
+                        log(`🔄 TOTP atualizado: ${code}`);
+                    } catch (error) {
+                        log(`❌ Erro ao gerar TOTP: ${error.message}`);
+                    }
+                };
+
+                // Gerar imediatamente
+                await updateTOTP();
+
+                // Atualizar a cada 30 segundos
+                totpInterval = setInterval(updateTOTP, 30000);
+                
+                log('✅ Geração automática de TOTP iniciada');
+            } catch (error) {
+                log(`❌ Erro ao iniciar TOTP: ${error.message}`);
+            }
+        });
+
+        // Verificar TOTP
+        document.getElementById('verifyTOTP').addEventListener('click', async () => {
+            try {
+                if (!currentSecret) {
+                    log('⚠️ Gere um secret primeiro');
+                    return;
+                }
+
+                const code = document.getElementById('verifyCode').value;
+                if (!code || code.length !== 6) {
+                    log('⚠️ Digite um código de 6 dígitos');
+                    return;
+                }
+
+                const isValid = await twoFactorAuth.verifyTOTP(code, currentSecret);
+                const resultDiv = document.getElementById('verifyResult');
+                
+                if (isValid) {
+                    resultDiv.innerHTML = '<span class="text-green-400">✅ Código válido!</span>';
+                    log(`✅ Código ${code} verificado com sucesso`);
+                } else {
+                    resultDiv.innerHTML = '<span class="text-red-400">❌ Código inválido</span>';
+                    log(`❌ Código ${code} é inválido`);
+                }
+
+                // Limpar após 3 segundos
+                setTimeout(() => {
+                    resultDiv.innerHTML = '';
+                }, 3000);
+
+            } catch (error) {
+                log(`❌ Erro ao verificar TOTP: ${error.message}`);
+            }
+        });
+
+        // Teste 4: Códigos de Backup
+        document.getElementById('generateBackup').addEventListener('click', () => {
+            try {
+                const codes = twoFactorAuth.generateBackupCodes();
+                const container = document.getElementById('backupCodes');
+                
+                container.innerHTML = '';
+                codes.forEach(code => {
+                    const div = document.createElement('div');
+                    div.className = 'bg-gray-700 p-2 rounded text-center font-mono';
+                    div.textContent = code;
+                    container.appendChild(div);
+                });
+
+                log(`✅ ${codes.length} códigos de backup gerados`);
+            } catch (error) {
+                log(`❌ Erro ao gerar códigos de backup: ${error.message}`);
+            }
+        });
+
+        // Limpar log
+        document.getElementById('clearLog').addEventListener('click', () => {
+            document.getElementById('testLog').innerHTML = '';
+        });
+
+        // Log inicial
+        log('🚀 Sistema de teste 2FA carregado');
+        log('📝 Siga os testes na ordem: 1 → 2 → 3 → 4');
+    </script>
+</body>
+</html>
