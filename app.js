@@ -11124,13 +11124,16 @@ async function populateWeekSelector() {
             const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
             
             if (!weeks.has(weekKey)) {
+                // Usar função unificada para calcular datas corretas
+                const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
+                
                 weeks.set(weekKey, {
                     key: weekKey,
                     year: weekInfo.year,
                     week: weekInfo.week,
-                    startDate: weekInfo.startDate,
-                    endDate: weekInfo.endDate,
-                    label: `Semana ${weekInfo.week}/${weekInfo.year} (${weekInfo.startDate.toLocaleDateString('pt-BR')} - ${weekInfo.endDate.toLocaleDateString('pt-BR')})`
+                    startDate: startDate,
+                    endDate: endDate,
+                    label: `Semana ${weekInfo.week}/${weekInfo.year} (${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')})`
                 });
             }
         });
@@ -11139,13 +11142,16 @@ async function populateWeekSelector() {
         const currentWeekInfo = getWeekInfo(now);
         const currentWeekKey = `${currentWeekInfo.year}-W${currentWeekInfo.week}`;
         if (!weeks.has(currentWeekKey)) {
+            // Usar função unificada para calcular datas corretas
+            const { startDate, endDate } = getWeekDatesFromWeekKey(currentWeekKey);
+            
             weeks.set(currentWeekKey, {
                 key: currentWeekKey,
                 year: currentWeekInfo.year,
                 week: currentWeekInfo.week,
-                startDate: currentWeekInfo.startDate,
-                endDate: currentWeekInfo.endDate,
-                label: `Semana ${currentWeekInfo.week}/${currentWeekInfo.year} (${currentWeekInfo.startDate.toLocaleDateString('pt-BR')} - ${currentWeekInfo.endDate.toLocaleDateString('pt-BR')}) - ATUAL`
+                startDate: startDate,
+                endDate: endDate,
+                label: `Semana ${currentWeekInfo.week}/${currentWeekInfo.year} (${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}) - ATUAL`
             });
         }
 
@@ -11196,29 +11202,40 @@ function getWeekInfo(date) {
 
 // Função unificada para calcular datas de uma semana específica
 function getWeekDatesFromWeekKey(weekKey) {
+    console.log(`🔍 Calculando datas para ${weekKey}`);
+    
     const [year, weekStr] = weekKey.split('-W');
     const weekNumber = parseInt(weekStr);
     const yearNum = parseInt(year);
     
-    // Encontrar o primeiro dia do ano
-    const firstDayOfYear = new Date(yearNum, 0, 1);
+    console.log(`📅 Ano: ${yearNum}, Semana: ${weekNumber}`);
     
-    // Calcular quantos dias até a primeira segunda-feira
-    const firstDayWeekday = firstDayOfYear.getDay();
-    const daysToFirstMonday = firstDayWeekday === 0 ? 1 : (8 - firstDayWeekday);
+    // Usar a mesma lógica da função getWeekInfo para consistência
+    // Primeiro, criar uma data de referência para a semana
+    const jan1 = new Date(yearNum, 0, 1);
+    const jan1Day = jan1.getDay();
     
-    // Data da primeira segunda-feira do ano
-    const firstMonday = new Date(yearNum, 0, 1 + daysToFirstMonday);
+    // Calcular o primeiro dia da primeira semana (segunda-feira)
+    const firstWeekStart = new Date(jan1);
+    if (jan1Day <= 4) { // Se 1º de janeiro é segunda a quinta
+        firstWeekStart.setDate(jan1.getDate() - (jan1Day - 1));
+    } else { // Se 1º de janeiro é sexta a domingo
+        firstWeekStart.setDate(jan1.getDate() + (8 - jan1Day));
+    }
     
     // Calcular início da semana desejada
-    const weekStart = new Date(firstMonday);
-    weekStart.setDate(firstMonday.getDate() + (weekNumber - 1) * 7);
+    const weekStart = new Date(firstWeekStart);
+    weekStart.setDate(firstWeekStart.getDate() + (weekNumber - 1) * 7);
     weekStart.setHours(0, 0, 0, 0);
     
     // Calcular fim da semana (domingo)
     const weekEnd = new Date(weekStart);
     weekEnd.setDate(weekStart.getDate() + 6);
     weekEnd.setHours(23, 59, 59, 999);
+    
+    console.log(`📊 Período calculado: ${weekStart.toLocaleDateString('pt-BR')} - ${weekEnd.toLocaleDateString('pt-BR')}`);
+    console.log(`🕐 Início: ${weekStart.toISOString()}`);
+    console.log(`🕐 Fim: ${weekEnd.toISOString()}`);
     
     return { startDate: weekStart, endDate: weekEnd };
 }
@@ -11583,12 +11600,15 @@ async function getAvailableWeeksForPDF() {
             const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
             
             if (!weeks.has(weekKey)) {
+                // Usar função unificada para calcular datas corretas
+                const { startDate, endDate } = getWeekDatesFromWeekKey(weekKey);
+                
                 weeks.set(weekKey, {
                     key: weekKey,
                     year: weekInfo.year,
                     week: weekInfo.week,
-                    startDate: weekInfo.startDate,
-                    endDate: weekInfo.endDate,
+                    startDate: startDate,
+                    endDate: endDate,
                     payments: [],
                     totalAmount: 0,
                     paymentCount: 0,
@@ -11711,6 +11731,10 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         const startDateStr = startDateFormatted.toISOString().split('T')[0];
         const endDateStr = endDateFormatted.toISOString().split('T')[0];
         
+        console.log(`🔍 Buscando pagamentos entre ${startDateStr} e ${endDateStr}`);
+        console.log(`📅 Data início formatada: ${startDateFormatted.toLocaleDateString('pt-BR')}`);
+        console.log(`📅 Data fim formatada: ${endDateFormatted.toLocaleDateString('pt-BR')}`);
+        
         // Buscar todos os pagamentos da semana especificada
         const { data: weeklyPayments, error } = await supabase
             .from('payments')
@@ -11733,6 +11757,14 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         if (error) throw error;
 
         const allWeeklyPayments = weeklyPayments || [];
+        
+        console.log(`✅ Encontrados ${allWeeklyPayments.length} pagamentos`);
+        if (allWeeklyPayments.length > 0) {
+            console.log('📋 Datas dos pagamentos encontrados:');
+            allWeeklyPayments.forEach((payment, index) => {
+                console.log(`  ${index + 1}. ${payment.payment_date} - ${payment.loans?.clients?.name} - R$ ${payment.amount}`);
+            });
+        }
 
         // Criar PDF (usando a mesma lógica da função original)
         const { jsPDF } = window.jspdf;
