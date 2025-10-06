@@ -873,6 +873,12 @@ function handleNavigation(e) {
                 setTimeout(() => {
                     // Fazer testes de datas para debug
                     console.log('🧪 TESTANDO CÁLCULO DE SEMANAS:');
+                    console.log('📅 Verificando dias da semana:');
+                    console.log(`   29/09/2024 é ${new Date('2024-09-29').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
+                    console.log(`   30/09/2024 é ${new Date('2024-09-30').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
+                    console.log(`   05/10/2024 é ${new Date('2024-10-05').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
+                    console.log(`   06/10/2024 é ${new Date('2024-10-06').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
+                    
                     testDateToWeek('2024-09-29'); // Domingo
                     testDateToWeek('2024-09-30'); // Segunda
                     testDateToWeek('2024-10-05'); // Sábado
@@ -11188,17 +11194,20 @@ function getWeekInfo(date) {
     const year = d.getFullYear();
     const week = getWeekNumber(d);
     
-    // Calcular início e fim da semana (segunda a domingo)
-    const dayOfWeek = d.getDay();
-    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    // CORREÇÃO: Calcular início e fim da semana (domingo a sábado)
+    // Para que 29/09 (domingo) a 05/10 (sábado) seja uma semana
+    const dayOfWeek = d.getDay(); // 0 = domingo, 1 = segunda, etc.
     
     const startDate = new Date(d);
-    startDate.setDate(d.getDate() + mondayOffset);
+    startDate.setDate(d.getDate() - dayOfWeek); // Voltar para o domingo
     startDate.setHours(0, 0, 0, 0);
     
     const endDate = new Date(startDate);
-    endDate.setDate(startDate.getDate() + 6);
+    endDate.setDate(startDate.getDate() + 6); // +6 dias = sábado
     endDate.setHours(23, 59, 59, 999);
+    
+    // Log para debug
+    console.log(`📊 getWeekInfo: ${d.toLocaleDateString('pt-BR')} → Semana ${week}/${year}: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
     
     return { year, week, startDate, endDate };
 }
