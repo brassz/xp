@@ -281,17 +281,45 @@ function setupEventListeners() {
     // Event listeners para a nova seção de histórico de pagamentos
     const generateWeeklyPaymentsPDFBtn = document.getElementById('generateWeeklyPaymentsPDFBtn');
     if (generateWeeklyPaymentsPDFBtn) {
-        generateWeeklyPaymentsPDFBtn.addEventListener('click', generateWeeklyPaymentsPDF);
+        generateWeeklyPaymentsPDFBtn.addEventListener('click', generateWeeklyPaymentsPDFForSelectedWeek);
     }
 
     const refreshPaymentsBtn = document.getElementById('refreshPaymentsBtn');
     if (refreshPaymentsBtn) {
-        refreshPaymentsBtn.addEventListener('click', loadWeeklyPaymentHistory);
+        refreshPaymentsBtn.addEventListener('click', () => {
+            if (selectedWeekData) {
+                loadWeekData(selectedWeekData.startDate, selectedWeekData.endDate);
+            } else {
+                populateWeekSelector();
+            }
+        });
     }
 
     const showPDFHistoryBtn = document.getElementById('showPDFHistoryBtn');
     if (showPDFHistoryBtn) {
-        showPDFHistoryBtn.addEventListener('click', showWeeklyPDFHistory);
+        showPDFHistoryBtn.addEventListener('click', showPDFHistoryModal);
+    }
+
+    const showWeekClientsBtn = document.getElementById('showWeekClientsBtn');
+    if (showWeekClientsBtn) {
+        showWeekClientsBtn.addEventListener('click', showWeekClientsModal);
+    }
+
+    // Event listeners para fechar modais
+    const closeWeekClientsModal = document.getElementById('closeWeekClientsModal');
+    if (closeWeekClientsModal) {
+        closeWeekClientsModal.addEventListener('click', () => hideModal(document.getElementById('weekClientsModal')));
+    }
+
+    const closePdfHistoryModal = document.getElementById('closePdfHistoryModal');
+    if (closePdfHistoryModal) {
+        closePdfHistoryModal.addEventListener('click', () => hideModal(document.getElementById('pdfHistoryModal')));
+    }
+
+    // Event listener para mudança de semana
+    const weekSelector = document.getElementById('weekSelector');
+    if (weekSelector) {
+        weekSelector.addEventListener('change', handleWeekChange);
     }
     
     // Adicionar event listener para o botão de PDF das despesas
@@ -815,7 +843,6 @@ function handleNavigation(e) {
     e.preventDefault();
     
     const target = e.currentTarget.getAttribute('href').substring(1);
-    console.log('Navegando para:', target);
     
     // Atualizar navegação ativa
     navLinks.forEach(link => link.classList.remove('active'));
@@ -827,7 +854,6 @@ function handleNavigation(e) {
     contentSections.forEach(section => {
         section.classList.add('hidden');
         if (section.id === target) {
-            console.log('Mostrando seção:', target);
             section.classList.remove('hidden');
             section.classList.add('fade-in');
             
@@ -844,9 +870,8 @@ function handleNavigation(e) {
             
             // Carregar histórico de pagamentos quando a seção for exibida
             if (target === 'payment-history') {
-                console.log('Seção de histórico de pagamentos ativada, carregando dados...');
                 setTimeout(() => {
-                    loadWeeklyPaymentHistory();
+                    populateWeekSelector();
                 }, 100);
             }
             
@@ -11066,4 +11091,617 @@ function addToWeeklyPDFHistory(weekKey) {
     }
     
     localStorage.setItem(historyKey, JSON.stringify(history));
+}
+
+// =====================================================
+// FUNÇÕES DE SELEÇÃO DE SEMANAS E MODAIS
+// =====================================================
+
+// Variável global para armazenar dados da semana selecionada
+let selectedWeekData = null;
+
+// Função para popular o seletor de semanas
+async function populateWeekSelector() {
+    try {
+        const weekSelector = document.getElementById('weekSelector');
+        if (!weekSelector) return;
+
+        // Buscar todas as datas de pagamentos para determinar as semanas disponíveis
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select('payment_date')
+            .order('payment_date', { ascending: false });
+
+        if (error) throw error;
+
+        // Agrupar por semanas
+        const weeks = new Map();
+        const now = new Date();
+
+        payments.forEach(payment => {
+            const date = new Date(payment.payment_date);
+            const weekInfo = getWeekInfo(date);
+            const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
+            
+            if (!weeks.has(weekKey)) {
+                weeks.set(weekKey, {
+                    key: weekKey,
+                    year: weekInfo.year,
+                    week: weekInfo.week,
+                    startDate: weekInfo.startDate,
+                    endDate: weekInfo.endDate,
+                    label: `Semana ${weekInfo.week}/${weekInfo.year} (${weekInfo.startDate.toLocaleDateString('pt-BR')} - ${weekInfo.endDate.toLocaleDateString('pt-BR')})`
+                });
+            }
+        });
+
+        // Adicionar semana atual se não existir
+        const currentWeekInfo = getWeekInfo(now);
+        const currentWeekKey = `${currentWeekInfo.year}-W${currentWeekInfo.week}`;
+        if (!weeks.has(currentWeekKey)) {
+            weeks.set(currentWeekKey, {
+                key: currentWeekKey,
+                year: currentWeekInfo.year,
+                week: currentWeekInfo.week,
+                startDate: currentWeekInfo.startDate,
+                endDate: currentWeekInfo.endDate,
+                label: `Semana ${currentWeekInfo.week}/${currentWeekInfo.year} (${currentWeekInfo.startDate.toLocaleDateString('pt-BR')} - ${currentWeekInfo.endDate.toLocaleDateString('pt-BR')}) - ATUAL`
+            });
+        }
+
+        // Converter para array e ordenar por data
+        const sortedWeeks = Array.from(weeks.values()).sort((a, b) => b.startDate - a.startDate);
+
+        // Popular o select
+        weekSelector.innerHTML = '<option value="">Selecione uma semana</option>';
+        sortedWeeks.forEach(week => {
+            const option = document.createElement('option');
+            option.value = week.key;
+            option.textContent = week.label;
+            option.dataset.startDate = week.startDate.toISOString();
+            option.dataset.endDate = week.endDate.toISOString();
+            weekSelector.appendChild(option);
+        });
+
+        // Selecionar semana atual por padrão
+        weekSelector.value = currentWeekKey;
+        handleWeekChange();
+
+    } catch (error) {
+        console.error('Erro ao popular seletor de semanas:', error);
+        showErrorMessage('Erro ao carregar semanas disponíveis');
+    }
+}
+
+// Função para obter informações da semana
+function getWeekInfo(date) {
+    const d = new Date(date);
+    const year = d.getFullYear();
+    const week = getWeekNumber(d);
+    
+    // Calcular início e fim da semana (segunda a domingo)
+    const dayOfWeek = d.getDay();
+    const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+    
+    const startDate = new Date(d);
+    startDate.setDate(d.getDate() + mondayOffset);
+    startDate.setHours(0, 0, 0, 0);
+    
+    const endDate = new Date(startDate);
+    endDate.setDate(startDate.getDate() + 6);
+    endDate.setHours(23, 59, 59, 999);
+    
+    return { year, week, startDate, endDate };
+}
+
+// Função para lidar com mudança de semana
+async function handleWeekChange() {
+    const weekSelector = document.getElementById('weekSelector');
+    const selectedOption = weekSelector.selectedOptions[0];
+    
+    if (!selectedOption || !selectedOption.value) {
+        selectedWeekData = null;
+        updatePaymentPeriodDisplay('Nenhuma semana selecionada');
+        return;
+    }
+
+    const startDate = new Date(selectedOption.dataset.startDate);
+    const endDate = new Date(selectedOption.dataset.endDate);
+    
+    selectedWeekData = {
+        key: selectedOption.value,
+        startDate,
+        endDate,
+        label: selectedOption.textContent
+    };
+
+    // Atualizar display do período
+    updatePaymentPeriodDisplay(`${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
+
+    // Carregar dados da semana selecionada
+    await loadWeekData(startDate, endDate);
+}
+
+// Função para carregar dados de uma semana específica
+async function loadWeekData(startDate, endDate) {
+    try {
+        // Buscar pagamentos da semana selecionada
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select(`
+                *,
+                loans (
+                    id,
+                    amount,
+                    client_id,
+                    clients (
+                        id,
+                        name,
+                        phone
+                    )
+                )
+            `)
+            .gte('payment_date', startDate.toISOString().split('T')[0])
+            .lte('payment_date', endDate.toISOString().split('T')[0])
+            .order('payment_date', { ascending: false });
+
+        if (error) throw error;
+
+        // Renderizar dados na tabela
+        renderWeeklyPaymentsTable(payments || []);
+        updateWeeklyPaymentsSummary(payments || []);
+
+    } catch (error) {
+        console.error('Erro ao carregar dados da semana:', error);
+        showErrorMessage('Erro ao carregar dados da semana selecionada');
+    }
+}
+
+// Função para atualizar display do período
+function updatePaymentPeriodDisplay(text) {
+    const display = document.getElementById('paymentPeriodDisplay');
+    if (display) {
+        display.textContent = text;
+    }
+}
+
+// Função para mostrar modal de clientes da semana
+async function showWeekClientsModal() {
+    if (!selectedWeekData) {
+        showErrorMessage('Selecione uma semana primeiro');
+        return;
+    }
+
+    const modal = document.getElementById('weekClientsModal');
+    const content = document.getElementById('weekClientsContent');
+    
+    showModal(modal);
+    
+    // Mostrar loading
+    content.innerHTML = `
+        <div class="text-center py-8">
+            <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+            <p class="text-gray-400 mt-2">Carregando clientes...</p>
+        </div>
+    `;
+
+    try {
+        // Buscar pagamentos da semana com detalhes dos clientes
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select(`
+                *,
+                loans (
+                    id,
+                    amount,
+                    interest_rate,
+                    clients (
+                        id,
+                        name,
+                        phone,
+                        email
+                    )
+                )
+            `)
+            .gte('payment_date', selectedWeekData.startDate.toISOString().split('T')[0])
+            .lte('payment_date', selectedWeekData.endDate.toISOString().split('T')[0])
+            .order('payment_date', { ascending: false });
+
+        if (error) throw error;
+
+        // Agrupar por cliente
+        const clientsMap = new Map();
+        payments.forEach(payment => {
+            const client = payment.loans?.clients;
+            if (!client) return;
+
+            if (!clientsMap.has(client.id)) {
+                clientsMap.set(client.id, {
+                    ...client,
+                    payments: [],
+                    totalPaid: 0,
+                    paymentCount: 0
+                });
+            }
+
+            const clientData = clientsMap.get(client.id);
+            clientData.payments.push(payment);
+            clientData.totalPaid += payment.amount;
+            clientData.paymentCount++;
+        });
+
+        const clients = Array.from(clientsMap.values());
+        renderWeekClientsModal(clients, selectedWeekData);
+
+    } catch (error) {
+        console.error('Erro ao carregar clientes da semana:', error);
+        content.innerHTML = `
+            <div class="text-center py-8 text-red-400">
+                <p>Erro ao carregar clientes</p>
+                <p class="text-sm mt-2">${error.message}</p>
+            </div>
+        `;
+    }
+}
+
+// Função para renderizar modal de clientes
+function renderWeekClientsModal(clients, weekData) {
+    const content = document.getElementById('weekClientsContent');
+    
+    if (clients.length === 0) {
+        content.innerHTML = `
+            <div class="text-center py-8 text-gray-400">
+                <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                </svg>
+                <p class="text-lg font-semibold">Nenhum cliente pagou nesta semana</p>
+                <p class="text-sm mt-2">${weekData.label}</p>
+            </div>
+        `;
+        return;
+    }
+
+    const totalAmount = clients.reduce((sum, client) => sum + client.totalPaid, 0);
+    const totalPayments = clients.reduce((sum, client) => sum + client.paymentCount, 0);
+
+    content.innerHTML = `
+        <div class="mb-6">
+            <h4 class="text-lg font-semibold text-white mb-2">${weekData.label}</h4>
+            <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+                <div class="bg-gray-700 p-4 rounded-lg text-center">
+                    <p class="text-sm text-gray-400">Clientes</p>
+                    <p class="text-2xl font-bold text-white">${clients.length}</p>
+                </div>
+                <div class="bg-gray-700 p-4 rounded-lg text-center">
+                    <p class="text-sm text-gray-400">Total Pagamentos</p>
+                    <p class="text-2xl font-bold text-white">${totalPayments}</p>
+                </div>
+                <div class="bg-gray-700 p-4 rounded-lg text-center">
+                    <p class="text-sm text-gray-400">Total Recebido</p>
+                    <p class="text-2xl font-bold text-green-400">R$ ${totalAmount.toFixed(2)}</p>
+                </div>
+            </div>
+        </div>
+
+        <div class="space-y-4">
+            ${clients.map(client => `
+                <div class="bg-gray-700 rounded-lg p-4">
+                    <div class="flex justify-between items-start mb-3">
+                        <div>
+                            <h5 class="text-lg font-semibold text-white">${client.name}</h5>
+                            <p class="text-sm text-gray-400">${client.phone || 'Telefone não informado'}</p>
+                            ${client.email ? `<p class="text-sm text-gray-400">${client.email}</p>` : ''}
+                        </div>
+                        <div class="text-right">
+                            <p class="text-lg font-bold text-green-400">R$ ${client.totalPaid.toFixed(2)}</p>
+                            <p class="text-sm text-gray-400">${client.paymentCount} pagamento${client.paymentCount > 1 ? 's' : ''}</p>
+                        </div>
+                    </div>
+                    
+                    <div class="space-y-2">
+                        ${client.payments.map(payment => `
+                            <div class="flex justify-between items-center bg-gray-800 p-2 rounded">
+                                <div>
+                                    <p class="text-sm text-white">${formatDate(payment.payment_date)}</p>
+                                    <p class="text-xs text-gray-400">Empréstimo #${payment.loan_id}</p>
+                                </div>
+                                <div class="text-right">
+                                    <p class="text-sm font-semibold text-green-400">R$ ${payment.amount.toFixed(2)}</p>
+                                    <p class="text-xs text-gray-400">${getPaymentMethodText(payment.payment_method)}</p>
+                                </div>
+                            </div>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Função para mostrar modal de histórico de PDFs
+function showPDFHistoryModal() {
+    const modal = document.getElementById('pdfHistoryModal');
+    const content = document.getElementById('pdfHistoryContent');
+    
+    showModal(modal);
+    
+    const history = getWeeklyPDFHistory();
+    
+    if (history.length === 0) {
+        content.innerHTML = `
+            <div class="text-center py-8 text-gray-400">
+                <svg class="w-16 h-16 mx-auto mb-4 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                </svg>
+                <p class="text-lg font-semibold">Nenhum PDF foi gerado ainda</p>
+                <p class="text-sm mt-2">Os PDFs gerados aparecerão aqui</p>
+            </div>
+        `;
+        return;
+    }
+
+    content.innerHTML = `
+        <div class="mb-4">
+            <p class="text-gray-400">Total de PDFs gerados: <span class="text-white font-semibold">${history.length}</span></p>
+        </div>
+        
+        <div class="space-y-3">
+            ${history.reverse().map((entry, index) => `
+                <div class="bg-gray-700 rounded-lg p-4 flex justify-between items-center">
+                    <div>
+                        <h5 class="text-white font-semibold">${entry.week}</h5>
+                        <p class="text-sm text-gray-400">Gerado em: ${entry.date}</p>
+                    </div>
+                    <div class="flex space-x-2">
+                        <button onclick="regeneratePDFForWeek('${entry.week}')" class="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-sm text-white transition-colors">
+                            Gerar Novamente
+                        </button>
+                    </div>
+                </div>
+            `).join('')}
+        </div>
+    `;
+}
+
+// Função para regenerar PDF de uma semana específica
+async function regeneratePDFForWeek(weekKey) {
+    try {
+        const [year, weekStr] = weekKey.split('-W');
+        const weekNumber = parseInt(weekStr);
+        
+        // Calcular datas da semana
+        const firstDayOfYear = new Date(parseInt(year), 0, 1);
+        const daysOffset = (weekNumber - 1) * 7;
+        const weekStart = new Date(firstDayOfYear.getTime() + daysOffset * 24 * 60 * 60 * 1000);
+        
+        // Ajustar para segunda-feira
+        const dayOfWeek = weekStart.getDay();
+        const mondayOffset = dayOfWeek === 0 ? -6 : 1 - dayOfWeek;
+        weekStart.setDate(weekStart.getDate() + mondayOffset);
+        
+        const weekEnd = new Date(weekStart);
+        weekEnd.setDate(weekStart.getDate() + 6);
+        
+        // Gerar PDF para essa semana específica
+        await generateWeeklyPaymentsPDFForDates(weekStart, weekEnd);
+        
+        showSuccessMessage(`PDF da ${weekKey} gerado novamente com sucesso!`);
+        
+    } catch (error) {
+        console.error('Erro ao regenerar PDF:', error);
+        showErrorMessage('Erro ao regenerar PDF: ' + error.message);
+    }
+}
+
+// Atualizar função de geração de PDF para usar semana selecionada
+async function generateWeeklyPaymentsPDFForSelectedWeek() {
+    if (!selectedWeekData) {
+        showErrorMessage('Selecione uma semana primeiro');
+        return;
+    }
+    
+    await generateWeeklyPaymentsPDFForDates(selectedWeekData.startDate, selectedWeekData.endDate);
+}
+
+// Função para gerar PDF para datas específicas
+async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
+    try {
+        // Buscar todos os pagamentos da semana especificada
+        const { data: weeklyPayments, error } = await supabase
+            .from('payments')
+            .select(`
+                *,
+                loans!inner (
+                    id,
+                    amount,
+                    interest_rate,
+                    clients!inner (
+                        name,
+                        phone
+                    )
+                )
+            `)
+            .gte('payment_date', startDate.toISOString().split('T')[0])
+            .lte('payment_date', endDate.toISOString().split('T')[0])
+            .order('payment_date', { ascending: false });
+
+        if (error) throw error;
+
+        const allWeeklyPayments = weeklyPayments || [];
+
+        // Criar PDF (usando a mesma lógica da função original)
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configurar fonte
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO DE PAGAMENTOS SEMANAIS', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const periodText = `Período: ${startDate.toLocaleDateString('pt-BR')} a ${endDate.toLocaleDateString('pt-BR')}`;
+        doc.text(periodText, 105, 30, { align: 'center' });
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 20, 40);
+        
+        // Linha divisória
+        doc.line(20, 45, 190, 45);
+        
+        let yPosition = 55;
+        
+        // Resumo
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO SEMANAL', 20, yPosition);
+        yPosition += 10;
+        
+        // Calcular totais
+        const totalPayments = allWeeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalCapital = allWeeklyPayments.reduce((sum, payment) => {
+            const loan = payment.loans;
+            const loanAmount = parseFloat(loan.amount);
+            const interestAmount = loanAmount * parseFloat(loan.interest_rate) / 100;
+            const capitalPortion = parseFloat(payment.amount) > interestAmount ? 
+                parseFloat(payment.amount) - interestAmount : 0;
+            return sum + capitalPortion;
+        }, 0);
+        const totalInterest = totalPayments - totalCapital;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de Pagamentos: ${allWeeklyPayments.length}`, 20, yPosition);
+        yPosition += 8;
+        doc.text(`Total Recebido: R$ ${totalPayments.toFixed(2)}`, 20, yPosition);
+        yPosition += 8;
+        doc.text(`Total em Juros: R$ ${totalInterest.toFixed(2)}`, 20, yPosition);
+        yPosition += 8;
+        doc.text(`Total em Capital: R$ ${totalCapital.toFixed(2)}`, 20, yPosition);
+        yPosition += 15;
+        
+        // Linha divisória
+        doc.line(20, yPosition, 190, yPosition);
+        yPosition += 10;
+        
+        // Cabeçalho da tabela
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALHAMENTO DOS PAGAMENTOS', 20, yPosition);
+        yPosition += 10;
+        
+        if (allWeeklyPayments.length > 0) {
+            // Cabeçalhos das colunas
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Data', 20, yPosition);
+            doc.text('Cliente', 45, yPosition);
+            doc.text('Valor Pago', 100, yPosition);
+            doc.text('Juros', 130, yPosition);
+            doc.text('Capital', 150, yPosition);
+            doc.text('Tipo', 170, yPosition);
+            yPosition += 5;
+            
+            // Linha separadora
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 8;
+            
+            // Dados dos pagamentos
+            doc.setFont('helvetica', 'normal');
+            
+            for (const payment of allWeeklyPayments) {
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                }
+                
+                const client = payment.loans.clients;
+                const loan = payment.loans;
+                const paymentAmount = parseFloat(payment.amount);
+                const loanAmount = parseFloat(loan.amount);
+                const interestRate = parseFloat(loan.interest_rate);
+                const interestAmount = loanAmount * interestRate / 100;
+                
+                let interestPaid = 0;
+                let capitalPaid = 0;
+                let paymentTypeText = '';
+                
+                if (payment.is_settlement) {
+                    // Quitação total
+                    interestPaid = interestAmount;
+                    capitalPaid = paymentAmount - interestAmount;
+                    paymentTypeText = 'QUITAÇÃO';
+                } else if (paymentAmount <= interestAmount) {
+                    // Pagamento apenas de juros
+                    interestPaid = paymentAmount;
+                    capitalPaid = 0;
+                    paymentTypeText = 'JUROS';
+                } else {
+                    // Pagamento de juros + capital
+                    interestPaid = interestAmount;
+                    capitalPaid = paymentAmount - interestAmount;
+                    paymentTypeText = 'PGTO';
+                }
+                
+                doc.text(formatDate(payment.payment_date), 20, yPosition);
+                doc.text(client.name.substring(0, 20), 45, yPosition);
+                doc.text(`R$ ${paymentAmount.toFixed(2)}`, 100, yPosition);
+                doc.text(`R$ ${interestPaid.toFixed(2)}`, 130, yPosition);
+                doc.text(`R$ ${capitalPaid.toFixed(2)}`, 150, yPosition);
+                doc.text(paymentTypeText, 170, yPosition);
+                
+                yPosition += 8;
+            }
+            
+            // Rodapé com totais
+            yPosition += 10;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 8;
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text('TOTAIS DA SEMANA:', 20, yPosition);
+            doc.text(`R$ ${totalPayments.toFixed(2)}`, 100, yPosition);
+            doc.text(`R$ ${totalInterest.toFixed(2)}`, 130, yPosition);
+            doc.text(`R$ ${totalCapital.toFixed(2)}`, 150, yPosition);
+        } else {
+            doc.text('Nenhum pagamento encontrado no período selecionado.', 20, yPosition);
+        }
+        
+        // Informações da empresa no rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${pageCount}`, 190, 290, { align: 'right' });
+            doc.text('Nexus Gestão Financeira', 20, 290);
+        }
+        
+        // Salvar o PDF
+        const fileName = `Pagamentos_Semana_${startDate.toLocaleDateString('pt-BR').replace(/\//g, '-')}_a_${endDate.toLocaleDateString('pt-BR').replace(/\//g, '-')}.pdf`;
+        doc.save(fileName);
+
+        // Adicionar ao histórico
+        const weekNumber = getWeekNumber(startDate);
+        const year = startDate.getFullYear();
+        const weekKey = `${year}-W${weekNumber}`;
+        addToWeeklyPDFHistory(weekKey);
+
+        const regularPayments = allWeeklyPayments.filter(p => !p.is_settlement).length;
+        const settlements = allWeeklyPayments.filter(p => p.is_settlement).length;
+        let message = `PDF gerado com sucesso! ${allWeeklyPayments.length} registros encontrados na semana`;
+        if (settlements > 0) {
+            message += ` (${regularPayments} pagamentos + ${settlements} quitações)`;
+        }
+        showSuccessMessage(message);
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF dos pagamentos semanais:', error);
+        showErrorMessage('Erro ao gerar PDF: ' + error.message);
+    }
 }

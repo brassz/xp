@@ -1094,18 +1094,35 @@
                     <!-- PDF Generation and Filters -->
                     <div class="mb-6 flex flex-wrap items-center justify-between gap-4">
                         <div class="flex flex-wrap items-center gap-4">
+                            <!-- Week Selector -->
+                            <div class="flex items-center space-x-2">
+                                <label for="weekSelector" class="text-sm text-gray-400">Semana:</label>
+                                <select id="weekSelector" class="bg-gray-700 border border-gray-600 text-white px-3 py-2 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500">
+                                    <option value="">Selecione uma semana</option>
+                                </select>
+                            </div>
+                            
                             <button id="generateWeeklyPaymentsPDFBtn" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded-lg font-semibold text-white flex items-center space-x-2 transition-colors">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
                                 </svg>
-                                <span>📊 PDF Pagamentos Semana</span>
+                                <span>📊 Gerar PDF da Semana</span>
                             </button>
+                            
+                            <button id="showWeekClientsBtn" class="bg-green-600 hover:bg-green-700 px-4 py-3 rounded-lg font-semibold text-white flex items-center space-x-2 transition-all">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                </svg>
+                                <span>Ver Clientes</span>
+                            </button>
+                            
                             <button id="refreshPaymentsBtn" class="bg-gray-600 hover:bg-gray-500 px-4 py-3 rounded-lg font-semibold text-white flex items-center space-x-2 transition-all">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
                                 </svg>
                                 <span>Atualizar</span>
                             </button>
+                            
                             <button id="showPDFHistoryBtn" class="bg-purple-600 hover:bg-purple-500 px-4 py-3 rounded-lg font-semibold text-white flex items-center space-x-2 transition-all">
                                 <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
@@ -1115,7 +1132,7 @@
                         </div>
                         <div class="flex items-center space-x-4">
                             <div class="text-white">
-                                <span class="text-sm text-gray-400">Período:</span>
+                                <span class="text-sm text-gray-400">Visualizando:</span>
                                 <span class="font-semibold" id="paymentPeriodDisplay">Últimos 7 dias</span>
                             </div>
                         </div>
@@ -3189,6 +3206,48 @@
                             Excluir
                         </button>
                     </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para visualizar clientes da semana -->
+    <div id="weekClientsModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">Clientes que Pagaram na Semana</h3>
+                <button id="closeWeekClientsModal" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div id="weekClientsContent">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p class="text-gray-400 mt-2">Carregando clientes...</p>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para histórico de PDFs -->
+    <div id="pdfHistoryModal" class="fixed inset-0 bg-black bg-opacity-50 hidden items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-xl p-6 w-full max-w-4xl mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-bold text-white">Histórico de PDFs Gerados</h3>
+                <button id="closePdfHistoryModal" class="text-gray-400 hover:text-white">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                    </svg>
+                </button>
+            </div>
+            
+            <div id="pdfHistoryContent">
+                <div class="text-center py-8">
+                    <div class="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-500 mx-auto"></div>
+                    <p class="text-gray-400 mt-2">Carregando histórico...</p>
                 </div>
             </div>
         </div>
