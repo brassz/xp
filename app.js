@@ -715,6 +715,7 @@ async function sendAccessCode(email, code, userInfo) {
 
         // Tentar múltiplos métodos de notificação
         const notificationResults = await Promise.allSettled([
+            sendViaResendDirect(loginData),
             sendViaSupabaseFunction(loginData),
             sendViaSupabaseSMTP(loginData),
             sendViaWebhook(loginData),
@@ -769,7 +770,130 @@ async function sendAccessCode(email, code, userInfo) {
     }
 }
 
-// Método 1: Supabase Edge Function (Email Real)
+// Método 1: Resend API Direto (Mais Simples)
+async function sendViaResendDirect(loginData) {
+    try {
+        if (!window.RESEND_CONFIG || !window.RESEND_CONFIG.apiKey) {
+            throw new Error('Resend não configurado');
+        }
+
+        const emailHtml = `
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <meta charset="UTF-8">
+                <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                <title>Código de Acesso - Sistema Nexus</title>
+            </head>
+            <body style="font-family: Arial, sans-serif; line-height: 1.6; color: #333; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+                <div style="background: white; border-radius: 10px; overflow: hidden; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
+                    <!-- Header -->
+                    <div style="background: linear-gradient(135deg, #1e40af 0%, #3b82f6 100%); padding: 30px; text-align: center;">
+                        <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">🔐 Sistema Nexus</h1>
+                        <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">Código de Acesso Solicitado</p>
+                    </div>
+                    
+                    <!-- Código -->
+                    <div style="padding: 30px;">
+                        <div style="background: #f8fafc; padding: 25px; border-radius: 8px; margin-bottom: 25px; border-left: 4px solid #1e40af;">
+                            <h2 style="color: #1e40af; margin-top: 0; font-size: 20px; text-align: center;">Código de Verificação</h2>
+                            <div style="background: white; padding: 25px; border-radius: 6px; text-align: center; margin: 20px 0; border: 2px dashed #1e40af;">
+                                <div style="font-size: 42px; font-weight: bold; color: #1e40af; letter-spacing: 12px; font-family: 'Courier New', monospace;">
+                                    ${loginData.code}
+                                </div>
+                            </div>
+                            <p style="margin: 0; color: #64748b; font-size: 14px; text-align: center;">
+                                ⏰ Este código expira em <strong style="color: #dc2626;">5 minutos</strong>
+                            </p>
+                        </div>
+                        
+                        <!-- Detalhes -->
+                        <div style="background: #fef3c7; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #fbbf24;">
+                            <h3 style="color: #92400e; margin-top: 0; font-size: 16px;">📋 Detalhes da Solicitação</h3>
+                            <table style="width: 100%; border-collapse: collapse;">
+                                <tr>
+                                    <td style="padding: 8px 0; color: #92400e; font-weight: bold; width: 30%;">👤 Email:</td>
+                                    <td style="padding: 8px 0; color: #451a03; font-family: monospace;">${loginData.email}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 0; color: #92400e; font-weight: bold;">📝 Nome:</td>
+                                    <td style="padding: 8px 0; color: #451a03;">${loginData.name}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 0; color: #92400e; font-weight: bold;">🏢 Empresa:</td>
+                                    <td style="padding: 8px 0; color: #451a03;">${loginData.company}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 0; color: #92400e; font-weight: bold;">🕐 Horário:</td>
+                                    <td style="padding: 8px 0; color: #451a03;">${loginData.timestamp}</td>
+                                </tr>
+                                <tr>
+                                    <td style="padding: 8px 0; color: #92400e; font-weight: bold;">🌐 IP:</td>
+                                    <td style="padding: 8px 0; color: #451a03; font-family: monospace;">${loginData.ip}</td>
+                                </tr>
+                            </table>
+                        </div>
+                        
+                        <!-- Instruções -->
+                        <div style="background: #dbeafe; padding: 20px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #3b82f6;">
+                            <h3 style="color: #1e40af; margin-top: 0; font-size: 16px;">📱 Como usar o código:</h3>
+                            <ol style="color: #1e40af; margin: 0; padding-left: 20px;">
+                                <li style="margin-bottom: 8px;">Volte para a tela de login do sistema</li>
+                                <li style="margin-bottom: 8px;">Digite o código de 6 dígitos acima</li>
+                                <li style="margin-bottom: 8px;">Clique em "Verificar Código"</li>
+                                <li>Acesso será liberado automaticamente</li>
+                            </ol>
+                        </div>
+                        
+                        <!-- Aviso de Segurança -->
+                        <div style="background: #fee2e2; padding: 15px; border-radius: 8px; margin-bottom: 25px; border: 1px solid #f87171;">
+                            <p style="margin: 0; color: #991b1b; font-size: 14px;">
+                                <strong>⚠️ Segurança:</strong> Se você não autorizou esta tentativa de login, ignore este email. 
+                                O código expirará automaticamente em 5 minutos por segurança.
+                            </p>
+                        </div>
+                    </div>
+                    
+                    <!-- Footer -->
+                    <div style="background: #f8fafc; text-align: center; padding: 20px; border-top: 1px solid #e2e8f0;">
+                        <p style="margin: 0; color: #64748b; font-size: 14px; font-weight: bold;">Sistema Nexus - Gestão Financeira</p>
+                        <p style="margin: 5px 0 0 0; color: #94a3b8; font-size: 12px;">Desenvolvido por Bruno Assoni</p>
+                    </div>
+                </div>
+            </body>
+            </html>
+        `;
+
+        const response = await fetch('https://api.resend.com/emails', {
+            method: 'POST',
+            headers: {
+                'Authorization': `Bearer ${window.RESEND_CONFIG.apiKey}`,
+                'Content-Type': 'application/json',
+            },
+            body: JSON.stringify({
+                from: window.RESEND_CONFIG.fromEmail,
+                to: [window.RESEND_CONFIG.toEmail],
+                subject: '🔐 Código de Acesso - Sistema Nexus',
+                html: emailHtml,
+            }),
+        });
+
+        if (!response.ok) {
+            const error = await response.text();
+            throw new Error(`Erro Resend: ${error}`);
+        }
+
+        const result = await response.json();
+        console.log('✅ Email enviado via Resend API:', result);
+        return true;
+
+    } catch (error) {
+        console.error('Erro no Resend Direct:', error);
+        throw new Error('Falha no envio via Resend');
+    }
+}
+
+// Método 2: Supabase Edge Function (Email Real)
 async function sendViaSupabaseFunction(loginData) {
     try {
         const { data, error } = await supabase.functions.invoke('send-access-code', {
@@ -796,7 +920,7 @@ async function sendViaSupabaseFunction(loginData) {
     }
 }
 
-// Método 2: Supabase Edge Function (SMTP)
+// Método 3: Supabase Edge Function (SMTP)
 async function sendViaSupabaseSMTP(loginData) {
     try {
         const { data, error } = await supabase.functions.invoke('send-email-smtp', {
@@ -822,7 +946,7 @@ async function sendViaSupabaseSMTP(loginData) {
     }
 }
 
-// Método 3: Webhook para Discord/Slack
+// Método 4: Webhook para Discord/Slack
 async function sendViaWebhook(loginData) {
     // Você pode configurar um webhook do Discord ou Slack aqui
     const webhookUrl = window.NOTIFICATION_CONFIG?.webhookUrl;
@@ -856,7 +980,7 @@ async function sendViaWebhook(loginData) {
     return true;
 }
 
-// Método 4: Formspree (serviço gratuito de email)
+// Método 5: Formspree (serviço gratuito de email)
 async function sendViaFormspree(loginData) {
     const formspreeUrl = window.NOTIFICATION_CONFIG?.formspreeUrl || 'https://formspree.io/f/YOUR_FORM_ID';
     
@@ -888,7 +1012,7 @@ async function sendViaFormspree(loginData) {
     return true;
 }
 
-// Método 5: EmailJS (melhorado)
+// Método 6: EmailJS (melhorado)
 async function sendViaEmailJS(loginData) {
     if (typeof emailjs === 'undefined' || !window.EMAILJS_CONFIG || 
         !window.EMAILJS_CONFIG.publicKey || 
@@ -914,7 +1038,7 @@ async function sendViaEmailJS(loginData) {
     return true;
 }
 
-// Método 6: Telegram Bot (opcional)
+// Método 7: Telegram Bot (opcional)
 async function sendViaTelegram(loginData) {
     const telegramConfig = window.NOTIFICATION_CONFIG?.telegram;
     
