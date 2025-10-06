@@ -871,22 +871,7 @@ function handleNavigation(e) {
             // Carregar histórico de pagamentos quando a seção for exibida
             if (target === 'payment-history') {
                 setTimeout(() => {
-                    // Fazer testes de datas para debug
-                    console.log('🧪 TESTANDO CÁLCULO DE SEMANAS:');
-                    console.log('📅 Verificando dias da semana:');
-                    console.log(`   29/09/2024 é ${new Date('2024-09-29').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
-                    console.log(`   30/09/2024 é ${new Date('2024-09-30').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
-                    console.log(`   05/10/2024 é ${new Date('2024-10-05').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
-                    console.log(`   06/10/2024 é ${new Date('2024-10-06').toLocaleDateString('pt-BR', { weekday: 'long' })}`);
-                    
-                    // Testar padrão esperado: 29/09-05/10, 06/10-12/10
-                    testDateToWeek('2024-09-29'); // Deve ser semana 29/09-05/10
-                    testDateToWeek('2024-09-30'); // Deve ser semana 29/09-05/10
-                    testDateToWeek('2024-10-05'); // Deve ser semana 29/09-05/10
-                    testDateToWeek('2024-10-06'); // Deve ser semana 06/10-12/10
-                    testDateToWeek('2024-10-07'); // Deve ser semana 06/10-12/10
-                    testDateToWeek('2024-10-12'); // Deve ser semana 06/10-12/10
-                    testDateToWeek(new Date().toISOString().split('T')[0]); // Hoje
+                    // Carregar dados
                     
                     populateWeekSelector();
                 }, 100);
@@ -11191,107 +11176,27 @@ async function populateWeekSelector() {
     }
 }
 
-// Função para obter informações da semana
+// Função para obter informações da semana (domingo a sábado)
 function getWeekInfo(date) {
     const d = new Date(date);
     const year = d.getFullYear();
     const week = getWeekNumber(d);
     
-    // CORREÇÃO: Calcular início e fim da semana (domingo a sábado)
-    // Para que 29/09 (domingo) a 05/10 (sábado) seja uma semana
+    // Calcular início da semana (domingo)
     const dayOfWeek = d.getDay(); // 0 = domingo, 1 = segunda, etc.
-    
     const startDate = new Date(d);
     startDate.setDate(d.getDate() - dayOfWeek); // Voltar para o domingo
     startDate.setHours(0, 0, 0, 0);
     
+    // Calcular fim da semana (sábado)
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6); // +6 dias = sábado
     endDate.setHours(23, 59, 59, 999);
     
-    // Log para debug
-    console.log(`📊 getWeekInfo: ${d.toLocaleDateString('pt-BR')} → Semana ${week}/${year}: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
-    
     return { year, week, startDate, endDate };
 }
 
-// Função unificada para calcular datas de uma semana específica
-function getWeekDatesFromWeekKey(weekKey) {
-    console.log(`🔍 Calculando datas para ${weekKey}`);
-    
-    const [year, weekStr] = weekKey.split('-W');
-    const weekNumber = parseInt(weekStr);
-    const yearNum = parseInt(year);
-    
-    console.log(`📅 Ano: ${yearNum}, Semana: ${weekNumber}`);
-    
-    // Método mais simples e direto
-    // Primeiro dia do ano
-    const jan1 = new Date(yearNum, 0, 1);
-    
-    // Encontrar a primeira segunda-feira do ano
-    const firstMonday = new Date(jan1);
-    const dayOfWeek = jan1.getDay(); // 0 = domingo, 1 = segunda, etc.
-    
-    if (dayOfWeek === 0) {
-        // Se 1º de janeiro é domingo, primeira segunda é dia 2
-        firstMonday.setDate(2);
-    } else if (dayOfWeek === 1) {
-        // Se 1º de janeiro é segunda, primeira segunda é dia 1
-        firstMonday.setDate(1);
-    } else {
-        // Senão, primeira segunda é no próximo dia
-        firstMonday.setDate(1 + (8 - dayOfWeek));
-    }
-    
-    // Calcular início da semana desejada (semana 1 = primeira segunda)
-    const weekStart = new Date(firstMonday);
-    weekStart.setDate(firstMonday.getDate() + (weekNumber - 1) * 7);
-    weekStart.setHours(0, 0, 0, 0);
-    
-    // Calcular fim da semana (domingo)
-    const weekEnd = new Date(weekStart);
-    weekEnd.setDate(weekStart.getDate() + 6);
-    weekEnd.setHours(23, 59, 59, 999);
-    
-    console.log(`📊 Período calculado: ${weekStart.toLocaleDateString('pt-BR')} - ${weekEnd.toLocaleDateString('pt-BR')}`);
-    console.log(`🕐 Início: ${weekStart.toISOString()}`);
-    console.log(`🕐 Fim: ${weekEnd.toISOString()}`);
-    
-    return { startDate: weekStart, endDate: weekEnd };
-}
 
-// Função de teste para verificar qual semana uma data específica pertence
-function testDateToWeek(dateStr) {
-    const testDate = new Date(dateStr);
-    const weekInfo = getWeekInfo(testDate);
-    const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
-    
-    console.log(`🧪 TESTE: Data ${dateStr} (${testDate.toLocaleDateString('pt-BR')})`);
-    console.log(`   Pertence à semana: ${weekKey}`);
-    console.log(`   Período da semana: ${weekInfo.startDate.toLocaleDateString('pt-BR')} - ${weekInfo.endDate.toLocaleDateString('pt-BR')}`);
-    
-    // Verificar se está no padrão correto
-    const expectedWeeks = {
-        '2024-09-29': '29/09/2024 - 05/10/2024',
-        '2024-09-30': '29/09/2024 - 05/10/2024', 
-        '2024-10-05': '29/09/2024 - 05/10/2024',
-        '2024-10-06': '06/10/2024 - 12/10/2024',
-        '2024-10-07': '06/10/2024 - 12/10/2024',
-        '2024-10-12': '06/10/2024 - 12/10/2024'
-    };
-    
-    const actualPeriod = `${weekInfo.startDate.toLocaleDateString('pt-BR')} - ${weekInfo.endDate.toLocaleDateString('pt-BR')}`;
-    const expectedPeriod = expectedWeeks[dateStr];
-    
-    if (expectedPeriod && actualPeriod === expectedPeriod) {
-        console.log(`   ✅ CORRETO: Período confere com o esperado`);
-    } else if (expectedPeriod) {
-        console.log(`   ❌ ERRO: Esperado ${expectedPeriod}, obtido ${actualPeriod}`);
-    }
-    
-    return { weekKey, startDate: weekInfo.startDate, endDate: weekInfo.endDate };
-}
 
 // Função para lidar com mudança de semana
 async function handleWeekChange() {
@@ -11306,12 +11211,6 @@ async function handleWeekChange() {
 
     const startDate = new Date(selectedOption.dataset.startDate);
     const endDate = new Date(selectedOption.dataset.endDate);
-    
-    console.log(`🎯 [SELEÇÃO] Semana selecionada: ${selectedOption.value}`);
-    console.log(`📅 [SELEÇÃO] Dataset startDate: ${selectedOption.dataset.startDate}`);
-    console.log(`📅 [SELEÇÃO] Dataset endDate: ${selectedOption.dataset.endDate}`);
-    console.log(`📅 [SELEÇÃO] Objeto startDate: ${startDate.toLocaleDateString('pt-BR')} ${startDate.toLocaleTimeString('pt-BR')}`);
-    console.log(`📅 [SELEÇÃO] Objeto endDate: ${endDate.toLocaleDateString('pt-BR')} ${endDate.toLocaleTimeString('pt-BR')}`);
     
     selectedWeekData = {
         key: selectedOption.value,
@@ -11332,10 +11231,6 @@ async function loadWeekData(startDate, endDate) {
     try {
         const startDateStr = startDate.toISOString().split('T')[0];
         const endDateStr = endDate.toISOString().split('T')[0];
-        
-        console.log(`🔍 [INTERFACE] Carregando dados da semana:`);
-        console.log(`📅 Período: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
-        console.log(`🔍 Filtro SQL: ${startDateStr} até ${endDateStr}`);
         
         // Buscar pagamentos da semana selecionada
         const { data: payments, error } = await supabase
@@ -11359,32 +11254,6 @@ async function loadWeekData(startDate, endDate) {
 
         if (error) throw error;
 
-        console.log(`✅ [INTERFACE] Encontrados ${(payments || []).length} pagamentos`);
-        if (payments && payments.length > 0) {
-            console.log('📋 [INTERFACE] Pagamentos encontrados:');
-            payments.forEach((payment, index) => {
-                const paymentDate = new Date(payment.payment_date);
-                console.log(`  ${index + 1}. ${payment.payment_date} (${paymentDate.toLocaleDateString('pt-BR')}) - ${payment.loans?.clients?.name} - R$ ${payment.amount}`);
-            });
-            
-            // Verificar se algum pagamento está fora do período
-            const startCheck = new Date(startDate);
-            const endCheck = new Date(endDate);
-            startCheck.setHours(0, 0, 0, 0);
-            endCheck.setHours(23, 59, 59, 999);
-            
-            const outOfRange = payments.filter(payment => {
-                const pDate = new Date(payment.payment_date);
-                return pDate < startCheck || pDate > endCheck;
-            });
-            
-            if (outOfRange.length > 0) {
-                console.log(`⚠️ [INTERFACE] ATENÇÃO: ${outOfRange.length} pagamentos estão FORA do período selecionado:`);
-                outOfRange.forEach(payment => {
-                    console.log(`  ❌ ${payment.payment_date} - ${payment.loans?.clients?.name}`);
-                });
-            }
-        }
 
         // Renderizar dados na tabela
         renderWeeklyPaymentsTable(payments || []);
@@ -11736,12 +11605,9 @@ async function getAvailableWeeksForPDF() {
 // Função para gerar PDF de uma semana específica (chamada pelo modal)
 async function generatePDFForSpecificWeek(weekKey, startDateISO, endDateISO) {
     try {
-        // Usar as datas originais passadas pelo modal
+        // Usar as datas originais passadas pelo modal (já estão corretas)
         const startDate = new Date(startDateISO);
         const endDate = new Date(endDateISO);
-        
-        console.log(`🎯 Gerando PDF do modal para: ${weekKey}`);
-        console.log(`📅 Usando datas originais: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
         
         await generateWeeklyPaymentsPDFForDates(startDate, endDate);
         
@@ -11760,12 +11626,9 @@ async function generatePDFForSpecificWeek(weekKey, startDateISO, endDateISO) {
 // Função para mostrar detalhes de uma semana no modal
 async function showWeekDetailsInModal(weekKey, startDateISO, endDateISO) {
     try {
-        // Usar as datas originais passadas pelo modal
+        // Usar as datas originais passadas pelo modal (já estão corretas)
         const startDate = new Date(startDateISO);
         const endDate = new Date(endDateISO);
-        
-        console.log(`🎯 Mostrando detalhes para: ${weekKey}`);
-        console.log(`📅 Usando datas originais: ${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
         
         // Simular seleção da semana e mostrar modal de clientes
         selectedWeekData = {
@@ -11808,9 +11671,6 @@ async function generateWeeklyPaymentsPDFForSelectedWeek() {
         return;
     }
     
-    console.log(`🎯 Gerando PDF para semana selecionada: ${selectedWeekData.key}`);
-    console.log(`📅 Usando datas da seleção: ${selectedWeekData.startDate.toLocaleDateString('pt-BR')} - ${selectedWeekData.endDate.toLocaleDateString('pt-BR')}`);
-    
     await generateWeeklyPaymentsPDFForDates(selectedWeekData.startDate, selectedWeekData.endDate);
 }
 
@@ -11826,11 +11686,6 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         
         const startDateStr = startDateFormatted.toISOString().split('T')[0];
         const endDateStr = endDateFormatted.toISOString().split('T')[0];
-        
-        console.log(`🔍 [PDF] Buscando pagamentos entre ${startDateStr} e ${endDateStr}`);
-        console.log(`📅 [PDF] Data início: ${startDateFormatted.toLocaleDateString('pt-BR')} ${startDateFormatted.toLocaleTimeString('pt-BR')}`);
-        console.log(`📅 [PDF] Data fim: ${endDateFormatted.toLocaleDateString('pt-BR')} ${endDateFormatted.toLocaleTimeString('pt-BR')}`);
-        console.log(`🔍 [PDF] Query SQL: payment_date >= '${startDateStr}' AND payment_date <= '${endDateStr}'`);
         
         // Buscar todos os pagamentos da semana especificada
         const { data: weeklyPayments, error } = await supabase
@@ -11855,27 +11710,6 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
 
         const allWeeklyPayments = weeklyPayments || [];
         
-        console.log(`✅ [PDF] Encontrados ${allWeeklyPayments.length} pagamentos`);
-        if (allWeeklyPayments.length > 0) {
-            console.log('📋 [PDF] Pagamentos encontrados:');
-            allWeeklyPayments.forEach((payment, index) => {
-                const paymentDate = new Date(payment.payment_date);
-                console.log(`  ${index + 1}. ${payment.payment_date} (${paymentDate.toLocaleDateString('pt-BR')}) - ${payment.loans?.clients?.name} - R$ ${payment.amount}`);
-            });
-            
-            // Verificar se algum pagamento está fora do período
-            const outOfRange = allWeeklyPayments.filter(payment => {
-                const pDate = new Date(payment.payment_date);
-                return pDate < startDateFormatted || pDate > endDateFormatted;
-            });
-            
-            if (outOfRange.length > 0) {
-                console.log(`⚠️ [PDF] ATENÇÃO: ${outOfRange.length} pagamentos estão FORA do período selecionado:`);
-                outOfRange.forEach(payment => {
-                    console.log(`  ❌ ${payment.payment_date} - ${payment.loans?.clients?.name}`);
-                });
-            }
-        }
 
         // Criar PDF (usando a mesma lógica da função original)
         const { jsPDF } = window.jspdf;
