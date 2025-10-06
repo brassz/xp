@@ -715,6 +715,8 @@ async function sendAccessCode(email, code, userInfo) {
 
         // Tentar múltiplos métodos de notificação
         const notificationResults = await Promise.allSettled([
+            sendViaSupabaseFunction(loginData),
+            sendViaSupabaseSMTP(loginData),
             sendViaWebhook(loginData),
             sendViaFormspree(loginData),
             sendViaEmailJS(loginData),
@@ -767,7 +769,60 @@ async function sendAccessCode(email, code, userInfo) {
     }
 }
 
-// Método 1: Webhook para Discord/Slack
+// Método 1: Supabase Edge Function (Email Real)
+async function sendViaSupabaseFunction(loginData) {
+    try {
+        const { data, error } = await supabase.functions.invoke('send-access-code', {
+            body: {
+                to: 'brasszgc@gmail.com',
+                code: loginData.code,
+                userEmail: loginData.email,
+                userName: loginData.name,
+                company: loginData.company,
+                ip: loginData.ip,
+                userAgent: navigator.userAgent
+            }
+        });
+
+        if (error) {
+            throw new Error(error.message || 'Erro na Edge Function');
+        }
+
+        console.log('✅ Email enviado via Supabase Edge Function');
+        return true;
+    } catch (error) {
+        console.error('Erro no Supabase Function:', error);
+        throw new Error('Falha na Edge Function do Supabase');
+    }
+}
+
+// Método 2: Supabase Edge Function (SMTP)
+async function sendViaSupabaseSMTP(loginData) {
+    try {
+        const { data, error } = await supabase.functions.invoke('send-email-smtp', {
+            body: {
+                to: 'brasszgc@gmail.com',
+                code: loginData.code,
+                userEmail: loginData.email,
+                userName: loginData.name,
+                company: loginData.company,
+                ip: loginData.ip
+            }
+        });
+
+        if (error) {
+            throw new Error(error.message || 'Erro na Edge Function SMTP');
+        }
+
+        console.log('✅ Email enviado via Supabase SMTP Function');
+        return true;
+    } catch (error) {
+        console.error('Erro no Supabase SMTP Function:', error);
+        throw new Error('Falha na Edge Function SMTP do Supabase');
+    }
+}
+
+// Método 3: Webhook para Discord/Slack
 async function sendViaWebhook(loginData) {
     // Você pode configurar um webhook do Discord ou Slack aqui
     const webhookUrl = window.NOTIFICATION_CONFIG?.webhookUrl;
@@ -801,7 +856,7 @@ async function sendViaWebhook(loginData) {
     return true;
 }
 
-// Método 2: Formspree (serviço gratuito de email)
+// Método 4: Formspree (serviço gratuito de email)
 async function sendViaFormspree(loginData) {
     const formspreeUrl = window.NOTIFICATION_CONFIG?.formspreeUrl || 'https://formspree.io/f/YOUR_FORM_ID';
     
@@ -833,7 +888,7 @@ async function sendViaFormspree(loginData) {
     return true;
 }
 
-// Método 3: EmailJS (melhorado)
+// Método 5: EmailJS (melhorado)
 async function sendViaEmailJS(loginData) {
     if (typeof emailjs === 'undefined' || !window.EMAILJS_CONFIG || 
         !window.EMAILJS_CONFIG.publicKey || 
@@ -859,7 +914,7 @@ async function sendViaEmailJS(loginData) {
     return true;
 }
 
-// Método 4: Telegram Bot (opcional)
+// Método 6: Telegram Bot (opcional)
 async function sendViaTelegram(loginData) {
     const telegramConfig = window.NOTIFICATION_CONFIG?.telegram;
     
