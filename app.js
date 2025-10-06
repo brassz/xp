@@ -11277,6 +11277,12 @@ async function handleWeekChange() {
     const startDate = new Date(selectedOption.dataset.startDate);
     const endDate = new Date(selectedOption.dataset.endDate);
     
+    console.log(`🎯 [SELEÇÃO] Semana selecionada: ${selectedOption.value}`);
+    console.log(`📅 [SELEÇÃO] Dataset startDate: ${selectedOption.dataset.startDate}`);
+    console.log(`📅 [SELEÇÃO] Dataset endDate: ${selectedOption.dataset.endDate}`);
+    console.log(`📅 [SELEÇÃO] Objeto startDate: ${startDate.toLocaleDateString('pt-BR')} ${startDate.toLocaleTimeString('pt-BR')}`);
+    console.log(`📅 [SELEÇÃO] Objeto endDate: ${endDate.toLocaleDateString('pt-BR')} ${endDate.toLocaleTimeString('pt-BR')}`);
+    
     selectedWeekData = {
         key: selectedOption.value,
         startDate,
@@ -11327,8 +11333,27 @@ async function loadWeekData(startDate, endDate) {
         if (payments && payments.length > 0) {
             console.log('📋 [INTERFACE] Pagamentos encontrados:');
             payments.forEach((payment, index) => {
-                console.log(`  ${index + 1}. ${payment.payment_date} - ${payment.loans?.clients?.name} - R$ ${payment.amount}`);
+                const paymentDate = new Date(payment.payment_date);
+                console.log(`  ${index + 1}. ${payment.payment_date} (${paymentDate.toLocaleDateString('pt-BR')}) - ${payment.loans?.clients?.name} - R$ ${payment.amount}`);
             });
+            
+            // Verificar se algum pagamento está fora do período
+            const startCheck = new Date(startDate);
+            const endCheck = new Date(endDate);
+            startCheck.setHours(0, 0, 0, 0);
+            endCheck.setHours(23, 59, 59, 999);
+            
+            const outOfRange = payments.filter(payment => {
+                const pDate = new Date(payment.payment_date);
+                return pDate < startCheck || pDate > endCheck;
+            });
+            
+            if (outOfRange.length > 0) {
+                console.log(`⚠️ [INTERFACE] ATENÇÃO: ${outOfRange.length} pagamentos estão FORA do período selecionado:`);
+                outOfRange.forEach(payment => {
+                    console.log(`  ❌ ${payment.payment_date} - ${payment.loans?.clients?.name}`);
+                });
+            }
         }
 
         // Renderizar dados na tabela
@@ -11772,9 +11797,10 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         const startDateStr = startDateFormatted.toISOString().split('T')[0];
         const endDateStr = endDateFormatted.toISOString().split('T')[0];
         
-        console.log(`🔍 Buscando pagamentos entre ${startDateStr} e ${endDateStr}`);
-        console.log(`📅 Data início formatada: ${startDateFormatted.toLocaleDateString('pt-BR')}`);
-        console.log(`📅 Data fim formatada: ${endDateFormatted.toLocaleDateString('pt-BR')}`);
+        console.log(`🔍 [PDF] Buscando pagamentos entre ${startDateStr} e ${endDateStr}`);
+        console.log(`📅 [PDF] Data início: ${startDateFormatted.toLocaleDateString('pt-BR')} ${startDateFormatted.toLocaleTimeString('pt-BR')}`);
+        console.log(`📅 [PDF] Data fim: ${endDateFormatted.toLocaleDateString('pt-BR')} ${endDateFormatted.toLocaleTimeString('pt-BR')}`);
+        console.log(`🔍 [PDF] Query SQL: payment_date >= '${startDateStr}' AND payment_date <= '${endDateStr}'`);
         
         // Buscar todos os pagamentos da semana especificada
         const { data: weeklyPayments, error } = await supabase
@@ -11799,12 +11825,26 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
 
         const allWeeklyPayments = weeklyPayments || [];
         
-        console.log(`✅ Encontrados ${allWeeklyPayments.length} pagamentos`);
+        console.log(`✅ [PDF] Encontrados ${allWeeklyPayments.length} pagamentos`);
         if (allWeeklyPayments.length > 0) {
-            console.log('📋 Datas dos pagamentos encontrados:');
+            console.log('📋 [PDF] Pagamentos encontrados:');
             allWeeklyPayments.forEach((payment, index) => {
-                console.log(`  ${index + 1}. ${payment.payment_date} - ${payment.loans?.clients?.name} - R$ ${payment.amount}`);
+                const paymentDate = new Date(payment.payment_date);
+                console.log(`  ${index + 1}. ${payment.payment_date} (${paymentDate.toLocaleDateString('pt-BR')}) - ${payment.loans?.clients?.name} - R$ ${payment.amount}`);
             });
+            
+            // Verificar se algum pagamento está fora do período
+            const outOfRange = allWeeklyPayments.filter(payment => {
+                const pDate = new Date(payment.payment_date);
+                return pDate < startDateFormatted || pDate > endDateFormatted;
+            });
+            
+            if (outOfRange.length > 0) {
+                console.log(`⚠️ [PDF] ATENÇÃO: ${outOfRange.length} pagamentos estão FORA do período selecionado:`);
+                outOfRange.forEach(payment => {
+                    console.log(`  ❌ ${payment.payment_date} - ${payment.loans?.clients?.name}`);
+                });
+            }
         }
 
         // Criar PDF (usando a mesma lógica da função original)
