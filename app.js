@@ -770,16 +770,31 @@ async function sendVerificationCode() {
         
     } catch (error) {
         console.error('❌ Erro ao enviar código por email:', error);
+        console.error('Detalhes completos do erro:', {
+            status: error.status,
+            message: error.message,
+            text: error.text,
+            stack: error.stack
+        });
         
         // Mostrar erro específico baseado no tipo
         let errorMessage = 'Erro ao enviar código de verificação.';
         
-        if (error.message && error.message.includes('412')) {
-            errorMessage = 'Erro de permissão do Gmail. Verifique a configuração do EmailJS.';
-        } else if (error.message && error.message.includes('400')) {
-            errorMessage = 'Template ou serviço não encontrado. Verifique as configurações.';
-        } else if (error.message && error.message.includes('401')) {
-            errorMessage = 'Chave de API inválida. Verifique a Public Key.';
+        if (error.status === 422) {
+            errorMessage = 'Erro 422: Template não encontrado ou parâmetros incorretos. Verifique o template no EmailJS.';
+            console.error('🔍 ERRO 422 - Possíveis causas:');
+            console.error('1. Template template_z3n0654 não existe');
+            console.error('2. Template não está ativo');
+            console.error('3. Parâmetros do template estão incorretos');
+            console.error('4. Service service_0ap0m1k não existe');
+        } else if (error.status === 412 || (error.message && error.message.includes('412'))) {
+            errorMessage = 'Erro de permissão do Gmail. Reconfigure o Gmail no EmailJS.';
+        } else if (error.status === 400) {
+            errorMessage = 'Erro 400: Dados inválidos. Verifique as configurações.';
+        } else if (error.status === 401) {
+            errorMessage = 'Erro 401: Chave de API inválida. Verifique a Public Key.';
+        } else if (error.status === 404) {
+            errorMessage = 'Erro 404: Serviço ou template não encontrado.';
         }
         
         showNotification(errorMessage, 'error');
