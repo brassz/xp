@@ -730,13 +730,18 @@ async function sendVerificationCode() {
         
         console.log('EmailJS disponível, enviando email...');
         
-        // Preparar dados do template
-        const templateParams = {
+        // Preparar dados do template - vamos tentar diferentes formatos
+        console.log('Tentando diferentes formatos de parâmetros...');
+        
+        // Formato 1: Parâmetros atuais
+        let templateParams = {
             to_email: verificationEmail,
             verification_code: verificationCode,
             system_name: 'Nexus Gestão Financeira',
             expiry_time: '5 minutos'
         };
+        
+        console.log('Tentativa 1 - Parâmetros atuais:', templateParams);
         
         console.log('Enviando para:', verificationEmail);
         console.log('Configurações EmailJS:', {
@@ -744,12 +749,70 @@ async function sendVerificationCode() {
             templateId: EMAILJS_CONFIG.templateId
         });
         
-        // Enviar email via EmailJS
-        const result = await emailjs.send(
-            EMAILJS_CONFIG.serviceId,
-            EMAILJS_CONFIG.templateId,
-            templateParams
-        );
+        // Tentar diferentes formatos de parâmetros até um funcionar
+        const parameterFormats = [
+            // Formato 1: Atual
+            {
+                to_email: verificationEmail,
+                verification_code: verificationCode,
+                system_name: 'Nexus Gestão Financeira',
+                expiry_time: '5 minutos'
+            },
+            // Formato 2: Simples
+            {
+                email: verificationEmail,
+                code: verificationCode
+            },
+            // Formato 3: Padrão EmailJS
+            {
+                user_email: verificationEmail,
+                message: `Código de verificação: ${verificationCode}`
+            },
+            // Formato 4: Mínimo
+            {
+                to_email: verificationEmail,
+                verification_code: verificationCode
+            },
+            // Formato 5: Alternativo
+            {
+                recipient_email: verificationEmail,
+                auth_code: verificationCode,
+                app_name: 'Nexus'
+            }
+        ];
+        
+        let result = null;
+        let lastError = null;
+        
+        for (let i = 0; i < parameterFormats.length; i++) {
+            const params = parameterFormats[i];
+            console.log(`Tentativa ${i + 1} com parâmetros:`, params);
+            
+            try {
+                result = await emailjs.send(
+                    EMAILJS_CONFIG.serviceId,
+                    EMAILJS_CONFIG.templateId,
+                    params
+                );
+                
+                console.log(`✅ Sucesso na tentativa ${i + 1}!`);
+                break;
+                
+            } catch (error) {
+                console.warn(`❌ Tentativa ${i + 1} falhou:`, error.status, error.message);
+                lastError = error;
+                
+                // Se não for erro 422, não vale a pena tentar outros formatos
+                if (error.status !== 422) {
+                    throw error;
+                }
+            }
+        }
+        
+        // Se chegou aqui e não tem result, todos os formatos falharam
+        if (!result) {
+            throw lastError || new Error('Todos os formatos de parâmetros falharam');
+        }
         
         console.log('✅ Email enviado com sucesso!', result);
         showNotification(`Código de verificação enviado para ${verificationEmail}`, 'success');
