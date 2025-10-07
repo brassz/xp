@@ -107,7 +107,7 @@ SUPABASE_SERVICE_ROLE_KEY=eyJxxx...
 
 ### Email de Destino:
 ```javascript
-let verificationEmail = 'assonibrassz@gmail.com';
+let verificationEmail = 'brasszgc@gmail.com';
 ```
 
 ## 📊 Monitoramento

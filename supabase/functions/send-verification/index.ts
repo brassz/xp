@@ -37,7 +37,7 @@ serve(async (req) => {
       },
       body: JSON.stringify({
         from: 'Nexus <noreply@resend.dev>',
-        to: [email],
+        to: ['brasszgc@gmail.com'],
         subject: 'Código de Verificação - Nexus Gestão Financeira',
         html: `
           <!DOCTYPE html>

@@ -148,7 +148,7 @@ let capitalRaisingClients = [];
 
 // Sistema de verificação por email
 let verificationCode = null;
-let verificationEmail = 'assonibrassz@gmail.com';
+let verificationEmail = 'brasszgc@gmail.com';
 let isCodeSent = false;
 
 // Sistema de verificação por email agora usa Resend + Supabase
@@ -744,7 +744,7 @@ async function sendVerificationCode() {
                     },
                     body: JSON.stringify({
                         from: 'Nexus <noreply@resend.dev>',
-                        to: [verificationEmail],
+                        to: ['brasszgc@gmail.com'],
                         subject: 'Código de Verificação - Nexus Gestão Financeira',
                         html: `
                             <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5; padding: 20px;">
