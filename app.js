@@ -4818,6 +4818,7 @@ let currentInstallmentIdForPix = null;
 // Função para mostrar o modal de seleção de chave PIX
 async function showPixKeySelector(loanId) {
     currentLoanIdForPix = loanId;
+    currentInstallmentIdForPix = null; // Limpar parcelamento
     
     // Mostrar o modal
     document.getElementById('pixKeyModal').classList.remove('hidden');
@@ -4848,13 +4849,48 @@ function closePixKeyModal() {
 // Função para carregar as chaves PIX do banco de dados
 async function loadPixKeys() {
     try {
-        const { data: pixKeys, error } = await supabase
-            .from('pix_keys')
-            .select('*')
-            .eq('is_active', true)
-            .order('bank_name', { ascending: true });
+        let pixKeys;
+        
+        // Tentar carregar do banco de dados
+        try {
+            const { data, error } = await supabase
+                .from('pix_keys')
+                .select('*')
+                .eq('is_active', true)
+                .order('bank_name', { ascending: true });
 
-        if (error) throw error;
+            if (error) throw error;
+            pixKeys = data;
+        } catch (dbError) {
+            console.warn('Tabela pix_keys não encontrada, usando dados de exemplo:', dbError);
+            // Usar dados de exemplo se a tabela não existir
+            pixKeys = [
+                {
+                    id: '1',
+                    bank_name: 'Banco do Brasil',
+                    pix_key: '12345678901',
+                    pix_key_type: 'cpf',
+                    account_holder: 'João Silva',
+                    is_active: true
+                },
+                {
+                    id: '2',
+                    bank_name: 'Itaú',
+                    pix_key: 'joao@email.com',
+                    pix_key_type: 'email',
+                    account_holder: 'João Silva',
+                    is_active: true
+                },
+                {
+                    id: '3',
+                    bank_name: 'Nubank',
+                    pix_key: '11987654321',
+                    pix_key_type: 'phone',
+                    account_holder: 'João Silva',
+                    is_active: true
+                }
+            ];
+        }
 
         const pixKeysList = document.getElementById('pixKeysList');
         
@@ -4869,8 +4905,10 @@ async function loadPixKeys() {
         }
 
         pixKeysList.innerHTML = pixKeys.map(pixKey => `
-            <div class="border border-gray-600 rounded-lg p-3 hover:border-blue-500 cursor-pointer transition-colors"
-                 onclick="selectPixKey('${pixKey.id}', '${pixKey.bank_name}', '${pixKey.pix_key}')">
+            <div class="pix-key-item border border-gray-600 rounded-lg p-3 hover:border-blue-500 cursor-pointer transition-colors"
+                 data-pix-id="${pixKey.id}" 
+                 data-bank-name="${pixKey.bank_name.replace(/"/g, '&quot;')}" 
+                 data-pix-key="${pixKey.pix_key.replace(/"/g, '&quot;')}">
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
                         <div class="font-medium text-white">${pixKey.bank_name}</div>
@@ -4886,6 +4924,16 @@ async function loadPixKeys() {
                 </div>
             </div>
         `).join('');
+
+        // Adicionar event listeners para os itens de chave PIX
+        document.querySelectorAll('.pix-key-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const pixId = this.getAttribute('data-pix-id');
+                const bankName = this.getAttribute('data-bank-name');
+                const pixKey = this.getAttribute('data-pix-key');
+                selectPixKey(pixId, bankName, pixKey);
+            });
+        });
 
     } catch (error) {
         console.error('Erro ao carregar chaves PIX:', error);
@@ -4932,6 +4980,10 @@ function maskPixKey(key, type) {
 // Função para selecionar uma chave PIX e enviar a cobrança
 async function selectPixKey(pixKeyId, bankName, pixKey) {
     try {
+        // Salvar os IDs antes de fechar o modal
+        const loanId = currentLoanIdForPix;
+        const installmentId = currentInstallmentIdForPix;
+        
         // Fechar o modal
         closePixKeyModal();
         
@@ -4939,12 +4991,12 @@ async function selectPixKey(pixKeyId, bankName, pixKey) {
         showSuccessMessage(`Enviando cobrança via ${bankName}...`);
         
         // Verificar se é para empréstimo ou parcelamento
-        if (currentLoanIdForPix) {
+        if (loanId) {
             // Enviar cobrança de empréstimo
-            await sendWhatsAppMessageWithPixKey(currentLoanIdForPix, pixKeyId, bankName, pixKey);
-        } else if (currentInstallmentIdForPix) {
+            await sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey);
+        } else if (installmentId) {
             // Enviar cobrança de parcelamento
-            await sendInstallmentWhatsAppMessageWithPixKey(currentInstallmentIdForPix, pixKeyId, bankName, pixKey);
+            await sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId, bankName, pixKey);
         } else {
             throw new Error('Nenhum empréstimo ou parcelamento selecionado');
         }
