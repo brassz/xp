@@ -26,31 +26,17 @@ serve(async (req) => {
       )
     }
 
-    // Configurar Resend
-    const RESEND_API_KEY = Deno.env.get('RESEND_API_KEY')
-    
-    if (!RESEND_API_KEY) {
-      console.error('RESEND_API_KEY não configurada')
-      return new Response(
-        JSON.stringify({ error: 'Configuração de email não encontrada' }),
-        { 
-          status: 500, 
-          headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-        }
-      )
-    }
-
-    // Enviar email via Resend
     console.log(`Enviando código ${code} para ${email}`)
     
+    // Enviar email via Resend com API Key configurada
     const emailResponse = await fetch('https://api.resend.com/emails', {
       method: 'POST',
       headers: {
-        'Authorization': `Bearer ${RESEND_API_KEY}`,
+        'Authorization': 'Bearer re_fLRYWVd5_NJMbNNBZGrWPDBVLBkeaEn4Z',
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        from: 'Nexus <noreply@nexus.com>',
+        from: 'Nexus <noreply@resend.dev>',
         to: [email],
         subject: 'Código de Verificação - Nexus Gestão Financeira',
         html: `
@@ -60,38 +46,67 @@ serve(async (req) => {
             <meta charset="utf-8">
             <title>Código de Verificação</title>
           </head>
-          <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px;">
-            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 10px; text-align: center;">
-              <h1 style="color: white; margin: 0;">Nexus Gestão Financeira</h1>
+          <body style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; padding: 20px; background-color: #f5f5f5;">
+            
+            <!-- Header -->
+            <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; border-radius: 15px 15px 0 0; text-align: center;">
+              <h1 style="color: white; margin: 0; font-size: 28px; font-weight: bold;">
+                🏢 Nexus Gestão Financeira
+              </h1>
+              <p style="color: #e0e7ff; margin: 10px 0 0 0; font-size: 16px;">
+                Sistema de Verificação Segura
+              </p>
             </div>
             
-            <div style="background: #f8f9fa; padding: 30px; border-radius: 10px; margin-top: 20px;">
-              <h2 style="color: #333; text-align: center;">Código de Verificação</h2>
+            <!-- Content -->
+            <div style="background: white; padding: 40px; border-radius: 0 0 15px 15px; box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);">
               
-              <p style="color: #666; font-size: 16px; text-align: center;">
-                Seu código de verificação para acessar o sistema é:
+              <h2 style="color: #333; text-align: center; margin-bottom: 20px; font-size: 24px;">
+                🔐 Código de Verificação
+              </h2>
+              
+              <p style="color: #666; font-size: 16px; text-align: center; line-height: 1.6;">
+                Para acessar o sistema Nexus, use o código de verificação abaixo:
               </p>
               
-              <div style="background: #fff; border: 2px solid #667eea; border-radius: 10px; padding: 20px; margin: 20px 0; text-align: center;">
-                <h1 style="font-size: 48px; color: #667eea; margin: 0; letter-spacing: 8px; font-family: 'Courier New', monospace;">
+              <!-- Code Box -->
+              <div style="background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%); border: 3px solid #667eea; border-radius: 15px; padding: 30px; margin: 30px 0; text-align: center; box-shadow: 0 2px 4px rgba(102, 126, 234, 0.1);">
+                <div style="font-size: 48px; color: #667eea; margin: 0; letter-spacing: 12px; font-family: 'Courier New', monospace; font-weight: bold;">
                   ${code}
-                </h1>
+                </div>
               </div>
               
-              <p style="color: #666; font-size: 14px; text-align: center;">
-                Este código expira em <strong>5 minutos</strong>.
+              <!-- Info -->
+              <div style="background: #fef3cd; border: 1px solid #fbbf24; border-radius: 8px; padding: 15px; margin: 20px 0;">
+                <p style="color: #92400e; margin: 0; font-size: 14px; text-align: center;">
+                  ⏰ Este código expira em <strong>5 minutos</strong>
+                </p>
+              </div>
+              
+              <p style="color: #666; font-size: 14px; text-align: center; line-height: 1.6;">
+                Digite este código no campo de verificação para completar seu login.
               </p>
               
-              <p style="color: #999; font-size: 12px; text-align: center; margin-top: 30px;">
-                Se você não solicitou este código, ignore este email.
+              <!-- Security Notice -->
+              <div style="border-top: 1px solid #e5e7eb; padding-top: 20px; margin-top: 30px;">
+                <p style="color: #9ca3af; font-size: 12px; text-align: center; line-height: 1.5;">
+                  🔒 Por segurança, nunca compartilhe este código com outras pessoas.<br>
+                  Se você não solicitou este código, ignore este email.
+                </p>
+              </div>
+              
+            </div>
+            
+            <!-- Footer -->
+            <div style="text-align: center; margin-top: 20px;">
+              <p style="color: #9ca3af; font-size: 12px; margin: 0;">
+                © 2024 Nexus Gestão Financeira. Todos os direitos reservados.
+              </p>
+              <p style="color: #9ca3af; font-size: 12px; margin: 5px 0 0 0;">
+                Sistema desenvolvido por Bruno Assoni
               </p>
             </div>
             
-            <div style="text-align: center; margin-top: 20px;">
-              <p style="color: #999; font-size: 12px;">
-                © 2024 Nexus Gestão Financeira. Todos os direitos reservados.
-              </p>
-            </div>
           </body>
           </html>
         `,
@@ -111,7 +126,7 @@ serve(async (req) => {
       )
     }
 
-    console.log('Email enviado com sucesso:', emailResult)
+    console.log('Email enviado com sucesso via Resend:', emailResult)
 
     // Salvar código no banco de dados
     const supabaseUrl = Deno.env.get('SUPABASE_URL')!
@@ -129,13 +144,16 @@ serve(async (req) => {
     if (dbError) {
       console.error('Erro ao salvar no banco:', dbError)
       // Não falhar se não conseguir salvar no banco, email já foi enviado
+    } else {
+      console.log('Código salvo no banco com sucesso')
     }
 
     return new Response(
       JSON.stringify({ 
         success: true, 
-        message: 'Código enviado com sucesso',
-        emailId: emailResult.id 
+        message: 'Código enviado com sucesso para ' + email,
+        emailId: emailResult.id,
+        timestamp: new Date().toISOString()
       }),
       { 
         status: 200, 
@@ -144,9 +162,13 @@ serve(async (req) => {
     )
 
   } catch (error) {
-    console.error('Erro na função:', error)
+    console.error('Erro na função send-verification:', error)
     return new Response(
-      JSON.stringify({ error: 'Erro interno do servidor', details: error.message }),
+      JSON.stringify({ 
+        error: 'Erro interno do servidor', 
+        details: error.message,
+        timestamp: new Date().toISOString()
+      }),
       { 
         status: 500, 
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }

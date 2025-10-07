@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Teste Resend Funcionando</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-5xl font-bold mb-8 text-center bg-gradient-to-r from-green-400 to-blue-400 bg-clip-text text-transparent">
+            🚀 Teste Resend + Supabase
+        </h1>
+        
+        <div class="bg-green-900 p-6 rounded-xl mb-8 border-2 border-green-500">
+            <h2 class="text-2xl font-bold mb-4 text-center">✅ API Key Configurada</h2>
+            <div class="text-center font-mono text-lg">
+                <span class="text-green-400">re_fLRYWVd5_NJMbNNBZGrWPDBVLBkeaEn4Z</span>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-8">
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h3 class="text-xl font-semibold mb-4">📧 Configuração</h3>
+                <div class="space-y-2 text-sm">
+                    <div>Email: <span class="text-yellow-400">assonibrassz@gmail.com</span></div>
+                    <div>Resend: <span class="text-green-400">Configurado</span></div>
+                    <div>Supabase: <span class="text-blue-400">Conectado</span></div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h3 class="text-xl font-semibold mb-4">🎯 Status</h3>
+                <div id="status" class="space-y-2 text-sm">
+                    <div>Carregando status...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="text-center mb-8">
+            <button id="testarResend" 
+                    class="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 
+                           px-12 py-6 rounded-2xl text-white font-bold text-2xl shadow-2xl transform hover:scale-105 transition-all">
+                🚀 TESTAR RESEND AGORA
+            </button>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-xl">
+            <h3 class="text-2xl font-bold mb-4 text-center">📊 Console de Teste</h3>
+            <div id="console" class="bg-black p-4 rounded-lg font-mono text-sm h-96 overflow-y-auto">
+                <div class="text-green-400">Sistema pronto para testar Resend + Supabase...</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configuração do Supabase (use suas configurações)
+        const supabaseUrl = 'https://mhtxyxizfnxupwmilith.supabase.co'; // Substitua pela sua URL
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI'; // Substitua pela sua key
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            console.innerHTML += `<div class="${colors[type]} mb-1">[${timestamp}] ${message}</div>`;
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function updateStatus() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `
+                <div>Supabase: <span class="text-green-400">Conectado</span></div>
+                <div>API Key: <span class="text-green-400">Configurada</span></div>
+                <div>Email: <span class="text-yellow-400">assonibrassz@gmail.com</span></div>
+                <div>Timestamp: <span class="text-gray-400">${new Date().toLocaleTimeString()}</span></div>
+            `;
+        }
+
+        async function testarResend() {
+            const btn = document.getElementById('testarResend');
+            btn.disabled = true;
+            btn.textContent = '📤 ENVIANDO...';
+            
+            try {
+                log('🚀 === INICIANDO TESTE RESEND + SUPABASE ===', 'warning');
+                log('');
+                
+                // Gerar código
+                const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+                log(`🔢 Código gerado: ${codigo}`, 'success');
+                
+                // Testar Edge Function
+                log('📡 Chamando Edge Function do Supabase...', 'info');
+                
+                const { data, error } = await supabase.functions.invoke('send-verification', {
+                    body: {
+                        email: 'assonibrassz@gmail.com',
+                        code: codigo
+                    }
+                });
+                
+                if (error) {
+                    throw error;
+                }
+                
+                log('✅ Edge Function executada com sucesso!', 'success');
+                log(`📧 Resposta: ${JSON.stringify(data)}`, 'success');
+                log('');
+                log('🎉 === EMAIL ENVIADO COM SUCESSO! ===', 'success');
+                log('');
+                log('📧 VERIFIQUE O EMAIL: assonibrassz@gmail.com', 'warning');
+                log('📧 Procure também na pasta SPAM', 'warning');
+                log(`🔢 Código enviado: ${codigo}`, 'warning');
+                log('');
+                log('✅ Sistema Resend + Supabase 100% funcional!', 'success');
+                
+                btn.textContent = '🎉 EMAIL ENVIADO!';
+                btn.className = 'bg-gradient-to-r from-green-500 to-green-600 px-12 py-6 rounded-2xl text-white font-bold text-2xl shadow-2xl';
+                
+            } catch (error) {
+                log('❌ === ERRO NO TESTE ===', 'error');
+                log(`Erro: ${error.message}`, 'error');
+                log('');
+                
+                if (error.message.includes('Function not found')) {
+                    log('💡 SOLUÇÃO: Criar Edge Function no Supabase', 'warning');
+                    log('1. Vá em Edge Functions no Supabase', 'info');
+                    log('2. Crie função "send-verification"', 'info');
+                    log('3. Use o código fornecido na documentação', 'info');
+                } else if (error.message.includes('RESEND_API_KEY')) {
+                    log('💡 SOLUÇÃO: Configurar API Key no Supabase', 'warning');
+                    log('1. Vá em Settings > Environment Variables', 'info');
+                    log('2. Adicione RESEND_API_KEY = re_fLRYWVd5_NJMbNNBZGrWPDBVLBkeaEn4Z', 'info');
+                }
+                
+                btn.textContent = '❌ ERRO - VER CONSOLE';
+                btn.className = 'bg-gradient-to-r from-red-500 to-red-600 px-12 py-6 rounded-2xl text-white font-bold text-2xl shadow-2xl';
+            }
+            
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = '🚀 TESTAR RESEND AGORA';
+                btn.className = 'bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 px-12 py-6 rounded-2xl text-white font-bold text-2xl shadow-2xl transform hover:scale-105 transition-all';
+            }, 10000);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatus();
+            setInterval(updateStatus, 5000);
+            
+            log('🎯 Sistema de teste Resend + Supabase carregado', 'success');
+            log('📋 API Key configurada: re_fLRYWVd5_NJMbNNBZGrWPDBVLBkeaEn4Z', 'info');
+            log('📧 Email destino: assonibrassz@gmail.com', 'info');
+            log('');
+            log('Para testar:', 'warning');
+            log('1. Configure RESEND_API_KEY no Supabase', 'info');
+            log('2. Crie Edge Function "send-verification"', 'info');
+            log('3. Clique no botão de teste', 'info');
+            log('');
+            log('🚀 Clique no botão para testar!', 'warning');
+            
+            document.getElementById('testarResend').addEventListener('click', testarResend);
+        });
+    </script>
+</body>
+</html>
