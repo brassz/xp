@@ -721,52 +721,38 @@ async function sendVerificationCode() {
     try {
         // Gerar código
         verificationCode = generateVerificationCode();
-        console.log('Código gerado:', verificationCode);
+        console.log('Código gerado para envio por email');
         
-        let emailSent = false;
-        
-        // Tentar enviar por EmailJS (mas esperamos erro de permissão)
-        if (typeof emailjs !== 'undefined') {
-            console.log('EmailJS disponível, tentando enviar email...');
-            
-            try {
-                const templateParams = {
-                    to_email: verificationEmail,
-                    verification_code: verificationCode,
-                    system_name: 'Nexus Gestão Financeira',
-                    expiry_time: '5 minutos'
-                };
-                
-                const result = await emailjs.send(
-                    EMAILJS_CONFIG.serviceId,
-                    EMAILJS_CONFIG.templateId,
-                    templateParams
-                );
-                
-                console.log('✅ Email enviado com sucesso!', result);
-                emailSent = true;
-                showNotification(`Código enviado para ${verificationEmail}`, 'success');
-                
-            } catch (emailError) {
-                console.warn('⚠️ Erro EmailJS (esperado - problema de permissão Gmail):', emailError.message);
-                
-                // Se for erro de permissão do Gmail, usar método alternativo
-                if (emailError.message && (emailError.message.includes('412') || emailError.message.includes('insufficient'))) {
-                    console.log('🔄 Usando método alternativo devido a erro de permissão Gmail');
-                    emailSent = await sendEmailAlternative();
-                }
-            }
+        // Verificar se EmailJS está disponível
+        if (typeof emailjs === 'undefined') {
+            throw new Error('EmailJS não está carregado');
         }
         
-        // Se não conseguiu enviar por email, usar modo demonstração melhorado
-        if (!emailSent) {
-            console.log('📧 MODO DEMONSTRAÇÃO ATIVO');
-            console.log(`📧 Código: ${verificationCode}`);
-            console.log(`📧 Destinatário: ${verificationEmail}`);
-            
-            // Mostrar código de forma mais visível
-            showVerificationCodeOnScreen();
-        }
+        console.log('EmailJS disponível, enviando email...');
+        
+        // Preparar dados do template
+        const templateParams = {
+            to_email: verificationEmail,
+            verification_code: verificationCode,
+            system_name: 'Nexus Gestão Financeira',
+            expiry_time: '5 minutos'
+        };
+        
+        console.log('Enviando para:', verificationEmail);
+        console.log('Configurações EmailJS:', {
+            serviceId: EMAILJS_CONFIG.serviceId,
+            templateId: EMAILJS_CONFIG.templateId
+        });
+        
+        // Enviar email via EmailJS
+        const result = await emailjs.send(
+            EMAILJS_CONFIG.serviceId,
+            EMAILJS_CONFIG.templateId,
+            templateParams
+        );
+        
+        console.log('✅ Email enviado com sucesso!', result);
+        showNotification(`Código de verificação enviado para ${verificationEmail}`, 'success');
         
         // Marcar como enviado
         isCodeSent = true;
@@ -777,73 +763,30 @@ async function sendVerificationCode() {
             console.log('⏰ Código expirado');
             verificationCode = null;
             isCodeSent = false;
-            showNotification('Código expirado. Solicite um novo código.', 'warning');
+            showNotification('Código de verificação expirado. Solicite um novo código.', 'warning');
         }, 5 * 60 * 1000);
         
         return true;
         
     } catch (error) {
-        console.error('❌ Erro geral:', error);
-        showNotification('Erro no sistema de verificação', 'error');
+        console.error('❌ Erro ao enviar código por email:', error);
+        
+        // Mostrar erro específico baseado no tipo
+        let errorMessage = 'Erro ao enviar código de verificação.';
+        
+        if (error.message && error.message.includes('412')) {
+            errorMessage = 'Erro de permissão do Gmail. Verifique a configuração do EmailJS.';
+        } else if (error.message && error.message.includes('400')) {
+            errorMessage = 'Template ou serviço não encontrado. Verifique as configurações.';
+        } else if (error.message && error.message.includes('401')) {
+            errorMessage = 'Chave de API inválida. Verifique a Public Key.';
+        }
+        
+        showNotification(errorMessage, 'error');
         return false;
     }
 }
 
-// Método alternativo para envio (webhook, API própria, etc.)
-async function sendEmailAlternative() {
-    // Por enquanto, simular envio bem-sucedido
-    // Em produção, aqui você poderia usar:
-    // - Webhook para seu backend
-    // - API de email diferente (SendGrid, etc.)
-    // - Integração com WhatsApp
-    
-    console.log('📱 Simulando envio por método alternativo...');
-    
-    // Simular delay de envio
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    console.log('✅ Email "enviado" por método alternativo');
-    showNotification(`Código enviado para ${verificationEmail} (método alternativo)`, 'success');
-    
-    return true;
-}
-
-// Mostrar código na tela de forma mais visível
-function showVerificationCodeOnScreen() {
-    // Criar modal com o código
-    const modal = document.createElement('div');
-    modal.className = 'fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50';
-    modal.innerHTML = `
-        <div class="bg-gray-800 p-8 rounded-lg border border-blue-500 max-w-md mx-4">
-            <h3 class="text-xl font-bold text-white mb-4 text-center">📧 Código de Verificação</h3>
-            <div class="bg-blue-900 p-4 rounded-lg mb-4">
-                <p class="text-blue-200 text-sm mb-2">Código para: ${verificationEmail}</p>
-                <div class="text-3xl font-mono font-bold text-white text-center bg-blue-800 p-3 rounded">
-                    ${verificationCode}
-                </div>
-            </div>
-            <p class="text-gray-300 text-sm text-center mb-4">
-                Digite este código no campo de verificação
-            </p>
-            <button onclick="this.parentElement.parentElement.remove()" 
-                    class="w-full bg-blue-600 hover:bg-blue-700 text-white py-2 px-4 rounded">
-                Entendi
-            </button>
-        </div>
-    `;
-    
-    document.body.appendChild(modal);
-    
-    // Remover automaticamente após 30 segundos
-    setTimeout(() => {
-        if (document.body.contains(modal)) {
-            document.body.removeChild(modal);
-        }
-    }, 30000);
-    
-    // Também mostrar notificação normal
-    showNotification(`Código: ${verificationCode}`, 'info');
-}
 
 function validateVerificationCode(inputCode) {
     if (!verificationCode || !isCodeSent) {
