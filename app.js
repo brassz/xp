@@ -11365,53 +11365,31 @@ async function populateWeekSelector() {
     }
 }
 
-// Função para obter informações da semana - LÓGICA FIXA E SIMPLES
+// Função para obter informações da semana - LÓGICA DINÂMICA BASEADA NO ANO
 function getWeekInfo(date) {
     const d = new Date(date);
     const year = d.getFullYear();
     
-    // Definir semanas fixas manualmente
-    const weekRanges = [
-        { start: new Date(2024, 8, 29), end: new Date(2024, 9, 5), week: 40 },   // 29/09 - 05/10
-        { start: new Date(2024, 9, 6), end: new Date(2024, 9, 12), week: 41 },   // 06/10 - 12/10
-        { start: new Date(2024, 9, 13), end: new Date(2024, 9, 19), week: 42 },  // 13/10 - 19/10
-        { start: new Date(2024, 9, 20), end: new Date(2024, 9, 26), week: 43 },  // 20/10 - 26/10
-        { start: new Date(2024, 9, 27), end: new Date(2024, 10, 2), week: 44 },  // 27/10 - 02/11
-        { start: new Date(2024, 10, 3), end: new Date(2024, 10, 9), week: 45 },  // 03/11 - 09/11
-        { start: new Date(2024, 10, 10), end: new Date(2024, 10, 16), week: 46 }, // 10/11 - 16/11
-    ];
+    // Calcular semana dinamicamente baseada na data
+    // Semana começa no domingo (0) e termina no sábado (6)
+    const dayOfWeek = d.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
     
-    // Encontrar em qual semana a data se encaixa
-    for (const range of weekRanges) {
-        range.start.setHours(0, 0, 0, 0);
-        range.end.setHours(23, 59, 59, 999);
-        
-        if (d >= range.start && d <= range.end) {
-            return {
-                year: year,
-                week: range.week,
-                startDate: new Date(range.start),
-                endDate: new Date(range.end)
-            };
-        }
-    }
-    
-    // Se não encontrou, calcular dinamicamente baseado na última semana definida
-    const lastWeek = weekRanges[weekRanges.length - 1];
-    const daysDiff = Math.floor((d - lastWeek.end) / (24 * 60 * 60 * 1000));
-    const weeksAfter = Math.floor(daysDiff / 7) + 1;
-    
-    const startDate = new Date(lastWeek.end);
-    startDate.setDate(lastWeek.end.getDate() + 1 + ((weeksAfter - 1) * 7));
+    // Calcular início da semana (domingo)
+    const startDate = new Date(d);
+    startDate.setDate(d.getDate() - dayOfWeek);
     startDate.setHours(0, 0, 0, 0);
     
+    // Calcular fim da semana (sábado)
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
     
+    // Calcular número da semana no ano usando ISO 8601
+    const weekNumber = getWeekNumber(d);
+    
     return {
         year: year,
-        week: lastWeek.week + weeksAfter,
+        week: weekNumber,
         startDate: startDate,
         endDate: endDate
     };
