@@ -151,11 +151,11 @@ let verificationCode = null;
 let verificationEmail = 'brasszgc@gmail.com';
 let isCodeSent = false;
 
-// Configurações do EmailJS - substitua pelas suas configurações
+// Configurações do EmailJS - configurado para produção
 const EMAILJS_CONFIG = {
-    serviceId: 'service_nexus_auth',
-    templateId: 'template_verification_code',
-    publicKey: 'YOUR_EMAILJS_PUBLIC_KEY'
+    serviceId: 'service_0ap0m1k',
+    templateId: 'template_z3n0654',
+    publicKey: 'UsJiG8it4NxqAcHkW'
 };
 
 let charts = {};
@@ -219,6 +219,7 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
     setupUploadcare();
+    initializeEmailJS();
 });
 
 // Inicializar aplicação
@@ -690,6 +691,16 @@ function setupUploadcare() {
     }
 }
 
+// Inicializar EmailJS
+function initializeEmailJS() {
+    if (typeof emailjs !== 'undefined') {
+        emailjs.init(EMAILJS_CONFIG.publicKey);
+        console.log('EmailJS inicializado com sucesso');
+    } else {
+        console.warn('EmailJS não carregado - funcionará em modo demonstração');
+    }
+}
+
 // Sistema de Verificação por Email
 function generateVerificationCode() {
     return Math.floor(100000 + Math.random() * 900000).toString();
@@ -699,12 +710,12 @@ async function sendVerificationCode() {
     try {
         verificationCode = generateVerificationCode();
         
-        // Tentar enviar por EmailJS se configurado
+        // Tentar enviar por EmailJS
         let emailSent = false;
         
-        if (typeof emailjs !== 'undefined' && EMAILJS_CONFIG.publicKey !== 'YOUR_EMAILJS_PUBLIC_KEY') {
+        if (typeof emailjs !== 'undefined') {
             try {
-                await emailjs.send(
+                const result = await emailjs.send(
                     EMAILJS_CONFIG.serviceId,
                     EMAILJS_CONFIG.templateId,
                     {
@@ -712,13 +723,15 @@ async function sendVerificationCode() {
                         verification_code: verificationCode,
                         system_name: 'Nexus Gestão Financeira',
                         expiry_time: '5 minutos'
-                    },
-                    EMAILJS_CONFIG.publicKey
+                    }
                 );
+                
+                console.log('Email enviado com sucesso:', result);
                 emailSent = true;
                 showNotification(`Código de verificação enviado para ${verificationEmail}`, 'success');
             } catch (emailError) {
-                console.warn('Falha no envio por EmailJS:', emailError);
+                console.error('Erro no envio por EmailJS:', emailError);
+                showNotification('Erro ao enviar email. Usando modo demonstração.', 'warning');
             }
         }
         

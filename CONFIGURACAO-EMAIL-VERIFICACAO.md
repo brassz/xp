@@ -60,25 +60,18 @@ Equipe {{system_name}}
 1. Vá em "Account" > "General"
 2. Copie sua **Public Key**
 
-### Passo 5: Atualizar Configurações no Código
-No arquivo `app.js`, localize a seção:
+### Passo 5: Configurações Aplicadas ✅
+As configurações do EmailJS já foram aplicadas no sistema:
 
 ```javascript
 const EMAILJS_CONFIG = {
-    serviceId: 'service_nexus_auth',
-    templateId: 'template_verification_code',
-    publicKey: 'YOUR_EMAILJS_PUBLIC_KEY'
+    serviceId: 'service_0ap0m1k',
+    templateId: 'template_z3n0654',
+    publicKey: 'UsJiG8it4NxqAcHkW'
 };
 ```
 
-Substitua pelos seus valores:
-```javascript
-const EMAILJS_CONFIG = {
-    serviceId: 'seu_service_id_aqui',
-    templateId: 'seu_template_id_aqui',
-    publicKey: 'sua_public_key_aqui'
-};
-```
+**Status:** ✅ CONFIGURADO E ATIVO
 
 ## Modo Demonstração
 
