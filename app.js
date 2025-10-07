@@ -1,3 +1,20 @@
+// CORREÇÃO TEMPORÁRIA: Função para mapear tipos de pagamento para valores permitidos pelo banco
+function mapPaymentTypeForDatabase(paymentType) {
+    const allowedPaymentTypes = {
+        'interest_renewal': 'partial',
+        'early_payment_partial_interest': 'partial', 
+        'early_payment_interest_renewal': 'partial',
+        'early_payment_capital_reduction': 'partial',
+        'capital_payment': 'partial',
+        'partial_interest': 'partial',
+        'adjustment': 'partial',
+        'renewal': 'partial',
+        'quitacao': 'full'
+    };
+    
+    return allowedPaymentTypes[paymentType] || paymentType;
+}
+
 // Função para obter variáveis de ambiente (compatível com Vercel)
 function getEnvVar(name, fallback = '') {
     // Tentar process.env primeiro (Node.js/Vercel)
@@ -2193,8 +2210,8 @@ async function handlePayment(e) {
                 .update({
                     amount: paymentAmount,
                     payment_date: paymentDate,
-                    payment_type: paymentType,
-                    notes: paymentNotes,
+                    payment_type: mapPaymentTypeForDatabase(paymentType),
+                    notes: paymentType !== mapPaymentTypeForDatabase(paymentType) ? `[${paymentType}] ${paymentNotes}` : paymentNotes,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', paymentId);
@@ -2207,8 +2224,8 @@ async function handlePayment(e) {
                     loan_id: loanId,
                     amount: paymentAmount,
                     payment_date: paymentDate,
-                    payment_type: paymentType,
-                    notes: paymentNotes,
+                    payment_type: mapPaymentTypeForDatabase(paymentType),
+                    notes: paymentType !== mapPaymentTypeForDatabase(paymentType) ? `[${paymentType}] ${paymentNotes}` : paymentNotes,
                     created_by: currentUser.id,
                     created_at: new Date().toISOString()
                 }]);
@@ -2290,14 +2307,17 @@ async function handlePayment(e) {
                             `Juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
             }
             
+            // CORREÇÃO TEMPORÁRIA: Usar função para mapear tipo de pagamento
+            const mappedActionType = mapPaymentTypeForDatabase(actionType);
+            
             const { error: actionNoteError } = await supabase
                 .from('payments')
                 .insert([{
                     loan_id: loanId,
                     amount: 0,
                     payment_date: paymentDate,
-                    payment_type: actionType,
-                    notes: actionNotes,
+                    payment_type: mappedActionType,
+                    notes: `[${actionType}] ${actionNotes}`, // Preservar tipo original nas notas
                     created_by: currentUser.id,
                     created_at: new Date().toISOString()
                 }]);
@@ -7376,7 +7396,7 @@ async function loadPaidLoanPaymentHistory(originalLoanId, paidLoan) {
                     id: 'final_payment',
                     payment_date: paidLoan.paid_date,
                     amount: finalPaymentAmount,
-                    payment_type: paidLoan.payment_method || 'quitacao',
+                    payment_type: mapPaymentTypeForDatabase(paidLoan.payment_method || 'quitacao'),
                     notes: 'Pagamento final - Quitação total do empréstimo',
                     is_final_payment: true
                 });
@@ -8459,7 +8479,7 @@ async function generateWeeklyPaymentsPDF() {
                     id: `quitacao_${paidLoan.id}`,
                     payment_date: paidLoan.paid_date,
                     amount: paidLoan.total_paid,
-                    payment_type: 'quitacao',
+                    payment_type: mapPaymentTypeForDatabase('quitacao'),
                     loans: {
                         id: paidLoan.loan_id,
                         amount: paidLoan.original_amount,
