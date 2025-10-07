@@ -11859,15 +11859,17 @@ function getWeekInfo(date) {
     
     // Encontrar em qual semana a data se encaixa
     for (const range of weekRanges) {
-        range.start.setHours(0, 0, 0, 0);
-        range.end.setHours(23, 59, 59, 999);
+        const rangeStart = new Date(range.start);
+        const rangeEnd = new Date(range.end);
+        rangeStart.setHours(0, 0, 0, 0);
+        rangeEnd.setHours(23, 59, 59, 999);
         
-        if (d >= range.start && d <= range.end) {
+        if (d >= rangeStart && d <= rangeEnd) {
             return {
                 year: year,
                 week: range.week,
-                startDate: new Date(range.start),
-                endDate: new Date(range.end)
+                startDate: new Date(rangeStart),
+                endDate: new Date(rangeEnd)
             };
         }
     }
@@ -11923,6 +11925,13 @@ async function handleWeekChange() {
     await loadWeekData(startDate, endDate);
 }
 
+// Função auxiliar para obter o próximo dia
+function getNextDay(dateStr) {
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().split('T')[0];
+}
+
 // Função para carregar dados de uma semana específica
 async function loadWeekData(startDate, endDate) {
     try {
@@ -11946,7 +11955,7 @@ async function loadWeekData(startDate, endDate) {
                 )
             `)
             .gte('payment_date', startDateStr)
-            .lte('payment_date', endDateStr)
+            .lt('payment_date', getNextDay(endDateStr))
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
