@@ -273,6 +273,44 @@
         </div>
     </div>
 
+    <!-- Modal de Verificação 2FA -->
+    <div id="twoFactorModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="glass-card p-8 rounded-2xl w-full max-w-md mx-4">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-blue-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2">Verificação de Segurança</h2>
+                <p class="text-blue-200">Digite o código de verificação</p>
+            </div>
+
+            <div id="twoFactorContent">
+                <!-- Conteúdo será preenchido dinamicamente -->
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal de Configuração 2FA -->
+    <div id="setup2FAModal" class="hidden fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+        <div class="glass-card p-8 rounded-2xl w-full max-w-lg mx-4 max-h-[90vh] overflow-y-auto">
+            <div class="text-center mb-6">
+                <div class="w-16 h-16 bg-green-600 rounded-full flex items-center justify-center mx-auto mb-4">
+                    <svg class="w-8 h-8 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                    </svg>
+                </div>
+                <h2 class="text-2xl font-bold text-white mb-2">Configurar Autenticação 2FA</h2>
+                <p class="text-blue-200">Aumente a segurança da sua conta</p>
+            </div>
+
+            <div id="setup2FAContent">
+                <!-- Conteúdo será preenchido dinamicamente -->
+            </div>
+        </div>
+    </div>
+
     <!-- Dashboard -->
     <div id="dashboard" class="hidden min-h-screen bg-gray-900">
         <!-- Sidebar -->
@@ -393,14 +431,6 @@
 
             </nav>
             
-            <div class="absolute bottom-4 left-4 right-4">
-                <button id="logoutBtn" class="w-full flex items-center justify-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
-                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
-                    </svg>
-                    <span>Sair</span>
-                </button>
-            </div>
         </div>
 
         <!-- Main Content -->
@@ -416,8 +446,44 @@
                     </div>
                     <div class="flex items-center space-x-4">
                         <span class="text-gray-300">Bem-vindo, <span id="userName">Admin</span></span>
-                        <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
-                            <span class="text-white text-sm font-semibold" id="userInitial">A</span>
+                        <div class="relative">
+                            <button id="userMenuBtn" class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center hover:ring-2 hover:ring-blue-400 transition-all">
+                                <span class="text-white text-sm font-semibold" id="userInitial">A</span>
+                            </button>
+                            
+                            <!-- Dropdown Menu -->
+                            <div id="userDropdown" class="hidden absolute right-0 mt-2 w-64 bg-gray-800 rounded-lg shadow-lg border border-gray-700 z-50">
+                                <div class="p-4 border-b border-gray-700">
+                                    <p class="text-white font-medium" id="dropdownUserName">Admin</p>
+                                    <p class="text-gray-400 text-sm" id="dropdownUserEmail">admin@nexus.com</p>
+                                </div>
+                                
+                                <div class="py-2">
+                                    <button id="setup2FABtn" class="w-full flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-all">
+                                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"></path>
+                                        </svg>
+                                        <span>Autenticação 2FA</span>
+                                        <span id="twoFAStatus" class="ml-auto text-xs px-2 py-1 rounded-full bg-gray-600 text-gray-300">Desativado</span>
+                                    </button>
+                                    
+                                    <button class="w-full flex items-center px-4 py-3 text-gray-300 hover:text-white hover:bg-gray-700 transition-all">
+                                        <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                                        </svg>
+                                        <span>Perfil</span>
+                                    </button>
+                                    
+                                    <div class="border-t border-gray-700 mt-2 pt-2">
+                                        <button id="logoutBtn" class="w-full flex items-center px-4 py-3 text-red-400 hover:text-red-300 hover:bg-gray-700 transition-all">
+                                            <svg class="w-5 h-5 mr-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"></path>
+                                            </svg>
+                                            <span>Sair</span>
+                                        </button>
+                                    </div>
+                                </div>
+                            </div>
                         </div>
                     </div>
                 </div>
@@ -3344,6 +3410,16 @@
         </div>
     </div>
 
+    <!-- Bibliotecas para 2FA -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/speakeasy/2.0.0/speakeasy.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
+    
+    <!-- Serviço de 2FA -->
+    <script src="2fa-service.js"></script>
+    
+    <!-- Interface de 2FA -->
+    <script src="2fa-ui.js"></script>
+    
     <script src="app.js"></script>
 </body>
 </html> 

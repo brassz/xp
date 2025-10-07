@@ -706,21 +706,34 @@ async function handleLogin(e) {
         // Para demonstração, aceitar senha simples
         // Em produção, implementar hash de senha
         if (password === '1020' || password === 'user123') {
-            currentUser = userData;
+            // Verificar se o usuário tem 2FA ativado
+            const { data: twoFASettings, error: twoFAError } = await supabase
+                .from('user_2fa_settings')
+                .select('is_enabled')
+                .eq('user_id', userData.id)
+                .single();
             
-            // Salvar usuário no localStorage
-            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
-            
-            showDashboard();
-            await loadData();
-            // Inicializar sistema de PDFs semanais automáticos
-            initializeWeeklyPDFCheck();
-            
-            // Atualizar último login
-            await supabase
-                .from('users')
-                .update({ last_login: new Date().toISOString() })
-                .eq('id', currentUser.id);
+            if (twoFASettings?.is_enabled) {
+                // Usuário tem 2FA ativado - solicitar verificação
+                currentUser = userData;
+                twoFactorUI.setCurrentUser(userData);
+                
+                await twoFactorUI.show2FAVerification(
+                    // Sucesso na verificação 2FA
+                    async () => {
+                        await completeLogin();
+                    },
+                    // Cancelamento da verificação 2FA
+                    () => {
+                        currentUser = null;
+                        alert('Login cancelado');
+                    }
+                );
+            } else {
+                // Usuário não tem 2FA - fazer login direto
+                currentUser = userData;
+                await completeLogin();
+            }
                 
         } else {
             throw new Error('Senha incorreta');
@@ -728,6 +741,40 @@ async function handleLogin(e) {
         
     } catch (error) {
         alert('Erro no login: ' + error.message);
+    }
+}
+
+// Completar login após verificação 2FA (se necessário)
+async function completeLogin() {
+    try {
+        // Salvar usuário no localStorage
+        localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+        
+        showDashboard();
+        await loadData();
+        
+        // Inicializar sistema de PDFs semanais automáticos
+        initializeWeeklyPDFCheck();
+        
+        // Atualizar último login
+        await supabase
+            .from('users')
+            .update({ last_login: new Date().toISOString() })
+            .eq('id', currentUser.id);
+        
+        // Inicializar interface 2FA
+        twoFactorUI.init(supabase, {
+            resendApiKey: 'YOUR_RESEND_API_KEY', // Configurar no .env
+            issuer: 'Nexus Gestão',
+            fromEmail: 'noreply@nexusgestao.com',
+            fromName: 'Nexus Gestão Financeira'
+        });
+        
+        twoFactorUI.setCurrentUser(currentUser);
+        
+    } catch (error) {
+        console.error('Erro ao completar login:', error);
+        alert('Erro ao carregar dashboard');
     }
 }
 
