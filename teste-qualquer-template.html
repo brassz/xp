@@ -1,0 +1,234 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste com Qualquer Template</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-center text-orange-400">🔧 Teste com Qualquer Template</h1>
+        
+        <div class="bg-orange-900 p-6 rounded-lg mb-6 border border-orange-500">
+            <h2 class="text-xl font-semibold mb-4">🎯 Problema Identificado</h2>
+            <div class="space-y-2">
+                <div class="text-green-300">✅ Service ID correto: service_618zqgt</div>
+                <div class="text-green-300">✅ Public Key correta: UsJiG8it4NxqAcHkW</div>
+                <div class="text-green-300">✅ EmailJS funcionando</div>
+                <div class="text-red-300">❌ Template template_pupk1rk não existe</div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4">🧪 Teste com Template Personalizado</h2>
+            <div class="space-y-4">
+                <div>
+                    <label class="block text-sm font-medium mb-2">Template ID (cole o correto do painel):</label>
+                    <input type="text" id="templateId" placeholder="template_XXXXXX" 
+                           class="w-full bg-gray-700 text-white px-3 py-2 rounded border border-gray-600">
+                </div>
+                
+                <button id="testTemplate" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded text-white font-semibold w-full">
+                    🚀 Testar Template
+                </button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <button id="testEmpty" class="bg-green-600 hover:bg-green-700 px-4 py-3 rounded text-white">
+                Teste Vazio
+            </button>
+            
+            <button id="testMinimal" class="bg-yellow-600 hover:bg-yellow-700 px-4 py-3 rounded text-white">
+                Teste Mínimo
+            </button>
+            
+            <button id="listTemplates" class="bg-purple-600 hover:bg-purple-700 px-4 py-3 rounded text-white">
+                Listar Templates
+            </button>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <h3 class="text-lg font-semibold mb-3">Console de Teste:</h3>
+            <div id="console" class="bg-black p-4 rounded font-mono text-sm h-80 overflow-y-auto">
+                Digite um Template ID acima ou use os botões de teste...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            serviceId: 'service_618zqgt',
+            publicKey: 'UsJiG8it4NxqAcHkW',
+            email: 'assonibrassz@gmail.com'
+        };
+
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            console.innerHTML += `<div class="${colors[type]}">[${timestamp}] ${message}</div>`;
+            console.scrollTop = console.scrollHeight;
+        }
+
+        async function testWithTemplate(templateId) {
+            if (!templateId) {
+                log('❌ Template ID não fornecido', 'error');
+                return;
+            }
+
+            log(`=== TESTANDO TEMPLATE: ${templateId} ===`, 'warning');
+            
+            try {
+                emailjs.init(CONFIG.publicKey);
+                log('✅ EmailJS inicializado', 'success');
+                
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                log(`🔢 Código gerado: ${code}`, 'info');
+                
+                // Testar múltiplos formatos
+                const formats = [
+                    { name: 'Vazio', params: {} },
+                    { name: 'Só Email', params: { to_email: CONFIG.email } },
+                    { name: 'Email + Message', params: { to_email: CONFIG.email, message: `Código: ${code}` } },
+                    { name: 'Email + Code', params: { to_email: CONFIG.email, verification_code: code } },
+                    { name: 'Completo', params: { 
+                        to_email: CONFIG.email, 
+                        verification_code: code,
+                        code: code,
+                        message: `Código: ${code}`,
+                        subject: 'Teste'
+                    }}
+                ];
+                
+                for (const format of formats) {
+                    try {
+                        log(`🔄 Testando formato: ${format.name}`, 'info');
+                        
+                        const result = await emailjs.send(CONFIG.serviceId, templateId, format.params);
+                        
+                        log(`🎉 SUCESSO com formato ${format.name}!`, 'success');
+                        log(`   Status: ${result.status}`, 'success');
+                        log(`   Template funcionando: ${templateId}`, 'success');
+                        log(`   Parâmetros que funcionam: ${JSON.stringify(format.params)}`, 'success');
+                        log('📧 Verifique o email: assonibrassz@gmail.com', 'warning');
+                        
+                        return true;
+                        
+                    } catch (error) {
+                        log(`❌ Formato ${format.name} falhou: ${error.status} - ${error.message}`, 'error');
+                    }
+                }
+                
+                log('❌ Todos os formatos falharam para este template', 'error');
+                return false;
+                
+            } catch (error) {
+                log(`❌ Erro geral: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Teste com template personalizado
+        async function testTemplate() {
+            const templateId = document.getElementById('templateId').value.trim();
+            if (!templateId) {
+                log('❌ Por favor, digite um Template ID', 'error');
+                return;
+            }
+            
+            await testWithTemplate(templateId);
+        }
+
+        // Teste vazio (para descobrir se template aceita parâmetros vazios)
+        async function testEmpty() {
+            log('=== TESTE VAZIO (SEM PARÂMETROS) ===', 'warning');
+            
+            try {
+                emailjs.init(CONFIG.publicKey);
+                
+                // Tentar com template_pupk1rk original
+                const result = await emailjs.send(CONFIG.serviceId, 'template_pupk1rk', {});
+                
+                log('🎉 Template template_pupk1rk EXISTE e aceita parâmetros vazios!', 'success');
+                log(`Status: ${result.status}`, 'success');
+                
+            } catch (error) {
+                log(`❌ template_pupk1rk: ${error.status} - ${error.message}`, 'error');
+                
+                if (error.status === 422) {
+                    log('💡 Template não existe ou precisa de parâmetros obrigatórios', 'warning');
+                } else if (error.status === 400) {
+                    log('💡 Template existe mas parâmetros estão incorretos', 'warning');
+                }
+            }
+        }
+
+        // Teste mínimo
+        async function testMinimal() {
+            log('=== TESTE MÍNIMO ===', 'warning');
+            
+            try {
+                emailjs.init(CONFIG.publicKey);
+                
+                const result = await emailjs.send(CONFIG.serviceId, 'template_pupk1rk', {
+                    to_email: CONFIG.email
+                });
+                
+                log('🎉 Template template_pupk1rk funciona com parâmetro mínimo!', 'success');
+                
+            } catch (error) {
+                log(`❌ Teste mínimo falhou: ${error.status} - ${error.message}`, 'error');
+            }
+        }
+
+        // Listar templates (simulado)
+        function listTemplates() {
+            log('=== COMO ENCONTRAR TEMPLATES EXISTENTES ===', 'warning');
+            log('', 'info');
+            log('1. Acesse: https://dashboard.emailjs.com/', 'info');
+            log('2. Faça login na sua conta', 'info');
+            log('3. Vá em "Email Templates"', 'info');
+            log('4. Veja a lista de templates disponíveis', 'info');
+            log('5. Copie o Template ID de qualquer template ativo', 'info');
+            log('6. Cole no campo acima e teste', 'info');
+            log('', 'info');
+            log('💡 Qualquer template funcionará, mesmo que não seja específico para códigos', 'warning');
+            log('💡 O importante é usar um Template ID que realmente existe', 'warning');
+            log('', 'info');
+            log('Exemplos de Template IDs comuns:', 'info');
+            log('- template_xxxxxxx', 'info');
+            log('- template_default', 'info');
+            log('- template_contact', 'info');
+            log('- template_notification', 'info');
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🔧 Sistema para testar templates carregado', 'success');
+            log('', 'info');
+            log('OBJETIVO: Encontrar um Template ID que funciona', 'warning');
+            log('', 'info');
+            log('PASSOS:', 'info');
+            log('1. Acesse https://dashboard.emailjs.com/', 'info');
+            log('2. Vá em "Email Templates"', 'info');
+            log('3. Copie qualquer Template ID que existe', 'info');
+            log('4. Cole no campo acima e clique "Testar Template"', 'info');
+            log('', 'info');
+            log('OU use os botões de teste para verificar se template_pupk1rk existe', 'warning');
+            
+            document.getElementById('testTemplate').addEventListener('click', testTemplate);
+            document.getElementById('testEmpty').addEventListener('click', testEmpty);
+            document.getElementById('testMinimal').addEventListener('click', testMinimal);
+            document.getElementById('listTemplates').addEventListener('click', listTemplates);
+        });
+    </script>
+</body>
+</html>
