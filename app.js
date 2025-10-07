@@ -8427,7 +8427,7 @@ async function generateWeeklyPaymentsPDF() {
                 )
             `)
             .gte('payment_date', startOfWeek.toISOString().split('T')[0])
-            .lte('payment_date', endOfWeek.toISOString().split('T')[0])
+            .lt('payment_date', getNextDay(endOfWeek.toISOString().split('T')[0]))
             .order('payment_date', { ascending: true });
 
         // Buscar empréstimos quitados na semana
@@ -8435,7 +8435,7 @@ async function generateWeeklyPaymentsPDF() {
             .from('paid_loans')
             .select('*')
             .gte('paid_date', startOfWeek.toISOString().split('T')[0])
-            .lte('paid_date', endOfWeek.toISOString().split('T')[0])
+            .lt('paid_date', getNextDay(endOfWeek.toISOString().split('T')[0]))
             .order('paid_date', { ascending: true });
 
         if (error) throw error;
@@ -12018,7 +12018,7 @@ async function showWeekClientsModal() {
                 )
             `)
             .gte('payment_date', selectedWeekData.startDate.toISOString().split('T')[0])
-            .lte('payment_date', selectedWeekData.endDate.toISOString().split('T')[0])
+            .lt('payment_date', getNextDay(selectedWeekData.endDate.toISOString().split('T')[0]))
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
@@ -12409,7 +12409,7 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
                 )
             `)
             .gte('payment_date', startDateStr)
-            .lte('payment_date', endDateStr)
+            .lt('payment_date', getNextDay(endDateStr))
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
