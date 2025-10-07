@@ -1,0 +1,336 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste 2FA Multi-Empresas</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/speakeasy/2.0.0/speakeasy.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode/1.5.3/qrcode.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-8 text-center">🔐 Teste Sistema 2FA Multi-Empresas</h1>
+        
+        <!-- Seletor de Empresa -->
+        <div class="bg-gray-800 p-6 rounded-lg mb-8">
+            <h2 class="text-xl font-semibold mb-4">1. Selecionar Empresa</h2>
+            <select id="companySelect" class="w-full p-3 bg-gray-700 border border-gray-600 rounded-lg text-white">
+                <option value="">Selecione uma empresa</option>
+                <option value="nexus">NEXUS (Principal)</option>
+                <option value="litoral">LITORAL CRED</option>
+                <option value="mogiana">MOGIANA CRED</option>
+            </select>
+            <button onclick="initializeCompany()" class="mt-4 px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-all">
+                Inicializar Empresa
+            </button>
+        </div>
+
+        <!-- Status da Conexão -->
+        <div class="bg-gray-800 p-6 rounded-lg mb-8">
+            <h2 class="text-xl font-semibold mb-4">2. Status da Conexão</h2>
+            <div id="connectionStatus" class="space-y-2">
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 bg-gray-500 rounded-full" id="supabaseStatus"></span>
+                    <span>Supabase: <span id="supabaseText">Não conectado</span></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 bg-gray-500 rounded-full" id="tablesStatus"></span>
+                    <span>Tabelas 2FA: <span id="tablesText">Não verificado</span></span>
+                </div>
+                <div class="flex items-center space-x-2">
+                    <span class="w-3 h-3 bg-gray-500 rounded-full" id="configStatus"></span>
+                    <span>Configuração 2FA: <span id="configText">Não carregado</span></span>
+                </div>
+            </div>
+        </div>
+
+        <!-- Teste de Usuário -->
+        <div class="bg-gray-800 p-6 rounded-lg mb-8">
+            <h2 class="text-xl font-semibold mb-4">3. Teste de Usuário</h2>
+            <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <input type="email" id="testEmail" placeholder="Email do usuário" class="p-3 bg-gray-700 border border-gray-600 rounded-lg text-white">
+                <input type="text" id="testUserId" placeholder="ID do usuário (UUID)" class="p-3 bg-gray-700 border border-gray-600 rounded-lg text-white">
+            </div>
+            <div class="flex space-x-4">
+                <button onclick="checkUser2FAStatus()" class="px-6 py-2 bg-green-600 hover:bg-green-500 rounded-lg transition-all">
+                    Verificar Status 2FA
+                </button>
+                <button onclick="testEmailCode()" class="px-6 py-2 bg-blue-600 hover:bg-blue-500 rounded-lg transition-all">
+                    Testar Código Email
+                </button>
+                <button onclick="setupTOTP()" class="px-6 py-2 bg-purple-600 hover:bg-purple-500 rounded-lg transition-all">
+                    Setup TOTP
+                </button>
+            </div>
+            <div id="userTestResult" class="mt-4 p-4 bg-gray-700 rounded-lg hidden"></div>
+        </div>
+
+        <!-- Logs -->
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <h2 class="text-xl font-semibold mb-4">4. Logs de Teste</h2>
+            <div id="testLogs" class="bg-black p-4 rounded-lg h-64 overflow-y-auto font-mono text-sm">
+                <div class="text-green-400">Sistema de teste iniciado...</div>
+            </div>
+            <button onclick="clearLogs()" class="mt-4 px-4 py-2 bg-red-600 hover:bg-red-500 rounded-lg transition-all">
+                Limpar Logs
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Configurações das empresas (mesmo do app.js)
+        const COMPANIES_CONFIG = {
+            nexus: {
+                name: 'NEXUS (Principal)',
+                supabase: {
+                    url: 'https://mhtxyxizfnxupwmilith.supabase.co',
+                    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI'
+                },
+                twoFA: {
+                    resendApiKey: 'TEST_KEY_EMPRESA1',
+                    fromEmail: 'noreply@nexus.com',
+                    fromName: 'NEXUS - Gestão Financeira'
+                }
+            },
+            litoral: {
+                name: 'LITORAL CRED',
+                supabase: {
+                    url: 'https://dtifsfzmnjnllzzlndxv.supabase.co',
+                    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImR0aWZzZnptbmpubGx6emxuZHh2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjQ5NzUsImV4cCI6MjA3Mjc0MDk3NX0.V40szmRzuvni2J4GK5-qZUR7nBWeUy7ikYy9B7iHxkA'
+                },
+                twoFA: {
+                    resendApiKey: 'TEST_KEY_EMPRESA2',
+                    fromEmail: 'noreply@litoralcred.com',
+                    fromName: 'LITORAL CRED - Gestão Financeira'
+                }
+            },
+            mogiana: {
+                name: 'MOGIANA CRED',
+                supabase: {
+                    url: 'https://eemfnpefgojllvzzaimu.supabase.co',
+                    key: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y'
+                },
+                twoFA: {
+                    resendApiKey: 'TEST_KEY_EMPRESA3',
+                    fromEmail: 'noreply@mogianacred.com',
+                    fromName: 'MOGIANA CRED - Gestão Financeira'
+                }
+            }
+        };
+
+        let currentCompany = null;
+        let supabase = null;
+        let twoFactorService = null;
+
+        function log(message, type = 'info') {
+            const logs = document.getElementById('testLogs');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            logs.innerHTML += `<div class="${colors[type]}">[${timestamp}] ${message}</div>`;
+            logs.scrollTop = logs.scrollHeight;
+        }
+
+        function updateStatus(element, status, text) {
+            const statusElement = document.getElementById(element + 'Status');
+            const textElement = document.getElementById(element + 'Text');
+            
+            const colors = {
+                success: 'bg-green-500',
+                error: 'bg-red-500',
+                warning: 'bg-yellow-500',
+                loading: 'bg-blue-500'
+            };
+            
+            statusElement.className = `w-3 h-3 rounded-full ${colors[status]}`;
+            textElement.textContent = text;
+        }
+
+        async function initializeCompany() {
+            const companyId = document.getElementById('companySelect').value;
+            
+            if (!companyId) {
+                log('Por favor, selecione uma empresa', 'error');
+                return;
+            }
+
+            log(`Inicializando empresa: ${companyId}`, 'info');
+            
+            try {
+                currentCompany = COMPANIES_CONFIG[companyId];
+                
+                // Inicializar Supabase
+                updateStatus('supabase', 'loading', 'Conectando...');
+                supabase = window.supabase.createClient(
+                    currentCompany.supabase.url,
+                    currentCompany.supabase.key
+                );
+                
+                // Testar conexão
+                const { data, error } = await supabase.from('users').select('count').limit(1);
+                
+                if (error) {
+                    throw new Error(`Erro Supabase: ${error.message}`);
+                }
+                
+                updateStatus('supabase', 'success', 'Conectado');
+                log(`✅ Supabase conectado para ${currentCompany.name}`, 'success');
+                
+                // Verificar tabelas 2FA
+                await checkTables();
+                
+                // Carregar configuração 2FA
+                loadTwoFAConfig();
+                
+            } catch (error) {
+                updateStatus('supabase', 'error', 'Erro na conexão');
+                log(`❌ Erro ao inicializar: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkTables() {
+            updateStatus('tables', 'loading', 'Verificando...');
+            
+            try {
+                // Verificar se tabelas 2FA existem
+                const tables = ['user_2fa_settings', 'temp_2fa_codes', 'user_2fa_attempts'];
+                
+                for (const table of tables) {
+                    const { data, error } = await supabase.from(table).select('count').limit(1);
+                    if (error) {
+                        throw new Error(`Tabela ${table} não encontrada: ${error.message}`);
+                    }
+                }
+                
+                updateStatus('tables', 'success', 'Tabelas OK');
+                log('✅ Todas as tabelas 2FA encontradas', 'success');
+                
+            } catch (error) {
+                updateStatus('tables', 'error', 'Tabelas não encontradas');
+                log(`❌ Erro nas tabelas: ${error.message}`, 'error');
+            }
+        }
+
+        function loadTwoFAConfig() {
+            updateStatus('config', 'loading', 'Carregando...');
+            
+            try {
+                // Simular carregamento do serviço 2FA
+                const config = currentCompany.twoFA;
+                
+                log(`📧 Email configurado: ${config.fromEmail}`, 'info');
+                log(`🏢 Nome da empresa: ${config.fromName}`, 'info');
+                log(`🔑 API Key: ${config.resendApiKey.substring(0, 10)}...`, 'info');
+                
+                updateStatus('config', 'success', 'Configurado');
+                log('✅ Configuração 2FA carregada', 'success');
+                
+            } catch (error) {
+                updateStatus('config', 'error', 'Erro na configuração');
+                log(`❌ Erro na configuração: ${error.message}`, 'error');
+            }
+        }
+
+        async function checkUser2FAStatus() {
+            const userId = document.getElementById('testUserId').value;
+            
+            if (!userId || !supabase) {
+                log('❌ ID do usuário e conexão são obrigatórios', 'error');
+                return;
+            }
+
+            try {
+                log(`🔍 Verificando status 2FA para usuário: ${userId}`, 'info');
+                
+                const { data, error } = await supabase
+                    .from('user_2fa_settings')
+                    .select('*')
+                    .eq('user_id', userId)
+                    .single();
+
+                if (error && error.code !== 'PGRST116') {
+                    throw error;
+                }
+
+                const result = document.getElementById('userTestResult');
+                result.classList.remove('hidden');
+                
+                if (data) {
+                    result.innerHTML = `
+                        <h3 class="font-semibold text-green-400 mb-2">✅ Usuário encontrado</h3>
+                        <p><strong>2FA Ativado:</strong> ${data.is_enabled ? 'Sim' : 'Não'}</p>
+                        <p><strong>Tem TOTP:</strong> ${data.secret_key ? 'Sim' : 'Não'}</p>
+                        <p><strong>Códigos de Backup:</strong> ${data.backup_codes ? data.backup_codes.length : 0}</p>
+                        <p><strong>Criado em:</strong> ${new Date(data.created_at).toLocaleString()}</p>
+                    `;
+                    log('✅ Status 2FA verificado com sucesso', 'success');
+                } else {
+                    result.innerHTML = `
+                        <h3 class="font-semibold text-yellow-400 mb-2">⚠️ Usuário sem 2FA</h3>
+                        <p>Este usuário ainda não configurou autenticação 2FA.</p>
+                    `;
+                    log('⚠️ Usuário não tem 2FA configurado', 'warning');
+                }
+
+            } catch (error) {
+                log(`❌ Erro ao verificar status: ${error.message}`, 'error');
+            }
+        }
+
+        async function testEmailCode() {
+            const email = document.getElementById('testEmail').value;
+            
+            if (!email || !currentCompany) {
+                log('❌ Email e empresa são obrigatórios', 'error');
+                return;
+            }
+
+            log(`📧 Testando configuração de email para: ${email}`, 'info');
+            log(`📤 Remetente configurado: ${currentCompany.twoFA.fromEmail}`, 'info');
+            log(`🏢 Nome do remetente: ${currentCompany.twoFA.fromName}`, 'info');
+            
+            // Simular geração de código
+            const code = Math.floor(100000 + Math.random() * 900000).toString();
+            log(`🔢 Código gerado: ${code}`, 'success');
+            
+            // Simular template de email
+            log('📄 Template de email configurado com sucesso', 'success');
+            log('⚠️ Para teste real, configure a API Key do Resend', 'warning');
+        }
+
+        function setupTOTP() {
+            log('🔐 Simulando setup TOTP...', 'info');
+            
+            // Simular geração de secret
+            const secret = 'JBSWY3DPEHPK3PXP';
+            const issuer = currentCompany.name;
+            const email = document.getElementById('testEmail').value || 'teste@exemplo.com';
+            
+            log(`🔑 Secret gerado: ${secret}`, 'success');
+            log(`🏢 Issuer: ${issuer}`, 'info');
+            log(`📧 Usuário: ${email}`, 'info');
+            
+            // Simular URL do QR Code
+            const otpauthUrl = `otpauth://totp/${encodeURIComponent(issuer)}:${encodeURIComponent(email)}?secret=${secret}&issuer=${encodeURIComponent(issuer)}`;
+            log(`📱 URL TOTP: ${otpauthUrl}`, 'success');
+            
+            log('✅ Setup TOTP simulado com sucesso', 'success');
+        }
+
+        function clearLogs() {
+            document.getElementById('testLogs').innerHTML = '<div class="text-green-400">Logs limpos...</div>';
+        }
+
+        // Inicialização
+        log('🚀 Sistema de teste carregado', 'success');
+        log('👆 Selecione uma empresa para começar', 'info');
+    </script>
+</body>
+</html>
