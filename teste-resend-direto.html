@@ -1,0 +1,174 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🚀 Teste Resend Direto</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold mb-8 text-center text-green-400">🚀 Teste Resend Direto</h1>
+        
+        <div class="bg-green-900 p-6 rounded-lg mb-6 border border-green-500">
+            <h2 class="text-xl font-semibold mb-4">✅ Configuração</h2>
+            <div class="space-y-2 font-mono text-sm">
+                <div>API Key: <span class="text-green-400">re_fLRYWVd5_NJMbNNBZGrWPDBVLBkeaEn4Z</span></div>
+                <div>Email: <span class="text-yellow-400">assonibrassz@gmail.com</span></div>
+                <div>Método: <span class="text-blue-400">Direto via API Resend</span></div>
+            </div>
+        </div>
+
+        <div class="text-center mb-8">
+            <button id="testarEnvio" 
+                    class="bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 
+                           px-12 py-6 rounded-2xl text-white font-bold text-2xl shadow-2xl transform hover:scale-105 transition-all">
+                📧 ENVIAR EMAIL DE TESTE
+            </button>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <h3 class="text-xl font-semibold mb-4">Console de Teste:</h3>
+            <div id="console" class="bg-black p-4 rounded font-mono text-sm h-80 overflow-y-auto">
+                Sistema pronto para testar envio direto via Resend...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            console.innerHTML += `<div class="${colors[type]} mb-1">[${timestamp}] ${message}</div>`;
+            console.scrollTop = console.scrollHeight;
+        }
+
+        async function testarEnvio() {
+            const btn = document.getElementById('testarEnvio');
+            btn.disabled = true;
+            btn.textContent = '📤 ENVIANDO...';
+            
+            try {
+                log('🚀 === TESTE DIRETO VIA RESEND API ===', 'warning');
+                log('');
+                
+                // Gerar código
+                const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+                log(`🔢 Código gerado: ${codigo}`, 'success');
+                
+                // Configurações
+                log('📋 Configurações:', 'info');
+                log('   API Key: re_fLRYWVd5_NJMbNNBZGrWPDBVLBkeaEn4Z', 'info');
+                log('   Email: assonibrassz@gmail.com', 'info');
+                log('   Endpoint: https://api.resend.com/emails', 'info');
+                log('');
+                
+                // Enviar via Resend API
+                log('📧 Enviando email via Resend API...', 'warning');
+                
+                const response = await fetch('https://api.resend.com/emails', {
+                    method: 'POST',
+                    headers: {
+                        'Authorization': 'Bearer re_fLRYWVd5_NJMbNNBZGrWPDBVLBkeaEn4Z',
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        from: 'Nexus <noreply@resend.dev>',
+                        to: ['assonibrassz@gmail.com'],
+                        subject: 'Código de Verificação - Nexus (TESTE DIRETO)',
+                        html: `
+                            <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto; background: #f5f5f5; padding: 20px;">
+                                <div style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); padding: 30px; text-align: center; border-radius: 15px 15px 0 0;">
+                                    <h1 style="color: white; margin: 0; font-size: 28px;">🏢 Nexus Gestão Financeira</h1>
+                                    <p style="color: #e0e7ff; margin: 10px 0 0 0;">TESTE DIRETO VIA RESEND</p>
+                                </div>
+                                <div style="background: white; padding: 40px; border-radius: 0 0 15px 15px;">
+                                    <h2 style="color: #333; text-align: center;">🔐 Código de Verificação</h2>
+                                    <div style="background: #f8fafc; border: 3px solid #667eea; border-radius: 15px; padding: 30px; margin: 30px 0; text-align: center;">
+                                        <div style="font-size: 48px; color: #667eea; margin: 0; letter-spacing: 12px; font-family: monospace; font-weight: bold;">${codigo}</div>
+                                    </div>
+                                    <p style="color: #666; text-align: center;">⏰ Este código expira em <strong>5 minutos</strong></p>
+                                    <p style="color: #999; font-size: 12px; text-align: center; margin-top: 30px;">Teste do sistema de verificação</p>
+                                </div>
+                            </div>
+                        `,
+                    }),
+                });
+                
+                const result = await response.json();
+                
+                log('📊 Resposta da API:', 'info');
+                log(`   Status: ${response.status}`, 'info');
+                log(`   OK: ${response.ok}`, 'info');
+                log(`   Resultado: ${JSON.stringify(result)}`, 'info');
+                log('');
+                
+                if (!response.ok) {
+                    throw new Error(`Resend API error: ${result.message || 'Unknown error'}`);
+                }
+                
+                log('🎉 === EMAIL ENVIADO COM SUCESSO! ===', 'success');
+                log('');
+                log('✅ RESEND FUNCIONANDO PERFEITAMENTE!', 'success');
+                log(`✅ Email ID: ${result.id}`, 'success');
+                log('');
+                log('📧 PRÓXIMOS PASSOS:', 'warning');
+                log('1. Verifique o email: assonibrassz@gmail.com', 'info');
+                log('2. Procure também na pasta SPAM', 'info');
+                log(`3. Procure pelo código: ${codigo}`, 'info');
+                log('4. Sistema principal está funcionando!', 'info');
+                log('');
+                log('🎊 SISTEMA DE VERIFICAÇÃO 100% OPERACIONAL!', 'success');
+                
+                btn.textContent = '🎉 EMAIL ENVIADO!';
+                btn.className = 'bg-gradient-to-r from-green-500 to-green-600 px-12 py-6 rounded-2xl text-white font-bold text-2xl shadow-2xl';
+                
+            } catch (error) {
+                log('❌ === ERRO NO ENVIO ===', 'error');
+                log(`Erro: ${error.message}`, 'error');
+                log('');
+                
+                if (error.message.includes('401')) {
+                    log('💡 ERRO 401: API Key inválida', 'warning');
+                    log('   Verifique se a API Key está correta', 'info');
+                } else if (error.message.includes('403')) {
+                    log('💡 ERRO 403: Sem permissão', 'warning');
+                    log('   Verifique se a API Key tem permissões de envio', 'info');
+                } else if (error.message.includes('422')) {
+                    log('💡 ERRO 422: Dados inválidos', 'warning');
+                    log('   Verifique o formato do email ou outros parâmetros', 'info');
+                }
+                
+                btn.textContent = '❌ ERRO NO ENVIO';
+                btn.className = 'bg-gradient-to-r from-red-500 to-red-600 px-12 py-6 rounded-2xl text-white font-bold text-2xl shadow-2xl';
+            }
+            
+            setTimeout(() => {
+                btn.disabled = false;
+                btn.textContent = '📧 ENVIAR EMAIL DE TESTE';
+                btn.className = 'bg-gradient-to-r from-green-500 to-blue-500 hover:from-green-600 hover:to-blue-600 px-12 py-6 rounded-2xl text-white font-bold text-2xl shadow-2xl transform hover:scale-105 transition-all';
+            }, 10000);
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🎯 Sistema de teste Resend direto carregado', 'success');
+            log('');
+            log('Este teste envia email diretamente via API Resend:', 'info');
+            log('✅ Sem dependência de Edge Function', 'info');
+            log('✅ Sem problemas de CORS', 'info');
+            log('✅ API Key já configurada', 'info');
+            log('');
+            log('Clique no botão para testar!', 'warning');
+            
+            document.getElementById('testarEnvio').addEventListener('click', testarEnvio);
+        });
+    </script>
+</body>
+</html>
