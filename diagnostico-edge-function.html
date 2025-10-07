@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔍 Diagnóstico Edge Function</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-4xl font-bold mb-8 text-center text-blue-400">🔍 Diagnóstico Edge Function</h1>
+        
+        <div class="bg-yellow-900 p-6 rounded-lg mb-6 border border-yellow-500">
+            <h2 class="text-xl font-semibold mb-4">⚠️ Problema Reportado</h2>
+            <div class="space-y-2">
+                <div class="text-yellow-300">❌ Edge Function já configurada</div>
+                <div class="text-yellow-300">❌ Mas ainda dá erro "não configurada"</div>
+                <div class="text-green-300">✅ Vamos diagnosticar o problema</div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h3 class="text-lg font-semibold mb-4">🔧 Configurações</h3>
+                <div class="space-y-2 text-sm font-mono">
+                    <div>URL: <span class="text-blue-400">mhtxyxizfnxupwmilith.supabase.co</span></div>
+                    <div>Função: <span class="text-green-400">send-verification</span></div>
+                    <div>Email: <span class="text-yellow-400">brasszgc@gmail.com</span></div>
+                    <div>API Key: <span class="text-green-400">re_fLRYWVd5_...</span></div>
+                </div>
+            </div>
+            
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h3 class="text-lg font-semibold mb-4">📊 Status</h3>
+                <div id="status" class="space-y-2 text-sm">
+                    <div>Carregando status...</div>
+                </div>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+            <button id="test1" class="bg-blue-600 hover:bg-blue-700 px-4 py-3 rounded text-white">
+                1. Testar Conexão
+            </button>
+            
+            <button id="test2" class="bg-green-600 hover:bg-green-700 px-4 py-3 rounded text-white">
+                2. Testar Edge Function
+            </button>
+            
+            <button id="test3" class="bg-purple-600 hover:bg-purple-700 px-4 py-3 rounded text-white">
+                3. Testar Completo
+            </button>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <h3 class="text-xl font-semibold mb-4">Console de Diagnóstico:</h3>
+            <div id="console" class="bg-black p-4 rounded font-mono text-sm h-96 overflow-y-auto">
+                Sistema pronto para diagnosticar Edge Function...
+            </div>
+            <button id="clear" class="mt-2 bg-gray-600 hover:bg-gray-700 px-3 py-1 rounded text-white text-sm">
+                Limpar
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Usar as mesmas configurações do sistema principal
+        const supabaseUrl = 'https://mhtxyxizfnxupwmilith.supabase.co';
+        const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im1odHh5eGl6Zm54dXB3bWlsaXRoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTYxMzIzMDYsImV4cCI6MjA3MTcwODMwNn0.s1Y9kk2Va5EMcwAEGQmhTxo70Zv0o9oR6vrJixwEkWI';
+        
+        const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            console.innerHTML += `<div class="${colors[type]} mb-1">[${timestamp}] ${message}</div>`;
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function updateStatus() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `
+                <div>Supabase: <span class="text-green-400">Conectado</span></div>
+                <div>URL: <span class="text-blue-400">mhtxyxizfnxupwmilith.supabase.co</span></div>
+                <div>Edge Functions: <span class="text-yellow-400">Verificando...</span></div>
+                <div>Timestamp: <span class="text-gray-400">${new Date().toLocaleTimeString()}</span></div>
+            `;
+        }
+
+        // Teste 1: Conexão básica
+        async function test1() {
+            log('=== TESTE 1: Verificando Conexão Supabase ===', 'warning');
+            
+            try {
+                // Testar conexão básica
+                log('🔍 Testando conexão com Supabase...', 'info');
+                
+                const { data, error } = await supabase
+                    .from('users')
+                    .select('count')
+                    .limit(1);
+                
+                if (error && !error.message.includes('relation "users" does not exist')) {
+                    throw error;
+                }
+                
+                log('✅ Conexão com Supabase funcionando', 'success');
+                log(`✅ URL: ${supabaseUrl}`, 'success');
+                log('✅ Autenticação OK', 'success');
+                
+            } catch (error) {
+                log(`❌ Erro de conexão: ${error.message}`, 'error');
+                log('💡 Verifique se a URL e Key estão corretas', 'warning');
+            }
+        }
+
+        // Teste 2: Edge Function específica
+        async function test2() {
+            log('=== TESTE 2: Testando Edge Function send-verification ===', 'warning');
+            
+            try {
+                log('📡 Chamando Edge Function send-verification...', 'info');
+                
+                const { data, error } = await supabase.functions.invoke('send-verification', {
+                    body: {
+                        email: 'brasszgc@gmail.com',
+                        code: '123456'
+                    }
+                });
+                
+                if (error) {
+                    log(`❌ Erro da Edge Function: ${error.message}`, 'error');
+                    log(`❌ Detalhes: ${JSON.stringify(error)}`, 'error');
+                    
+                    if (error.message.includes('Function not found')) {
+                        log('💡 DIAGNÓSTICO: Edge Function não existe', 'warning');
+                        log('   - Verifique se criou com nome "send-verification"', 'info');
+                        log('   - Verifique se fez deploy da função', 'info');
+                    } else if (error.message.includes('CORS')) {
+                        log('💡 DIAGNÓSTICO: Problema de CORS', 'warning');
+                        log('   - Edge Function não está tratando OPTIONS', 'info');
+                        log('   - Verifique o código da função', 'info');
+                    } else if (error.message.includes('timeout')) {
+                        log('💡 DIAGNÓSTICO: Timeout', 'warning');
+                        log('   - Edge Function pode estar com erro interno', 'info');
+                        log('   - Verifique logs da função no Supabase', 'info');
+                    }
+                    
+                    return false;
+                }
+                
+                log('✅ Edge Function executada com sucesso!', 'success');
+                log(`✅ Resposta: ${JSON.stringify(data)}`, 'success');
+                log('📧 Verifique o email: brasszgc@gmail.com', 'warning');
+                
+                return true;
+                
+            } catch (error) {
+                log(`❌ Erro no teste: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Teste 3: Completo (como no sistema principal)
+        async function test3() {
+            log('=== TESTE 3: Simulando Sistema Principal ===', 'warning');
+            
+            try {
+                // Simular exatamente o que o sistema principal faz
+                const codigo = Math.floor(100000 + Math.random() * 900000).toString();
+                log(`🔢 Código gerado: ${codigo}`, 'info');
+                
+                log('📡 Chamando Edge Function (como sistema principal)...', 'info');
+                
+                const { data, error } = await supabase.functions.invoke('send-verification', {
+                    body: {
+                        email: 'brasszgc@gmail.com',
+                        code: codigo
+                    }
+                });
+                
+                if (error) {
+                    log(`❌ Mesmo erro do sistema principal: ${error.message}`, 'error');
+                    
+                    // Análise detalhada do erro
+                    log('🔍 ANÁLISE DO ERRO:', 'warning');
+                    log(`   Tipo: ${typeof error}`, 'info');
+                    log(`   Message: ${error.message}`, 'info');
+                    log(`   Code: ${error.code || 'N/A'}`, 'info');
+                    log(`   Details: ${error.details || 'N/A'}`, 'info');
+                    log(`   Hint: ${error.hint || 'N/A'}`, 'info');
+                    
+                    return false;
+                }
+                
+                log('🎉 SUCESSO! Edge Function funcionando!', 'success');
+                log(`📧 Email enviado para brasszgc@gmail.com`, 'success');
+                log(`🔢 Código enviado: ${codigo}`, 'success');
+                log('✅ Sistema principal deve funcionar agora!', 'success');
+                
+                return true;
+                
+            } catch (error) {
+                log(`❌ Erro crítico: ${error.message}`, 'error');
+                log(`❌ Stack: ${error.stack}`, 'error');
+                return false;
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatus();
+            
+            log('🔍 Sistema de diagnóstico carregado', 'success');
+            log('🎯 Objetivo: Descobrir por que Edge Function não funciona', 'info');
+            log('');
+            log('Problema reportado:', 'warning');
+            log('- Edge Function configurada ✅', 'info');
+            log('- Mas sistema diz "não configurada" ❌', 'info');
+            log('');
+            log('Execute os testes na ordem:', 'warning');
+            log('1. Testar Conexão - Verifica se Supabase responde', 'info');
+            log('2. Testar Edge Function - Verifica se função existe', 'info');
+            log('3. Testar Completo - Simula sistema principal', 'info');
+            
+            document.getElementById('test1').addEventListener('click', test1);
+            document.getElementById('test2').addEventListener('click', test2);
+            document.getElementById('test3').addEventListener('click', test3);
+            
+            document.getElementById('clear').addEventListener('click', () => {
+                document.getElementById('console').innerHTML = '';
+                log('Console limpo', 'info');
+            });
+        });
+    </script>
+</body>
+</html>

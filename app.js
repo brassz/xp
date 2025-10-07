@@ -708,28 +708,50 @@ async function sendVerificationCode() {
         console.log('📧 Enviando para:', verificationEmail);
         console.log('🔢 Código:', verificationCode);
         
-        // Método 1: Tentar via Edge Function (se configurada)
-        let emailSent = false;
-        
-        if (supabase) {
-            try {
-                console.log('📡 Tentando Edge Function do Supabase...');
-                
-                const { data, error } = await supabase.functions.invoke('send-verification', {
-                    body: {
-                        email: verificationEmail,
-                        code: verificationCode
-                    }
-                });
-                
-                if (!error && data) {
-                    console.log('✅ Edge Function executada com sucesso:', data);
-                    emailSent = true;
-                }
-            } catch (edgeFunctionError) {
-                console.warn('⚠️ Edge Function falhou, tentando método direto:', edgeFunctionError.message);
+        // Verificar se Supabase está inicializado
+        if (!supabase) {
+            console.warn('⚠️ Supabase não inicializado, tentando inicializar...');
+            
+            // Tentar inicializar com configuração padrão
+            const defaultConfig = COMPANIES_CONFIG.nexus;
+            if (defaultConfig && defaultConfig.supabase) {
+                supabase = window.supabase.createClient(defaultConfig.supabase.url, defaultConfig.supabase.key);
+                console.log('✅ Supabase inicializado com configuração padrão');
+            } else {
+                throw new Error('Configuração do Supabase não encontrada');
             }
         }
+        
+        console.log('🔍 Status do Supabase:', {
+            initialized: !!supabase,
+            url: supabase?.supabaseUrl,
+            hasAuth: !!supabase?.auth,
+            hasFunctions: !!supabase?.functions
+        });
+        
+        // Tentar Edge Function
+        console.log('📡 Chamando Edge Function send-verification...');
+        
+        const { data, error } = await supabase.functions.invoke('send-verification', {
+            body: {
+                email: verificationEmail,
+                code: verificationCode
+            }
+        });
+        
+        if (error) {
+            console.error('❌ Erro detalhado da Edge Function:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint,
+                fullError: error
+            });
+            throw error;
+        }
+        
+        console.log('✅ Edge Function executada com sucesso:', data);
+        let emailSent = true;
         
         // Se Edge Function falhou, não há alternativa - precisa configurar
         if (!emailSent) {
