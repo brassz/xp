@@ -36,6 +36,11 @@ const COMPANIES_CONFIG = {
         },
         uploadcare: {
             publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA1')
+        },
+        twoFA: {
+            resendApiKey: getEnvVar('RESEND_API_KEY_EMPRESA1'),
+            fromEmail: getEnvVar('FROM_EMAIL_EMPRESA1') || 'noreply@nexus.com',
+            fromName: 'NEXUS - Gestão Financeira'
         }
     },
     litoral: {
@@ -46,6 +51,11 @@ const COMPANIES_CONFIG = {
         },
         uploadcare: {
             publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2')
+        },
+        twoFA: {
+            resendApiKey: getEnvVar('RESEND_API_KEY_EMPRESA2'),
+            fromEmail: getEnvVar('FROM_EMAIL_EMPRESA2') || 'noreply@litoralcred.com',
+            fromName: 'LITORAL CRED - Gestão Financeira'
         }
     },
     mogiana: {
@@ -56,6 +66,11 @@ const COMPANIES_CONFIG = {
         },
         uploadcare: {
             publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3')
+        },
+        twoFA: {
+            resendApiKey: getEnvVar('RESEND_API_KEY_EMPRESA3'),
+            fromEmail: getEnvVar('FROM_EMAIL_EMPRESA3') || 'noreply@mogianacred.com',
+            fromName: 'MOGIANA CRED - Gestão Financeira'
         }
     }
 };
@@ -762,12 +777,13 @@ async function completeLogin() {
             .update({ last_login: new Date().toISOString() })
             .eq('id', currentUser.id);
         
-        // Inicializar interface 2FA
+        // Inicializar interface 2FA com configuração da empresa atual
+        const currentConfig = getCurrentCompanyConfig();
         twoFactorUI.init(supabase, {
-            resendApiKey: 'YOUR_RESEND_API_KEY', // Configurar no .env
-            issuer: 'Nexus Gestão',
-            fromEmail: 'noreply@nexusgestao.com',
-            fromName: 'Nexus Gestão Financeira'
+            resendApiKey: currentConfig.twoFA.resendApiKey,
+            issuer: currentConfig.name,
+            fromEmail: currentConfig.twoFA.fromEmail,
+            fromName: currentConfig.twoFA.fromName
         });
         
         twoFactorUI.setCurrentUser(currentUser);

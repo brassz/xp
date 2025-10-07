@@ -35,16 +35,27 @@ Confirme que as seguintes tabelas foram criadas:
 Crie um arquivo `.env` baseado no `.env.example`:
 
 ```env
-# Resend Configuration
-RESEND_API_KEY=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
-FROM_EMAIL=noreply@seudominio.com
-FROM_NAME=Nexus Gestão Financeira
+# Configurações de 2FA para EMPRESA 1 (NEXUS)
+RESEND_API_KEY_EMPRESA1=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+FROM_EMAIL_EMPRESA1=noreply@nexus.com
+FROM_NAME_EMPRESA1=NEXUS - Gestão Financeira
 
-# 2FA Settings
-TWO_FA_ISSUER=Nexus Gestão
+# Configurações de 2FA para EMPRESA 2 (LITORAL CRED)
+RESEND_API_KEY_EMPRESA2=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+FROM_EMAIL_EMPRESA2=noreply@litoralcred.com
+FROM_NAME_EMPRESA2=LITORAL CRED - Gestão Financeira
+
+# Configurações de 2FA para EMPRESA 3 (MOGIANA CRED)
+RESEND_API_KEY_EMPRESA3=re_xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
+FROM_EMAIL_EMPRESA3=noreply@mogianacred.com
+FROM_NAME_EMPRESA3=MOGIANA CRED - Gestão Financeira
+
+# Configurações gerais de 2FA
 TWO_FA_CODE_EXPIRY_MINUTES=5
 TWO_FA_MAX_ATTEMPTS=3
 ```
+
+**Importante:** Cada empresa pode ter sua própria API Key do Resend e domínio de email personalizado.
 
 ### 3. Instalação de Dependências
 
@@ -75,13 +86,14 @@ Os seguintes arquivos foram criados/modificados:
 - `app.js` - Integração com fluxo de login
 - `package.json` - Dependências adicionadas
 
-#### 4.2 Configurar API Key do Resend
-No arquivo `app.js`, linha 767, substitua:
-```javascript
-resendApiKey: 'YOUR_RESEND_API_KEY'
-```
+#### 4.2 Configuração Automática por Empresa
+O sistema automaticamente usa as configurações corretas baseadas na empresa selecionada no login:
 
-Por sua chave real do Resend.
+- **NEXUS:** Usa `RESEND_API_KEY_EMPRESA1` e `FROM_EMAIL_EMPRESA1`
+- **LITORAL CRED:** Usa `RESEND_API_KEY_EMPRESA2` e `FROM_EMAIL_EMPRESA2`  
+- **MOGIANA CRED:** Usa `RESEND_API_KEY_EMPRESA3` e `FROM_EMAIL_EMPRESA3`
+
+Não é necessário alterar código - apenas configurar as variáveis de ambiente.
 
 ### 5. Funcionalidades Implementadas
 

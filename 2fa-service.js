@@ -135,7 +135,7 @@ class TwoFactorAuthService {
         <body>
             <div class="container">
                 <div class="header">
-                    <div class="logo">🔐 Nexus Gestão Financeira</div>
+                    <div class="logo">🔐 ${this.config.fromName}</div>
                 </div>
                 
                 <div class="content">
@@ -159,7 +159,7 @@ class TwoFactorAuthService {
                 
                 <div class="footer">
                     <p>Este é um email automático. Não responda a esta mensagem.</p>
-                    <p>&copy; 2025 Nexus Gestão Financeira. Todos os direitos reservados.</p>
+                    <p>&copy; 2025 ${this.config.fromName}. Todos os direitos reservados.</p>
                 </div>
             </div>
         </body>
