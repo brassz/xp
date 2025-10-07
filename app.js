@@ -263,7 +263,10 @@ function setupEventListeners() {
     // Botão para enviar código de verificação
     const sendCodeBtn = document.getElementById('sendCodeBtn');
     if (sendCodeBtn) {
+        console.log('✅ Botão sendCodeBtn encontrado, adicionando event listener');
         sendCodeBtn.addEventListener('click', handleSendVerificationCode);
+    } else {
+        console.error('❌ Botão sendCodeBtn NÃO encontrado no DOM!');
     }
     
     // Navegação
@@ -712,7 +715,9 @@ function initializeEmailJS() {
 
 // Sistema de Verificação por Email
 function generateVerificationCode() {
-    return Math.floor(100000 + Math.random() * 900000).toString();
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log('🔢 Código gerado:', code);
+    return code;
 }
 
 async function sendVerificationCode() {
@@ -900,35 +905,49 @@ function validateVerificationCode(inputCode) {
 }
 
 async function handleSendVerificationCode() {
+    console.log('🚀 handleSendVerificationCode chamada');
+    
     const sendCodeBtn = document.getElementById('sendCodeBtn');
+    if (!sendCodeBtn) {
+        console.error('❌ Botão sendCodeBtn não encontrado!');
+        return;
+    }
+    
     const originalText = sendCodeBtn.textContent;
+    console.log('📝 Texto original do botão:', originalText);
     
     try {
+        console.log('🔒 Desabilitando botão...');
         sendCodeBtn.disabled = true;
         sendCodeBtn.textContent = 'Enviando...';
         
+        console.log('📞 Chamando sendVerificationCode()...');
         const success = await sendVerificationCode();
+        console.log('📊 Resultado sendVerificationCode:', success);
         
         if (success) {
+            console.log('✅ Sucesso! Atualizando botão...');
             sendCodeBtn.textContent = 'Código Enviado ✓';
             sendCodeBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
             sendCodeBtn.classList.add('bg-green-600');
             
             // Reabilitar botão após 30 segundos
             setTimeout(() => {
+                console.log('⏰ Reabilitando botão após 30s...');
                 sendCodeBtn.disabled = false;
                 sendCodeBtn.textContent = 'Reenviar Código';
                 sendCodeBtn.classList.remove('bg-green-600');
                 sendCodeBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
             }, 30000);
         } else {
+            console.log('❌ Falha! Restaurando botão...');
             sendCodeBtn.disabled = false;
             sendCodeBtn.textContent = originalText;
         }
     } catch (error) {
+        console.error('❌ Erro em handleSendVerificationCode:', error);
         sendCodeBtn.disabled = false;
         sendCodeBtn.textContent = originalText;
-        console.error('Erro ao enviar código:', error);
     }
 }
 
