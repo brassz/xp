@@ -154,7 +154,7 @@ let isCodeSent = false;
 // Configurações do EmailJS - configurado para produção
 const EMAILJS_CONFIG = {
     serviceId: 'service_v104fpg',
-    templateId: 'template_rkwho3h',
+    templateId: 'template_pupk1rk',
     publicKey: 'UsJiG8it4NxqAcHkW'
 };
 
