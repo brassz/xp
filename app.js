@@ -11370,15 +11370,15 @@ function getWeekInfo(date) {
     const d = new Date(date);
     const year = d.getFullYear();
     
-    // Definir semanas fixas manualmente
+    // Definir semanas fixas manualmente para 2025 (atualizado do 2024)
     const weekRanges = [
-        { start: new Date(2024, 8, 29), end: new Date(2024, 9, 5), week: 40 },   // 29/09 - 05/10
-        { start: new Date(2024, 9, 6), end: new Date(2024, 9, 12), week: 41 },   // 06/10 - 12/10
-        { start: new Date(2024, 9, 13), end: new Date(2024, 9, 19), week: 42 },  // 13/10 - 19/10
-        { start: new Date(2024, 9, 20), end: new Date(2024, 9, 26), week: 43 },  // 20/10 - 26/10
-        { start: new Date(2024, 9, 27), end: new Date(2024, 10, 2), week: 44 },  // 27/10 - 02/11
-        { start: new Date(2024, 10, 3), end: new Date(2024, 10, 9), week: 45 },  // 03/11 - 09/11
-        { start: new Date(2024, 10, 10), end: new Date(2024, 10, 16), week: 46 }, // 10/11 - 16/11
+        { start: new Date(2025, 8, 29), end: new Date(2025, 9, 5), week: 40 },   // 29/09 - 05/10
+        { start: new Date(2025, 9, 6), end: new Date(2025, 9, 12), week: 41 },   // 06/10 - 12/10
+        { start: new Date(2025, 9, 13), end: new Date(2025, 9, 19), week: 42 },  // 13/10 - 19/10
+        { start: new Date(2025, 9, 20), end: new Date(2025, 9, 26), week: 43 },  // 20/10 - 26/10
+        { start: new Date(2025, 9, 27), end: new Date(2025, 10, 2), week: 44 },  // 27/10 - 02/11
+        { start: new Date(2025, 10, 3), end: new Date(2025, 10, 9), week: 45 },  // 03/11 - 09/11
+        { start: new Date(2025, 10, 10), end: new Date(2025, 10, 16), week: 46 }, // 10/11 - 16/11
     ];
     
     // Encontrar em qual semana a data se encaixa
