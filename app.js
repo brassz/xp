@@ -708,6 +708,20 @@ async function sendVerificationCode() {
         console.log('📧 Enviando para:', verificationEmail);
         console.log('🔢 Código:', verificationCode);
         
+        // Verificar se Supabase está inicializado
+        if (!supabase) {
+            console.warn('⚠️ Supabase não inicializado, tentando inicializar...');
+            
+            // Tentar inicializar com configuração padrão
+            const defaultConfig = COMPANIES_CONFIG.nexus;
+            if (defaultConfig && defaultConfig.supabase) {
+                supabase = window.supabase.createClient(defaultConfig.supabase.url, defaultConfig.supabase.key);
+                console.log('✅ Supabase inicializado com configuração padrão');
+            } else {
+                throw new Error('Configuração do Supabase não encontrada');
+            }
+        }
+        
         // Chamar Edge Function do Supabase que usa Resend
         console.log('📡 Chamando Edge Function do Supabase...');
         
