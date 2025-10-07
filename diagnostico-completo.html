@@ -1,0 +1,304 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Diagnóstico Completo EmailJS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-6xl mx-auto">
+        <h1 class="text-4xl font-bold mb-6 text-center text-red-400">🔍 DIAGNÓSTICO COMPLETO</h1>
+        
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+            <!-- Configurações -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">📋 Configurações</h2>
+                <div class="space-y-2 font-mono text-sm">
+                    <div>Service: <span class="text-green-400">service_v104fpg</span></div>
+                    <div>Template: <span class="text-green-400">template_pupk1rk</span></div>
+                    <div>Public Key: <span class="text-green-400">UsJiG8it4NxqAcHkW</span></div>
+                    <div>Email: <span class="text-yellow-400">assonibrassz@gmail.com</span></div>
+                </div>
+            </div>
+            
+            <!-- Status -->
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-semibold mb-4">📊 Status</h2>
+                <div id="status" class="space-y-2 text-sm">
+                    <div>Carregando status...</div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Testes -->
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4">🧪 Testes Diagnósticos</h2>
+            <div class="grid grid-cols-2 md:grid-cols-4 gap-3">
+                <button id="test1" class="bg-blue-600 hover:bg-blue-700 px-3 py-2 rounded text-sm">1. Básico</button>
+                <button id="test2" class="bg-green-600 hover:bg-green-700 px-3 py-2 rounded text-sm">2. Mínimo</button>
+                <button id="test3" class="bg-yellow-600 hover:bg-yellow-700 px-3 py-2 rounded text-sm">3. Simples</button>
+                <button id="test4" class="bg-purple-600 hover:bg-purple-700 px-3 py-2 rounded text-sm">4. Completo</button>
+                <button id="test5" class="bg-red-600 hover:bg-red-700 px-3 py-2 rounded text-sm">5. Alternativo</button>
+                <button id="test6" class="bg-indigo-600 hover:bg-indigo-700 px-3 py-2 rounded text-sm">6. Debug</button>
+                <button id="testAll" class="bg-orange-600 hover:bg-orange-700 px-3 py-2 rounded text-sm col-span-2">🚀 TODOS</button>
+            </div>
+        </div>
+
+        <!-- Console -->
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <div class="flex justify-between items-center mb-3">
+                <h3 class="text-lg font-semibold">Console de Diagnóstico</h3>
+                <button id="clear" class="bg-gray-600 hover:bg-gray-700 px-3 py-1 rounded text-sm">Limpar</button>
+            </div>
+            <div id="console" class="bg-black p-4 rounded font-mono text-xs h-96 overflow-y-auto">
+                Sistema pronto para diagnóstico...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const CONFIG = {
+            serviceId: 'service_v104fpg',
+            templateId: 'template_pupk1rk',
+            publicKey: 'UsJiG8it4NxqAcHkW',
+            email: 'assonibrassz@gmail.com'
+        };
+
+        function log(message, type = 'info') {
+            const console = document.getElementById('console');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400',
+                debug: 'text-purple-400'
+            };
+            
+            console.innerHTML += `<div class="${colors[type]}">[${timestamp}] ${message}</div>`;
+            console.scrollTop = console.scrollHeight;
+        }
+
+        function updateStatus() {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `
+                <div>EmailJS: <span class="${typeof emailjs !== 'undefined' ? 'text-green-400' : 'text-red-400'}">${typeof emailjs !== 'undefined' ? 'Carregado' : 'Não carregado'}</span></div>
+                <div>Navegador: <span class="text-blue-400">${navigator.userAgent.split(' ')[0]}</span></div>
+                <div>Conexão: <span class="${navigator.onLine ? 'text-green-400' : 'text-red-400'}">${navigator.onLine ? 'Online' : 'Offline'}</span></div>
+                <div>Timestamp: <span class="text-gray-400">${new Date().toLocaleTimeString()}</span></div>
+            `;
+        }
+
+        // Teste 1: Básico
+        async function test1() {
+            log('=== TESTE 1: BÁSICO ===', 'warning');
+            try {
+                if (typeof emailjs === 'undefined') throw new Error('EmailJS não carregado');
+                emailjs.init(CONFIG.publicKey);
+                
+                const result = await emailjs.send(CONFIG.serviceId, CONFIG.templateId, {});
+                log('✅ Teste básico: SUCESSO', 'success');
+                return true;
+            } catch (error) {
+                log(`❌ Teste básico: ${error.status} - ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Teste 2: Mínimo
+        async function test2() {
+            log('=== TESTE 2: MÍNIMO ===', 'warning');
+            try {
+                emailjs.init(CONFIG.publicKey);
+                const result = await emailjs.send(CONFIG.serviceId, CONFIG.templateId, {
+                    to_email: CONFIG.email
+                });
+                log('✅ Teste mínimo: SUCESSO', 'success');
+                return true;
+            } catch (error) {
+                log(`❌ Teste mínimo: ${error.status} - ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Teste 3: Simples
+        async function test3() {
+            log('=== TESTE 3: SIMPLES ===', 'warning');
+            try {
+                emailjs.init(CONFIG.publicKey);
+                const result = await emailjs.send(CONFIG.serviceId, CONFIG.templateId, {
+                    to_email: CONFIG.email,
+                    message: 'Teste simples'
+                });
+                log('✅ Teste simples: SUCESSO', 'success');
+                return true;
+            } catch (error) {
+                log(`❌ Teste simples: ${error.status} - ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Teste 4: Completo
+        async function test4() {
+            log('=== TESTE 4: COMPLETO ===', 'warning');
+            try {
+                emailjs.init(CONFIG.publicKey);
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                const result = await emailjs.send(CONFIG.serviceId, CONFIG.templateId, {
+                    to_email: CONFIG.email,
+                    verification_code: code,
+                    code: code,
+                    message: `Código: ${code}`,
+                    system_name: 'Nexus'
+                });
+                log(`✅ Teste completo: SUCESSO - Código ${code}`, 'success');
+                return true;
+            } catch (error) {
+                log(`❌ Teste completo: ${error.status} - ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Teste 5: Alternativo
+        async function test5() {
+            log('=== TESTE 5: ALTERNATIVO ===', 'warning');
+            try {
+                emailjs.init(CONFIG.publicKey);
+                const result = await emailjs.send(CONFIG.serviceId, CONFIG.templateId, {
+                    user_email: CONFIG.email,
+                    user_message: 'Teste alternativo',
+                    subject: 'Teste'
+                });
+                log('✅ Teste alternativo: SUCESSO', 'success');
+                return true;
+            } catch (error) {
+                log(`❌ Teste alternativo: ${error.status} - ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Teste 6: Debug
+        async function test6() {
+            log('=== TESTE 6: DEBUG DETALHADO ===', 'warning');
+            
+            // Verificações detalhadas
+            log('🔍 Verificando EmailJS...', 'debug');
+            log(`   typeof emailjs: ${typeof emailjs}`, 'debug');
+            log(`   emailjs.version: ${emailjs?.version || 'N/A'}`, 'debug');
+            
+            log('🔍 Verificando configurações...', 'debug');
+            log(`   Service ID: "${CONFIG.serviceId}"`, 'debug');
+            log(`   Template ID: "${CONFIG.templateId}"`, 'debug');
+            log(`   Public Key: "${CONFIG.publicKey}"`, 'debug');
+            log(`   Email: "${CONFIG.email}"`, 'debug');
+            
+            try {
+                log('🔍 Inicializando EmailJS...', 'debug');
+                emailjs.init(CONFIG.publicKey);
+                log('   ✅ Inicialização OK', 'debug');
+                
+                log('🔍 Preparando parâmetros...', 'debug');
+                const params = {
+                    to_email: CONFIG.email,
+                    from_name: 'Sistema Nexus',
+                    message: 'Teste de debug detalhado'
+                };
+                log(`   Parâmetros: ${JSON.stringify(params)}`, 'debug');
+                
+                log('🔍 Enviando email...', 'debug');
+                const result = await emailjs.send(CONFIG.serviceId, CONFIG.templateId, params);
+                
+                log('✅ Debug: SUCESSO TOTAL!', 'success');
+                log(`   Status: ${result.status}`, 'success');
+                log(`   Text: ${result.text}`, 'success');
+                return true;
+                
+            } catch (error) {
+                log('❌ Debug: ERRO DETALHADO', 'error');
+                log(`   Status: ${error.status}`, 'error');
+                log(`   Message: ${error.message}`, 'error');
+                log(`   Text: ${error.text}`, 'error');
+                log(`   Stack: ${error.stack}`, 'error');
+                
+                // Análise do erro
+                if (error.status === 422) {
+                    log('💡 ANÁLISE ERRO 422:', 'warning');
+                    log('   - Template não existe ou está inativo', 'warning');
+                    log('   - Service não está associado ao template', 'warning');
+                    log('   - Parâmetros obrigatórios ausentes', 'warning');
+                } else if (error.status === 401) {
+                    log('💡 ANÁLISE ERRO 401: Public Key inválida', 'warning');
+                } else if (error.status === 404) {
+                    log('💡 ANÁLISE ERRO 404: Service ou Template não encontrado', 'warning');
+                }
+                
+                return false;
+            }
+        }
+
+        // Executar todos os testes
+        async function testAll() {
+            log('🚀 === EXECUTANDO TODOS OS TESTES ===', 'warning');
+            log('', 'info');
+            
+            const tests = [test1, test2, test3, test4, test5, test6];
+            const results = [];
+            
+            for (let i = 0; i < tests.length; i++) {
+                const result = await tests[i]();
+                results.push(result);
+                log('', 'info');
+                await new Promise(resolve => setTimeout(resolve, 1000)); // Pausa entre testes
+            }
+            
+            log('📊 === RESUMO DOS TESTES ===', 'warning');
+            results.forEach((result, index) => {
+                log(`Teste ${index + 1}: ${result ? '✅ PASSOU' : '❌ FALHOU'}`, result ? 'success' : 'error');
+            });
+            
+            const passed = results.filter(r => r).length;
+            log(``, 'info');
+            log(`🎯 RESULTADO: ${passed}/${results.length} testes passaram`, passed === results.length ? 'success' : 'error');
+            
+            if (passed === 0) {
+                log('🚨 NENHUM TESTE PASSOU - Problema grave de configuração', 'error');
+            } else if (passed < results.length) {
+                log('⚠️ ALGUNS TESTES FALHARAM - Problema específico de parâmetros', 'warning');
+            } else {
+                log('🎉 TODOS OS TESTES PASSARAM - Sistema funcionando!', 'success');
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            updateStatus();
+            setInterval(updateStatus, 5000);
+            
+            log('🔍 Sistema de diagnóstico iniciado', 'success');
+            log('📋 Configurações carregadas', 'info');
+            log('', 'info');
+            log('Execute os testes para identificar o problema:', 'warning');
+            log('- Teste 1-5: Diferentes formatos de parâmetros', 'info');
+            log('- Teste 6: Debug detalhado com análise de erro', 'info');
+            log('- TODOS: Executa sequência completa', 'info');
+            log('', 'info');
+            log('👆 RECOMENDADO: Clique em "TODOS" para diagnóstico completo', 'warning');
+            
+            document.getElementById('test1').addEventListener('click', test1);
+            document.getElementById('test2').addEventListener('click', test2);
+            document.getElementById('test3').addEventListener('click', test3);
+            document.getElementById('test4').addEventListener('click', test4);
+            document.getElementById('test5').addEventListener('click', test5);
+            document.getElementById('test6').addEventListener('click', test6);
+            document.getElementById('testAll').addEventListener('click', testAll);
+            
+            document.getElementById('clear').addEventListener('click', () => {
+                document.getElementById('console').innerHTML = '';
+                log('Console limpo', 'info');
+            });
+        });
+    </script>
+</body>
+</html>
