@@ -1,0 +1,193 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste EmailJS - assonibrassz@gmail.com</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-2xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-center text-green-400">📧 Teste EmailJS</h1>
+        
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4">Configurações Atuais</h2>
+            <div class="grid grid-cols-2 gap-4 text-sm">
+                <div><strong>Service ID:</strong></div>
+                <div class="font-mono text-green-400">service_0ap0m1k</div>
+                <div><strong>Template ID:</strong></div>
+                <div class="font-mono text-green-400">template_z3n0654</div>
+                <div><strong>Public Key:</strong></div>
+                <div class="font-mono text-green-400">UsJiG8it4NxqAcHkW</div>
+                <div><strong>Email Destino:</strong></div>
+                <div class="font-mono text-yellow-400">assonibrassz@gmail.com</div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4">Status do Sistema</h2>
+            <div id="systemStatus" class="space-y-2"></div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <button id="sendTestBtn" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded text-white font-semibold w-full">
+                🚀 Enviar Código de Teste
+            </button>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <h3 class="text-lg font-semibold mb-3">Log de Teste:</h3>
+            <div id="testLog" class="bg-black p-4 rounded font-mono text-sm h-64 overflow-y-auto">
+                Sistema pronto para teste...
+            </div>
+            <button id="clearBtn" class="mt-2 bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-white text-sm">
+                Limpar Log
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Configurações
+        const CONFIG = {
+            serviceId: 'service_0ap0m1k',
+            templateId: 'template_z3n0654',
+            publicKey: 'UsJiG8it4NxqAcHkW',
+            email: 'assonibrassz@gmail.com'
+        };
+
+        // Função de log
+        function log(message, type = 'info') {
+            const logDiv = document.getElementById('testLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            logDiv.innerHTML += `<div class="${colors[type]}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Verificar status do sistema
+        function checkSystemStatus() {
+            const statusDiv = document.getElementById('systemStatus');
+            let html = '';
+
+            // EmailJS
+            if (typeof emailjs !== 'undefined') {
+                html += '<div class="text-green-400">✅ EmailJS carregado</div>';
+                log('EmailJS disponível', 'success');
+            } else {
+                html += '<div class="text-red-400">❌ EmailJS não carregado</div>';
+                log('EmailJS não disponível', 'error');
+            }
+
+            // Configurações
+            html += '<div class="text-blue-400">📋 Configurações carregadas</div>';
+            html += '<div class="text-yellow-400">📧 Email destino: assonibrassz@gmail.com</div>';
+
+            statusDiv.innerHTML = html;
+        }
+
+        // Enviar email de teste
+        async function sendTestEmail() {
+            const btn = document.getElementById('sendTestBtn');
+            btn.disabled = true;
+            btn.textContent = '📤 Enviando...';
+            
+            try {
+                log('=== INICIANDO TESTE DE ENVIO ===', 'info');
+                
+                // Verificar EmailJS
+                if (typeof emailjs === 'undefined') {
+                    throw new Error('EmailJS não está carregado');
+                }
+                log('✅ EmailJS verificado', 'success');
+                
+                // Inicializar EmailJS
+                emailjs.init(CONFIG.publicKey);
+                log('✅ EmailJS inicializado', 'success');
+                
+                // Gerar código de teste
+                const testCode = Math.floor(100000 + Math.random() * 900000).toString();
+                log(`🔢 Código gerado: ${testCode}`, 'info');
+                
+                // Preparar dados
+                const templateParams = {
+                    to_email: CONFIG.email,
+                    verification_code: testCode,
+                    system_name: 'Nexus Gestão Financeira - TESTE',
+                    expiry_time: '5 minutos'
+                };
+                
+                log('📋 Parâmetros preparados:', 'info');
+                log(`   Email: ${templateParams.to_email}`, 'info');
+                log(`   Código: ${templateParams.verification_code}`, 'info');
+                log(`   Sistema: ${templateParams.system_name}`, 'info');
+                
+                // Enviar email
+                log('📤 Enviando email via EmailJS...', 'warning');
+                
+                const result = await emailjs.send(
+                    CONFIG.serviceId,
+                    CONFIG.templateId,
+                    templateParams
+                );
+                
+                log('🎉 EMAIL ENVIADO COM SUCESSO!', 'success');
+                log(`Status: ${result.status}`, 'success');
+                log(`Resposta: ${result.text}`, 'success');
+                log('📬 Verifique a caixa de entrada de assonibrassz@gmail.com', 'warning');
+                log('📬 Verifique também a pasta de SPAM', 'warning');
+                
+                btn.textContent = '✅ Email Enviado!';
+                btn.className = 'bg-green-600 px-6 py-3 rounded text-white font-semibold w-full';
+                
+            } catch (error) {
+                log('❌ ERRO NO ENVIO:', 'error');
+                log(`Mensagem: ${error.message}`, 'error');
+                log(`Status: ${error.status || 'N/A'}`, 'error');
+                log(`Texto: ${error.text || 'N/A'}`, 'error');
+                
+                // Diagnóstico do erro
+                if (error.message && error.message.includes('412')) {
+                    log('💡 DIAGNÓSTICO: Erro de permissão do Gmail', 'warning');
+                    log('💡 SOLUÇÃO: Reconfigure o Gmail no EmailJS com todas as permissões', 'warning');
+                } else if (error.message && error.message.includes('400')) {
+                    log('💡 DIAGNÓSTICO: Template ou serviço não encontrado', 'warning');
+                    log('💡 SOLUÇÃO: Verifique se o template existe e está ativo', 'warning');
+                } else if (error.message && error.message.includes('401')) {
+                    log('💡 DIAGNÓSTICO: Public Key inválida', 'warning');
+                    log('💡 SOLUÇÃO: Verifique a Public Key no painel EmailJS', 'warning');
+                }
+                
+                btn.textContent = '❌ Erro no Envio';
+                btn.className = 'bg-red-600 px-6 py-3 rounded text-white font-semibold w-full';
+                
+            } finally {
+                setTimeout(() => {
+                    btn.disabled = false;
+                    btn.textContent = '🚀 Enviar Código de Teste';
+                    btn.className = 'bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded text-white font-semibold w-full';
+                }, 3000);
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            checkSystemStatus();
+            log('🚀 Sistema de teste iniciado', 'success');
+            log('📧 Email configurado para: assonibrassz@gmail.com', 'info');
+            
+            document.getElementById('sendTestBtn').addEventListener('click', sendTestEmail);
+            document.getElementById('clearBtn').addEventListener('click', () => {
+                document.getElementById('testLog').innerHTML = '';
+                log('Log limpo', 'info');
+            });
+        });
+    </script>
+</body>
+</html>

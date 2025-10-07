@@ -40,7 +40,7 @@ Use este código no console do navegador para testar:
 // Teste direto no console
 emailjs.init('UsJiG8it4NxqAcHkW');
 emailjs.send('service_0ap0m1k', 'template_z3n0654', {
-    to_email: 'brasszgc@gmail.com',
+    to_email: 'assonibrassz@gmail.com',
     verification_code: '123456',
     system_name: 'Teste',
     expiry_time: '5 minutos'

@@ -148,7 +148,7 @@ let capitalRaisingClients = [];
 
 // Sistema de verificação por email
 let verificationCode = null;
-let verificationEmail = 'brasszgc@gmail.com';
+let verificationEmail = 'assonibrassz@gmail.com';
 let isCodeSent = false;
 
 // Configurações do EmailJS - configurado para produção
