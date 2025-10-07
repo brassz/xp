@@ -1785,7 +1785,7 @@ async function renderLoansTable() {
                     <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
                     <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
-                    <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="sendWhatsAppMessage('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                    <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -4808,6 +4808,482 @@ Obrigado pela confiança! 🤝`;
     } catch (error) {
         console.error('Erro ao enviar resumo via WhatsApp:', error);
         showErrorMessage('Erro ao preparar resumo do WhatsApp: ' + error.message);
+    }
+}
+
+// Variáveis globais para armazenar o ID do empréstimo/parcelamento atual
+let currentLoanIdForPix = null;
+let currentInstallmentIdForPix = null;
+
+// Função para mostrar o modal de seleção de chave PIX
+async function showPixKeySelector(loanId) {
+    currentLoanIdForPix = loanId;
+    currentInstallmentIdForPix = null; // Limpar parcelamento
+    
+    // Mostrar o modal
+    document.getElementById('pixKeyModal').classList.remove('hidden');
+    
+    // Carregar as chaves PIX disponíveis
+    await loadPixKeys();
+}
+
+// Função para mostrar o modal de seleção de chave PIX para parcelamentos
+async function showPixKeySelectorForInstallment(installmentId) {
+    currentInstallmentIdForPix = installmentId;
+    currentLoanIdForPix = null; // Limpar o ID do empréstimo
+    
+    // Mostrar o modal
+    document.getElementById('pixKeyModal').classList.remove('hidden');
+    
+    // Carregar as chaves PIX disponíveis
+    await loadPixKeys();
+}
+
+// Função para fechar o modal de seleção de chave PIX
+function closePixKeyModal() {
+    document.getElementById('pixKeyModal').classList.add('hidden');
+    currentLoanIdForPix = null;
+    currentInstallmentIdForPix = null;
+}
+
+// Função para carregar as chaves PIX do banco de dados
+async function loadPixKeys() {
+    try {
+        let pixKeys;
+        
+        // Tentar carregar do banco de dados
+        try {
+            const { data, error } = await supabase
+                .from('pix_keys')
+                .select('*')
+                .eq('is_active', true)
+                .order('bank_name', { ascending: true });
+
+            if (error) throw error;
+            pixKeys = data;
+        } catch (dbError) {
+            console.warn('Tabela pix_keys não encontrada, usando dados de exemplo:', dbError);
+            // Usar dados de exemplo se a tabela não existir
+            pixKeys = [
+                {
+                    id: '1',
+                    bank_name: 'Banco do Brasil',
+                    pix_key: '12345678901',
+                    pix_key_type: 'cpf',
+                    account_holder: 'João Silva',
+                    is_active: true
+                },
+                {
+                    id: '2',
+                    bank_name: 'Itaú',
+                    pix_key: 'joao@email.com',
+                    pix_key_type: 'email',
+                    account_holder: 'João Silva',
+                    is_active: true
+                },
+                {
+                    id: '3',
+                    bank_name: 'Nubank',
+                    pix_key: '11987654321',
+                    pix_key_type: 'phone',
+                    account_holder: 'João Silva',
+                    is_active: true
+                }
+            ];
+        }
+
+        const pixKeysList = document.getElementById('pixKeysList');
+        
+        if (pixKeys.length === 0) {
+            pixKeysList.innerHTML = `
+                <div class="text-center py-4">
+                    <p class="text-gray-400 text-sm">Nenhuma chave PIX cadastrada.</p>
+                    <p class="text-gray-500 text-xs mt-1">Clique em "Nova Chave PIX" para adicionar uma.</p>
+                </div>
+            `;
+            return;
+        }
+
+        pixKeysList.innerHTML = pixKeys.map(pixKey => `
+            <div class="pix-key-item border border-gray-600 rounded-lg p-3 hover:border-blue-500 cursor-pointer transition-colors"
+                 data-pix-id="${pixKey.id}" 
+                 data-bank-name="${pixKey.bank_name.replace(/"/g, '&quot;')}" 
+                 data-pix-key="${pixKey.pix_key.replace(/"/g, '&quot;')}">
+                <div class="flex justify-between items-start">
+                    <div class="flex-1">
+                        <div class="font-medium text-white">${pixKey.bank_name}</div>
+                        <div class="text-sm text-gray-300">${pixKey.account_holder}</div>
+                        <div class="text-xs text-gray-400 mt-1">
+                            <span class="inline-block bg-gray-700 px-2 py-1 rounded text-xs uppercase">
+                                ${getPixKeyTypeLabel(pixKey.pix_key_type)}
+                            </span>
+                            <span class="ml-2">${maskPixKey(pixKey.pix_key, pixKey.pix_key_type)}</span>
+                        </div>
+                    </div>
+                    <div class="text-blue-400 text-sm">Selecionar</div>
+                </div>
+            </div>
+        `).join('');
+
+        // Adicionar event listeners para os itens de chave PIX
+        document.querySelectorAll('.pix-key-item').forEach(item => {
+            item.addEventListener('click', function() {
+                const pixId = this.getAttribute('data-pix-id');
+                const bankName = this.getAttribute('data-bank-name');
+                const pixKey = this.getAttribute('data-pix-key');
+                selectPixKey(pixId, bankName, pixKey);
+            });
+        });
+
+    } catch (error) {
+        console.error('Erro ao carregar chaves PIX:', error);
+        showErrorMessage('Erro ao carregar chaves PIX: ' + error.message);
+        
+        document.getElementById('pixKeysList').innerHTML = `
+            <div class="text-center py-4">
+                <p class="text-red-400 text-sm">Erro ao carregar chaves PIX</p>
+                <p class="text-gray-500 text-xs mt-1">Tente novamente ou adicione uma nova chave.</p>
+            </div>
+        `;
+    }
+}
+
+// Função para obter o label do tipo de chave PIX
+function getPixKeyTypeLabel(type) {
+    const labels = {
+        'cpf': 'CPF',
+        'cnpj': 'CNPJ', 
+        'email': 'E-mail',
+        'phone': 'Telefone',
+        'random': 'Aleatória'
+    };
+    return labels[type] || type.toUpperCase();
+}
+
+// Função para mascarar a chave PIX para exibição
+function maskPixKey(key, type) {
+    if (type === 'cpf') {
+        return key.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.**$4');
+    } else if (type === 'cnpj') {
+        return key.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.***.***/$4-$5');
+    } else if (type === 'email') {
+        const [local, domain] = key.split('@');
+        return `${local.substring(0, 2)}***@${domain}`;
+    } else if (type === 'phone') {
+        return key.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-****');
+    } else if (type === 'random') {
+        return key.substring(0, 8) + '***';
+    }
+    return key;
+}
+
+// Função para selecionar uma chave PIX e enviar a cobrança
+async function selectPixKey(pixKeyId, bankName, pixKey) {
+    try {
+        // Salvar os IDs antes de fechar o modal
+        const loanId = currentLoanIdForPix;
+        const installmentId = currentInstallmentIdForPix;
+        
+        // Fechar o modal
+        closePixKeyModal();
+        
+        // Mostrar mensagem de processamento
+        showSuccessMessage(`Enviando cobrança via ${bankName}...`);
+        
+        // Verificar se é para empréstimo ou parcelamento
+        if (loanId) {
+            // Enviar cobrança de empréstimo
+            await sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey);
+        } else if (installmentId) {
+            // Enviar cobrança de parcelamento
+            await sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId, bankName, pixKey);
+        } else {
+            throw new Error('Nenhum empréstimo ou parcelamento selecionado');
+        }
+        
+    } catch (error) {
+        console.error('Erro ao selecionar chave PIX:', error);
+        showErrorMessage('Erro ao processar cobrança: ' + error.message);
+    }
+}
+
+// Função para mostrar o formulário de adicionar nova chave PIX
+function showAddPixKeyForm() {
+    document.getElementById('addPixKeyModal').classList.remove('hidden');
+}
+
+// Função para fechar o modal de adicionar chave PIX
+function closeAddPixKeyModal() {
+    document.getElementById('addPixKeyModal').classList.add('hidden');
+    // Limpar o formulário
+    document.getElementById('addPixKeyForm').reset();
+}
+
+// Função para adicionar nova chave PIX
+document.addEventListener('DOMContentLoaded', function() {
+    const addPixKeyForm = document.getElementById('addPixKeyForm');
+    if (addPixKeyForm) {
+        addPixKeyForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const bankName = document.getElementById('newPixBankName').value.trim();
+            const pixKeyType = document.getElementById('newPixKeyType').value;
+            const pixKey = document.getElementById('newPixKey').value.trim();
+            const accountHolder = document.getElementById('newPixAccountHolder').value.trim();
+            
+            if (!bankName || !pixKeyType || !pixKey || !accountHolder) {
+                showErrorMessage('Todos os campos são obrigatórios!');
+                return;
+            }
+            
+            try {
+                const { data, error } = await supabase
+                    .from('pix_keys')
+                    .insert([{
+                        bank_name: bankName,
+                        pix_key_type: pixKeyType,
+                        pix_key: pixKey,
+                        account_holder: accountHolder,
+                        is_active: true
+                    }]);
+                
+                if (error) throw error;
+                
+                showSuccessMessage('Chave PIX adicionada com sucesso!');
+                closeAddPixKeyModal();
+                
+                // Recarregar a lista de chaves PIX
+                await loadPixKeys();
+                
+            } catch (error) {
+                console.error('Erro ao adicionar chave PIX:', error);
+                showErrorMessage('Erro ao adicionar chave PIX: ' + error.message);
+            }
+        });
+    }
+});
+
+// Função para enviar mensagem de cobrança via WhatsApp com chave PIX selecionada
+async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey) {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showErrorMessage('Empréstimo não encontrado!');
+        return;
+    }
+
+    const client = loan.clients;
+    if (!client) {
+        showErrorMessage('Dados do cliente não encontrados!');
+        return;
+    }
+
+    // Verificar se o cliente tem telefone
+    if (!client.phone) {
+        showErrorMessage('Cliente não possui telefone cadastrado!');
+        return;
+    }
+
+    try {
+        // Calcular valores atuais do empréstimo
+        const principalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = principalAmount * (interestRate / 100);
+        const totalWithInterest = principalAmount + interestAmount;
+        
+        // Buscar histórico de pagamentos
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('amount, payment_date, payment_type')
+            .eq('loan_id', loanId)
+            .order('payment_date', { ascending: true });
+
+        if (paymentsError) throw paymentsError;
+
+        // Verificar se houve renovações e calcular total pago corretamente
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        const hasRenewals = payments.some(p => p.payment_type === 'renewal' || p.payment_type === 'interest_renewal');
+        
+        let totalPaid;
+        if (hasRenewals) {
+            // Se houve renovação, considerar apenas pagamentos após a última renovação
+            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+            const lastInterestRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('interest_renewal');
+            const lastRenewalIdx = Math.max(lastRenewalIndex, lastInterestRenewalIndex);
+            
+            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
+                const paymentIndex = payments.findIndex(p => p === payment);
+                return paymentIndex > lastRenewalIdx;
+            });
+            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        } else {
+            // Lógica original - excluir renovações
+            const validPayments = realPayments.filter(p => 
+                p.payment_type !== 'renewal' && 
+                p.payment_type !== 'interest_renewal'
+            );
+            totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        }
+        
+        // Calcular valor restante
+        const remainingAmount = Math.max(0, totalWithInterest - totalPaid);
+        
+        // Calcular multa se estiver vencido
+        const dueDate = new Date(loan.due_date);
+        const today = new Date();
+        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+        const dailyFine = 50.00; // Multa diária de R$ 50,00
+        const currentFine = daysOverdue > 0 ? daysOverdue * dailyFine : 0;
+
+        // Formatar data de vencimento
+        const formattedDueDate = formatDate(loan.due_date);
+
+        // Montar mensagem do WhatsApp com informações da chave PIX
+        const message = `🏦 COBRANÇA - ${bankName}
+
+📅 VENCIMENTO: ${formattedDueDate}
+
+👤 CLIENTE: ${client.name}
+💰 Capital: R$ ${principalAmount.toFixed(2)}
+📈 Juros: R$ ${interestAmount.toFixed(2)}
+⚠️ Multa atual: R$ ${currentFine.toFixed(2)}
+💳 Valor restante: R$ ${remainingAmount.toFixed(2)}
+
+💸 DADOS PARA PAGAMENTO PIX:
+🏦 Banco: ${bankName}
+🔑 Chave PIX: ${pixKey}
+
+⚠️ ATENÇÃO!
+O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
+Após o vencimento, será aplicada uma multa diária de R$ 50,00.
+
+📱 Envie o comprovante após o pagamento.`;
+
+        // Limpar o número de telefone (remover caracteres especiais)
+        const cleanPhone = client.phone.replace(/\D/g, '');
+        
+        // Verificar se o número tem o código do país
+        const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+        // Criar URL do WhatsApp
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+        // Abrir WhatsApp em nova aba
+        window.open(whatsappUrl, '_blank');
+
+        // Mostrar mensagem de sucesso
+        showSuccessMessage(`Cobrança enviada para ${client.name} via ${bankName}`);
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem do WhatsApp:', error);
+        showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
+    }
+}
+
+// Função para enviar mensagem de cobrança de parcelamento via WhatsApp com chave PIX selecionada
+async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId, bankName, pixKey) {
+    try {
+        // Buscar dados do parcelamento com relacionamentos
+        const { data: installment, error } = await supabase
+            .from('installments')
+            .select(`
+                *,
+                clients (name, phone, cpf),
+                loans (amount, due_date),
+                installment_payments (*)
+            `)
+            .eq('id', installmentId)
+            .single();
+
+        if (error) throw error;
+
+        if (!installment) {
+            showErrorMessage('Parcelamento não encontrado!');
+            return;
+        }
+
+        const client = installment.clients;
+        if (!client) {
+            showErrorMessage('Dados do cliente não encontrados!');
+            return;
+        }
+
+        // Verificar se o cliente tem telefone
+        if (!client.phone) {
+            showErrorMessage('Cliente não possui telefone cadastrado!');
+            return;
+        }
+
+        // Calcular informações das parcelas
+        const allPayments = installment.installment_payments || [];
+        const paidPayments = allPayments.filter(p => p.status === 'paid');
+        const pendingPayments = allPayments.filter(p => p.status === 'pending');
+        
+        // Encontrar próxima parcela vencida ou a vencer
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const nextPayment = pendingPayments
+            .sort((a, b) => new Date(a.due_date) - new Date(b.due_date))[0];
+
+        if (!nextPayment) {
+            showErrorMessage('Não há parcelas pendentes para este parcelamento');
+            return;
+        }
+
+        // Calcular informações relevantes
+        const remainingInstallments = pendingPayments.length;
+        const totalRemaining = pendingPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+        const nextDueDate = formatDate(nextPayment.due_date);
+        const installmentAmount = parseFloat(nextPayment.amount);
+        
+        // Verificar se está vencida
+        const paymentDueDate = new Date(nextPayment.due_date);
+        paymentDueDate.setHours(0, 0, 0, 0);
+        const isOverdue = today > paymentDueDate;
+        const daysOverdue = isOverdue ? Math.floor((today - paymentDueDate) / (1000 * 60 * 60 * 24)) : 0;
+
+        // Montar mensagem do WhatsApp com informações da chave PIX
+        let message = `🏦 COBRANÇA PARCELAMENTO - ${bankName}
+
+📋 CLIENTE: ${client.name}
+💰 Valor da Parcela: R$ ${installmentAmount.toFixed(2)}
+📅 Vencimento: ${nextDueDate}
+📊 Parcelas Restantes: ${remainingInstallments} de ${installment.total_installments}
+💵 Valor Total Restante: R$ ${totalRemaining.toFixed(2)}
+
+💸 DADOS PARA PAGAMENTO PIX:
+🏦 Banco: ${bankName}
+🔑 Chave PIX: ${pixKey}`;
+
+        if (isOverdue) {
+            message += `\n\n⚠️ ATENÇÃO - PARCELA VENCIDA
+🚨 Venceu há ${daysOverdue} dia${daysOverdue > 1 ? 's' : ''}
+📞 Entre em contato conosco para regularizar sua situação`;
+        } else {
+            message += `\n\n✅ Parcela ainda dentro do prazo
+📞 Entre em contato para efetuar o pagamento`;
+        }
+
+        message += `\n\n📱 Envie o comprovante após o pagamento.`;
+
+        // Limpar o número de telefone (remover caracteres especiais)
+        const cleanPhone = client.phone.replace(/\D/g, '');
+
+        // Verificar se o número tem o código do país
+        const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+        // Criar URL do WhatsApp
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+        // Abrir WhatsApp em nova aba
+        window.open(whatsappUrl, '_blank');
+
+        // Mostrar mensagem de sucesso
+        showSuccessMessage(`Cobrança de parcela enviada para ${client.name} via ${bankName}`);
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem do WhatsApp:', error);
+        showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
     }
 }
 
@@ -8864,7 +9340,7 @@ function renderInstallmentsTable() {
                             class="text-blue-400 hover:text-blue-300 text-sm font-medium mr-3">
                         Ver Detalhes
                     </button>
-                    <button onclick="sendInstallmentWhatsAppMessage('${installment.id}')" 
+                    <button onclick="showPixKeySelectorForInstallment('${installment.id}')" 
                             class="text-green-400 hover:text-green-300 text-sm font-medium mr-3" 
                             title="Enviar cobrança via WhatsApp">
                         💬 WhatsApp
