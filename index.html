@@ -3257,6 +3257,93 @@
         </div>
     </div>
 
+    <!-- Modal de Seleção de Chave PIX -->
+    <div id="pixKeyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="glass-card rounded-lg p-6 w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-white">Selecionar Chave PIX</h3>
+                <button onclick="closePixKeyModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            
+            <div class="mb-4">
+                <p class="text-gray-300 text-sm mb-4">Selecione a chave PIX para enviar a cobrança:</p>
+                <div id="pixKeysList" class="space-y-3">
+                    <!-- As chaves PIX serão carregadas aqui dinamicamente -->
+                    <div class="text-center py-4">
+                        <div class="animate-spin rounded-full h-6 w-6 border-b-2 border-blue-500 mx-auto"></div>
+                        <p class="text-gray-400 mt-2 text-sm">Carregando chaves PIX...</p>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-end space-x-3 mt-6">
+                <button onclick="closePixKeyModal()" class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                    Cancelar
+                </button>
+                <button onclick="showAddPixKeyForm()" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                    + Nova Chave PIX
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Nova Chave PIX -->
+    <div id="addPixKeyModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="glass-card rounded-lg p-6 w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-white">Nova Chave PIX</h3>
+                <button onclick="closeAddPixKeyModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            
+            <form id="addPixKeyForm" class="space-y-4">
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Nome do Banco</label>
+                    <input type="text" id="newPixBankName" required
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                           placeholder="Ex: Banco do Brasil">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Tipo da Chave</label>
+                    <select id="newPixKeyType" required
+                            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                        <option value="">Selecione o tipo</option>
+                        <option value="cpf">CPF</option>
+                        <option value="cnpj">CNPJ</option>
+                        <option value="email">E-mail</option>
+                        <option value="phone">Telefone</option>
+                        <option value="random">Chave Aleatória</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Chave PIX</label>
+                    <input type="text" id="newPixKey" required
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                           placeholder="Digite a chave PIX">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Titular da Conta</label>
+                    <input type="text" id="newPixAccountHolder" required
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                           placeholder="Nome do titular">
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeAddPixKeyModal()" 
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Salvar Chave PIX
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html> 
