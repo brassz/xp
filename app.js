@@ -749,44 +749,69 @@ async function sendVerificationCode() {
             templateId: EMAILJS_CONFIG.templateId
         });
         
-        // Tentar diferentes formatos de parâmetros até um funcionar
+        // Tentar diferentes nomes de variáveis para o código
         const parameterFormats = [
-            // Formato 1: Atual
+            // Formato 1: verification_code (atual)
             {
                 to_email: verificationEmail,
                 verification_code: verificationCode,
                 system_name: 'Nexus Gestão Financeira',
                 expiry_time: '5 minutos'
             },
-            // Formato 2: Simples
-            {
-                email: verificationEmail,
-                code: verificationCode
-            },
-            // Formato 3: Padrão EmailJS
-            {
-                user_email: verificationEmail,
-                message: `Código de verificação: ${verificationCode}`
-            },
-            // Formato 4: Mínimo
+            // Formato 2: code
             {
                 to_email: verificationEmail,
-                verification_code: verificationCode
+                code: verificationCode,
+                system_name: 'Nexus Gestão Financeira',
+                expiry_time: '5 minutos'
             },
-            // Formato 5: Alternativo
+            // Formato 3: otp
             {
-                recipient_email: verificationEmail,
+                to_email: verificationEmail,
+                otp: verificationCode,
+                system_name: 'Nexus Gestão Financeira',
+                expiry_time: '5 minutos'
+            },
+            // Formato 4: auth_code
+            {
+                to_email: verificationEmail,
                 auth_code: verificationCode,
-                app_name: 'Nexus'
+                system_name: 'Nexus Gestão Financeira',
+                expiry_time: '5 minutos'
+            },
+            // Formato 5: pin
+            {
+                to_email: verificationEmail,
+                pin: verificationCode,
+                system_name: 'Nexus Gestão Financeira',
+                expiry_time: '5 minutos'
+            },
+            // Formato 6: token
+            {
+                to_email: verificationEmail,
+                token: verificationCode,
+                system_name: 'Nexus Gestão Financeira',
+                expiry_time: '5 minutos'
+            },
+            // Formato 7: message (tudo em uma variável)
+            {
+                to_email: verificationEmail,
+                message: `Código de verificação: ${verificationCode}`,
+                system_name: 'Nexus Gestão Financeira'
             }
         ];
         
         let result = null;
         let lastError = null;
         
+        const variableNames = ['verification_code', 'code', 'otp', 'auth_code', 'pin', 'token', 'message'];
+        
         for (let i = 0; i < parameterFormats.length; i++) {
             const params = parameterFormats[i];
-            console.log(`Tentativa ${i + 1} com parâmetros:`, params);
+            const variableName = variableNames[i];
+            
+            console.log(`Tentativa ${i + 1}: Testando variável {{${variableName}}}`);
+            console.log(`Parâmetros:`, params);
             
             try {
                 result = await emailjs.send(
@@ -795,11 +820,12 @@ async function sendVerificationCode() {
                     params
                 );
                 
-                console.log(`✅ Sucesso na tentativa ${i + 1}!`);
+                console.log(`🎉 SUCESSO! A variável correta é: {{${variableName}}}`);
+                console.log(`📧 Verifique se o código ${verificationCode} aparece corretamente no email`);
                 break;
                 
             } catch (error) {
-                console.warn(`❌ Tentativa ${i + 1} falhou:`, error.status, error.message);
+                console.warn(`❌ Tentativa ${i + 1} ({{${variableName}}}) falhou:`, error.status, error.message);
                 lastError = error;
                 
                 // Se não for erro 422, não vale a pena tentar outros formatos
