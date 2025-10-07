@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Novos IDs EmailJS</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-3xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-center text-green-400">🎯 Teste com IDs Corretos</h1>
+        
+        <div class="bg-green-900 p-6 rounded-lg mb-6 border border-green-500">
+            <h2 class="text-xl font-semibold mb-4">✅ Configurações Atualizadas</h2>
+            <div class="grid grid-cols-2 gap-4 text-sm font-mono">
+                <div><strong>Service ID:</strong></div>
+                <div class="text-green-400">service_v104fpg</div>
+                <div><strong>Template ID:</strong></div>
+                <div class="text-green-400">template_rkwho3h</div>
+                <div><strong>Public Key:</strong></div>
+                <div class="text-green-400">UsJiG8it4NxqAcHkW</div>
+                <div><strong>Email Destino:</strong></div>
+                <div class="text-yellow-400">assonibrassz@gmail.com</div>
+            </div>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4">🚀 Teste Rápido</h2>
+            <button id="testSend" class="bg-blue-600 hover:bg-blue-700 px-6 py-3 rounded text-white font-semibold w-full">
+                Enviar Código de Teste
+            </button>
+        </div>
+
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <h3 class="text-lg font-semibold mb-3">Resultado:</h3>
+            <div id="result" class="bg-black p-4 rounded font-mono text-sm h-64 overflow-y-auto">
+                Clique no botão para testar os novos IDs...
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // Configurações atualizadas
+        const CONFIG = {
+            serviceId: 'service_v104fpg',
+            templateId: 'template_rkwho3h',
+            publicKey: 'UsJiG8it4NxqAcHkW',
+            email: 'assonibrassz@gmail.com'
+        };
+
+        function log(message, type = 'info') {
+            const resultDiv = document.getElementById('result');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            resultDiv.innerHTML += `<div class="${colors[type]}">[${timestamp}] ${message}</div>`;
+            resultDiv.scrollTop = resultDiv.scrollHeight;
+        }
+
+        async function testSend() {
+            const button = document.getElementById('testSend');
+            button.disabled = true;
+            button.textContent = 'Enviando...';
+            
+            try {
+                log('🚀 Iniciando teste com novos IDs...', 'info');
+                
+                // Verificar EmailJS
+                if (typeof emailjs === 'undefined') {
+                    throw new Error('EmailJS não carregado');
+                }
+                log('✅ EmailJS disponível', 'success');
+                
+                // Inicializar
+                emailjs.init(CONFIG.publicKey);
+                log('✅ EmailJS inicializado', 'success');
+                
+                // Gerar código
+                const code = Math.floor(100000 + Math.random() * 900000).toString();
+                log(`🔢 Código gerado: ${code}`, 'info');
+                
+                // Configurações
+                log(`📋 Service ID: ${CONFIG.serviceId}`, 'info');
+                log(`📋 Template ID: ${CONFIG.templateId}`, 'info');
+                log(`📧 Email: ${CONFIG.email}`, 'info');
+                
+                // Tentar diferentes formatos de parâmetros
+                const formats = [
+                    { name: 'Formato 1', params: { to_email: CONFIG.email, verification_code: code } },
+                    { name: 'Formato 2', params: { to_email: CONFIG.email, code: code } },
+                    { name: 'Formato 3', params: { to_email: CONFIG.email, otp: code } },
+                    { name: 'Formato 4', params: { email: CONFIG.email, verification_code: code } },
+                    { name: 'Formato 5', params: { user_email: CONFIG.email, message: `Código: ${code}` } }
+                ];
+                
+                let success = false;
+                
+                for (const format of formats) {
+                    try {
+                        log(`🔄 Testando ${format.name}...`, 'warning');
+                        log(`   Parâmetros: ${JSON.stringify(format.params)}`, 'info');
+                        
+                        const result = await emailjs.send(
+                            CONFIG.serviceId,
+                            CONFIG.templateId,
+                            format.params
+                        );
+                        
+                        log(`🎉 SUCESSO com ${format.name}!`, 'success');
+                        log(`   Status: ${result.status}`, 'success');
+                        log(`   Resposta: ${result.text}`, 'success');
+                        log('📧 Verifique o email: assonibrassz@gmail.com', 'warning');
+                        log(`✅ Parâmetros que funcionam: ${JSON.stringify(format.params)}`, 'success');
+                        
+                        success = true;
+                        break;
+                        
+                    } catch (error) {
+                        log(`❌ ${format.name} falhou: ${error.status} - ${error.message}`, 'error');
+                    }
+                }
+                
+                if (!success) {
+                    log('❌ Todos os formatos falharam', 'error');
+                    log('💡 Verifique se o template está ativo e configurado corretamente', 'warning');
+                }
+                
+            } catch (error) {
+                log(`❌ Erro geral: ${error.message}`, 'error');
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Enviar Código de Teste';
+            }
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            log('🎯 Sistema pronto com novos IDs!', 'success');
+            log('📋 Service: service_v104fpg', 'info');
+            log('📋 Template: template_rkwho3h', 'info');
+            log('', 'info');
+            log('Clique no botão para testar...', 'warning');
+            
+            document.getElementById('testSend').addEventListener('click', testSend);
+        });
+    </script>
+</body>
+</html>
