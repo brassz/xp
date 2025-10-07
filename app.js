@@ -146,6 +146,14 @@ let cashSettings = null;
 let capitalRaisings = [];
 let capitalRaisingClients = [];
 
+// Sistema de verificação por email
+let verificationCode = null;
+let verificationEmail = 'brasszgc@gmail.com';
+let isCodeSent = false;
+
+// Sistema de verificação por email agora usa Resend + Supabase
+// Configurações antigas do EmailJS removidas
+
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
@@ -246,6 +254,15 @@ function setupEventListeners() {
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
+    
+    // Botão para enviar código de verificação
+    const sendCodeBtn = document.getElementById('sendCodeBtn');
+    if (sendCodeBtn) {
+        console.log('✅ Botão sendCodeBtn encontrado, adicionando event listener');
+        sendCodeBtn.addEventListener('click', handleSendVerificationCode);
+    } else {
+        console.error('❌ Botão sendCodeBtn NÃO encontrado no DOM!');
+    }
     
     // Navegação
     navLinks.forEach(link => {
@@ -672,7 +689,206 @@ function setupUploadcare() {
     }
 }
 
+// Sistema de verificação por email migrado para Resend + Supabase
+// Função de inicialização do EmailJS removida
 
+// Sistema de Verificação por Email
+function generateVerificationCode() {
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    console.log('🔢 Código gerado:', code);
+    return code;
+}
+
+async function sendVerificationCode() {
+    console.log('=== Iniciando envio via Resend (direto) ===');
+    
+    try {
+        // Gerar código
+        verificationCode = generateVerificationCode();
+        console.log('📧 Enviando para:', verificationEmail);
+        console.log('🔢 Código:', verificationCode);
+        
+        // Verificar se Supabase está inicializado
+        if (!supabase) {
+            console.warn('⚠️ Supabase não inicializado, tentando inicializar...');
+            
+            // Tentar inicializar com configuração padrão
+            const defaultConfig = COMPANIES_CONFIG.nexus;
+            if (defaultConfig && defaultConfig.supabase) {
+                supabase = window.supabase.createClient(defaultConfig.supabase.url, defaultConfig.supabase.key);
+                console.log('✅ Supabase inicializado com configuração padrão');
+            } else {
+                throw new Error('Configuração do Supabase não encontrada');
+            }
+        }
+        
+        console.log('🔍 Status do Supabase:', {
+            initialized: !!supabase,
+            url: supabase?.supabaseUrl,
+            hasAuth: !!supabase?.auth,
+            hasFunctions: !!supabase?.functions
+        });
+        
+        // Tentar Edge Function
+        console.log('📡 Chamando Edge Function send-verification...');
+        
+        const { data, error } = await supabase.functions.invoke('send-verification', {
+            body: {
+                email: verificationEmail,
+                code: verificationCode
+            }
+        });
+        
+        if (error) {
+            console.error('❌ Erro detalhado da Edge Function:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint,
+                fullError: error
+            });
+            throw error;
+        }
+        
+        console.log('✅ Edge Function executada com sucesso:', data);
+        let emailSent = true;
+        
+        // Se Edge Function falhou, não há alternativa - precisa configurar
+        if (!emailSent) {
+            throw new Error('Edge Function não configurada. Configure a função send-verification no Supabase.');
+        }
+        
+        if (emailSent) {
+            // Marcar como enviado
+            isCodeSent = true;
+            console.log('✅ Sistema de verificação ativo');
+            
+            showNotification(`Código enviado para ${verificationEmail}`, 'success');
+            
+            // Configurar expiração (5 minutos)
+            setTimeout(() => {
+                console.log('⏰ Código expirado');
+                verificationCode = null;
+                isCodeSent = false;
+                showNotification('Código de verificação expirado. Solicite um novo código.', 'warning');
+            }, 5 * 60 * 1000);
+            
+            return true;
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao enviar código:', error);
+        
+        // Não mostrar código na tela - apenas via email
+        showNotification('Erro ao enviar código de verificação. Verifique se a Edge Function está configurada no Supabase.', 'error');
+        
+        isCodeSent = false;
+        verificationCode = null;
+        
+        return false;
+    }
+}
+
+
+async function validateVerificationCode(inputCode) {
+    console.log('🔍 Validando código de verificação...');
+    
+    try {
+        // Validação local (fallback)
+        if (verificationCode && inputCode === verificationCode) {
+            console.log('✅ Código válido (validação local)');
+            return true;
+        }
+        
+        // Validação no banco de dados Supabase
+        console.log('🔍 Verificando código no banco de dados...');
+        
+        const { data, error } = await supabase
+            .from('verification_codes')
+            .select('*')
+            .eq('email', verificationEmail)
+            .eq('code', inputCode)
+            .eq('used', false)
+            .gt('expires_at', new Date().toISOString())
+            .single();
+        
+        if (error || !data) {
+            console.log('❌ Código inválido, expirado ou já usado');
+            return false;
+        }
+        
+        // Marcar código como usado
+        const { error: updateError } = await supabase
+            .from('verification_codes')
+            .update({ used: true })
+            .eq('id', data.id);
+        
+        if (updateError) {
+            console.warn('⚠️ Erro ao marcar código como usado:', updateError);
+        }
+        
+        console.log('✅ Código válido (validação no banco)');
+        return true;
+        
+    } catch (error) {
+        console.error('❌ Erro ao validar código:', error);
+        
+        // Fallback para validação local
+        if (verificationCode && inputCode === verificationCode) {
+            console.log('✅ Código válido (fallback local)');
+            return true;
+        }
+        
+        return false;
+    }
+}
+
+async function handleSendVerificationCode() {
+    console.log('🚀 handleSendVerificationCode chamada');
+    
+    const sendCodeBtn = document.getElementById('sendCodeBtn');
+    if (!sendCodeBtn) {
+        console.error('❌ Botão sendCodeBtn não encontrado!');
+        return;
+    }
+    
+    const originalText = sendCodeBtn.textContent;
+    console.log('📝 Texto original do botão:', originalText);
+    
+    try {
+        console.log('🔒 Desabilitando botão...');
+        sendCodeBtn.disabled = true;
+        sendCodeBtn.textContent = 'Enviando...';
+        
+        console.log('📞 Chamando sendVerificationCode()...');
+        const success = await sendVerificationCode();
+        console.log('📊 Resultado sendVerificationCode:', success);
+        
+        if (success) {
+            console.log('✅ Sucesso! Atualizando botão...');
+            sendCodeBtn.textContent = 'Código Enviado ✓';
+            sendCodeBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            sendCodeBtn.classList.add('bg-green-600');
+            
+            // Reabilitar botão após 30 segundos
+            setTimeout(() => {
+                console.log('⏰ Reabilitando botão após 30s...');
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.textContent = 'Reenviar Código';
+                sendCodeBtn.classList.remove('bg-green-600');
+                sendCodeBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            }, 30000);
+        } else {
+            console.log('❌ Falha! Restaurando botão...');
+            sendCodeBtn.disabled = false;
+            sendCodeBtn.textContent = originalText;
+        }
+    } catch (error) {
+        console.error('❌ Erro em handleSendVerificationCode:', error);
+        sendCodeBtn.disabled = false;
+        sendCodeBtn.textContent = originalText;
+    }
+}
 
 // Handlers de autenticação
 async function handleLogin(e) {
@@ -681,9 +897,27 @@ async function handleLogin(e) {
     const companyId = document.getElementById('companySelect').value;
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
+    const verificationCodeInput = document.getElementById('verificationCode').value;
     
     if (!companyId) {
         alert('Por favor, selecione uma empresa');
+        return;
+    }
+
+    // Verificar se o código de verificação foi enviado e validar
+    if (!isCodeSent) {
+        alert('Por favor, solicite o código de verificação primeiro');
+        return;
+    }
+
+    if (!verificationCodeInput) {
+        alert('Por favor, digite o código de verificação');
+        return;
+    }
+
+    const isValidCode = await validateVerificationCode(verificationCodeInput);
+    if (!isValidCode) {
+        alert('Código de verificação inválido ou expirado');
         return;
     }
     
