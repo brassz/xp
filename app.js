@@ -146,6 +146,18 @@ let cashSettings = null;
 let capitalRaisings = [];
 let capitalRaisingClients = [];
 
+// Sistema de verificação por email
+let verificationCode = null;
+let verificationEmail = 'brasszgc@gmail.com';
+let isCodeSent = false;
+
+// Configurações do EmailJS - substitua pelas suas configurações
+const EMAILJS_CONFIG = {
+    serviceId: 'service_nexus_auth',
+    templateId: 'template_verification_code',
+    publicKey: 'YOUR_EMAILJS_PUBLIC_KEY'
+};
+
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
@@ -246,6 +258,12 @@ function setupEventListeners() {
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
+    
+    // Botão para enviar código de verificação
+    const sendCodeBtn = document.getElementById('sendCodeBtn');
+    if (sendCodeBtn) {
+        sendCodeBtn.addEventListener('click', handleSendVerificationCode);
+    }
     
     // Navegação
     navLinks.forEach(link => {
@@ -672,7 +690,101 @@ function setupUploadcare() {
     }
 }
 
+// Sistema de Verificação por Email
+function generateVerificationCode() {
+    return Math.floor(100000 + Math.random() * 900000).toString();
+}
 
+async function sendVerificationCode() {
+    try {
+        verificationCode = generateVerificationCode();
+        
+        // Tentar enviar por EmailJS se configurado
+        let emailSent = false;
+        
+        if (typeof emailjs !== 'undefined' && EMAILJS_CONFIG.publicKey !== 'YOUR_EMAILJS_PUBLIC_KEY') {
+            try {
+                await emailjs.send(
+                    EMAILJS_CONFIG.serviceId,
+                    EMAILJS_CONFIG.templateId,
+                    {
+                        to_email: verificationEmail,
+                        verification_code: verificationCode,
+                        system_name: 'Nexus Gestão Financeira',
+                        expiry_time: '5 minutos'
+                    },
+                    EMAILJS_CONFIG.publicKey
+                );
+                emailSent = true;
+                showNotification(`Código de verificação enviado para ${verificationEmail}`, 'success');
+            } catch (emailError) {
+                console.warn('Falha no envio por EmailJS:', emailError);
+            }
+        }
+        
+        // Se não conseguiu enviar por email, mostrar na tela para demonstração
+        if (!emailSent) {
+            console.log(`Código de verificação gerado: ${verificationCode}`);
+            console.log(`Email destinatário: ${verificationEmail}`);
+            showNotification(`DEMO - Código: ${verificationCode} (seria enviado para ${verificationEmail})`, 'info', 15000);
+        }
+        
+        isCodeSent = true;
+        
+        // Código expira em 5 minutos
+        setTimeout(() => {
+            verificationCode = null;
+            isCodeSent = false;
+            showNotification('Código de verificação expirado. Solicite um novo código.', 'warning');
+        }, 5 * 60 * 1000);
+        
+        return true;
+    } catch (error) {
+        console.error('Erro ao enviar código:', error);
+        showNotification('Erro ao enviar código de verificação. Tente novamente.', 'error');
+        return false;
+    }
+}
+
+function validateVerificationCode(inputCode) {
+    if (!verificationCode || !isCodeSent) {
+        return false;
+    }
+    return inputCode === verificationCode;
+}
+
+async function handleSendVerificationCode() {
+    const sendCodeBtn = document.getElementById('sendCodeBtn');
+    const originalText = sendCodeBtn.textContent;
+    
+    try {
+        sendCodeBtn.disabled = true;
+        sendCodeBtn.textContent = 'Enviando...';
+        
+        const success = await sendVerificationCode();
+        
+        if (success) {
+            sendCodeBtn.textContent = 'Código Enviado ✓';
+            sendCodeBtn.classList.remove('bg-blue-600', 'hover:bg-blue-700');
+            sendCodeBtn.classList.add('bg-green-600');
+            
+            // Reabilitar botão após 30 segundos
+            setTimeout(() => {
+                sendCodeBtn.disabled = false;
+                sendCodeBtn.textContent = 'Reenviar Código';
+                sendCodeBtn.classList.remove('bg-green-600');
+                sendCodeBtn.classList.add('bg-blue-600', 'hover:bg-blue-700');
+            }, 30000);
+        } else {
+            sendCodeBtn.disabled = false;
+            sendCodeBtn.textContent = originalText;
+        }
+    } catch (error) {
+        sendCodeBtn.disabled = false;
+        sendCodeBtn.textContent = originalText;
+        console.error('Erro ao enviar código:', error);
+    }
+}
 
 // Handlers de autenticação
 async function handleLogin(e) {
@@ -681,9 +793,26 @@ async function handleLogin(e) {
     const companyId = document.getElementById('companySelect').value;
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
+    const verificationCodeInput = document.getElementById('verificationCode').value;
     
     if (!companyId) {
         alert('Por favor, selecione uma empresa');
+        return;
+    }
+
+    // Verificar se o código de verificação foi enviado e validar
+    if (!isCodeSent) {
+        alert('Por favor, solicite o código de verificação primeiro');
+        return;
+    }
+
+    if (!verificationCodeInput) {
+        alert('Por favor, digite o código de verificação');
+        return;
+    }
+
+    if (!validateVerificationCode(verificationCodeInput)) {
+        alert('Código de verificação inválido ou expirado');
         return;
     }
     
