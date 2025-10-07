@@ -151,12 +151,8 @@ let verificationCode = null;
 let verificationEmail = 'assonibrassz@gmail.com';
 let isCodeSent = false;
 
-// Configurações do EmailJS - configurado para produção
-const EMAILJS_CONFIG = {
-    serviceId: 'service_618zqgt',
-    templateId: 'template_40s9p6s',
-    publicKey: 'UsJiG8it4NxqAcHkW'
-};
+// Sistema de verificação por email agora usa Resend + Supabase
+// Configurações antigas do EmailJS removidas
 
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
@@ -219,7 +215,6 @@ document.addEventListener('DOMContentLoaded', function() {
     initializeApp();
     setupEventListeners();
     setupUploadcare();
-    initializeEmailJS();
 });
 
 // Inicializar aplicação
@@ -694,24 +689,8 @@ function setupUploadcare() {
     }
 }
 
-// Inicializar EmailJS
-function initializeEmailJS() {
-    if (typeof emailjs !== 'undefined') {
-        try {
-            emailjs.init(EMAILJS_CONFIG.publicKey);
-            console.log('EmailJS inicializado com sucesso');
-            console.log('Service ID:', EMAILJS_CONFIG.serviceId);
-            console.log('Template ID:', EMAILJS_CONFIG.templateId);
-            return true;
-        } catch (error) {
-            console.error('Erro ao inicializar EmailJS:', error);
-            return false;
-        }
-    } else {
-        console.warn('EmailJS não carregado - funcionará em modo demonstração');
-        return false;
-    }
-}
+// Sistema de verificação por email migrado para Resend + Supabase
+// Função de inicialização do EmailJS removida
 
 // Sistema de Verificação por Email
 function generateVerificationCode() {
