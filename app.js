@@ -11379,6 +11379,8 @@ function getWeekInfo(date) {
         { start: new Date(2024, 9, 27), end: new Date(2024, 10, 2), week: 44 },  // 27/10 - 02/11
         { start: new Date(2024, 10, 3), end: new Date(2024, 10, 9), week: 45 },  // 03/11 - 09/11
         { start: new Date(2024, 10, 10), end: new Date(2024, 10, 16), week: 46 }, // 10/11 - 16/11
+        { start: new Date(2025, 8, 28), end: new Date(2025, 9, 4), week: 92 },   // 28/09 - 04/10
+        { start: new Date(2025, 9, 5), end: new Date(2025, 9, 11), week: 93 },   // 05/10 - 11/10
     ];
     
     // Encontrar em qual semana a data se encaixa
@@ -11388,7 +11390,7 @@ function getWeekInfo(date) {
         
         if (d >= range.start && d <= range.end) {
             return {
-                year: year,
+                year: range.start.getFullYear(),
                 week: range.week,
                 startDate: new Date(range.start),
                 endDate: new Date(range.end)
