@@ -731,36 +731,9 @@ async function sendVerificationCode() {
             }
         }
         
-        // Método 2: Usar serviço proxy para Resend (contorna CORS)
+        // Se Edge Function falhou, não há alternativa - precisa configurar
         if (!emailSent) {
-            console.log('📧 Tentando envio via serviço proxy...');
-            
-            try {
-                // Usar webhook.site como proxy (temporário para teste)
-                const proxyUrl = 'https://webhook.site/#!/unique-url'; // Substitua por webhook real
-                
-                // Para demonstração, vamos usar um serviço de email alternativo
-                // que permite CORS ou criar nosso próprio webhook
-                
-                console.log('⚠️ API Resend não permite CORS do frontend');
-                console.log('💡 Necessário usar backend/Edge Function');
-                
-                // Simular envio bem-sucedido para demonstração
-                // Em produção, aqui você usaria um webhook ou backend próprio
-                console.log('🔄 Simulando envio de email...');
-                
-                // Simular delay de envio
-                await new Promise(resolve => setTimeout(resolve, 2000));
-                
-                console.log('✅ Email "enviado" com sucesso (simulação)');
-                console.log('📧 Em produção, configure Edge Function do Supabase');
-                
-                emailSent = true;
-                
-            } catch (proxyError) {
-                console.error('❌ Erro no envio via proxy:', proxyError);
-                throw proxyError;
-            }
+            throw new Error('Edge Function não configurada. Configure a função send-verification no Supabase.');
         }
         
         if (emailSent) {
@@ -784,24 +757,13 @@ async function sendVerificationCode() {
     } catch (error) {
         console.error('❌ Erro ao enviar código:', error);
         
-        // MODO FALLBACK: Sistema funciona sem email real
-        console.log('🔄 ATIVANDO MODO FALLBACK');
-        console.log(`📧 CÓDIGO DE VERIFICAÇÃO: ${verificationCode}`);
-        console.log(`📧 Email destinatário: ${verificationEmail}`);
-        console.log('💡 Use este código para completar o login');
+        // Não mostrar código na tela - apenas via email
+        showNotification('Erro ao enviar código de verificação. Verifique se a Edge Function está configurada no Supabase.', 'error');
         
-        // Mostrar notificação com o código
-        showNotification(`CÓDIGO: ${verificationCode} (modo fallback - erro no envio)`, 'warning');
+        isCodeSent = false;
+        verificationCode = null;
         
-        // Salvar no localStorage para debug
-        localStorage.setItem('fallbackVerificationCode', verificationCode);
-        localStorage.setItem('fallbackTimestamp', new Date().toISOString());
-        
-        // Marcar como enviado mesmo em fallback
-        isCodeSent = true;
-        
-        console.log('✅ Modo fallback ativo - sistema funcional');
-        return true; // Retorna true para não bloquear o sistema
+        return false;
     }
 }
 
