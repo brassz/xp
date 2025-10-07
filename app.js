@@ -8427,7 +8427,7 @@ async function generateWeeklyPaymentsPDF() {
                 )
             `)
             .gte('payment_date', startOfWeek.toISOString().split('T')[0])
-            .lte('payment_date', endOfWeek.toISOString().split('T')[0])
+            .lt('payment_date', getNextDay(endOfWeek.toISOString().split('T')[0]))
             .order('payment_date', { ascending: true });
 
         // Buscar empréstimos quitados na semana
@@ -8435,7 +8435,7 @@ async function generateWeeklyPaymentsPDF() {
             .from('paid_loans')
             .select('*')
             .gte('paid_date', startOfWeek.toISOString().split('T')[0])
-            .lte('paid_date', endOfWeek.toISOString().split('T')[0])
+            .lt('paid_date', getNextDay(endOfWeek.toISOString().split('T')[0]))
             .order('paid_date', { ascending: true });
 
         if (error) throw error;
@@ -11859,15 +11859,17 @@ function getWeekInfo(date) {
     
     // Encontrar em qual semana a data se encaixa
     for (const range of weekRanges) {
-        range.start.setHours(0, 0, 0, 0);
-        range.end.setHours(23, 59, 59, 999);
+        const rangeStart = new Date(range.start);
+        const rangeEnd = new Date(range.end);
+        rangeStart.setHours(0, 0, 0, 0);
+        rangeEnd.setHours(23, 59, 59, 999);
         
-        if (d >= range.start && d <= range.end) {
+        if (d >= rangeStart && d <= rangeEnd) {
             return {
                 year: year,
                 week: range.week,
-                startDate: new Date(range.start),
-                endDate: new Date(range.end)
+                startDate: new Date(rangeStart),
+                endDate: new Date(rangeEnd)
             };
         }
     }
@@ -11923,6 +11925,13 @@ async function handleWeekChange() {
     await loadWeekData(startDate, endDate);
 }
 
+// Função auxiliar para obter o próximo dia
+function getNextDay(dateStr) {
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + 1);
+    return date.toISOString().split('T')[0];
+}
+
 // Função para carregar dados de uma semana específica
 async function loadWeekData(startDate, endDate) {
     try {
@@ -11946,7 +11955,7 @@ async function loadWeekData(startDate, endDate) {
                 )
             `)
             .gte('payment_date', startDateStr)
-            .lte('payment_date', endDateStr)
+            .lt('payment_date', getNextDay(endDateStr))
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
@@ -12009,7 +12018,7 @@ async function showWeekClientsModal() {
                 )
             `)
             .gte('payment_date', selectedWeekData.startDate.toISOString().split('T')[0])
-            .lte('payment_date', selectedWeekData.endDate.toISOString().split('T')[0])
+            .lt('payment_date', getNextDay(selectedWeekData.endDate.toISOString().split('T')[0]))
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
@@ -12400,7 +12409,7 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
                 )
             `)
             .gte('payment_date', startDateStr)
-            .lte('payment_date', endDateStr)
+            .lt('payment_date', getNextDay(endDateStr))
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
