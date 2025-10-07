@@ -11371,15 +11371,20 @@ function getWeekInfo(date) {
     const year = d.getFullYear();
     
     // Calcular semana dinamicamente baseada na data
-    // Semana começa no domingo (0) e termina no sábado (6)
+    // Semana começa na segunda-feira (1) e termina no domingo (0)
     const dayOfWeek = d.getDay(); // 0 = domingo, 1 = segunda, ..., 6 = sábado
     
-    // Calcular início da semana (domingo)
+    // Calcular início da semana (segunda-feira)
+    // Se for domingo (0), voltar 6 dias para pegar a segunda anterior
+    // Se for segunda (1), não voltar nenhum dia
+    // Se for terça (2), voltar 1 dia, etc.
+    const daysToSubtract = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+    
     const startDate = new Date(d);
-    startDate.setDate(d.getDate() - dayOfWeek);
+    startDate.setDate(d.getDate() - daysToSubtract);
     startDate.setHours(0, 0, 0, 0);
     
-    // Calcular fim da semana (sábado)
+    // Calcular fim da semana (domingo)
     const endDate = new Date(startDate);
     endDate.setDate(startDate.getDate() + 6);
     endDate.setHours(23, 59, 59, 999);
