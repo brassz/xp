@@ -694,10 +694,19 @@ function setupUploadcare() {
 // Inicializar EmailJS
 function initializeEmailJS() {
     if (typeof emailjs !== 'undefined') {
-        emailjs.init(EMAILJS_CONFIG.publicKey);
-        console.log('EmailJS inicializado com sucesso');
+        try {
+            emailjs.init(EMAILJS_CONFIG.publicKey);
+            console.log('EmailJS inicializado com sucesso');
+            console.log('Service ID:', EMAILJS_CONFIG.serviceId);
+            console.log('Template ID:', EMAILJS_CONFIG.templateId);
+            return true;
+        } catch (error) {
+            console.error('Erro ao inicializar EmailJS:', error);
+            return false;
+        }
     } else {
         console.warn('EmailJS não carregado - funcionará em modo demonstração');
+        return false;
     }
 }
 
@@ -707,54 +716,103 @@ function generateVerificationCode() {
 }
 
 async function sendVerificationCode() {
+    console.log('=== Iniciando envio de código de verificação ===');
+    
     try {
+        // Gerar código
         verificationCode = generateVerificationCode();
+        console.log('Código gerado:', verificationCode);
         
-        // Tentar enviar por EmailJS
         let emailSent = false;
         
+        // Verificar se EmailJS está disponível
         if (typeof emailjs !== 'undefined') {
+            console.log('EmailJS disponível, tentando enviar email...');
+            
             try {
+                // Preparar dados do template
+                const templateParams = {
+                    to_email: verificationEmail,
+                    verification_code: verificationCode,
+                    system_name: 'Nexus Gestão Financeira',
+                    expiry_time: '5 minutos'
+                };
+                
+                console.log('Parâmetros do template:', templateParams);
+                console.log('Configurações:', EMAILJS_CONFIG);
+                
+                // Tentar enviar
                 const result = await emailjs.send(
                     EMAILJS_CONFIG.serviceId,
                     EMAILJS_CONFIG.templateId,
-                    {
-                        to_email: verificationEmail,
-                        verification_code: verificationCode,
-                        system_name: 'Nexus Gestão Financeira',
-                        expiry_time: '5 minutos'
-                    }
+                    templateParams
                 );
                 
-                console.log('Email enviado com sucesso:', result);
+                console.log('✅ Email enviado com sucesso!', result);
                 emailSent = true;
-                showNotification(`Código de verificação enviado para ${verificationEmail}`, 'success');
+                
+                if (typeof showNotification === 'function') {
+                    showNotification(`Código enviado para ${verificationEmail}`, 'success');
+                } else {
+                    alert(`Código enviado para ${verificationEmail}`);
+                }
+                
             } catch (emailError) {
-                console.error('Erro no envio por EmailJS:', emailError);
-                showNotification('Erro ao enviar email. Usando modo demonstração.', 'warning');
+                console.error('❌ Erro no envio por EmailJS:', emailError);
+                console.error('Detalhes do erro:', {
+                    message: emailError.message,
+                    status: emailError.status,
+                    text: emailError.text
+                });
+                
+                if (typeof showNotification === 'function') {
+                    showNotification('Erro ao enviar email. Veja o código no console.', 'error');
+                } else {
+                    alert('Erro ao enviar email. Veja o código no console.');
+                }
+            }
+        } else {
+            console.warn('EmailJS não está disponível');
+        }
+        
+        // Se não conseguiu enviar por email, mostrar na tela
+        if (!emailSent) {
+            console.log('📧 MODO DEMONSTRAÇÃO - Código de verificação:', verificationCode);
+            console.log('📧 Email destinatário:', verificationEmail);
+            
+            if (typeof showNotification === 'function') {
+                showNotification(`CÓDIGO: ${verificationCode} (para ${verificationEmail})`, 'info');
+            } else {
+                alert(`Código de verificação: ${verificationCode}\nPara: ${verificationEmail}`);
             }
         }
         
-        // Se não conseguiu enviar por email, mostrar na tela para demonstração
-        if (!emailSent) {
-            console.log(`Código de verificação gerado: ${verificationCode}`);
-            console.log(`Email destinatário: ${verificationEmail}`);
-            showNotification(`DEMO - Código: ${verificationCode} (seria enviado para ${verificationEmail})`, 'info', 15000);
-        }
-        
+        // Marcar como enviado
         isCodeSent = true;
+        console.log('✅ Código marcado como enviado');
         
-        // Código expira em 5 minutos
+        // Configurar expiração
         setTimeout(() => {
+            console.log('⏰ Código expirado');
             verificationCode = null;
             isCodeSent = false;
-            showNotification('Código de verificação expirado. Solicite um novo código.', 'warning');
+            
+            if (typeof showNotification === 'function') {
+                showNotification('Código expirado. Solicite um novo.', 'warning');
+            }
         }, 5 * 60 * 1000);
         
         return true;
+        
     } catch (error) {
-        console.error('Erro ao enviar código:', error);
-        showNotification('Erro ao enviar código de verificação. Tente novamente.', 'error');
+        console.error('❌ Erro geral no sistema de verificação:', error);
+        
+        if (typeof showNotification === 'function') {
+            showNotification('Erro no sistema de verificação', 'error');
+        } else {
+            alert('Erro no sistema de verificação');
+        }
+        
         return false;
     }
 }

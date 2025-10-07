@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Debug - Sistema de Verificação</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@emailjs/browser@3/dist/email.min.js"></script>
+</head>
+<body class="bg-gray-900 text-white p-8">
+    <div class="max-w-4xl mx-auto">
+        <h1 class="text-3xl font-bold mb-6 text-center text-red-400">🔍 Debug - Sistema de Verificação</h1>
+        
+        <!-- Status das Bibliotecas -->
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4">Status das Bibliotecas</h2>
+            <div id="libraryStatus" class="space-y-2"></div>
+        </div>
+
+        <!-- Configurações -->
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4">Configurações</h2>
+            <div id="configStatus" class="space-y-2 font-mono text-sm"></div>
+        </div>
+
+        <!-- Teste Passo a Passo -->
+        <div class="bg-gray-800 p-6 rounded-lg mb-6">
+            <h2 class="text-xl font-semibold mb-4">Teste Passo a Passo</h2>
+            
+            <div class="space-y-4">
+                <button id="step1" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white w-full text-left">
+                    Passo 1: Verificar EmailJS
+                </button>
+                
+                <button id="step2" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white w-full text-left">
+                    Passo 2: Inicializar EmailJS
+                </button>
+                
+                <button id="step3" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white w-full text-left">
+                    Passo 3: Gerar Código
+                </button>
+                
+                <button id="step4" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white w-full text-left">
+                    Passo 4: Enviar Email (Método 1)
+                </button>
+                
+                <button id="step5" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded text-white w-full text-left">
+                    Passo 5: Enviar Email (Método 2)
+                </button>
+            </div>
+        </div>
+
+        <!-- Log de Debug -->
+        <div class="bg-gray-800 p-6 rounded-lg">
+            <h2 class="text-xl font-semibold mb-4">Log de Debug</h2>
+            <div id="debugLog" class="bg-black p-4 rounded font-mono text-sm h-64 overflow-y-auto"></div>
+            <button id="clearLog" class="mt-2 bg-red-600 hover:bg-red-700 px-3 py-1 rounded text-white text-sm">
+                Limpar Log
+            </button>
+        </div>
+    </div>
+
+    <script>
+        // Configurações
+        const CONFIG = {
+            serviceId: 'service_0ap0m1k',
+            templateId: 'template_z3n0654',
+            publicKey: 'UsJiG8it4NxqAcHkW',
+            email: 'brasszgc@gmail.com'
+        };
+
+        let currentCode = null;
+
+        // Função de log
+        function debugLog(message, type = 'info') {
+            const logDiv = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: 'text-blue-400',
+                success: 'text-green-400',
+                error: 'text-red-400',
+                warning: 'text-yellow-400'
+            };
+            
+            logDiv.innerHTML += `<div class="${colors[type]}">[${timestamp}] ${message}</div>`;
+            logDiv.scrollTop = logDiv.scrollHeight;
+        }
+
+        // Verificar status das bibliotecas
+        function checkLibraries() {
+            const statusDiv = document.getElementById('libraryStatus');
+            let html = '';
+
+            // EmailJS
+            if (typeof emailjs !== 'undefined') {
+                html += '<div class="text-green-400">✅ EmailJS carregado</div>';
+                debugLog('EmailJS disponível', 'success');
+            } else {
+                html += '<div class="text-red-400">❌ EmailJS não carregado</div>';
+                debugLog('EmailJS não disponível', 'error');
+            }
+
+            statusDiv.innerHTML = html;
+        }
+
+        // Mostrar configurações
+        function showConfig() {
+            const configDiv = document.getElementById('configStatus');
+            configDiv.innerHTML = `
+                <div>Service ID: <span class="text-green-400">${CONFIG.serviceId}</span></div>
+                <div>Template ID: <span class="text-green-400">${CONFIG.templateId}</span></div>
+                <div>Public Key: <span class="text-green-400">${CONFIG.publicKey}</span></div>
+                <div>Email: <span class="text-green-400">${CONFIG.email}</span></div>
+            `;
+        }
+
+        // Passo 1: Verificar EmailJS
+        function step1() {
+            debugLog('=== PASSO 1: Verificando EmailJS ===');
+            
+            if (typeof emailjs === 'undefined') {
+                debugLog('ERRO: EmailJS não está carregado!', 'error');
+                debugLog('Verifique se o script está incluído na página', 'warning');
+                return false;
+            }
+            
+            debugLog('EmailJS está disponível', 'success');
+            debugLog(`Objeto emailjs: ${typeof emailjs}`, 'info');
+            
+            // Verificar métodos disponíveis
+            const methods = ['init', 'send', 'sendForm'];
+            methods.forEach(method => {
+                if (typeof emailjs[method] === 'function') {
+                    debugLog(`Método ${method}: disponível`, 'success');
+                } else {
+                    debugLog(`Método ${method}: não disponível`, 'error');
+                }
+            });
+            
+            return true;
+        }
+
+        // Passo 2: Inicializar EmailJS
+        function step2() {
+            debugLog('=== PASSO 2: Inicializando EmailJS ===');
+            
+            if (!step1()) return false;
+            
+            try {
+                emailjs.init(CONFIG.publicKey);
+                debugLog('EmailJS inicializado com sucesso', 'success');
+                debugLog(`Public Key: ${CONFIG.publicKey}`, 'info');
+                return true;
+            } catch (error) {
+                debugLog(`ERRO na inicialização: ${error.message}`, 'error');
+                return false;
+            }
+        }
+
+        // Passo 3: Gerar código
+        function step3() {
+            debugLog('=== PASSO 3: Gerando código ===');
+            
+            currentCode = Math.floor(100000 + Math.random() * 900000).toString();
+            debugLog(`Código gerado: ${currentCode}`, 'success');
+            return true;
+        }
+
+        // Passo 4: Enviar email (método 1)
+        async function step4() {
+            debugLog('=== PASSO 4: Enviando email (Método 1) ===');
+            
+            if (!step2() || !step3()) return false;
+            
+            try {
+                debugLog('Preparando parâmetros...', 'info');
+                
+                const templateParams = {
+                    to_email: CONFIG.email,
+                    verification_code: currentCode,
+                    system_name: 'Nexus Gestão Financeira - DEBUG',
+                    expiry_time: '5 minutos'
+                };
+                
+                debugLog(`Parâmetros: ${JSON.stringify(templateParams, null, 2)}`, 'info');
+                
+                debugLog('Enviando email...', 'info');
+                
+                const result = await emailjs.send(
+                    CONFIG.serviceId,
+                    CONFIG.templateId,
+                    templateParams
+                );
+                
+                debugLog(`Sucesso! Status: ${result.status}`, 'success');
+                debugLog(`Resposta: ${result.text}`, 'success');
+                debugLog('Verifique o email brasszgc@gmail.com', 'warning');
+                
+                return true;
+                
+            } catch (error) {
+                debugLog(`ERRO no envio: ${error.message || error}`, 'error');
+                debugLog(`Tipo do erro: ${typeof error}`, 'error');
+                debugLog(`Stack: ${error.stack || 'N/A'}`, 'error');
+                return false;
+            }
+        }
+
+        // Passo 5: Enviar email (método 2 - com inicialização inline)
+        async function step5() {
+            debugLog('=== PASSO 5: Enviando email (Método 2) ===');
+            
+            if (!step1() || !step3()) return false;
+            
+            try {
+                debugLog('Usando método alternativo...', 'info');
+                
+                const templateParams = {
+                    to_email: CONFIG.email,
+                    verification_code: currentCode,
+                    system_name: 'Nexus Gestão Financeira - DEBUG ALT',
+                    expiry_time: '5 minutos'
+                };
+                
+                debugLog('Enviando com public key inline...', 'info');
+                
+                const result = await emailjs.send(
+                    CONFIG.serviceId,
+                    CONFIG.templateId,
+                    templateParams,
+                    CONFIG.publicKey
+                );
+                
+                debugLog(`Sucesso! Status: ${result.status}`, 'success');
+                debugLog(`Resposta: ${result.text}`, 'success');
+                debugLog('Verifique o email brasszgc@gmail.com', 'warning');
+                
+                return true;
+                
+            } catch (error) {
+                debugLog(`ERRO no envio alternativo: ${error.message || error}`, 'error');
+                debugLog(`Detalhes: ${JSON.stringify(error)}`, 'error');
+                return false;
+            }
+        }
+
+        // Event listeners
+        document.addEventListener('DOMContentLoaded', function() {
+            checkLibraries();
+            showConfig();
+            debugLog('Sistema de debug iniciado', 'success');
+            
+            document.getElementById('step1').addEventListener('click', step1);
+            document.getElementById('step2').addEventListener('click', step2);
+            document.getElementById('step3').addEventListener('click', step3);
+            document.getElementById('step4').addEventListener('click', step4);
+            document.getElementById('step5').addEventListener('click', step5);
+            
+            document.getElementById('clearLog').addEventListener('click', () => {
+                document.getElementById('debugLog').innerHTML = '';
+                debugLog('Log limpo', 'info');
+            });
+        });
+    </script>
+</body>
+</html>
