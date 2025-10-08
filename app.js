@@ -12615,82 +12615,145 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
 // ASSISTENTE NEXUS - CHAT FUNCTIONS
 // ============================================
 
-// Dados mock para demonstração
-const mockClientData = {
-    'joãozinho': {
-        name: 'João Silva (Joãozinho)',
-        loans: [
-            {
-                amount: 5000,
-                interestRate: 10,
-                startDate: '2024-01-15',
-                status: 'ativo',
-                remainingAmount: 3200,
-                payments: [
-                    { date: '2024-02-15', amount: 600, type: 'juros' },
-                    { date: '2024-03-15', amount: 1200, type: 'parcial' }
-                ]
-            }
-        ],
-        profile: 'Cliente confiável com histórico de pagamentos em dia. Sempre cumpre os prazos acordados.',
-        issues: false
-    },
-    'aninha': {
-        name: 'Ana Santos (Aninha)',
-        loans: [
-            {
-                amount: 3000,
-                interestRate: 8,
-                startDate: '2024-02-01',
-                status: 'ativo',
-                remainingAmount: 1800,
-                payments: [
-                    { date: '2024-02-28', amount: 240, type: 'juros' },
-                    { date: '2024-03-28', amount: 960, type: 'parcial' },
-                    { date: '2024-04-28', amount: 240, type: 'juros' }
-                ]
-            }
-        ],
-        profile: 'Cliente muito comprometida, sempre comunica quando há alguma dificuldade.',
-        issues: false
-    },
-    'joão silva': {
-        name: 'João Silva',
-        loans: [
-            {
-                amount: 2000,
-                interestRate: 12,
-                startDate: '2024-01-01',
-                status: 'atrasado',
-                remainingAmount: 2240,
-                payments: []
-            }
-        ],
-        profile: 'Cliente problemático. Histórico de atrasos frequentes nos pagamentos.',
-        issues: true,
-        issueDescription: 'Este cliente deu trabalho pois pagou atrasado várias vezes. Recomenda-se cautela em futuros empréstimos.'
-    },
-    'maria santos': {
-        name: 'Maria Santos',
-        loans: [
-            {
-                amount: 4000,
-                interestRate: 9,
-                startDate: '2024-03-01',
-                status: 'ativo',
-                remainingAmount: 3640,
-                payments: [
-                    { date: '2024-03-31', amount: 360, type: 'juros' }
-                ]
-            }
-        ],
-        profile: 'Cliente exemplar com excelente comprometimento e relacionamento.',
-        issues: false
+// Função para buscar cliente por nome (busca flexível)
+async function findClientByName(searchName) {
+    try {
+        const { data: clients, error } = await supabase
+            .from('clients')
+            .select('*')
+            .ilike('name', `%${searchName}%`);
+        
+        if (error) throw error;
+        return clients;
+    } catch (error) {
+        console.error('Erro ao buscar cliente:', error);
+        return [];
     }
-};
+}
+
+// Função para buscar empréstimos de um cliente
+async function getClientLoans(clientId) {
+    try {
+        const { data: loans, error } = await supabase
+            .from('loans')
+            .select(`
+                *,
+                clients (
+                    name,
+                    cpf,
+                    email,
+                    phone
+                )
+            `)
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        return loans;
+    } catch (error) {
+        console.error('Erro ao buscar empréstimos:', error);
+        return [];
+    }
+}
+
+// Função para buscar pagamentos de um empréstimo
+async function getLoanPayments(loanId) {
+    try {
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('loan_id', loanId)
+            .order('payment_date', { ascending: true });
+        
+        if (error) throw error;
+        return payments;
+    } catch (error) {
+        console.error('Erro ao buscar pagamentos:', error);
+        return [];
+    }
+}
+
+// Função para buscar todos os pagamentos de um cliente
+async function getClientPayments(clientId) {
+    try {
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select(`
+                *,
+                loans (
+                    amount,
+                    interest_rate,
+                    clients (
+                        name
+                    )
+                )
+            `)
+            .eq('loans.client_id', clientId)
+            .order('payment_date', { ascending: true });
+        
+        if (error) throw error;
+        return payments;
+    } catch (error) {
+        console.error('Erro ao buscar pagamentos do cliente:', error);
+        return [];
+    }
+}
+
+// Função para calcular status do cliente baseado no histórico
+function analyzeClientProfile(loans, payments) {
+    if (!loans || loans.length === 0) {
+        return {
+            profile: 'Cliente sem histórico de empréstimos.',
+            issues: false,
+            status: 'novo'
+        };
+    }
+
+    let totalLoans = loans.length;
+    let activeLoans = loans.filter(loan => loan.status === 'active').length;
+    let paidLoans = loans.filter(loan => loan.status === 'paid').length;
+    let overdueLoans = loans.filter(loan => loan.status === 'overdue').length;
+    
+    // Analisar histórico de pagamentos
+    let onTimePayments = 0;
+    let latePayments = 0;
+    
+    if (payments && payments.length > 0) {
+        payments.forEach(payment => {
+            // Lógica simplificada - em um sistema real, você compararia com as datas de vencimento
+            if (payment.payment_date) {
+                onTimePayments++;
+            }
+        });
+    }
+
+    let issues = false;
+    let profile = '';
+    let issueDescription = '';
+
+    if (overdueLoans > 0) {
+        issues = true;
+        profile = 'Cliente com problemas de pagamento. Histórico de atrasos.';
+        issueDescription = 'Este cliente deu trabalho pois pagou atrasado várias vezes. Recomenda-se cautela em futuros empréstimos.';
+    } else if (paidLoans > 0 && activeLoans >= 0) {
+        profile = 'Cliente confiável com histórico de pagamentos. Sempre cumpre os compromissos.';
+        if (paidLoans >= 2) {
+            profile = 'Cliente exemplar com excelente comprometimento e relacionamento. Este cliente é uma boa pessoa e tem comprometimento com os pagamentos.';
+        }
+    } else if (activeLoans > 0) {
+        profile = 'Cliente ativo no sistema. Acompanhar evolução dos pagamentos.';
+    }
+
+    return {
+        profile,
+        issues,
+        issueDescription,
+        status: overdueLoans > 0 ? 'problemático' : paidLoans > 0 ? 'confiável' : 'ativo'
+    };
+}
 
 // Função para enviar mensagem no chat
-function sendChatMessage() {
+async function sendChatMessage() {
     const chatInput = document.getElementById('chatInput');
     const chatMessages = document.getElementById('chatMessages');
     
@@ -12705,11 +12768,19 @@ function sendChatMessage() {
     // Limpar input
     chatInput.value = '';
     
-    // Simular delay de processamento
-    setTimeout(() => {
-        const response = processAssistantQuery(message);
+    // Mostrar indicador de digitação
+    addTypingIndicator();
+    
+    try {
+        // Processar consulta com dados reais
+        const response = await processAssistantQuery(message);
+        removeTypingIndicator();
         addChatMessage(response, 'assistant');
-    }, 1000);
+    } catch (error) {
+        removeTypingIndicator();
+        addChatMessage('Desculpe, ocorreu um erro ao processar sua solicitação. Tente novamente.', 'assistant');
+        console.error('Erro no chat:', error);
+    }
 }
 
 // Função para adicionar mensagem ao chat
@@ -12761,80 +12832,307 @@ function addChatMessage(message, sender) {
     chatMessages.scrollTop = chatMessages.scrollHeight;
 }
 
-// Função para processar consultas do assistente
-function processAssistantQuery(query) {
+// Função para adicionar indicador de digitação
+function addTypingIndicator() {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    
+    const typingDiv = document.createElement('div');
+    typingDiv.id = 'typingIndicator';
+    typingDiv.className = 'flex items-start space-x-3';
+    typingDiv.innerHTML = `
+        <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+            <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+            </svg>
+        </div>
+        <div class="bg-gray-700 rounded-lg p-3">
+            <div class="flex space-x-1">
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce"></div>
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.1s"></div>
+                <div class="w-2 h-2 bg-gray-400 rounded-full animate-bounce" style="animation-delay: 0.2s"></div>
+            </div>
+        </div>
+    `;
+    
+    chatMessages.appendChild(typingDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Função para remover indicador de digitação
+function removeTypingIndicator() {
+    const typingIndicator = document.getElementById('typingIndicator');
+    if (typingIndicator) {
+        typingIndicator.remove();
+    }
+}
+
+// Função para processar consultas do assistente com dados reais
+async function processAssistantQuery(query) {
     const lowerQuery = query.toLowerCase();
     
-    // Consultas sobre Joãozinho
-    if (lowerQuery.includes('joãozinho') || lowerQuery.includes('joao silva')) {
-        if (lowerQuery.includes('empréstimo') || lowerQuery.includes('resumo')) {
-            const client = mockClientData['joãozinho'];
-            const loan = client.loans[0];
-            return `📊 **Resumo do Empréstimo - ${client.name}**\n\n` +
-                   `💰 Valor inicial: R$ ${loan.amount.toLocaleString('pt-BR')}\n` +
-                   `📈 Taxa de juros: ${loan.interestRate}%\n` +
-                   `📅 Data de início: ${new Date(loan.startDate).toLocaleDateString('pt-BR')}\n` +
-                   `💳 Valor restante: R$ ${loan.remainingAmount.toLocaleString('pt-BR')}\n` +
-                   `✅ Status: ${loan.status.toUpperCase()}\n\n` +
-                   `👤 Perfil: ${client.profile}`;
+    // Extrair possíveis nomes de clientes da consulta
+    const possibleNames = extractClientNames(query);
+    
+    // Consultas sobre empréstimos específicos
+    if (lowerQuery.includes('empréstimo') || lowerQuery.includes('resumo')) {
+        if (possibleNames.length > 0) {
+            const clientName = possibleNames[0];
+            const clients = await findClientByName(clientName);
+            
+            if (clients.length > 0) {
+                const client = clients[0];
+                const loans = await getClientLoans(client.id);
+                
+                if (loans.length > 0) {
+                    const loan = loans[0]; // Empréstimo mais recente
+                    const payments = await getLoanPayments(loan.id);
+                    const profile = analyzeClientProfile(loans, payments);
+                    
+                    const remainingAmount = calculateRemainingAmount(loan, payments);
+                    
+                    return `📊 **Resumo do Empréstimo - ${client.name}**\n\n` +
+                           `💰 Valor inicial: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                           `📈 Taxa de juros: ${loan.interest_rate}%\n` +
+                           `📅 Data de início: ${new Date(loan.created_at).toLocaleDateString('pt-BR')}\n` +
+                           `💳 Valor restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                           `✅ Status: ${loan.status.toUpperCase()}\n` +
+                           `📱 Telefone: ${client.phone || 'Não informado'}\n\n` +
+                           `👤 Perfil: ${profile.profile}`;
+                } else {
+                    return `❌ Cliente ${client.name} encontrado, mas não possui empréstimos registrados.`;
+                }
+            } else {
+                return `❌ Cliente não encontrado. Verifique se o nome está correto.`;
+            }
         }
     }
     
-    // Consultas sobre Aninha
-    if (lowerQuery.includes('aninha') || lowerQuery.includes('ana santos')) {
-        if (lowerQuery.includes('pagamento')) {
-            const client = mockClientData['aninha'];
-            const payments = client.loans[0].payments;
-            let response = `💳 **Pagamentos da ${client.name}**\n\n`;
+    // Consultas sobre pagamentos
+    if (lowerQuery.includes('pagamento')) {
+        if (possibleNames.length > 0) {
+            const clientName = possibleNames[0];
+            const clients = await findClientByName(clientName);
             
-            payments.forEach((payment, index) => {
-                const date = new Date(payment.date).toLocaleDateString('pt-BR');
-                const type = payment.type === 'juros' ? '📊 Juros' : '💰 Pagamento Parcial';
-                response += `${index + 1}. ${date} - R$ ${payment.amount.toLocaleString('pt-BR')} (${type})\n`;
-            });
-            
-            response += `\n👤 Perfil: ${client.profile}`;
-            return response;
+            if (clients.length > 0) {
+                const client = clients[0];
+                const loans = await getClientLoans(client.id);
+                
+                if (loans.length > 0) {
+                    let allPayments = [];
+                    for (const loan of loans) {
+                        const payments = await getLoanPayments(loan.id);
+                        allPayments = allPayments.concat(payments.map(p => ({...p, loanAmount: loan.amount})));
+                    }
+                    
+                    if (allPayments.length > 0) {
+                        let response = `💳 **Pagamentos de ${client.name}**\n\n`;
+                        
+                        allPayments.forEach((payment, index) => {
+                            const date = new Date(payment.payment_date).toLocaleDateString('pt-BR');
+                            const amount = parseFloat(payment.amount);
+                            const type = payment.is_settlement ? '🏆 Quitação' : '💰 Pagamento';
+                            response += `${index + 1}. ${date} - R$ ${amount.toLocaleString('pt-BR', {minimumFractionDigits: 2})} (${type})\n`;
+                        });
+                        
+                        const totalPaid = allPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+                        response += `\n💰 **Total pago**: R$ ${totalPaid.toLocaleString('pt-BR', {minimumFractionDigits: 2})}`;
+                        
+                        const profile = analyzeClientProfile(loans, allPayments);
+                        response += `\n\n👤 Perfil: ${profile.profile}`;
+                        
+                        return response;
+                    } else {
+                        return `📋 Cliente ${client.name} possui empréstimos mas ainda não fez pagamentos.`;
+                    }
+                } else {
+                    return `❌ Cliente ${client.name} não possui empréstimos registrados.`;
+                }
+            } else {
+                return `❌ Cliente não encontrado. Verifique se o nome está correto.`;
+            }
         }
     }
     
     // Consultas sobre clientes problemáticos
-    if (lowerQuery.includes('deu trabalho') || lowerQuery.includes('problemático') || lowerQuery.includes('joão silva')) {
-        const client = mockClientData['joão silva'];
-        if (client.issues) {
-            return `⚠️ **Cliente Problemático - ${client.name}**\n\n` +
-                   `${client.issueDescription}\n\n` +
-                   `📊 Status atual: ${client.loans[0].status.toUpperCase()}\n` +
-                   `💰 Valor em aberto: R$ ${client.loans[0].remainingAmount.toLocaleString('pt-BR')}\n\n` +
-                   `⚠️ Recomendação: Monitoramento rigoroso necessário.`;
+    if (lowerQuery.includes('deu trabalho') || lowerQuery.includes('problemático') || lowerQuery.includes('problema')) {
+        try {
+            const { data: overdueLoans, error } = await supabase
+                .from('loans')
+                .select(`
+                    *,
+                    clients (
+                        name,
+                        phone
+                    )
+                `)
+                .eq('status', 'overdue');
+            
+            if (error) throw error;
+            
+            if (overdueLoans.length > 0) {
+                let response = `⚠️ **Clientes Problemáticos**\n\n`;
+                
+                for (const loan of overdueLoans) {
+                    const payments = await getLoanPayments(loan.id);
+                    const profile = analyzeClientProfile([loan], payments);
+                    
+                    response += `🔴 **${loan.clients.name}**\n`;
+                    response += `${profile.issueDescription || 'Cliente com empréstimo em atraso.'}\n`;
+                    response += `💰 Valor em aberto: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
+                    response += `📱 Telefone: ${loan.clients.phone || 'Não informado'}\n\n`;
+                }
+                
+                response += `⚠️ **Recomendação**: Monitoramento rigoroso necessário para estes clientes.`;
+                return response;
+            } else {
+                return `✅ **Ótima notícia!** Não há clientes com problemas de pagamento no momento.`;
+            }
+        } catch (error) {
+            console.error('Erro ao buscar clientes problemáticos:', error);
+            return `❌ Erro ao consultar clientes problemáticos. Tente novamente.`;
         }
     }
     
-    // Consultas sobre clientes comprometidos
-    if (lowerQuery.includes('maria santos') || lowerQuery.includes('comprometimento') || lowerQuery.includes('boa pessoa')) {
-        const client = mockClientData['maria santos'];
-        return `✅ **Cliente Exemplar - ${client.name}**\n\n` +
-               `${client.profile}\n\n` +
-               `📊 Status: ${client.loans[0].status.toUpperCase()}\n` +
-               `💰 Valor do empréstimo: R$ ${client.loans[0].amount.toLocaleString('pt-BR')}\n` +
-               `📈 Taxa: ${client.loans[0].interestRate}%\n\n` +
-               `✨ Este cliente é uma boa pessoa e tem comprometimento com os pagamentos.`;
+    // Consultas sobre clientes comprometidos/bons
+    if (lowerQuery.includes('comprometimento') || lowerQuery.includes('boa pessoa') || lowerQuery.includes('bom cliente')) {
+        try {
+            const { data: paidLoans, error } = await supabase
+                .from('loans')
+                .select(`
+                    *,
+                    clients (
+                        name,
+                        phone
+                    )
+                `)
+                .eq('status', 'paid');
+            
+            if (error) throw error;
+            
+            if (paidLoans.length > 0) {
+                // Agrupar por cliente
+                const clientsMap = {};
+                paidLoans.forEach(loan => {
+                    const clientId = loan.client_id;
+                    if (!clientsMap[clientId]) {
+                        clientsMap[clientId] = {
+                            name: loan.clients.name,
+                            phone: loan.clients.phone,
+                            loans: []
+                        };
+                    }
+                    clientsMap[clientId].loans.push(loan);
+                });
+                
+                let response = `✅ **Clientes Exemplares**\n\n`;
+                
+                for (const clientId in clientsMap) {
+                    const clientData = clientsMap[clientId];
+                    if (clientData.loans.length >= 1) { // Pelo menos 1 empréstimo quitado
+                        response += `🌟 **${clientData.name}**\n`;
+                        response += `Este cliente é uma boa pessoa e tem comprometimento com os pagamentos.\n`;
+                        response += `📊 Empréstimos quitados: ${clientData.loans.length}\n`;
+                        response += `📱 Telefone: ${clientData.phone || 'Não informado'}\n\n`;
+                    }
+                }
+                
+                return response || `📋 Ainda não há clientes com múltiplos empréstimos quitados.`;
+            } else {
+                return `📋 Ainda não há empréstimos quitados no sistema.`;
+            }
+        } catch (error) {
+            console.error('Erro ao buscar clientes comprometidos:', error);
+            return `❌ Erro ao consultar clientes comprometidos. Tente novamente.`;
+        }
     }
     
     // Consultas gerais sobre clientes
-    if (lowerQuery.includes('cliente') && (lowerQuery.includes('como está') || lowerQuery.includes('situação'))) {
-        return `📋 **Resumo Geral dos Clientes**\n\n` +
-               `✅ Clientes em dia: Joãozinho, Aninha, Maria Santos\n` +
-               `⚠️ Clientes com problemas: João Silva\n\n` +
-               `Para informações específicas, pergunte sobre um cliente pelo nome.`;
+    if (lowerQuery.includes('cliente') && (lowerQuery.includes('como está') || lowerQuery.includes('situação') || lowerQuery.includes('resumo'))) {
+        try {
+            const { data: allLoans, error } = await supabase
+                .from('loans')
+                .select('status');
+            
+            if (error) throw error;
+            
+            const activeLoans = allLoans.filter(loan => loan.status === 'active').length;
+            const paidLoans = allLoans.filter(loan => loan.status === 'paid').length;
+            const overdueLoans = allLoans.filter(loan => loan.status === 'overdue').length;
+            
+            return `📋 **Resumo Geral dos Clientes**\n\n` +
+                   `✅ Empréstimos ativos: ${activeLoans}\n` +
+                   `🏆 Empréstimos quitados: ${paidLoans}\n` +
+                   `⚠️ Empréstimos em atraso: ${overdueLoans}\n\n` +
+                   `Para informações específicas, pergunte sobre um cliente pelo nome.`;
+        } catch (error) {
+            console.error('Erro ao buscar resumo geral:', error);
+            return `❌ Erro ao consultar resumo geral. Tente novamente.`;
+        }
+    }
+    
+    // Consulta sobre como usar o assistente
+    if (lowerQuery.includes('como usar') || lowerQuery.includes('ajuda') || lowerQuery.includes('como funciona')) {
+        return `🤖 **Como usar o Assistente Nexus**\n\n` +
+               `📝 **Posso ajudar com:**\n` +
+               `• Informações sobre empréstimos de clientes específicos\n` +
+               `• Histórico de pagamentos de qualquer cliente\n` +
+               `• Status de clientes problemáticos\n` +
+               `• Perfil de clientes comprometidos\n` +
+               `• Resumo geral da situação dos clientes\n\n` +
+               `💡 **Exemplos de perguntas:**\n` +
+               `"Como está o empréstimo do João Silva?"\n` +
+               `"Quais pagamentos a Maria Santos fez?"\n` +
+               `"Quais clientes deram trabalho?"\n` +
+               `"Resumo geral dos clientes"\n` +
+               `"Quais clientes têm comprometimento?"\n\n` +
+               `✨ **Dica:** Use nomes completos ou parciais dos clientes para melhores resultados!`;
     }
     
     // Resposta padrão para consultas não reconhecidas
     return `🤖 Estou em desenvolvimento para responder essa pergunta específica.\n\n` +
            `📝 Posso ajudar com:\n` +
-           `• Informações sobre empréstimos do Joãozinho\n` +
-           `• Histórico de pagamentos da Aninha\n` +
+           `• Informações sobre empréstimos de clientes específicos\n` +
+           `• Histórico de pagamentos de qualquer cliente\n` +
            `• Status de clientes problemáticos\n` +
-           `• Perfil de clientes comprometidos\n\n` +
-           `💡 Tente reformular sua pergunta ou use os botões de perguntas frequentes.`;
+           `• Perfil de clientes comprometidos\n` +
+           `• Resumo geral da situação dos clientes\n\n` +
+           `💡 Tente perguntar algo como:\n` +
+           `"Como está o empréstimo do João?"\n` +
+           `"Quais pagamentos a Maria fez?"\n` +
+           `"Quais clientes deram trabalho?"`;
+}
+
+// Função auxiliar para extrair nomes de clientes da consulta
+function extractClientNames(query) {
+    const lowerQuery = query.toLowerCase();
+    const names = [];
+    
+    // Padrões comuns de nomes
+    const namePatterns = [
+        /(?:do|da|de)\s+([a-záàâãéèêíïóôõöúçñ\s]+?)(?:\s|$|\?|!|\.)/gi,
+        /(?:cliente|empréstimo|pagamento)\s+([a-záàâãéèêíïóôõöúçñ\s]+?)(?:\s|$|\?|!|\.)/gi,
+        /([a-záàâãéèêíïóôõöúçñ]+(?:\s+[a-záàâãéèêíïóôõöúçñ]+)*)/gi
+    ];
+    
+    for (const pattern of namePatterns) {
+        let match;
+        while ((match = pattern.exec(lowerQuery)) !== null) {
+            const name = match[1].trim();
+            if (name.length > 2 && !['como', 'está', 'quais', 'todos', 'cliente', 'empréstimo', 'pagamento'].includes(name)) {
+                names.push(name);
+            }
+        }
+    }
+    
+    return [...new Set(names)]; // Remove duplicatas
+}
+
+// Função auxiliar para calcular valor restante
+function calculateRemainingAmount(loan, payments) {
+    const loanAmount = parseFloat(loan.amount);
+    const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    const interestAmount = loanAmount * (parseFloat(loan.interest_rate) / 100);
+    
+    return Math.max(0, loanAmount + interestAmount - totalPaid);
 }
