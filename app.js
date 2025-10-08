@@ -300,6 +300,28 @@ function setupEventListeners() {
         showPDFHistoryBtn.addEventListener('click', showPDFHistoryModal);
     }
 
+    // Chat Assistant Event Listeners
+    const chatInput = document.getElementById('chatInput');
+    const sendChatBtn = document.getElementById('sendChatBtn');
+    const quickQuestionBtns = document.querySelectorAll('.quick-question');
+
+    if (chatInput && sendChatBtn) {
+        sendChatBtn.addEventListener('click', sendChatMessage);
+        chatInput.addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                sendChatMessage();
+            }
+        });
+    }
+
+    quickQuestionBtns.forEach(btn => {
+        btn.addEventListener('click', function() {
+            const question = this.getAttribute('data-question');
+            chatInput.value = question;
+            sendChatMessage();
+        });
+    });
+
     const showWeekClientsBtn = document.getElementById('showWeekClientsBtn');
     if (showWeekClientsBtn) {
         showWeekClientsBtn.addEventListener('click', showWeekClientsModal);
@@ -12587,4 +12609,232 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         console.error('Erro ao gerar PDF dos pagamentos semanais:', error);
         showErrorMessage('Erro ao gerar PDF: ' + error.message);
     }
+}
+
+// ============================================
+// ASSISTENTE NEXUS - CHAT FUNCTIONS
+// ============================================
+
+// Dados mock para demonstração
+const mockClientData = {
+    'joãozinho': {
+        name: 'João Silva (Joãozinho)',
+        loans: [
+            {
+                amount: 5000,
+                interestRate: 10,
+                startDate: '2024-01-15',
+                status: 'ativo',
+                remainingAmount: 3200,
+                payments: [
+                    { date: '2024-02-15', amount: 600, type: 'juros' },
+                    { date: '2024-03-15', amount: 1200, type: 'parcial' }
+                ]
+            }
+        ],
+        profile: 'Cliente confiável com histórico de pagamentos em dia. Sempre cumpre os prazos acordados.',
+        issues: false
+    },
+    'aninha': {
+        name: 'Ana Santos (Aninha)',
+        loans: [
+            {
+                amount: 3000,
+                interestRate: 8,
+                startDate: '2024-02-01',
+                status: 'ativo',
+                remainingAmount: 1800,
+                payments: [
+                    { date: '2024-02-28', amount: 240, type: 'juros' },
+                    { date: '2024-03-28', amount: 960, type: 'parcial' },
+                    { date: '2024-04-28', amount: 240, type: 'juros' }
+                ]
+            }
+        ],
+        profile: 'Cliente muito comprometida, sempre comunica quando há alguma dificuldade.',
+        issues: false
+    },
+    'joão silva': {
+        name: 'João Silva',
+        loans: [
+            {
+                amount: 2000,
+                interestRate: 12,
+                startDate: '2024-01-01',
+                status: 'atrasado',
+                remainingAmount: 2240,
+                payments: []
+            }
+        ],
+        profile: 'Cliente problemático. Histórico de atrasos frequentes nos pagamentos.',
+        issues: true,
+        issueDescription: 'Este cliente deu trabalho pois pagou atrasado várias vezes. Recomenda-se cautela em futuros empréstimos.'
+    },
+    'maria santos': {
+        name: 'Maria Santos',
+        loans: [
+            {
+                amount: 4000,
+                interestRate: 9,
+                startDate: '2024-03-01',
+                status: 'ativo',
+                remainingAmount: 3640,
+                payments: [
+                    { date: '2024-03-31', amount: 360, type: 'juros' }
+                ]
+            }
+        ],
+        profile: 'Cliente exemplar com excelente comprometimento e relacionamento.',
+        issues: false
+    }
+};
+
+// Função para enviar mensagem no chat
+function sendChatMessage() {
+    const chatInput = document.getElementById('chatInput');
+    const chatMessages = document.getElementById('chatMessages');
+    
+    if (!chatInput || !chatMessages) return;
+    
+    const message = chatInput.value.trim();
+    if (!message) return;
+    
+    // Adicionar mensagem do usuário
+    addChatMessage(message, 'user');
+    
+    // Limpar input
+    chatInput.value = '';
+    
+    // Simular delay de processamento
+    setTimeout(() => {
+        const response = processAssistantQuery(message);
+        addChatMessage(response, 'assistant');
+    }, 1000);
+}
+
+// Função para adicionar mensagem ao chat
+function addChatMessage(message, sender) {
+    const chatMessages = document.getElementById('chatMessages');
+    if (!chatMessages) return;
+    
+    const messageDiv = document.createElement('div');
+    messageDiv.className = 'flex items-start space-x-3';
+    
+    const now = new Date();
+    const timeString = now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    
+    // Converter quebras de linha e formatação markdown básica
+    const formattedMessage = message
+        .replace(/\n/g, '<br>')
+        .replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>')
+        .replace(/\*(.*?)\*/g, '<em>$1</em>');
+    
+    if (sender === 'user') {
+        messageDiv.innerHTML = `
+            <div class="flex items-start space-x-3 ml-auto">
+                <div class="bg-blue-600 rounded-lg p-3 max-w-md">
+                    <div class="text-white text-sm">${formattedMessage}</div>
+                    <span class="text-blue-200 text-xs mt-1 block">${timeString}</span>
+                </div>
+                <div class="w-8 h-8 bg-blue-600 rounded-full flex items-center justify-center flex-shrink-0">
+                    <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
+                    </svg>
+                </div>
+            </div>
+        `;
+    } else {
+        messageDiv.innerHTML = `
+            <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
+                <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
+                </svg>
+            </div>
+            <div class="bg-gray-700 rounded-lg p-3 max-w-md">
+                <div class="text-white text-sm">${formattedMessage}</div>
+                <span class="text-gray-400 text-xs mt-1 block">${timeString}</span>
+            </div>
+        `;
+    }
+    
+    chatMessages.appendChild(messageDiv);
+    chatMessages.scrollTop = chatMessages.scrollHeight;
+}
+
+// Função para processar consultas do assistente
+function processAssistantQuery(query) {
+    const lowerQuery = query.toLowerCase();
+    
+    // Consultas sobre Joãozinho
+    if (lowerQuery.includes('joãozinho') || lowerQuery.includes('joao silva')) {
+        if (lowerQuery.includes('empréstimo') || lowerQuery.includes('resumo')) {
+            const client = mockClientData['joãozinho'];
+            const loan = client.loans[0];
+            return `📊 **Resumo do Empréstimo - ${client.name}**\n\n` +
+                   `💰 Valor inicial: R$ ${loan.amount.toLocaleString('pt-BR')}\n` +
+                   `📈 Taxa de juros: ${loan.interestRate}%\n` +
+                   `📅 Data de início: ${new Date(loan.startDate).toLocaleDateString('pt-BR')}\n` +
+                   `💳 Valor restante: R$ ${loan.remainingAmount.toLocaleString('pt-BR')}\n` +
+                   `✅ Status: ${loan.status.toUpperCase()}\n\n` +
+                   `👤 Perfil: ${client.profile}`;
+        }
+    }
+    
+    // Consultas sobre Aninha
+    if (lowerQuery.includes('aninha') || lowerQuery.includes('ana santos')) {
+        if (lowerQuery.includes('pagamento')) {
+            const client = mockClientData['aninha'];
+            const payments = client.loans[0].payments;
+            let response = `💳 **Pagamentos da ${client.name}**\n\n`;
+            
+            payments.forEach((payment, index) => {
+                const date = new Date(payment.date).toLocaleDateString('pt-BR');
+                const type = payment.type === 'juros' ? '📊 Juros' : '💰 Pagamento Parcial';
+                response += `${index + 1}. ${date} - R$ ${payment.amount.toLocaleString('pt-BR')} (${type})\n`;
+            });
+            
+            response += `\n👤 Perfil: ${client.profile}`;
+            return response;
+        }
+    }
+    
+    // Consultas sobre clientes problemáticos
+    if (lowerQuery.includes('deu trabalho') || lowerQuery.includes('problemático') || lowerQuery.includes('joão silva')) {
+        const client = mockClientData['joão silva'];
+        if (client.issues) {
+            return `⚠️ **Cliente Problemático - ${client.name}**\n\n` +
+                   `${client.issueDescription}\n\n` +
+                   `📊 Status atual: ${client.loans[0].status.toUpperCase()}\n` +
+                   `💰 Valor em aberto: R$ ${client.loans[0].remainingAmount.toLocaleString('pt-BR')}\n\n` +
+                   `⚠️ Recomendação: Monitoramento rigoroso necessário.`;
+        }
+    }
+    
+    // Consultas sobre clientes comprometidos
+    if (lowerQuery.includes('maria santos') || lowerQuery.includes('comprometimento') || lowerQuery.includes('boa pessoa')) {
+        const client = mockClientData['maria santos'];
+        return `✅ **Cliente Exemplar - ${client.name}**\n\n` +
+               `${client.profile}\n\n` +
+               `📊 Status: ${client.loans[0].status.toUpperCase()}\n` +
+               `💰 Valor do empréstimo: R$ ${client.loans[0].amount.toLocaleString('pt-BR')}\n` +
+               `📈 Taxa: ${client.loans[0].interestRate}%\n\n` +
+               `✨ Este cliente é uma boa pessoa e tem comprometimento com os pagamentos.`;
+    }
+    
+    // Consultas gerais sobre clientes
+    if (lowerQuery.includes('cliente') && (lowerQuery.includes('como está') || lowerQuery.includes('situação'))) {
+        return `📋 **Resumo Geral dos Clientes**\n\n` +
+               `✅ Clientes em dia: Joãozinho, Aninha, Maria Santos\n` +
+               `⚠️ Clientes com problemas: João Silva\n\n` +
+               `Para informações específicas, pergunte sobre um cliente pelo nome.`;
+    }
+    
+    // Resposta padrão para consultas não reconhecidas
+    return `🤖 Estou em desenvolvimento para responder essa pergunta específica.\n\n` +
+           `📝 Posso ajudar com:\n` +
+           `• Informações sobre empréstimos do Joãozinho\n` +
+           `• Histórico de pagamentos da Aninha\n` +
+           `• Status de clientes problemáticos\n` +
+           `• Perfil de clientes comprometidos\n\n` +
+           `💡 Tente reformular sua pergunta ou use os botões de perguntas frequentes.`;
 }
