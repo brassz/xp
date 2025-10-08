@@ -4908,7 +4908,8 @@ async function loadPixKeys() {
             <div class="pix-key-item border border-gray-600 rounded-lg p-3 hover:border-blue-500 cursor-pointer transition-colors"
                  data-pix-id="${pixKey.id}" 
                  data-bank-name="${pixKey.bank_name.replace(/"/g, '&quot;')}" 
-                 data-pix-key="${pixKey.pix_key.replace(/"/g, '&quot;')}">
+                 data-pix-key="${pixKey.pix_key.replace(/"/g, '&quot;')}"
+                 data-account-holder="${pixKey.account_holder.replace(/"/g, '&quot;')}">
                 <div class="flex justify-between items-start">
                     <div class="flex-1">
                         <div class="font-medium text-white">${pixKey.bank_name}</div>
@@ -4931,7 +4932,8 @@ async function loadPixKeys() {
                 const pixId = this.getAttribute('data-pix-id');
                 const bankName = this.getAttribute('data-bank-name');
                 const pixKey = this.getAttribute('data-pix-key');
-                selectPixKey(pixId, bankName, pixKey);
+                const accountHolder = this.getAttribute('data-account-holder');
+                selectPixKey(pixId, bankName, pixKey, accountHolder);
             });
         });
 
@@ -4978,7 +4980,7 @@ function maskPixKey(key, type) {
 }
 
 // Função para selecionar uma chave PIX e enviar a cobrança
-async function selectPixKey(pixKeyId, bankName, pixKey) {
+async function selectPixKey(pixKeyId, bankName, pixKey, accountHolder) {
     try {
         // Salvar os IDs antes de fechar o modal
         const loanId = currentLoanIdForPix;
@@ -4993,10 +4995,10 @@ async function selectPixKey(pixKeyId, bankName, pixKey) {
         // Verificar se é para empréstimo ou parcelamento
         if (loanId) {
             // Enviar cobrança de empréstimo
-            await sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey);
+            await sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey, accountHolder);
         } else if (installmentId) {
             // Enviar cobrança de parcelamento
-            await sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId, bankName, pixKey);
+            await sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId, bankName, pixKey, accountHolder);
         } else {
             throw new Error('Nenhum empréstimo ou parcelamento selecionado');
         }
@@ -5064,7 +5066,7 @@ document.addEventListener('DOMContentLoaded', function() {
 });
 
 // Função para enviar mensagem de cobrança via WhatsApp com chave PIX selecionada
-async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey) {
+async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey, accountHolder) {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) {
         showErrorMessage('Empréstimo não encontrado!');
@@ -5150,6 +5152,7 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey)
 
 💸 DADOS PARA PAGAMENTO PIX:
 🏦 Banco: ${bankName}
+👤 Favorecido: ${accountHolder}
 🔑 Chave PIX: ${pixKey}
 
 ⚠️ ATENÇÃO!
@@ -5180,7 +5183,7 @@ Após o vencimento, será aplicada uma multa diária de R$ 50,00.
 }
 
 // Função para enviar mensagem de cobrança de parcelamento via WhatsApp com chave PIX selecionada
-async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId, bankName, pixKey) {
+async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId, bankName, pixKey, accountHolder) {
     try {
         // Buscar dados do parcelamento com relacionamentos
         const { data: installment, error } = await supabase
@@ -5253,6 +5256,7 @@ async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId,
 
 💸 DADOS PARA PAGAMENTO PIX:
 🏦 Banco: ${bankName}
+👤 Favorecido: ${accountHolder}
 🔑 Chave PIX: ${pixKey}`;
 
         if (isOverdue) {
