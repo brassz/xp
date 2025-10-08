@@ -12618,15 +12618,25 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
 // Função para buscar cliente por nome (busca flexível)
 async function findClientByName(searchName) {
     try {
+        console.log('🔍 Buscando cliente:', searchName);
+        console.log('🔗 Supabase configurado:', !!supabase);
+        
         const { data: clients, error } = await supabase
             .from('clients')
             .select('*')
             .ilike('name', `%${searchName}%`);
         
-        if (error) throw error;
-        return clients;
+        console.log('📊 Resultado da busca:', { clients, error });
+        
+        if (error) {
+            console.error('❌ Erro na consulta:', error);
+            throw error;
+        }
+        
+        console.log(`✅ Encontrados ${clients?.length || 0} clientes`);
+        return clients || [];
     } catch (error) {
-        console.error('Erro ao buscar cliente:', error);
+        console.error('❌ Erro ao buscar cliente:', error);
         return [];
     }
 }
@@ -12676,6 +12686,25 @@ async function getLoanPayments(loanId) {
 // Função para buscar todos os pagamentos de um cliente
 async function getClientPayments(clientId) {
     try {
+        console.log('💳 Buscando pagamentos do cliente:', clientId);
+        
+        // Primeiro buscar os empréstimos do cliente
+        const { data: loans, error: loansError } = await supabase
+            .from('loans')
+            .select('id')
+            .eq('client_id', clientId);
+        
+        if (loansError) throw loansError;
+        
+        if (!loans || loans.length === 0) {
+            console.log('❌ Cliente não possui empréstimos');
+            return [];
+        }
+        
+        const loanIds = loans.map(loan => loan.id);
+        console.log('🏦 IDs dos empréstimos:', loanIds);
+        
+        // Buscar pagamentos desses empréstimos
         const { data: payments, error } = await supabase
             .from('payments')
             .select(`
@@ -12683,18 +12712,18 @@ async function getClientPayments(clientId) {
                 loans (
                     amount,
                     interest_rate,
-                    clients (
-                        name
-                    )
+                    client_id
                 )
             `)
-            .eq('loans.client_id', clientId)
+            .in('loan_id', loanIds)
             .order('payment_date', { ascending: true });
         
         if (error) throw error;
-        return payments;
+        
+        console.log(`💰 Encontrados ${payments?.length || 0} pagamentos`);
+        return payments || [];
     } catch (error) {
-        console.error('Erro ao buscar pagamentos do cliente:', error);
+        console.error('❌ Erro ao buscar pagamentos do cliente:', error);
         return [];
     }
 }
@@ -12869,10 +12898,12 @@ function removeTypingIndicator() {
 
 // Função para processar consultas do assistente com dados reais
 async function processAssistantQuery(query) {
+    console.log('🤖 Processando consulta:', query);
     const lowerQuery = query.toLowerCase();
     
     // Extrair possíveis nomes de clientes da consulta
     const possibleNames = extractClientNames(query);
+    console.log('👤 Nomes extraídos:', possibleNames);
     
     // Consultas sobre empréstimos específicos
     if (lowerQuery.includes('empréstimo') || lowerQuery.includes('resumo')) {
@@ -13089,6 +13120,40 @@ async function processAssistantQuery(query) {
                `✨ **Dica:** Use nomes completos ou parciais dos clientes para melhores resultados!`;
     }
     
+    // Comando de teste para listar clientes
+    if (lowerQuery.includes('teste') || lowerQuery.includes('listar clientes') || lowerQuery.includes('todos os clientes')) {
+        try {
+            console.log('🧪 Executando teste de conexão...');
+            const { data: allClients, error } = await supabase
+                .from('clients')
+                .select('id, name, cpf')
+                .limit(10);
+            
+            if (error) {
+                console.error('❌ Erro no teste:', error);
+                return `❌ **Erro de Conexão**\n\nErro: ${error.message}\n\nVerifique a configuração do banco de dados.`;
+            }
+            
+            if (allClients && allClients.length > 0) {
+                let response = `✅ **Teste de Conexão - Sucesso!**\n\n`;
+                response += `📊 **Primeiros ${allClients.length} clientes encontrados:**\n\n`;
+                
+                allClients.forEach((client, index) => {
+                    response += `${index + 1}. **${client.name}**\n`;
+                    response += `   CPF: ${client.cpf || 'Não informado'}\n`;
+                    response += `   ID: ${client.id}\n\n`;
+                });
+                
+                return response;
+            } else {
+                return `⚠️ **Conexão OK, mas nenhum cliente encontrado**\n\nO banco de dados está acessível, mas não há clientes cadastrados.`;
+            }
+        } catch (error) {
+            console.error('❌ Erro no teste:', error);
+            return `❌ **Erro de Conexão**\n\nErro: ${error.message}\n\nVerifique a configuração do banco de dados.`;
+        }
+    }
+    
     // Resposta padrão para consultas não reconhecidas
     return `🤖 Estou em desenvolvimento para responder essa pergunta específica.\n\n` +
            `📝 Posso ajudar com:\n` +
@@ -13108,24 +13173,43 @@ function extractClientNames(query) {
     const lowerQuery = query.toLowerCase();
     const names = [];
     
-    // Padrões comuns de nomes
+    console.log('🔍 Extraindo nomes de:', query);
+    
+    // Padrões mais específicos para capturar nomes
     const namePatterns = [
-        /(?:do|da|de)\s+([a-záàâãéèêíïóôõöúçñ\s]+?)(?:\s|$|\?|!|\.)/gi,
-        /(?:cliente|empréstimo|pagamento)\s+([a-záàâãéèêíïóôõöúçñ\s]+?)(?:\s|$|\?|!|\.)/gi,
-        /([a-záàâãéèêíïóôõöúçñ]+(?:\s+[a-záàâãéèêíïóôõöúçñ]+)*)/gi
+        // Padrões como "do João", "da Maria", "de Carlos"
+        /(?:do|da|de)\s+([a-záàâãéèêíïóôõöúçñ]+(?:\s+[a-záàâãéèêíïóôõöúçñ]+)*)/gi,
+        // Padrões como "cliente João", "empréstimo Maria"
+        /(?:cliente|empréstimo|pagamento)\s+([a-záàâãéèêíïóôõöúçñ]+(?:\s+[a-záàâãéèêíïóôõöúçñ]+)*)/gi,
+        // Nomes próprios (começam com maiúscula)
+        /\b([A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][a-záàâãéèêíïóôõöúçñ]+(?:\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][a-záàâãéèêíïóôõöúçñ]+)*)\b/g
+    ];
+    
+    // Palavras a ignorar
+    const stopWords = [
+        'como', 'está', 'quais', 'todos', 'cliente', 'empréstimo', 'pagamento', 
+        'resumo', 'geral', 'dos', 'clientes', 'trabalho', 'deu', 'problema',
+        'comprometimento', 'boa', 'pessoa', 'bom', 'exemplar', 'problemático'
     ];
     
     for (const pattern of namePatterns) {
         let match;
-        while ((match = pattern.exec(lowerQuery)) !== null) {
+        while ((match = pattern.exec(query)) !== null) {
             const name = match[1].trim();
-            if (name.length > 2 && !['como', 'está', 'quais', 'todos', 'cliente', 'empréstimo', 'pagamento'].includes(name)) {
+            console.log('🎯 Nome candidato:', name);
+            
+            if (name.length > 2 && !stopWords.includes(name.toLowerCase())) {
                 names.push(name);
+                console.log('✅ Nome aceito:', name);
+            } else {
+                console.log('❌ Nome rejeitado:', name);
             }
         }
     }
     
-    return [...new Set(names)]; // Remove duplicatas
+    const uniqueNames = [...new Set(names)];
+    console.log('📝 Nomes finais:', uniqueNames);
+    return uniqueNames;
 }
 
 // Função auxiliar para calcular valor restante
