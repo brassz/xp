@@ -12698,8 +12698,11 @@ async function getClientLoans(clientId) {
             console.log('📋 Empréstimos encontrados:', loans.map(l => ({
                 id: l.id,
                 amount: l.amount,
+                interest_rate: l.interest_rate,
                 status: l.status,
-                created_at: l.created_at
+                created_at: l.created_at,
+                loan_date: l.loan_date,
+                due_date: l.due_date
             })));
         }
         
@@ -12710,19 +12713,76 @@ async function getClientLoans(clientId) {
     }
 }
 
+// Função para buscar um empréstimo específico com dados atualizados
+async function getLoanById(loanId) {
+    try {
+        console.log('🔍 Buscando empréstimo específico ID:', loanId);
+        
+        const { data: loan, error } = await supabase
+            .from('loans')
+            .select(`
+                *,
+                clients (
+                    name,
+                    cpf,
+                    email,
+                    phone
+                )
+            `)
+            .eq('id', loanId)
+            .single();
+        
+        if (error) {
+            console.error('❌ Erro ao buscar empréstimo:', error);
+            throw error;
+        }
+        
+        console.log('📋 Empréstimo encontrado:', {
+            id: loan.id,
+            amount: loan.amount,
+            interest_rate: loan.interest_rate,
+            status: loan.status,
+            client: loan.clients?.name
+        });
+        
+        return loan;
+    } catch (error) {
+        console.error('❌ Erro ao buscar empréstimo:', error);
+        return null;
+    }
+}
+
 // Função para buscar pagamentos de um empréstimo
 async function getLoanPayments(loanId) {
     try {
+        console.log('💳 Buscando pagamentos do empréstimo ID:', loanId);
+        
         const { data: payments, error } = await supabase
             .from('payments')
             .select('*')
             .eq('loan_id', loanId)
             .order('payment_date', { ascending: true });
         
-        if (error) throw error;
-        return payments;
+        if (error) {
+            console.error('❌ Erro ao buscar pagamentos:', error);
+            throw error;
+        }
+        
+        console.log(`💰 Encontrados ${payments?.length || 0} pagamentos para empréstimo ${loanId}`);
+        
+        if (payments && payments.length > 0) {
+            console.log('📋 Detalhes dos pagamentos:', payments.map(p => ({
+                id: p.id,
+                amount: p.amount,
+                payment_date: p.payment_date,
+                payment_type: p.payment_type,
+                is_settlement: p.is_settlement
+            })));
+        }
+        
+        return payments || [];
     } catch (error) {
-        console.error('Erro ao buscar pagamentos:', error);
+        console.error('❌ Erro ao buscar pagamentos:', error);
         return [];
     }
 }
@@ -13539,11 +13599,37 @@ function extractClientNames(query) {
     return uniqueNames;
 }
 
-// Função auxiliar para calcular valor restante
+// Função auxiliar para calcular valor restante (usando a mesma lógica do sistema)
 function calculateRemainingAmount(loan, payments) {
-    const loanAmount = parseFloat(loan.amount);
-    const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-    const interestAmount = loanAmount * (parseFloat(loan.interest_rate) / 100);
+    const capitalAmount = parseFloat(loan.amount);
+    let interestRate = parseFloat(loan.interest_rate);
     
-    return Math.max(0, loanAmount + interestAmount - totalPaid);
+    // Ajustar taxa se necessário (mesma lógica do sistema)
+    if (interestRate > 100) {
+        interestRate = interestRate / 100;
+    }
+    
+    const interestAmount = capitalAmount * (interestRate / 100);
+    const totalWithInterest = capitalAmount + interestAmount;
+    
+    // Verificar se houve renovações
+    const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+    const hasRenewals = payments.some(p => p.payment_type === 'renewal');
+    
+    let totalPaid;
+    if (hasRenewals) {
+        // Se houve renovação, considerar apenas pagamentos após a última renovação
+        const lastRenewalIndex = payments.map((p, index) => ({ ...p, originalIndex: index }))
+            .filter(p => p.payment_type === 'renewal')
+            .pop()?.originalIndex || -1;
+        
+        const paymentsAfterRenewal = payments.slice(lastRenewalIndex + 1);
+        totalPaid = paymentsAfterRenewal
+            .filter(p => parseFloat(p.amount) > 0)
+            .reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    } else {
+        totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    }
+    
+    return Math.max(0, totalWithInterest - totalPaid);
 }
