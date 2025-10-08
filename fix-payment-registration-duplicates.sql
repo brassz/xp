@@ -106,7 +106,7 @@ BEGIN
         WHERE id NOT IN (
             SELECT DISTINCT ON (loan_id) id
             FROM cancelled_loans
-            ORDER BY loan_id, cancelled_at DESC, created_at DESC
+            ORDER BY loan_id, cancellation_date DESC, created_at DESC
         );
         
         RAISE NOTICE 'Duplicatas removidas de cancelled_loans';

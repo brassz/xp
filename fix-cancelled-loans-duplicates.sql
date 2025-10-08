@@ -20,7 +20,7 @@ WHERE id NOT IN (
     SELECT DISTINCT ON (loan_id) id
     FROM cancelled_loans
     ORDER BY loan_id, 
-             cancelled_at DESC NULLS LAST, 
+             cancellation_date DESC NULLS LAST, 
              created_at DESC
 );
 
