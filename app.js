@@ -12621,20 +12621,47 @@ async function findClientByName(searchName) {
         console.log('🔍 Buscando cliente:', searchName);
         console.log('🔗 Supabase configurado:', !!supabase);
         
-        const { data: clients, error } = await supabase
-            .from('clients')
-            .select('*')
-            .ilike('name', `%${searchName}%`);
+        // Tentar diferentes variações de busca
+        const searchVariations = [
+            searchName, // Busca exata
+            searchName.toLowerCase(), // Minúscula
+            searchName.toUpperCase(), // Maiúscula
+            searchName.charAt(0).toUpperCase() + searchName.slice(1).toLowerCase() // Primeira maiúscula
+        ];
         
-        console.log('📊 Resultado da busca:', { clients, error });
+        let allClients = [];
         
-        if (error) {
-            console.error('❌ Erro na consulta:', error);
-            throw error;
+        for (const variation of searchVariations) {
+            console.log('🔍 Tentando variação:', variation);
+            
+            const { data: clients, error } = await supabase
+                .from('clients')
+                .select('*')
+                .ilike('name', `%${variation}%`);
+            
+            if (error) {
+                console.error('❌ Erro na consulta:', error);
+                continue;
+            }
+            
+            if (clients && clients.length > 0) {
+                console.log(`✅ Encontrados ${clients.length} clientes com "${variation}"`);
+                allClients = allClients.concat(clients);
+            }
         }
         
-        console.log(`✅ Encontrados ${clients?.length || 0} clientes`);
-        return clients || [];
+        // Remover duplicatas baseado no ID
+        const uniqueClients = allClients.filter((client, index, self) => 
+            index === self.findIndex(c => c.id === client.id)
+        );
+        
+        console.log(`📊 Total de clientes únicos encontrados: ${uniqueClients.length}`);
+        
+        if (uniqueClients.length > 0) {
+            console.log('👥 Clientes encontrados:', uniqueClients.map(c => ({ id: c.id, name: c.name })));
+        }
+        
+        return uniqueClients;
     } catch (error) {
         console.error('❌ Erro ao buscar cliente:', error);
         return [];
@@ -12644,6 +12671,8 @@ async function findClientByName(searchName) {
 // Função para buscar empréstimos de um cliente
 async function getClientLoans(clientId) {
     try {
+        console.log('🏦 Buscando empréstimos do cliente ID:', clientId);
+        
         const { data: loans, error } = await supabase
             .from('loans')
             .select(`
@@ -12658,10 +12687,25 @@ async function getClientLoans(clientId) {
             .eq('client_id', clientId)
             .order('created_at', { ascending: false });
         
-        if (error) throw error;
-        return loans;
+        if (error) {
+            console.error('❌ Erro ao buscar empréstimos:', error);
+            throw error;
+        }
+        
+        console.log(`💰 Encontrados ${loans?.length || 0} empréstimos para cliente ${clientId}`);
+        
+        if (loans && loans.length > 0) {
+            console.log('📋 Empréstimos encontrados:', loans.map(l => ({
+                id: l.id,
+                amount: l.amount,
+                status: l.status,
+                created_at: l.created_at
+            })));
+        }
+        
+        return loans || [];
     } catch (error) {
-        console.error('Erro ao buscar empréstimos:', error);
+        console.error('❌ Erro ao buscar empréstimos:', error);
         return [];
     }
 }
@@ -12938,7 +12982,47 @@ async function processAssistantQuery(query) {
                 return `❌ Cliente "${clientName}" não encontrado. Verifique se o nome está correto.\n\n💡 Tente usar o comando "teste" para ver os clientes disponíveis.`;
             }
         } else {
-            // Se não conseguiu extrair nomes, sugerir busca geral
+            // Se não conseguiu extrair nomes, tentar busca geral por palavras-chave
+            console.log('🔍 Tentando busca geral por palavras na consulta...');
+            
+            // Extrair palavras que podem ser nomes (ignorar palavras comuns)
+            const words = query.split(/\s+/).filter(word => 
+                word.length > 2 && 
+                !['como', 'está', 'empréstimo', 'resumo', 'cliente', 'do', 'da', 'de'].includes(word.toLowerCase())
+            );
+            
+            console.log('🔤 Palavras extraídas para busca:', words);
+            
+            if (words.length > 0) {
+                // Tentar buscar com cada palavra
+                for (const word of words) {
+                    const clients = await findClientByName(word);
+                    if (clients.length > 0) {
+                        const client = clients[0];
+                        const loans = await getClientLoans(client.id);
+                        
+                        if (loans.length > 0) {
+                            const loan = loans[0];
+                            const payments = await getLoanPayments(loan.id);
+                            const profile = analyzeClientProfile(loans, payments);
+                            const remainingAmount = calculateRemainingAmount(loan, payments);
+                            
+                            return `📊 **Resumo do Empréstimo - ${client.name}**\n\n` +
+                                   `💰 Valor inicial: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                                   `📈 Taxa de juros: ${loan.interest_rate}%\n` +
+                                   `📅 Data de início: ${new Date(loan.created_at).toLocaleDateString('pt-BR')}\n` +
+                                   `💳 Valor restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
+                                   `✅ Status: ${loan.status.toUpperCase()}\n` +
+                                   `📱 Telefone: ${client.phone || 'Não informado'}\n\n` +
+                                   `👤 Perfil: ${profile.profile}`;
+                        } else {
+                            return `❌ Cliente ${client.name} encontrado, mas não possui empréstimos registrados.`;
+                        }
+                    }
+                }
+            }
+            
+            // Se ainda não encontrou nada, sugerir busca geral
             return `🤔 Não consegui identificar o nome do cliente na sua pergunta.\n\n` +
                    `💡 **Tente perguntar assim:**\n` +
                    `• "Empréstimo do João Silva"\n` +
@@ -13156,12 +13240,32 @@ async function processAssistantQuery(query) {
                 let response = `✅ **Teste de Conexão - Sucesso!**\n\n`;
                 response += `📊 **Primeiros ${allClients.length} clientes encontrados:**\n\n`;
                 
-                allClients.forEach((client, index) => {
-                    response += `${index + 1}. **${client.name}**\n`;
+                // Para cada cliente, também verificar empréstimos
+                for (let i = 0; i < Math.min(5, allClients.length); i++) {
+                    const client = allClients[i];
+                    
+                    // Buscar empréstimos do cliente
+                    const { data: loans, error: loansError } = await supabase
+                        .from('loans')
+                        .select('id, amount, status, interest_rate')
+                        .eq('client_id', client.id);
+                    
+                    response += `${i + 1}. **${client.name}**\n`;
                     response += `   CPF: ${client.cpf || 'Não informado'}\n`;
-                    response += `   ID: ${client.id}\n\n`;
-                });
+                    response += `   ID: ${client.id}\n`;
+                    
+                    if (!loansError && loans && loans.length > 0) {
+                        response += `   💰 Empréstimos: ${loans.length}\n`;
+                        loans.forEach((loan, idx) => {
+                            response += `      ${idx + 1}. R$ ${parseFloat(loan.amount).toLocaleString('pt-BR')} - ${loan.status}\n`;
+                        });
+                    } else {
+                        response += `   📋 Sem empréstimos\n`;
+                    }
+                    response += `\n`;
+                }
                 
+                response += `💡 **Para testar:** Digite "empréstimo do [nome]" usando um dos nomes acima.`;
                 return response;
             } else {
                 return `⚠️ **Conexão OK, mas nenhum cliente encontrado**\n\nO banco de dados está acessível, mas não há clientes cadastrados.`;
@@ -13169,6 +13273,55 @@ async function processAssistantQuery(query) {
         } catch (error) {
             console.error('❌ Erro no teste:', error);
             return `❌ **Erro de Conexão**\n\nErro: ${error.message}\n\nVerifique a configuração do banco de dados.`;
+        }
+    }
+    
+    // Busca direta por nome (quando usuário digita apenas um nome)
+    console.log('🔍 Tentando busca direta por nome...');
+    const directSearchWords = query.trim().split(/\s+/).filter(word => 
+        word.length > 1 && 
+        !['o', 'a', 'do', 'da', 'de', 'um', 'uma'].includes(word.toLowerCase())
+    );
+    
+    if (directSearchWords.length > 0) {
+        for (const word of directSearchWords) {
+            console.log('🎯 Tentando busca direta com:', word);
+            const clients = await findClientByName(word);
+            
+            if (clients.length > 0) {
+                const client = clients[0];
+                const loans = await getClientLoans(client.id);
+                
+                let response = `👤 **Cliente Encontrado: ${client.name}**\n\n`;
+                response += `📱 Telefone: ${client.phone || 'Não informado'}\n`;
+                response += `📧 Email: ${client.email || 'Não informado'}\n`;
+                response += `🆔 CPF: ${client.cpf || 'Não informado'}\n\n`;
+                
+                if (loans.length > 0) {
+                    response += `💰 **Empréstimos (${loans.length}):**\n\n`;
+                    
+                    for (let i = 0; i < loans.length; i++) {
+                        const loan = loans[i];
+                        const payments = await getLoanPayments(loan.id);
+                        const remainingAmount = calculateRemainingAmount(loan, payments);
+                        
+                        response += `${i + 1}. **Empréstimo #${loan.id}**\n`;
+                        response += `   💰 Valor: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
+                        response += `   📈 Taxa: ${loan.interest_rate}%\n`;
+                        response += `   📅 Data: ${new Date(loan.created_at).toLocaleDateString('pt-BR')}\n`;
+                        response += `   💳 Restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
+                        response += `   ✅ Status: ${loan.status.toUpperCase()}\n`;
+                        response += `   💸 Pagamentos: ${payments.length}\n\n`;
+                    }
+                    
+                    const profile = analyzeClientProfile(loans, []);
+                    response += `👤 **Perfil:** ${profile.profile}`;
+                } else {
+                    response += `📋 **Sem empréstimos registrados**`;
+                }
+                
+                return response;
+            }
         }
     }
     
@@ -13183,7 +13336,8 @@ async function processAssistantQuery(query) {
            `💡 Tente perguntar algo como:\n` +
            `"Como está o empréstimo do João?"\n` +
            `"Quais pagamentos a Maria fez?"\n` +
-           `"Quais clientes deram trabalho?"`;
+           `"Quais clientes deram trabalho?"\n\n` +
+           `🔍 Ou digite apenas o nome do cliente para ver todas as informações.`;
 }
 
 // Função auxiliar para extrair nomes de clientes da consulta
