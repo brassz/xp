@@ -12848,7 +12848,13 @@ async function sendChatMessage() {
         // Processar consulta com dados reais
         const response = await processAssistantQuery(message);
         removeTypingIndicator();
-        addChatMessage(response, 'assistant');
+        
+        // Verificar se a resposta contém dados de cliente para botões interativos
+        if (typeof response === 'object' && response.message && response.clientData) {
+            addChatMessage(response.message, 'assistant', response.clientData);
+        } else {
+            addChatMessage(response, 'assistant');
+        }
     } catch (error) {
         removeTypingIndicator();
         addChatMessage('Desculpe, ocorreu um erro ao processar sua solicitação. Tente novamente.', 'assistant');
@@ -12857,7 +12863,7 @@ async function sendChatMessage() {
 }
 
 // Função para adicionar mensagem ao chat
-function addChatMessage(message, sender) {
+function addChatMessage(message, sender, clientData = null) {
     const chatMessages = document.getElementById('chatMessages');
     if (!chatMessages) return;
     
@@ -12888,7 +12894,7 @@ function addChatMessage(message, sender) {
             </div>
         `;
     } else {
-        messageDiv.innerHTML = `
+        let messageContent = `
             <div class="w-8 h-8 bg-blue-500 rounded-full flex items-center justify-center flex-shrink-0">
                 <svg class="w-4 h-4 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"></path>
@@ -12896,9 +12902,56 @@ function addChatMessage(message, sender) {
             </div>
             <div class="bg-gray-700 rounded-lg p-3 max-w-md">
                 <div class="text-white text-sm">${formattedMessage}</div>
+        `;
+        
+        // Adicionar botões interativos se há dados do cliente com múltiplos empréstimos
+        if (clientData && clientData.loans && clientData.loans.length > 1) {
+            messageContent += `
+                <div class="mt-3 space-y-2">
+                    <p class="text-gray-300 text-xs">Clique para ver detalhes:</p>
+                    <div class="flex flex-wrap gap-2">
+            `;
+            
+            for (let i = 0; i < clientData.loans.length; i++) {
+                messageContent += `
+                    <button class="loan-selection-btn bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1 rounded-lg transition-colors" 
+                            data-client="${clientData.name}" 
+                            data-loan-number="${i + 1}">
+                        Empréstimo ${i + 1}
+                    </button>
+                `;
+            }
+            
+            messageContent += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        messageContent += `
                 <span class="text-gray-400 text-xs mt-1 block">${timeString}</span>
             </div>
         `;
+        
+        messageDiv.innerHTML = messageContent;
+        
+        // Adicionar event listeners aos botões de seleção de empréstimo
+        if (clientData && clientData.loans && clientData.loans.length > 1) {
+            setTimeout(() => {
+                const loanButtons = messageDiv.querySelectorAll('.loan-selection-btn');
+                loanButtons.forEach(button => {
+                    button.addEventListener('click', function() {
+                        const clientName = this.getAttribute('data-client');
+                        const loanNumber = this.getAttribute('data-loan-number');
+                        const chatInput = document.getElementById('chatInput');
+                        if (chatInput) {
+                            chatInput.value = `${clientName} empréstimo ${loanNumber}`;
+                            sendChatMessage();
+                        }
+                    });
+                });
+            }, 100);
+        }
     }
     
     chatMessages.appendChild(messageDiv);
@@ -12951,9 +13004,13 @@ async function processAssistantQuery(query) {
     
     // Consultas sobre empréstimos específicos
     if (lowerQuery.includes('empréstimo') || lowerQuery.includes('resumo')) {
+        // Verificar se está pedindo um empréstimo específico (ex: "João empréstimo 2")
+        const loanNumberMatch = query.match(/empréstimo\s+(\d+)/i);
+        const loanNumber = loanNumberMatch ? parseInt(loanNumberMatch[1]) : null;
+        
         if (possibleNames.length > 0) {
             const clientName = possibleNames[0];
-            console.log('🔍 Buscando empréstimo para:', clientName);
+            console.log('🔍 Buscando empréstimo para:', clientName, loanNumber ? `(Empréstimo #${loanNumber})` : '');
             const clients = await findClientByName(clientName);
             
             if (clients.length > 0) {
@@ -12961,20 +13018,81 @@ async function processAssistantQuery(query) {
                 const loans = await getClientLoans(client.id);
                 
                 if (loans.length > 0) {
-                    const loan = loans[0]; // Empréstimo mais recente
-                    const payments = await getLoanPayments(loan.id);
-                    const profile = analyzeClientProfile(loans, payments);
+                    let selectedLoan;
                     
-                    const remainingAmount = calculateRemainingAmount(loan, payments);
+                    if (loanNumber && loanNumber <= loans.length) {
+                        // Empréstimo específico solicitado
+                        selectedLoan = loans[loanNumber - 1];
+                        console.log(`🎯 Selecionado empréstimo ${loanNumber} do cliente ${client.name}`);
+                    } else if (loanNumber && loanNumber > loans.length) {
+                        return `❌ Cliente ${client.name} possui apenas ${loans.length} empréstimo(s). Você pediu o empréstimo ${loanNumber}.\n\n💡 Tente: "${client.name} empréstimo 1" até "${client.name} empréstimo ${loans.length}"`;
+                    } else if (loans.length === 1) {
+                        // Apenas um empréstimo
+                        selectedLoan = loans[0];
+                    } else {
+                        // Múltiplos empréstimos - mostrar lista para seleção
+                        let response = `📊 **${client.name} - Múltiplos Empréstimos (${loans.length})**\n\n`;
+                        
+                        for (let i = 0; i < loans.length; i++) {
+                            const loan = loans[i];
+                            const payments = await getLoanPayments(loan.id);
+                            const remainingAmount = calculateRemainingAmount(loan, payments);
+                            
+                            response += `${i + 1}. **Empréstimo ${i + 1}** - R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
+                            response += `   📅 ${new Date(loan.created_at).toLocaleDateString('pt-BR')} - ${loan.status.toUpperCase()}\n`;
+                            response += `   💳 Restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n\n`;
+                        }
+                        
+                        response += `🔍 **Para ver detalhes específicos, digite:**\n`;
+                        for (let i = 0; i < loans.length; i++) {
+                            response += `• "${client.name} empréstimo ${i + 1}"\n`;
+                        }
+                        
+                        // Retornar resposta com dados para botões interativos
+                        return {
+                            message: response,
+                            clientData: {
+                                name: client.name,
+                                loans: loans
+                            }
+                        };
+                    }
                     
-                    return `📊 **Resumo do Empréstimo - ${client.name}**\n\n` +
-                           `💰 Valor inicial: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
-                           `📈 Taxa de juros: ${loan.interest_rate}%\n` +
-                           `📅 Data de início: ${new Date(loan.created_at).toLocaleDateString('pt-BR')}\n` +
-                           `💳 Valor restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n` +
-                           `✅ Status: ${loan.status.toUpperCase()}\n` +
-                           `📱 Telefone: ${client.phone || 'Não informado'}\n\n` +
-                           `👤 Perfil: ${profile.profile}`;
+                    // Mostrar detalhes do empréstimo selecionado
+                    const payments = await getLoanPayments(selectedLoan.id);
+                    const profile = analyzeClientProfile([selectedLoan], payments);
+                    const remainingAmount = calculateRemainingAmount(selectedLoan, payments);
+                    const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+                    
+                    let response = `📊 **Detalhes do Empréstimo - ${client.name}**\n`;
+                    if (loans.length > 1) {
+                        response += `*(Empréstimo ${loanNumber || 1} de ${loans.length})*\n`;
+                    }
+                    response += `\n`;
+                    
+                    response += `💰 Valor inicial: R$ ${parseFloat(selectedLoan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
+                    response += `📈 Taxa de juros: ${selectedLoan.interest_rate}%\n`;
+                    response += `📅 Data de início: ${new Date(selectedLoan.created_at).toLocaleDateString('pt-BR')}\n`;
+                    response += `💳 Valor restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
+                    response += `✅ Status: ${selectedLoan.status.toUpperCase()}\n`;
+                    response += `📱 Telefone: ${client.phone || 'Não informado'}\n\n`;
+                    
+                    if (payments.length > 0) {
+                        response += `💸 **Histórico de Pagamentos (${payments.length}):**\n`;
+                        payments.forEach((payment, index) => {
+                            const date = new Date(payment.payment_date).toLocaleDateString('pt-BR');
+                            const amount = parseFloat(payment.amount);
+                            const type = payment.is_settlement ? '🏆 Quitação' : '💰 Pagamento';
+                            response += `${index + 1}. ${date} - R$ ${amount.toLocaleString('pt-BR', {minimumFractionDigits: 2})} (${type})\n`;
+                        });
+                        response += `\n💰 **Total pago**: R$ ${totalPaid.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n\n`;
+                    } else {
+                        response += `📋 **Nenhum pagamento registrado ainda**\n\n`;
+                    }
+                    
+                    response += `👤 **Perfil**: ${profile.profile}`;
+                    
+                    return response;
                 } else {
                     return `❌ Cliente ${client.name} encontrado, mas não possui empréstimos registrados.`;
                 }
@@ -13298,24 +13416,58 @@ async function processAssistantQuery(query) {
                 response += `🆔 CPF: ${client.cpf || 'Não informado'}\n\n`;
                 
                 if (loans.length > 0) {
-                    response += `💰 **Empréstimos (${loans.length}):**\n\n`;
-                    
-                    for (let i = 0; i < loans.length; i++) {
-                        const loan = loans[i];
+                    if (loans.length === 1) {
+                        // Se tem apenas 1 empréstimo, mostrar detalhes completos
+                        const loan = loans[0];
                         const payments = await getLoanPayments(loan.id);
                         const remainingAmount = calculateRemainingAmount(loan, payments);
                         
-                        response += `${i + 1}. **Empréstimo #${loan.id}**\n`;
-                        response += `   💰 Valor: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
-                        response += `   📈 Taxa: ${loan.interest_rate}%\n`;
-                        response += `   📅 Data: ${new Date(loan.created_at).toLocaleDateString('pt-BR')}\n`;
-                        response += `   💳 Restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
-                        response += `   ✅ Status: ${loan.status.toUpperCase()}\n`;
-                        response += `   💸 Pagamentos: ${payments.length}\n\n`;
+                        response += `💰 **Empréstimo Único:**\n\n`;
+                        response += `💰 Valor inicial: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
+                        response += `📈 Taxa de juros: ${loan.interest_rate}%\n`;
+                        response += `📅 Data de início: ${new Date(loan.created_at).toLocaleDateString('pt-BR')}\n`;
+                        response += `💳 Valor restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n`;
+                        response += `✅ Status: ${loan.status.toUpperCase()}\n`;
+                        response += `💸 Total de pagamentos: ${payments.length}\n\n`;
+                        
+                        if (payments.length > 0) {
+                            const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+                            response += `💰 **Total pago**: R$ ${totalPaid.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n\n`;
+                        }
+                        
+                        const profile = analyzeClientProfile(loans, payments);
+                        response += `👤 **Perfil:** ${profile.profile}`;
+                    } else {
+                        // Se tem múltiplos empréstimos, mostrar lista para seleção
+                        response += `💰 **Múltiplos Empréstimos (${loans.length}):**\n\n`;
+                        
+                        for (let i = 0; i < loans.length; i++) {
+                            const loan = loans[i];
+                            const payments = await getLoanPayments(loan.id);
+                            const remainingAmount = calculateRemainingAmount(loan, payments);
+                            
+                            response += `${i + 1}. **Empréstimo ${i + 1}** - R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', {minimumFractionDigits: 2})} (${loan.status.toUpperCase()})\n`;
+                            response += `   📅 ${new Date(loan.created_at).toLocaleDateString('pt-BR')} - Taxa: ${loan.interest_rate}%\n`;
+                            response += `   💳 Restante: R$ ${remainingAmount.toLocaleString('pt-BR', {minimumFractionDigits: 2})}\n\n`;
+                        }
+                        
+                        response += `🔍 **Para ver detalhes específicos, digite:**\n`;
+                        for (let i = 0; i < loans.length; i++) {
+                            response += `• "${client.name} empréstimo ${i + 1}"\n`;
+                        }
+                        
+                        const profile = analyzeClientProfile(loans, []);
+                        response += `\n👤 **Perfil Geral:** ${profile.profile}`;
+                        
+                        // Retornar com dados para botões interativos
+                        return {
+                            message: response,
+                            clientData: {
+                                name: client.name,
+                                loans: loans
+                            }
+                        };
                     }
-                    
-                    const profile = analyzeClientProfile(loans, []);
-                    response += `👤 **Perfil:** ${profile.profile}`;
                 } else {
                     response += `📋 **Sem empréstimos registrados**`;
                 }
