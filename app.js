@@ -12909,6 +12909,7 @@ async function processAssistantQuery(query) {
     if (lowerQuery.includes('empréstimo') || lowerQuery.includes('resumo')) {
         if (possibleNames.length > 0) {
             const clientName = possibleNames[0];
+            console.log('🔍 Buscando empréstimo para:', clientName);
             const clients = await findClientByName(clientName);
             
             if (clients.length > 0) {
@@ -12934,8 +12935,16 @@ async function processAssistantQuery(query) {
                     return `❌ Cliente ${client.name} encontrado, mas não possui empréstimos registrados.`;
                 }
             } else {
-                return `❌ Cliente não encontrado. Verifique se o nome está correto.`;
+                return `❌ Cliente "${clientName}" não encontrado. Verifique se o nome está correto.\n\n💡 Tente usar o comando "teste" para ver os clientes disponíveis.`;
             }
+        } else {
+            // Se não conseguiu extrair nomes, sugerir busca geral
+            return `🤔 Não consegui identificar o nome do cliente na sua pergunta.\n\n` +
+                   `💡 **Tente perguntar assim:**\n` +
+                   `• "Empréstimo do João Silva"\n` +
+                   `• "Como está o empréstimo da Maria"\n` +
+                   `• "Resumo do cliente 02"\n\n` +
+                   `🔍 Ou use "teste" para ver os clientes disponíveis.`;
         }
     }
     
@@ -12943,6 +12952,7 @@ async function processAssistantQuery(query) {
     if (lowerQuery.includes('pagamento')) {
         if (possibleNames.length > 0) {
             const clientName = possibleNames[0];
+            console.log('💳 Buscando pagamentos para:', clientName);
             const clients = await findClientByName(clientName);
             
             if (clients.length > 0) {
@@ -12980,8 +12990,16 @@ async function processAssistantQuery(query) {
                     return `❌ Cliente ${client.name} não possui empréstimos registrados.`;
                 }
             } else {
-                return `❌ Cliente não encontrado. Verifique se o nome está correto.`;
+                return `❌ Cliente "${clientName}" não encontrado. Verifique se o nome está correto.\n\n💡 Tente usar o comando "teste" para ver os clientes disponíveis.`;
             }
+        } else {
+            // Se não conseguiu extrair nomes, sugerir busca geral
+            return `🤔 Não consegui identificar o nome do cliente na sua pergunta.\n\n` +
+                   `💡 **Tente perguntar assim:**\n` +
+                   `• "Pagamentos do João Silva"\n` +
+                   `• "Quais pagamentos a Maria fez"\n` +
+                   `• "Pagamentos do cliente 02"\n\n` +
+                   `🔍 Ou use "teste" para ver os clientes disponíveis.`;
         }
     }
     
@@ -13175,21 +13193,24 @@ function extractClientNames(query) {
     
     console.log('🔍 Extraindo nomes de:', query);
     
-    // Padrões mais específicos para capturar nomes
+    // Padrões mais específicos para capturar nomes (incluindo números)
     const namePatterns = [
-        // Padrões como "do João", "da Maria", "de Carlos"
-        /(?:do|da|de)\s+([a-záàâãéèêíïóôõöúçñ]+(?:\s+[a-záàâãéèêíïóôõöúçñ]+)*)/gi,
-        // Padrões como "cliente João", "empréstimo Maria"
-        /(?:cliente|empréstimo|pagamento)\s+([a-záàâãéèêíïóôõöúçñ]+(?:\s+[a-záàâãéèêíïóôõöúçñ]+)*)/gi,
-        // Nomes próprios (começam com maiúscula)
-        /\b([A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][a-záàâãéèêíïóôõöúçñ]+(?:\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][a-záàâãéèêíïóôõöúçñ]+)*)\b/g
+        // Padrões como "do João", "da Maria", "de Carlos", "do 02"
+        /(?:do|da|de)\s+([a-záàâãéèêíïóôõöúçñ0-9]+(?:\s+[a-záàâãéèêíïóôõöúçñ0-9]+)*)/gi,
+        // Padrões como "cliente João", "empréstimo Maria", "cliente 02"
+        /(?:cliente|empréstimo|pagamento|pagamentos)\s+([a-záàâãéèêíïóôõöúçñ0-9]+(?:\s+[a-záàâãéèêíïóôõöúçñ0-9]+)*)/gi,
+        // Nomes próprios (começam com maiúscula) ou números
+        /\b([A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ][a-záàâãéèêíïóôõöúçñ]+(?:\s+[A-ZÁÀÂÃÉÈÊÍÏÓÔÕÖÚÇÑ0-9][a-záàâãéèêíïóôõöúçñ0-9]+)*|\d+)\b/g,
+        // Capturar qualquer sequência alfanumérica após palavras-chave
+        /(?:sobre|para|com)\s+([a-záàâãéèêíïóôõöúçñ0-9]+(?:\s+[a-záàâãéèêíïóôõöúçñ0-9]+)*)/gi
     ];
     
     // Palavras a ignorar
     const stopWords = [
-        'como', 'está', 'quais', 'todos', 'cliente', 'empréstimo', 'pagamento', 
+        'como', 'está', 'quais', 'todos', 'cliente', 'empréstimo', 'pagamento', 'pagamentos',
         'resumo', 'geral', 'dos', 'clientes', 'trabalho', 'deu', 'problema',
-        'comprometimento', 'boa', 'pessoa', 'bom', 'exemplar', 'problemático'
+        'comprometimento', 'boa', 'pessoa', 'bom', 'exemplar', 'problemático',
+        'sobre', 'para', 'com', 'um', 'uma', 'do', 'da', 'de'
     ];
     
     for (const pattern of namePatterns) {
@@ -13198,11 +13219,11 @@ function extractClientNames(query) {
             const name = match[1].trim();
             console.log('🎯 Nome candidato:', name);
             
-            if (name.length > 2 && !stopWords.includes(name.toLowerCase())) {
+            if (name.length >= 1 && !stopWords.includes(name.toLowerCase())) {
                 names.push(name);
                 console.log('✅ Nome aceito:', name);
             } else {
-                console.log('❌ Nome rejeitado:', name);
+                console.log('❌ Nome rejeitado:', name, 'Motivo: muito curto ou palavra proibida');
             }
         }
     }
