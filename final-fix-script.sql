@@ -61,13 +61,20 @@ EXCEPTION
 END $$;
 
 -- 3. Verificação final
-SELECT 
-    CASE 
-        WHEN is_nullable = 'YES' THEN '✅ CORRETO: loan_id aceita NULL'
-        ELSE '❌ ERRO: loan_id ainda tem constraint NOT NULL'
-    END as status
-FROM information_schema.columns 
-WHERE table_name = 'installments' 
-AND column_name = 'loan_id';
-
-RAISE NOTICE '🎯 CORREÇÃO CONCLUÍDA! Agora você pode criar parcelamentos independentes sem problemas.';
+DO $$
+DECLARE
+    column_nullable TEXT;
+BEGIN
+    SELECT is_nullable INTO column_nullable
+    FROM information_schema.columns 
+    WHERE table_name = 'installments' 
+    AND column_name = 'loan_id';
+    
+    IF column_nullable = 'YES' THEN
+        RAISE NOTICE '✅ CORRETO: loan_id aceita NULL';
+    ELSE
+        RAISE NOTICE '❌ ERRO: loan_id ainda tem constraint NOT NULL';
+    END IF;
+    
+    RAISE NOTICE '🎯 CORREÇÃO CONCLUÍDA! Agora você pode criar parcelamentos independentes sem problemas.';
+END $$;
