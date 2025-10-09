@@ -2304,10 +2304,24 @@ async function handlePayment(e) {
                 }]);
             
             if (actionNoteError) console.warn('Erro ao registrar nota de ação:', actionNoteError);
-        } else {
+        }
+        
+        // SEMPRE verificar se precisa reativar empréstimo vencido (independente de recálculo)
+        const loan = loans.find(l => l.id === loanId);
+        const currentStatus = getLoanStatus(loan.due_date, loan.status);
+        const wasOverdue = currentStatus === 'overdue';
+        
+        console.log('DEBUG - Verificando reativação:', {
+            loanId,
+            currentStatus,
+            wasOverdue,
+            paymentAmount,
+            shouldRecalculate: recalcInfo.shouldRecalculate
+        });
+        
+        // Se não houve recálculo automático, aplicar lógica padrão
+        if (!recalcInfo.shouldRecalculate) {
             // Atualizar status do empréstimo baseado no valor do pagamento
-            // Como agora o tipo representa método de pagamento, vamos verificar se o pagamento quita o empréstimo
-            const loan = loans.find(l => l.id === loanId);
             const totalLoanAmount = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
             const remainingAmount = await calculateLoanRemainingAmount(loanId);
             
@@ -2315,10 +2329,6 @@ async function handlePayment(e) {
             if (paymentAmount >= remainingAmount) {
                 newStatus = 'paid';
             }
-            
-            // Verificar se o empréstimo estava vencido antes do pagamento
-            const currentStatus = getLoanStatus(loan.due_date, loan.status);
-            const wasOverdue = currentStatus === 'overdue';
             
             // Preparar dados de atualização
             let updateData = {
@@ -2344,6 +2354,12 @@ async function handlePayment(e) {
                 const formattedNewDueDate = newDueDateObj.toISOString().split('T')[0];
                 updateData.due_date = formattedNewDueDate;
                 
+                console.log('DEBUG - Reativando empréstimo:', {
+                    newStatus,
+                    newDueDate: formattedNewDueDate,
+                    paymentDate
+                });
+                
                 // Armazenar informações para a mensagem de sucesso
                 reactivationInfo = {
                     wasOverdue: true,
@@ -2352,12 +2368,53 @@ async function handlePayment(e) {
                 };
             }
             
+            console.log('DEBUG - Dados de atualização:', updateData);
+            
             const { error: loanError } = await supabase
                 .from('loans')
                 .update(updateData)
                 .eq('id', loanId);
             
             if (loanError) throw loanError;
+        } else {
+            // Se houve recálculo automático, ainda precisamos verificar se era vencido para reativar
+            if (wasOverdue && !recalcInfo.isFullyPaid) {
+                // Atualizar apenas o status para 'active' e data de vencimento se necessário
+                let additionalUpdateData = {
+                    status: 'active',
+                    updated_at: new Date().toISOString()
+                };
+                
+                // Se o recálculo não definiu uma nova data de vencimento, definir 30 dias
+                if (!recalcInfo.newDueDate) {
+                    const paymentDateObj = new Date(paymentDate);
+                    const newDueDateObj = new Date(paymentDateObj);
+                    newDueDateObj.setDate(newDueDateObj.getDate() + 30);
+                    const formattedNewDueDate = newDueDateObj.toISOString().split('T')[0];
+                    additionalUpdateData.due_date = formattedNewDueDate;
+                    
+                    reactivationInfo = {
+                        wasOverdue: true,
+                        newDueDate: formattedNewDueDate,
+                        paymentDate: paymentDate
+                    };
+                } else {
+                    reactivationInfo = {
+                        wasOverdue: true,
+                        newDueDate: recalcInfo.newDueDate,
+                        paymentDate: paymentDate
+                    };
+                }
+                
+                console.log('DEBUG - Reativando empréstimo (com recálculo):', additionalUpdateData);
+                
+                const { error: additionalLoanError } = await supabase
+                    .from('loans')
+                    .update(additionalUpdateData)
+                    .eq('id', loanId);
+                
+                if (additionalLoanError) throw additionalLoanError;
+            }
         }
         
         // Invalidar cache e recarregar dados
