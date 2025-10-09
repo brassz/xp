@@ -9199,7 +9199,7 @@ document.getElementById('calculateInstallment').addEventListener('click', functi
     document.getElementById('installmentSummary').classList.remove('hidden');
 });
 
-// Criar parcelamento
+// Criar parcelamento - VERSÃO CORRIGIDA SEM REFERÊNCIAS A loanId
 document.getElementById('newInstallmentForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
@@ -9240,9 +9240,14 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
 
         // Verificar se há um loan_id associado (parcelamento de empréstimo específico)
         const modal = document.getElementById('newInstallmentModal');
-        const associatedLoanId = modal.dataset.loanId || null;
+        let associatedLoanId = null;
+        
+        // Verificar se o modal existe e tem dataset
+        if (modal && modal.dataset && modal.dataset.loanId) {
+            associatedLoanId = modal.dataset.loanId;
+        }
 
-        // Criar parcelamento
+        // Criar parcelamento - SEMPRE INDEPENDENTE POR PADRÃO
         const installmentData = {
             client_id: clientId,
             total_amount: totalAmount,
@@ -9252,9 +9257,10 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
             interest_rate: interestRate,
             notes: notes,
             created_by: currentUser.id
+            // loan_id será NULL por padrão (parcelamento independente)
         };
 
-        // Incluir loan_id apenas se estiver disponível
+        // APENAS incluir loan_id se explicitamente fornecido
         if (associatedLoanId) {
             installmentData.loan_id = associatedLoanId;
         }
@@ -9289,15 +9295,20 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
 
         if (paymentsError) throw paymentsError;
 
-        // Atualizar status do empréstimo para "partial_paid" apenas se houver loan_id associado
+        // APENAS atualizar empréstimo se houver loan_id associado
         if (associatedLoanId) {
-            const { error: loanUpdateError } = await supabase
-                .from('loans')
-                .update({ status: 'partial_paid' })
-                .eq('id', associatedLoanId);
+            try {
+                const { error: loanUpdateError } = await supabase
+                    .from('loans')
+                    .update({ status: 'partial_paid' })
+                    .eq('id', associatedLoanId);
 
-            if (loanUpdateError) {
-                console.warn('Aviso: Não foi possível atualizar o status do empréstimo:', loanUpdateError);
+                if (loanUpdateError) {
+                    console.warn('Aviso: Não foi possível atualizar o status do empréstimo:', loanUpdateError);
+                }
+            } catch (loanError) {
+                console.warn('Erro ao atualizar empréstimo:', loanError);
+                // Não falhar a criação do parcelamento por causa disso
             }
         }
 
