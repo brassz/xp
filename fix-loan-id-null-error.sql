@@ -90,12 +90,19 @@ EXCEPTION
 END $$;
 
 -- =====================================================
+-- MENSAGEM FINAL
+-- =====================================================
+DO $$
+BEGIN
+    RAISE NOTICE '🎉 CORREÇÃO CONCLUÍDA! Agora você pode criar parcelamentos independentes sem erro de loan_id NULL.';
+END $$;
+
+-- =====================================================
 -- RESULTADO ESPERADO
 -- =====================================================
 -- ✅ Constraint NOT NULL removida do campo loan_id
 -- ✅ SUCESSO: Campo loan_id agora permite valores NULL  
 -- ✅ TESTE PASSOU: Parcelamento independente criado com sucesso!
 -- 🧹 Registro de teste removido
+-- 🎉 CORREÇÃO CONCLUÍDA!
 -- =====================================================
-
-RAISE NOTICE '🎉 CORREÇÃO CONCLUÍDA! Agora você pode criar parcelamentos independentes sem erro de loan_id NULL.';
