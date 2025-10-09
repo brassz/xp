@@ -2179,6 +2179,7 @@ async function handlePayment(e) {
         
         // Se é uma edição, não recalcular o empréstimo (manter lógica original)
         let recalcInfo = { shouldRecalculate: false };
+        let reactivationInfo = null;
         if (!paymentId) {
             // Verificar se é necessário recalcular o empréstimo apenas para novos pagamentos
             recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
@@ -2315,6 +2316,10 @@ async function handlePayment(e) {
                 newStatus = 'paid';
             }
             
+            // Verificar se o empréstimo estava vencido antes do pagamento
+            const currentStatus = getLoanStatus(loan.due_date, loan.status);
+            const wasOverdue = currentStatus === 'overdue';
+            
             // Preparar dados de atualização
             let updateData = {
                 status: newStatus,
@@ -2324,6 +2329,27 @@ async function handlePayment(e) {
             // Se deve alterar a data de vencimento
             if (changeDueDate && newDueDate) {
                 updateData.due_date = newDueDate;
+            } else if (wasOverdue && newStatus !== 'paid') {
+                // Se o empréstimo estava vencido e não foi quitado completamente,
+                // atualizar status para 'active' e definir nova data de vencimento (30 dias a partir do pagamento)
+                newStatus = 'active';
+                updateData.status = 'active';
+                
+                // Calcular nova data de vencimento: 30 dias a partir da data do pagamento
+                const paymentDateObj = new Date(paymentDate);
+                const newDueDateObj = new Date(paymentDateObj);
+                newDueDateObj.setDate(newDueDateObj.getDate() + 30);
+                
+                // Formatar a data no formato YYYY-MM-DD
+                const formattedNewDueDate = newDueDateObj.toISOString().split('T')[0];
+                updateData.due_date = formattedNewDueDate;
+                
+                // Armazenar informações para a mensagem de sucesso
+                reactivationInfo = {
+                    wasOverdue: true,
+                    newDueDate: formattedNewDueDate,
+                    paymentDate: paymentDate
+                };
             }
             
             const { error: loanError } = await supabase
@@ -2373,6 +2399,14 @@ async function handlePayment(e) {
         // Adicionar informação sobre alteração de data de vencimento
         if (changeDueDate && newDueDate) {
             successMessage += `\n\n📅 DATA DE VENCIMENTO ALTERADA!\n• Nova data: ${formatDate(newDueDate)}`;
+        }
+        
+        // Adicionar informação sobre reativação de empréstimo vencido
+        if (reactivationInfo && reactivationInfo.wasOverdue) {
+            successMessage += `\n\n🔄 EMPRÉSTIMO VENCIDO REATIVADO!\n` +
+                            `• Status: Ativo\n` +
+                            `• Data do pagamento: ${formatDate(reactivationInfo.paymentDate)}\n` +
+                            `• Nova data de vencimento: ${formatDate(reactivationInfo.newDueDate)} (30 dias)`;
         }
         
         if (recalcInfo.shouldRecalculate) {
