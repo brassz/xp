@@ -2326,6 +2326,39 @@ async function handlePayment(e) {
                 updateData.due_date = newDueDate;
             }
             
+            // NOVA LÓGICA: Se o empréstimo estava vencido (overdue) e recebeu um pagamento,
+            // atualizar status para 'active' e estender data de vencimento para 30 dias
+            const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
+            if (currentLoanStatus === 'overdue' && newStatus !== 'paid') {
+                // Calcular nova data de vencimento: 30 dias a partir da data do pagamento
+                const paymentDateObj = new Date(paymentDate);
+                const newDueDateObj = new Date(paymentDateObj);
+                newDueDateObj.setDate(newDueDateObj.getDate() + 30);
+                
+                // Formatar a nova data no formato YYYY-MM-DD
+                const newDueDateFormatted = newDueDateObj.toISOString().split('T')[0];
+                
+                updateData.status = 'active';
+                updateData.due_date = newDueDateFormatted;
+                
+                // Registrar nota sobre a reativação do empréstimo
+                const reactivationNote = `EMPRÉSTIMO REATIVADO: Status alterado de 'vencido' para 'ativo'. Nova data de vencimento: ${newDueDateFormatted} (30 dias a partir do pagamento de ${paymentDate})`;
+                
+                const { error: reactivationNoteError } = await supabase
+                    .from('payments')
+                    .insert([{
+                        loan_id: loanId,
+                        amount: 0,
+                        payment_date: paymentDate,
+                        payment_type: 'loan_reactivation',
+                        notes: reactivationNote,
+                        created_by: currentUser.id,
+                        created_at: new Date().toISOString()
+                    }]);
+                
+                if (reactivationNoteError) console.warn('Erro ao registrar nota de reativação:', reactivationNoteError);
+            }
+            
             const { error: loanError } = await supabase
                 .from('loans')
                 .update(updateData)
