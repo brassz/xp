@@ -9122,6 +9122,10 @@ function openInstallmentModal() {
     nextMonth.setMonth(nextMonth.getMonth() + 1);
     document.getElementById('installmentFirstDueDate').value = nextMonth.toISOString().split('T')[0];
     
+    // Limpar dataset do modal (será definido pela função createInstallmentForClient se necessário)
+    const modal = document.getElementById('newInstallmentModal');
+    delete modal.dataset.loanId;
+    
     newInstallmentModal.classList.remove('hidden');
 }
 
