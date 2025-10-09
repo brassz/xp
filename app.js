@@ -2180,8 +2180,16 @@ async function handlePayment(e) {
         // Se é uma edição, não recalcular o empréstimo (manter lógica original)
         let recalcInfo = { shouldRecalculate: false };
         if (!paymentId) {
-            // Verificar se é necessário recalcular o empréstimo apenas para novos pagamentos
-            recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+            // Verificar se o empréstimo está vencido antes de recalcular
+            const loan = loans.find(l => l.id === loanId);
+            const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
+            
+            // Para empréstimos vencidos, NÃO recalcular os valores originais
+            // Apenas registrar o pagamento e atualizar status/data posteriormente
+            if (currentLoanStatus !== 'overdue') {
+                // Verificar se é necessário recalcular o empréstimo apenas para empréstimos não vencidos
+                recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+            }
         }
         
         // Registrar ou atualizar o pagamento
@@ -2324,6 +2332,60 @@ async function handlePayment(e) {
             // Se deve alterar a data de vencimento
             if (changeDueDate && newDueDate) {
                 updateData.due_date = newDueDate;
+            }
+            
+            // NOVA LÓGICA: Se o empréstimo estava vencido (overdue) e recebeu um pagamento,
+            // atualizar status para 'active' e estender data de vencimento para 30 dias
+            const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
+            if (currentLoanStatus === 'overdue') {
+                // Para empréstimos vencidos, verificar se o pagamento quita completamente o empréstimo
+                const originalAmount = parseFloat(loan.amount);
+                const interestAmount = originalAmount * (parseFloat(loan.interest_rate) / 100);
+                const totalWithInterest = originalAmount + interestAmount;
+                
+                // Calcular total já pago (incluindo este pagamento)
+                const { data: allPayments, error: paymentsError } = await supabase
+                    .from('payments')
+                    .select('amount')
+                    .eq('loan_id', loanId);
+                
+                if (paymentsError) throw paymentsError;
+                
+                const totalPaid = (allPayments || []).reduce((sum, p) => sum + parseFloat(p.amount), 0) + paymentAmount;
+                
+                if (totalPaid >= totalWithInterest) {
+                    // Empréstimo quitado completamente
+                    updateData.status = 'paid';
+                } else {
+                    // Empréstimo parcialmente pago - reativar com nova data de vencimento
+                    // Calcular nova data de vencimento: 30 dias a partir da data do pagamento
+                    const paymentDateObj = new Date(paymentDate);
+                    const newDueDateObj = new Date(paymentDateObj);
+                    newDueDateObj.setDate(newDueDateObj.getDate() + 30);
+                    
+                    // Formatar a nova data no formato YYYY-MM-DD
+                    const newDueDateFormatted = newDueDateObj.toISOString().split('T')[0];
+                    
+                    updateData.status = 'active';
+                    updateData.due_date = newDueDateFormatted;
+                    
+                    // Registrar nota sobre a reativação do empréstimo
+                    const reactivationNote = `EMPRÉSTIMO REATIVADO: Status alterado de 'vencido' para 'ativo'. Nova data de vencimento: ${newDueDateFormatted} (30 dias a partir do pagamento de ${paymentDate}). Valor restante: R$ ${(totalWithInterest - totalPaid).toFixed(2)}`;
+                    
+                    const { error: reactivationNoteError } = await supabase
+                        .from('payments')
+                        .insert([{
+                            loan_id: loanId,
+                            amount: 0,
+                            payment_date: paymentDate,
+                            payment_type: 'loan_reactivation',
+                            notes: reactivationNote,
+                            created_by: currentUser.id,
+                            created_at: new Date().toISOString()
+                        }]);
+                    
+                    if (reactivationNoteError) console.warn('Erro ao registrar nota de reativação:', reactivationNoteError);
+                }
             }
             
             const { error: loanError } = await supabase
