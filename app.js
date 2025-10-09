@@ -9122,6 +9122,10 @@ function openInstallmentModal() {
     nextMonth.setMonth(nextMonth.getMonth() + 1);
     document.getElementById('installmentFirstDueDate').value = nextMonth.toISOString().split('T')[0];
     
+    // Limpar dataset do modal (será definido pela função createInstallmentForClient se necessário)
+    const modal = document.getElementById('newInstallmentModal');
+    delete modal.dataset.loanId;
+    
     newInstallmentModal.classList.remove('hidden');
 }
 
@@ -9195,7 +9199,7 @@ document.getElementById('calculateInstallment').addEventListener('click', functi
     document.getElementById('installmentSummary').classList.remove('hidden');
 });
 
-// Criar parcelamento
+// Criar parcelamento - VERSÃO CORRIGIDA SEM REFERÊNCIAS A loanId
 document.getElementById('newInstallmentForm').addEventListener('submit', async function(e) {
     e.preventDefault();
 
@@ -9234,21 +9238,36 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
             installmentAmount = totalAmount / totalInstallments;
         }
 
-        // Criar parcelamento
-        const { data: installmentData, error: installmentError } = await supabase
+        // Verificar se há um loan_id associado (parcelamento de empréstimo específico)
+        const modal = document.getElementById('newInstallmentModal');
+        let associatedLoanId = null;
+        
+        // Verificar se o modal existe e tem dataset
+        if (modal && modal.dataset && modal.dataset.loanId) {
+            associatedLoanId = modal.dataset.loanId;
+        }
+
+        // Criar parcelamento - SEMPRE INDEPENDENTE POR PADRÃO
+        const installmentData = {
+            client_id: clientId,
+            total_amount: totalAmount,
+            total_installments: totalInstallments,
+            installment_amount: installmentAmount,
+            first_due_date: firstDueDate,
+            interest_rate: interestRate,
+            notes: notes,
+            created_by: currentUser.id
+            // loan_id será NULL por padrão (parcelamento independente)
+        };
+
+        // APENAS incluir loan_id se explicitamente fornecido
+        if (associatedLoanId) {
+            installmentData.loan_id = associatedLoanId;
+        }
+
+        const { data: installmentResult, error: installmentError } = await supabase
             .from('installments')
-            .insert([
-                {
-                    client_id: clientId,
-                    total_amount: totalAmount,
-                    total_installments: totalInstallments,
-                    installment_amount: installmentAmount,
-                    first_due_date: firstDueDate,
-                    interest_rate: interestRate,
-                    notes: notes,
-                    created_by: currentUser.id
-                }
-            ])
+            .insert([installmentData])
             .select()
             .single();
 
@@ -9263,7 +9282,7 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
             dueDate.setMonth(dueDate.getMonth() + (i - 1));
 
             installmentPaymentsData.push({
-                installment_id: installmentData.id,
+                installment_id: installmentResult.id,
                 installment_number: i,
                 amount: installmentAmount,
                 due_date: dueDate.toISOString().split('T')[0]
@@ -9276,14 +9295,21 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
 
         if (paymentsError) throw paymentsError;
 
-        // Atualizar status do empréstimo para "partial_paid" (parcelamento ativo)
-        const { error: loanUpdateError } = await supabase
-            .from('loans')
-            .update({ status: 'partial_paid' })
-            .eq('id', loanId);
+        // APENAS atualizar empréstimo se houver loan_id associado
+        if (associatedLoanId) {
+            try {
+                const { error: loanUpdateError } = await supabase
+                    .from('loans')
+                    .update({ status: 'partial_paid' })
+                    .eq('id', associatedLoanId);
 
-        if (loanUpdateError) {
-            console.warn('Aviso: Não foi possível atualizar o status do empréstimo:', loanUpdateError);
+                if (loanUpdateError) {
+                    console.warn('Aviso: Não foi possível atualizar o status do empréstimo:', loanUpdateError);
+                }
+            } catch (loanError) {
+                console.warn('Erro ao atualizar empréstimo:', loanError);
+                // Não falhar a criação do parcelamento por causa disso
+            }
         }
 
         closeInstallmentModal();
@@ -9750,8 +9776,16 @@ async function loadOverdueLoansForInstallmentTable() {
 }
 
 // Criar parcelamento para um cliente específico
-function createInstallmentForClient(clientId) {
+function createInstallmentForClient(clientId, loanId = null) {
     openInstallmentModal();
+    
+    // Armazenar o loanId no modal para usar na criação do parcelamento
+    const modal = document.getElementById('newInstallmentModal');
+    if (loanId) {
+        modal.dataset.loanId = loanId;
+    } else {
+        delete modal.dataset.loanId;
+    }
     
     // Aguardar um pouco para o modal carregar
     setTimeout(() => {
@@ -9894,7 +9928,7 @@ function sendToInstallment(loanId) {
     
     // Aguardar um pouco para a aba carregar e abrir o modal de parcelamento
     setTimeout(() => {
-        createInstallmentForClient(loan.client_id);
+        createInstallmentForClient(loan.client_id, loanId);
         showNotification('Cliente selecionado para parcelamento', 'success');
     }, 300);
 }

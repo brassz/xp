@@ -301,7 +301,7 @@ COMMENT ON TABLE expenses IS 'Tabela para armazenar despesas do sistema';
 -- =====================================================
 CREATE TABLE IF NOT EXISTS installments (
     id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-    loan_id UUID NOT NULL REFERENCES loans(id) ON DELETE CASCADE,
+    loan_id UUID REFERENCES loans(id) ON DELETE CASCADE, -- Removido NOT NULL para permitir parcelamentos independentes
     client_id UUID NOT NULL REFERENCES clients(id) ON DELETE CASCADE,
     total_amount DECIMAL(15,2) NOT NULL,
     total_installments INTEGER NOT NULL CHECK (total_installments > 0),
@@ -315,7 +315,8 @@ CREATE TABLE IF NOT EXISTS installments (
     updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
 );
 
-COMMENT ON TABLE installments IS 'Tabela para armazenar planos de parcelamento de empréstimos vencidos';
+COMMENT ON TABLE installments IS 'Tabela para armazenar planos de parcelamento - pode ser vinculado a empréstimos ou independente';
+COMMENT ON COLUMN installments.loan_id IS 'Referência ao empréstimo original (opcional - pode ser NULL para parcelamentos independentes)';
 
 -- =====================================================
 -- TABELA DE PARCELAS INDIVIDUAIS
