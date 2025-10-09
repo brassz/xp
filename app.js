@@ -9234,21 +9234,30 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
             installmentAmount = totalAmount / totalInstallments;
         }
 
+        // Verificar se há um loan_id associado (parcelamento de empréstimo específico)
+        const modal = document.getElementById('newInstallmentModal');
+        const associatedLoanId = modal.dataset.loanId || null;
+
         // Criar parcelamento
-        const { data: installmentData, error: installmentError } = await supabase
+        const installmentData = {
+            client_id: clientId,
+            total_amount: totalAmount,
+            total_installments: totalInstallments,
+            installment_amount: installmentAmount,
+            first_due_date: firstDueDate,
+            interest_rate: interestRate,
+            notes: notes,
+            created_by: currentUser.id
+        };
+
+        // Incluir loan_id apenas se estiver disponível
+        if (associatedLoanId) {
+            installmentData.loan_id = associatedLoanId;
+        }
+
+        const { data: installmentResult, error: installmentError } = await supabase
             .from('installments')
-            .insert([
-                {
-                    client_id: clientId,
-                    total_amount: totalAmount,
-                    total_installments: totalInstallments,
-                    installment_amount: installmentAmount,
-                    first_due_date: firstDueDate,
-                    interest_rate: interestRate,
-                    notes: notes,
-                    created_by: currentUser.id
-                }
-            ])
+            .insert([installmentData])
             .select()
             .single();
 
@@ -9263,7 +9272,7 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
             dueDate.setMonth(dueDate.getMonth() + (i - 1));
 
             installmentPaymentsData.push({
-                installment_id: installmentData.id,
+                installment_id: installmentResult.id,
                 installment_number: i,
                 amount: installmentAmount,
                 due_date: dueDate.toISOString().split('T')[0]
@@ -9276,14 +9285,16 @@ document.getElementById('newInstallmentForm').addEventListener('submit', async f
 
         if (paymentsError) throw paymentsError;
 
-        // Atualizar status do empréstimo para "partial_paid" (parcelamento ativo)
-        const { error: loanUpdateError } = await supabase
-            .from('loans')
-            .update({ status: 'partial_paid' })
-            .eq('id', loanId);
+        // Atualizar status do empréstimo para "partial_paid" apenas se houver loan_id associado
+        if (associatedLoanId) {
+            const { error: loanUpdateError } = await supabase
+                .from('loans')
+                .update({ status: 'partial_paid' })
+                .eq('id', associatedLoanId);
 
-        if (loanUpdateError) {
-            console.warn('Aviso: Não foi possível atualizar o status do empréstimo:', loanUpdateError);
+            if (loanUpdateError) {
+                console.warn('Aviso: Não foi possível atualizar o status do empréstimo:', loanUpdateError);
+            }
         }
 
         closeInstallmentModal();
@@ -9750,8 +9761,16 @@ async function loadOverdueLoansForInstallmentTable() {
 }
 
 // Criar parcelamento para um cliente específico
-function createInstallmentForClient(clientId) {
+function createInstallmentForClient(clientId, loanId = null) {
     openInstallmentModal();
+    
+    // Armazenar o loanId no modal para usar na criação do parcelamento
+    const modal = document.getElementById('newInstallmentModal');
+    if (loanId) {
+        modal.dataset.loanId = loanId;
+    } else {
+        delete modal.dataset.loanId;
+    }
     
     // Aguardar um pouco para o modal carregar
     setTimeout(() => {
@@ -9894,7 +9913,7 @@ function sendToInstallment(loanId) {
     
     // Aguardar um pouco para a aba carregar e abrir o modal de parcelamento
     setTimeout(() => {
-        createInstallmentForClient(loan.client_id);
+        createInstallmentForClient(loan.client_id, loanId);
         showNotification('Cliente selecionado para parcelamento', 'success');
     }, 300);
 }
