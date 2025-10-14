@@ -8061,7 +8061,7 @@ async function generateContract(loanId) {
         doc.setFont('helvetica', 'bold');
         yPosition = addWrappedText("MUTUANTE:", margin, yPosition, maxWidth);
         doc.setFont('helvetica', 'normal');
-        const mutuanteText = "VALORUM, pessoa jurídica de direito privado, inscrita no CNPJ sob nº 52.496.899/0001-89, com sede à Rua General Osorio 700, Franca/SP.";
+        const mutuanteText = "VALORUM, pessoa jurídica de direito privado, inscrita no CNPJ sob nº 52.496.899/0001-89, com sede à AV Presidente Vargas 700, Franca/SP.";
         yPosition = addWrappedText(mutuanteText, margin, yPosition, maxWidth) + 3;
 
         // Mutuário
