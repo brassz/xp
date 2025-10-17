@@ -164,6 +164,7 @@ const contentSections = document.querySelectorAll('.content-section');
 const newClientModal = document.getElementById('newClientModal');
 const newLoanModal = document.getElementById('newLoanModal');
 const paymentModal = document.getElementById('paymentModal');
+const paymentMessageModal = document.getElementById('paymentMessageModal');
 const editClientModal = document.getElementById('editClientModal');
 const editLoanModal = document.getElementById('editLoanModal');
 const confirmationModal = document.getElementById('confirmationModal');
@@ -354,6 +355,9 @@ function setupEventListeners() {
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('closeEmergencyContactModal').addEventListener('click', () => hideModal(emergencyContactModal));
     document.getElementById('closeClientDocumentsModal').addEventListener('click', () => hideModal(document.getElementById('clientDocumentsModal')));
+    
+    // Configurar modal de mensagens de pagamento
+    setupPaymentMessageEventListeners();
     
     // WhatsApp Summary modal
     document.getElementById('cancelWhatsAppBtn').addEventListener('click', () => hideModal(whatsappSummaryModal));
@@ -2480,7 +2484,19 @@ async function handlePayment(e) {
             }
         }
         
-        showSuccessMessage(successMessage);
+        // Preparar informações do pagamento para o modal de mensagens
+        const paymentInfo = {
+            amount: paymentAmount,
+            type: paymentType,
+            date: paymentDate,
+            newDueDate: newDueDate,
+            isFullyPaid: recalcInfo.isFullyPaid,
+            isRenewal: recalcInfo.isInterestOnlyRenewal || recalcInfo.isEarlyPaymentInterestRenewal,
+            recalcInfo: recalcInfo
+        };
+
+        // Mostrar modal de mensagens em vez da notificação simples
+        await showPaymentMessageModal(loanId, paymentInfo);
         
     } catch (error) {
         alert('Erro ao registrar pagamento: ' + error.message);
@@ -6603,6 +6619,214 @@ function showSuccessMessage(message) {
     }, 3000);
 }
 
+// Função para mostrar o modal de mensagens de pagamento
+async function showPaymentMessageModal(loanId, paymentInfo) {
+    try {
+        // Buscar dados do empréstimo e cliente
+        const { data: loan, error: loanError } = await supabase
+            .from('loans')
+            .select(`
+                *,
+                clients (name, phone)
+            `)
+            .eq('id', loanId)
+            .single();
+
+        if (loanError) throw loanError;
+
+        // Calcular próxima data de pagamento
+        let nextPaymentDate = '';
+        if (paymentInfo.newDueDate) {
+            nextPaymentDate = formatDate(paymentInfo.newDueDate);
+        } else if (loan.due_date) {
+            nextPaymentDate = formatDate(loan.due_date);
+        } else {
+            // Se não há data específica, calcular 30 dias a partir de hoje
+            const today = new Date();
+            const nextDate = new Date(today);
+            nextDate.setDate(nextDate.getDate() + 30);
+            nextPaymentDate = formatDate(nextDate.toISOString().split('T')[0]);
+        }
+
+        // Atualizar o modal com as informações
+        document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
+
+        // Armazenar dados para uso nas mensagens
+        window.currentPaymentMessageData = {
+            clientName: loan.clients.name,
+            clientPhone: loan.clients.phone,
+            nextPaymentDate: nextPaymentDate,
+            loanStatus: loan.status,
+            paymentInfo: paymentInfo
+        };
+
+        // Determinar tipo de mensagem automaticamente e pré-selecionar
+        let suggestedMessageType = 'lembrete'; // padrão
+        
+        if (paymentInfo.isFullyPaid || loan.status === 'paid') {
+            suggestedMessageType = 'quitacao';
+        } else if (paymentInfo.isRenewal || paymentInfo.recalcInfo?.isInterestOnlyRenewal) {
+            suggestedMessageType = 'renovacao';
+        }
+
+        // Mostrar o modal
+        showModal(document.getElementById('paymentMessageModal'));
+
+        // Pré-selecionar o tipo de mensagem sugerido
+        setTimeout(() => {
+            const radioButton = document.querySelector(`input[name="messageType"][value="${suggestedMessageType}"]`);
+            if (radioButton) {
+                radioButton.checked = true;
+                radioButton.dispatchEvent(new Event('change'));
+            }
+        }, 100);
+
+        // Configurar event listeners se ainda não foram configurados
+        setupPaymentMessageEventListeners();
+
+    } catch (error) {
+        console.error('Erro ao mostrar modal de mensagem:', error);
+        alert('Erro ao carregar dados para mensagem: ' + error.message);
+    }
+}
+
+// Templates de mensagens
+const messageTemplates = {
+    quitacao: (data) => {
+        const isInstallment = data.paymentInfo?.isInstallment;
+        const productType = isInstallment ? 'parcelamento' : 'empréstimo';
+        
+        return `🎉 *Parabéns, ${data.clientName}!*
+
+Seu ${productType} foi *QUITADO COMPLETAMENTE*! 
+
+✅ Agradecemos pela confiança em nossos serviços
+✅ Seu nome está limpo e livre de pendências  
+✅ Estamos sempre à disposição para futuras necessidades
+
+Muito obrigado pela parceria e pontualidade! 🤝
+
+_Equipe Nexus Financeira_`;
+    },
+
+    renovacao: (data) => `💙 Obrigado pelo pagamento, *${data.clientName}*!
+
+Seu pagamento foi registrado com sucesso! 
+
+📅 *Próxima data de pagamento:* ${data.nextPaymentDate}
+
+Agradecemos pela confiança e pontualidade. Estamos sempre à disposição para esclarecer dúvidas.
+
+Tenha um ótimo dia! 😊
+
+_Equipe Nexus Financeira_`,
+
+    lembrete: (data) => {
+        const isInstallment = data.paymentInfo?.isInstallment;
+        let nextDateText = '';
+        
+        if (data.nextPaymentDate === 'Parcelamento quitado') {
+            nextDateText = `🎉 *Parabéns! Seu parcelamento foi quitado completamente!*`;
+        } else {
+            nextDateText = `📅 *Lembre-se da próxima data:* ${data.nextPaymentDate}`;
+        }
+        
+        return `💙 Obrigado pelo pagamento, *${data.clientName}*!
+
+Recebemos seu pagamento com sucesso! 
+
+${nextDateText}
+
+Agradecemos pela confiança. Para dúvidas ou negociações, estamos sempre disponíveis.
+
+Conte conosco! 🤝
+
+_Equipe Nexus Financeira_`;
+    }
+};
+
+// Configurar event listeners do modal de mensagens
+function setupPaymentMessageEventListeners() {
+    // Evitar múltiplos listeners
+    if (window.paymentMessageListenersSetup) return;
+    window.paymentMessageListenersSetup = true;
+
+    const modal = document.getElementById('paymentMessageModal');
+    const messageTextArea = document.getElementById('paymentMessageText');
+    const copyBtn = document.getElementById('copyPaymentMessage');
+    const sendBtn = document.getElementById('sendPaymentMessage');
+    const closeBtn = document.getElementById('closePaymentMessageBtn');
+    const closeModalBtn = document.getElementById('closePaymentMessageModal');
+
+    // Listener para mudança no tipo de mensagem
+    document.addEventListener('change', function(e) {
+        if (e.target.name === 'messageType' && window.currentPaymentMessageData) {
+            const messageType = e.target.value;
+            const template = messageTemplates[messageType];
+            
+            if (template) {
+                const message = template(window.currentPaymentMessageData);
+                messageTextArea.value = message;
+                copyBtn.disabled = false;
+                sendBtn.disabled = false;
+            }
+        }
+    });
+
+    // Copiar mensagem
+    copyBtn.addEventListener('click', async function() {
+        try {
+            await navigator.clipboard.writeText(messageTextArea.value);
+            showSuccessMessage('Mensagem copiada para a área de transferência!');
+        } catch (error) {
+            console.error('Erro ao copiar:', error);
+            // Fallback para navegadores mais antigos
+            messageTextArea.select();
+            document.execCommand('copy');
+            showSuccessMessage('Mensagem copiada!');
+        }
+    });
+
+    // Enviar via WhatsApp
+    sendBtn.addEventListener('click', function() {
+        if (window.currentPaymentMessageData && window.currentPaymentMessageData.clientPhone) {
+            let phone = window.currentPaymentMessageData.clientPhone.replace(/\D/g, '');
+            
+            // Garantir que o telefone tenha o formato correto
+            if (phone.length === 11 && phone.startsWith('0')) {
+                phone = phone.substring(1); // Remove o 0 inicial se houver
+            }
+            if (phone.length === 10) {
+                phone = phone.substring(0, 2) + '9' + phone.substring(2); // Adiciona o 9 para celulares
+            }
+            
+            const message = encodeURIComponent(messageTextArea.value);
+            const whatsappUrl = `https://wa.me/55${phone}?text=${message}`;
+            window.open(whatsappUrl, '_blank');
+            showSuccessMessage('Abrindo WhatsApp...');
+        } else {
+            alert('Número de telefone do cliente não encontrado.');
+        }
+    });
+
+    // Fechar modal
+    function closeModal() {
+        hideModal(modal);
+        // Limpar dados
+        window.currentPaymentMessageData = null;
+        messageTextArea.value = '';
+        copyBtn.disabled = true;
+        sendBtn.disabled = true;
+        // Desmarcar radio buttons
+        document.querySelectorAll('input[name="messageType"]').forEach(radio => {
+            radio.checked = false;
+        });
+    }
+
+    closeBtn.addEventListener('click', closeModal);
+    closeModalBtn.addEventListener('click', closeModal);
+}
+
 function showErrorMessage(message) {
     // Criar uma notificação de erro
     const notification = document.createElement('div');
@@ -9664,7 +9888,68 @@ document.getElementById('installmentPaymentForm').addEventListener('submit', asy
         if (error) throw error;
 
         closeInstallmentPaymentModal();
-        showNotification('Pagamento registrado com sucesso!', 'success');
+        
+        // Buscar dados do cliente para o modal de mensagens
+        const { data: installmentData, error: installmentError } = await supabase
+            .from('installments')
+            .select(`
+                *,
+                clients (name, phone)
+            `)
+            .eq('id', currentInstallmentId)
+            .single();
+
+        if (!installmentError && installmentData) {
+            // Calcular próxima data de pagamento (próxima parcela)
+            const { data: nextPayment, error: nextError } = await supabase
+                .from('installment_payments')
+                .select('due_date')
+                .eq('installment_id', currentInstallmentId)
+                .eq('status', 'pending')
+                .order('due_date', { ascending: true })
+                .limit(1)
+                .single();
+
+            let nextPaymentDate = '';
+            if (!nextError && nextPayment) {
+                nextPaymentDate = formatDate(nextPayment.due_date);
+            } else {
+                // Se não há próxima parcela, o parcelamento foi quitado
+                nextPaymentDate = 'Parcelamento quitado';
+            }
+
+            // Preparar informações do pagamento para o modal
+            const paymentInfo = {
+                amount: paidAmount,
+                type: paymentMethod,
+                date: paidDate,
+                isFullyPaid: paymentStatus === 'paid' && !nextPayment,
+                isInstallment: true
+            };
+
+            // Configurar dados para o modal
+            window.currentPaymentMessageData = {
+                clientName: installmentData.clients.name,
+                clientPhone: installmentData.clients.phone,
+                nextPaymentDate: nextPaymentDate,
+                paymentInfo: paymentInfo
+            };
+
+            // Mostrar modal de mensagens
+            showModal(document.getElementById('paymentMessageModal'));
+
+            // Pré-selecionar tipo de mensagem
+            setTimeout(() => {
+                const messageType = paymentInfo.isFullyPaid ? 'quitacao' : 'lembrete';
+                const radioButton = document.querySelector(`input[name="messageType"][value="${messageType}"]`);
+                if (radioButton) {
+                    radioButton.checked = true;
+                    radioButton.dispatchEvent(new Event('change'));
+                }
+            }, 100);
+        } else {
+            showNotification('Pagamento registrado com sucesso!', 'success');
+        }
         
         // Recarregar detalhes do parcelamento
         if (currentInstallmentId) {
