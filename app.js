@@ -179,6 +179,7 @@ const addCapitalClientModal = document.getElementById('addCapitalClientModal');
 const guarantorModal = document.getElementById('guarantorModal');
 const emergencyContactModal = document.getElementById('emergencyContactModal');
 const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
+const paymentConfirmationModal = document.getElementById('paymentConfirmationModal');
 
 
 // Botões
@@ -350,6 +351,8 @@ function setupEventListeners() {
     document.getElementById('closeEditLoanModal').addEventListener('click', () => hideModal(editLoanModal));
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closePaidLoanDetailsModal').addEventListener('click', () => hideModal(paidLoanDetailsModal));
+    document.getElementById('closePaymentConfirmationBtn').addEventListener('click', () => hideModal(paymentConfirmationModal));
+    document.getElementById('sendWhatsAppPaymentBtn').addEventListener('click', sendPaymentConfirmationWhatsApp);
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('closeEmergencyContactModal').addEventListener('click', () => hideModal(emergencyContactModal));
@@ -2480,7 +2483,43 @@ async function handlePayment(e) {
             }
         }
         
-        showSuccessMessage(successMessage);
+        // Preparar informações para o modal de confirmação
+        const loan = loans.find(l => l.id === loanId);
+        const paymentConfirmationInfo = {
+            amount: paymentAmount,
+            clientName: loan?.clients?.name || 'Cliente',
+            loanId: loanId,
+            nextDueDate: null,
+            isFullyPaid: false,
+            isRenewal: false
+        };
+
+        // Determinar tipo de pagamento e próxima data
+        if (recalcInfo.shouldRecalculate) {
+            if (recalcInfo.isFullyPaid) {
+                paymentConfirmationInfo.isFullyPaid = true;
+            } else if (recalcInfo.isInterestOnlyRenewal || recalcInfo.isEarlyPaymentInterestRenewal) {
+                paymentConfirmationInfo.isRenewal = true;
+                paymentConfirmationInfo.nextDueDate = recalcInfo.newDueDate;
+            } else if (changeDueDate && newDueDate) {
+                paymentConfirmationInfo.nextDueDate = newDueDate;
+            }
+        } else {
+            // Para empréstimos sem recálculo, verificar se foi quitado ou se há nova data
+            const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
+            if (changeDueDate && newDueDate) {
+                paymentConfirmationInfo.nextDueDate = newDueDate;
+            } else if (currentLoanStatus === 'overdue') {
+                // Para empréstimos vencidos reativados, mostrar nova data (30 dias)
+                const paymentDateObj = new Date(paymentDate);
+                const newDueDateObj = new Date(paymentDateObj);
+                newDueDateObj.setDate(newDueDateObj.getDate() + 30);
+                paymentConfirmationInfo.nextDueDate = newDueDateObj.toISOString().split('T')[0];
+            }
+        }
+
+        // Mostrar modal de confirmação
+        showPaymentConfirmationModal(paymentConfirmationInfo);
         
     } catch (error) {
         alert('Erro ao registrar pagamento: ' + error.message);
@@ -6623,6 +6662,131 @@ function showErrorMessage(message) {
             document.body.removeChild(notification);
         }, 300);
     }, 4000);
+}
+
+// Função para mostrar o modal de confirmação de pagamento
+function showPaymentConfirmationModal(paymentInfo) {
+    const modal = paymentConfirmationModal;
+    const messageElement = document.getElementById('paymentConfirmationMessage');
+    const newDateInfo = document.getElementById('newDateInfo');
+    const nextDueDateElement = document.getElementById('nextDueDate');
+    
+    // Configurar mensagem personalizada baseada no tipo de pagamento
+    let message = `Seu pagamento de R$ ${paymentInfo.amount.toFixed(2)} foi processado com sucesso.`;
+    
+    if (paymentInfo.clientName) {
+        message = `Olá ${paymentInfo.clientName}! ${message}`;
+    }
+    
+    messageElement.textContent = message;
+    
+    // Mostrar informações da nova data se disponível
+    if (paymentInfo.nextDueDate) {
+        newDateInfo.style.display = 'block';
+        nextDueDateElement.textContent = formatDate(paymentInfo.nextDueDate);
+    } else {
+        newDateInfo.style.display = 'none';
+    }
+    
+    // Selecionar tipo de mensagem baseado no contexto
+    const messageTypeRadios = document.querySelectorAll('input[name="messageType"]');
+    if (paymentInfo.isFullyPaid) {
+        // Selecionar quitação se foi totalmente pago
+        messageTypeRadios.forEach(radio => {
+            radio.checked = radio.value === 'quitacao';
+        });
+    } else if (paymentInfo.isRenewal) {
+        // Selecionar renovação se foi renovação de juros
+        messageTypeRadios.forEach(radio => {
+            radio.checked = radio.value === 'renovacao';
+        });
+    } else {
+        // Selecionar lembrete por padrão
+        messageTypeRadios.forEach(radio => {
+            radio.checked = radio.value === 'lembrete';
+        });
+    }
+    
+    // Armazenar informações do pagamento para uso posterior
+    modal.paymentInfo = paymentInfo;
+    
+    showModal(modal);
+}
+
+// Função para enviar mensagem de confirmação via WhatsApp
+function sendPaymentConfirmationWhatsApp() {
+    const modal = paymentConfirmationModal;
+    const paymentInfo = modal.paymentInfo || {};
+    
+    // Obter tipo de mensagem selecionado
+    const selectedMessageType = document.querySelector('input[name="messageType"]:checked')?.value || 'lembrete';
+    
+    // Gerar mensagem baseada no tipo selecionado
+    let message = '';
+    const clientName = paymentInfo.clientName || 'Cliente';
+    const amount = paymentInfo.amount || 0;
+    const nextDueDate = paymentInfo.nextDueDate;
+    
+    switch (selectedMessageType) {
+        case 'quitacao':
+            message = `🎉 Olá ${clientName}!\n\n` +
+                     `Obrigado pelo pagamento de R$ ${amount.toFixed(2)}!\n\n` +
+                     `✅ Seu empréstimo foi QUITADO COMPLETAMENTE.\n\n` +
+                     `Agradecemos pela confiança! 🙏`;
+            break;
+            
+        case 'renovacao':
+            message = `🎉 Olá ${clientName}!\n\n` +
+                     `Obrigado pelo pagamento de R$ ${amount.toFixed(2)}!\n\n` +
+                     `🔄 Seu empréstimo foi RENOVADO com sucesso.\n`;
+            if (nextDueDate) {
+                message += `📅 Próximo vencimento: ${formatDate(nextDueDate)}\n`;
+            }
+            message += `\nAgradecemos pela confiança! 🙏`;
+            break;
+            
+        case 'lembrete':
+        default:
+            message = `🎉 Olá ${clientName}!\n\n` +
+                     `Obrigado pelo pagamento de R$ ${amount.toFixed(2)}!\n\n`;
+            if (nextDueDate) {
+                message += `📅 Próximo vencimento: ${formatDate(nextDueDate)}\n\n`;
+            }
+            message += `Agradecemos pela confiança! 🙏`;
+            break;
+    }
+    
+    // Obter informações do cliente para o WhatsApp
+    const loan = loans.find(l => l.id === paymentInfo.loanId);
+    if (!loan || !loan.clients) {
+        showErrorMessage('Informações do cliente não encontradas!');
+        return;
+    }
+
+    const client = loan.clients;
+    
+    // Verificar se o cliente tem telefone
+    if (!client.phone) {
+        showErrorMessage('Cliente não possui telefone cadastrado!');
+        return;
+    }
+
+    // Limpar o número de telefone (remover caracteres especiais)
+    const cleanPhone = client.phone.replace(/\D/g, '');
+    
+    // Verificar se o número tem o código do país
+    const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+    // Criar URL do WhatsApp
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+    // Abrir WhatsApp em nova aba
+    window.open(whatsappUrl, '_blank');
+    
+    // Fechar o modal após enviar
+    hideModal(paymentConfirmationModal);
+    
+    showSuccessMessage('WhatsApp aberto com a mensagem!');
 }
 
 function showInfoMessage(message) {

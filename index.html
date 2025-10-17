@@ -3344,6 +3344,72 @@
         </div>
     </div>
 
+    <!-- Modal de Confirmação de Pagamento -->
+    <div id="paymentConfirmationModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-md p-6">
+                <div class="text-center">
+                    <!-- Ícone de sucesso -->
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                        <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
+                        </svg>
+                    </div>
+                    
+                    <!-- Título -->
+                    <h3 class="text-lg font-semibold text-white mb-4">Pagamento Registrado com Sucesso!</h3>
+                    
+                    <!-- Mensagem de agradecimento -->
+                    <div class="bg-gray-800 p-4 rounded-lg mb-4">
+                        <p class="text-blue-200 text-sm mb-2">🎉 Obrigado pelo pagamento!</p>
+                        <p class="text-white text-sm" id="paymentConfirmationMessage">
+                            Seu pagamento foi processado com sucesso.
+                        </p>
+                    </div>
+                    
+                    <!-- Informações da nova data -->
+                    <div class="bg-gray-800 p-4 rounded-lg mb-4" id="newDateInfo" style="display: none;">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-gray-300 text-sm">📅 Próximo vencimento:</span>
+                            <span class="text-white font-semibold" id="nextDueDate">-</span>
+                        </div>
+                    </div>
+                    
+                    <!-- Seleção do tipo de mensagem -->
+                    <div class="mb-6">
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Selecione o tipo de mensagem:</label>
+                        <div class="space-y-2">
+                            <label class="flex items-center">
+                                <input type="radio" name="messageType" value="quitacao" class="mr-2 text-blue-600">
+                                <span class="text-white text-sm">✅ Quitação - Empréstimo totalmente pago</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="messageType" value="renovacao" class="mr-2 text-blue-600">
+                                <span class="text-white text-sm">🔄 Renovação - Pagamento de juros, capital mantido</span>
+                            </label>
+                            <label class="flex items-center">
+                                <input type="radio" name="messageType" value="lembrete" class="mr-2 text-blue-600" checked>
+                                <span class="text-white text-sm">📝 Lembrete - Pagamento parcial, próximo vencimento</span>
+                            </label>
+                        </div>
+                    </div>
+                    
+                    <!-- Botões -->
+                    <div class="flex justify-center space-x-3">
+                        <button type="button" id="closePaymentConfirmationBtn" 
+                                class="px-6 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                            Fechar
+                        </button>
+                        <button type="button" id="sendWhatsAppPaymentBtn" 
+                                class="px-6 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            📱 Enviar WhatsApp
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <script src="app.js"></script>
 </body>
 </html> 
