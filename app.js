@@ -352,7 +352,7 @@ function setupEventListeners() {
     document.getElementById('closePaymentHistoryModal').addEventListener('click', () => hideModal(paymentHistoryModal));
     document.getElementById('closePaidLoanDetailsModal').addEventListener('click', () => hideModal(paidLoanDetailsModal));
     document.getElementById('closePaymentConfirmationBtn').addEventListener('click', () => hideModal(paymentConfirmationModal));
-    document.getElementById('copyPaymentMessageBtn').addEventListener('click', copyPaymentConfirmationMessage);
+    document.getElementById('sendWhatsAppPaymentBtn').addEventListener('click', sendPaymentConfirmationWhatsApp);
     document.getElementById('closeExpenseModal').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('closeGuarantorModal').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('closeEmergencyContactModal').addEventListener('click', () => hideModal(emergencyContactModal));
@@ -2488,6 +2488,7 @@ async function handlePayment(e) {
         const paymentConfirmationInfo = {
             amount: paymentAmount,
             clientName: loan?.clients?.name || 'Cliente',
+            loanId: loanId,
             nextDueDate: null,
             isFullyPaid: false,
             isRenewal: false
@@ -6712,8 +6713,8 @@ function showPaymentConfirmationModal(paymentInfo) {
     showModal(modal);
 }
 
-// Função para copiar a mensagem de confirmação
-function copyPaymentConfirmationMessage() {
+// Função para enviar mensagem de confirmação via WhatsApp
+function sendPaymentConfirmationWhatsApp() {
     const modal = paymentConfirmationModal;
     const paymentInfo = modal.paymentInfo || {};
     
@@ -6755,13 +6756,37 @@ function copyPaymentConfirmationMessage() {
             break;
     }
     
-    // Copiar para a área de transferência
-    navigator.clipboard.writeText(message).then(() => {
-        showSuccessMessage('Mensagem copiada para a área de transferência!');
-    }).catch(err => {
-        console.error('Erro ao copiar mensagem:', err);
-        showErrorMessage('Erro ao copiar mensagem');
-    });
+    // Obter informações do cliente para o WhatsApp
+    const loan = loans.find(l => l.id === paymentInfo.loanId);
+    if (!loan || !loan.clients) {
+        showErrorMessage('Informações do cliente não encontradas!');
+        return;
+    }
+
+    const client = loan.clients;
+    
+    // Verificar se o cliente tem telefone
+    if (!client.phone) {
+        showErrorMessage('Cliente não possui telefone cadastrado!');
+        return;
+    }
+
+    // Limpar o número de telefone (remover caracteres especiais)
+    const cleanPhone = client.phone.replace(/\D/g, '');
+    
+    // Verificar se o número tem o código do país
+    const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+    // Criar URL do WhatsApp
+    const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+    // Abrir WhatsApp em nova aba
+    window.open(whatsappUrl, '_blank');
+    
+    // Fechar o modal após enviar
+    hideModal(paymentConfirmationModal);
+    
+    showSuccessMessage('WhatsApp aberto com a mensagem!');
 }
 
 function showInfoMessage(message) {
