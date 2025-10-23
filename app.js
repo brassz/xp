@@ -8979,8 +8979,9 @@ async function generateWeeklyPaymentsPDF() {
         
         doc.setFont('helvetica', 'bold');
         doc.text('TOTAIS DA SEMANA:', 20, yPosition);
-        doc.text(`R$ ${totalPayments.toFixed(2)}`, 100, yPosition);
-        doc.text(`R$ ${totalInterest.toFixed(2)}`, 130, yPosition);
+        doc.text(`R$ ${totalPayments.toFixed(2)}`, 95, yPosition);
+        doc.text(`R$ ${totalFines.toFixed(2)}`, 120, yPosition);
+        doc.text(`R$ ${totalInterest.toFixed(2)}`, 140, yPosition);
         doc.text(`R$ ${totalCapital.toFixed(2)}`, 150, yPosition);
         
         // Informações da empresa no rodapé
