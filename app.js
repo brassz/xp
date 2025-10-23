@@ -5667,13 +5667,18 @@ async function loadPaymentHistory(loanId) {
         data.forEach(payment => {
             const paymentDate = new Date(payment.payment_date);
             const paymentAmount = parseFloat(payment.amount);
+            const fineAmount = parseFloat(payment.fine_amount || 0);
             const paymentType = getPaymentTypeText(payment.payment_type);
             const paymentNotes = payment.notes || 'Sem notas';
+            
+            const paymentDisplay = fineAmount > 0 
+                ? `<div>R$ ${paymentAmount.toFixed(2)}</div><div class="text-xs text-orange-400">+ Multa: R$ ${fineAmount.toFixed(2)}</div>`
+                : `R$ ${paymentAmount.toFixed(2)}`;
             
             tbody.innerHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(payment.payment_date)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${paymentAmount.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentDisplay}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -12042,7 +12047,7 @@ function renderWeeklyPaymentsTable(payments) {
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
-                ${payment.fine_amount > 0 ? `<div class="text-xs text-orange-400">Multa: R$ ${payment.fine_amount.toFixed(2)}</div>` : ''}
+                ${payment.fine_amount > 0 ? `<div class="text-xs text-orange-400">+ Multa: R$ ${payment.fine_amount.toFixed(2)}</div>` : ''}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
@@ -12552,6 +12557,7 @@ function renderWeekClientsModal(clients, weekData) {
                                 </div>
                                 <div class="text-right">
                                     <p class="text-sm font-semibold text-green-400">R$ ${payment.amount.toFixed(2)}</p>
+                                    ${payment.fine_amount > 0 ? `<p class="text-xs text-orange-400">+ Multa: R$ ${payment.fine_amount.toFixed(2)}</p>` : ''}
                                     <p class="text-xs text-gray-400">${getPaymentMethodText(payment.payment_method)}</p>
                                 </div>
                             </div>

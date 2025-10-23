@@ -4,6 +4,8 @@
 
 Foi implementado um novo campo opcional de **multa** no sistema de registro de pagamentos de empréstimos. Esta funcionalidade permite aplicar valores de multa aos pagamentos e exibir essas informações nos relatórios.
 
+**IMPORTANTE**: A multa é registrada **separadamente** do valor do pagamento e **NÃO afeta** os cálculos do empréstimo (capital restante, juros, valor total, etc.).
+
 ## Alterações Implementadas
 
 ### 1. Banco de Dados
@@ -67,13 +69,21 @@ fine_amount DECIMAL(10,2) DEFAULT 0.00 CHECK (fine_amount >= 0)
 ## Validações
 - Valor da multa deve ser >= 0
 - Campo é opcional (padrão 0.00)
-- Multa é salva separadamente do valor do pagamento
+- **Multa é salva separadamente do valor do pagamento**
+- **Multa NÃO afeta cálculos do empréstimo (capital restante, juros, etc.)**
 - Relatórios só mostram seção de multas se houver valores > 0
 
 ## Compatibilidade
 - Totalmente compatível com pagamentos existentes (campo padrão 0.00)
-- Não afeta cálculos existentes de juros e capital
+- **NÃO afeta cálculos existentes de juros e capital**
+- **Valor restante do empréstimo é calculado apenas com base no valor do pagamento**
 - Funciona tanto para empréstimos quanto para parcelamentos
+
+## Lógica de Separação
+- **Valor do Pagamento**: Usado para calcular capital restante, juros pagos, status do empréstimo
+- **Valor da Multa**: Registrado separadamente apenas para controle administrativo
+- **Relatórios**: Mostram ambos os valores separadamente (pagamentos + multas)
+- **Validações**: Baseadas apenas no valor do pagamento, não incluem a multa
 
 ## Arquivos Modificados
 1. `add-fine-field-to-payments.sql` - Script de migração do banco
