@@ -416,6 +416,22 @@ function setupEventListeners() {
             document.getElementById('newDueDate').value = '';
         }
     });
+
+    // Checkbox para aplicar multa no modal de pagamento
+    document.getElementById('fineCheckbox').addEventListener('change', function() {
+        const container = document.getElementById('fineContainer');
+        if (this.checked) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+            document.getElementById('fineAmount').value = '';
+        }
+        updatePaymentSummary();
+    });
+
+    // Atualizar resumo quando valores mudarem
+    document.getElementById('paymentAmount').addEventListener('input', updatePaymentSummary);
+    document.getElementById('fineAmount').addEventListener('input', updatePaymentSummary);
     
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
@@ -2161,6 +2177,10 @@ async function handlePayment(e) {
     const changeDueDate = document.getElementById('changeDueDateCheckbox').checked;
     const newDueDate = changeDueDate ? document.getElementById('newDueDate').value : null;
     
+    // Verificar se há multa aplicada
+    const hasFine = document.getElementById('fineCheckbox').checked;
+    const fineAmount = hasFine ? parseFloat(document.getElementById('fineAmount').value) || 0 : 0;
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -2207,6 +2227,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
+                    fine_amount: fineAmount,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', paymentId);
@@ -2221,6 +2242,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
+                    fine_amount: fineAmount,
                     created_by: currentUser.id,
                     created_at: new Date().toISOString()
                 }]);
@@ -2636,6 +2658,14 @@ function hideModal(modal) {
         document.getElementById('paymentForm').reset();
         document.getElementById('paymentDate').value = formatDateForInput(new Date());
         document.getElementById('paymentType').value = 'dinheiro';
+        
+        // Limpar campos de multa
+        document.getElementById('fineCheckbox').checked = false;
+        document.getElementById('fineContainer').classList.add('hidden');
+        document.getElementById('fineAmount').value = '';
+        
+        // Limpar resumo
+        document.getElementById('paymentSummarySection').classList.add('hidden');
     } else if (modal === paymentHistoryModal) {
         // Limpar dados do histórico
         document.getElementById('paymentHistoryTableBody').innerHTML = '';
@@ -2722,6 +2752,31 @@ function updateLoanSummary() {
     document.getElementById('summaryPrincipal').textContent = `R$ ${amount.toFixed(2)}`;
     document.getElementById('summaryInterest').textContent = `R$ ${interestAmount.toFixed(2)}`;
     document.getElementById('summaryTotal').textContent = `R$ ${total.toFixed(2)}`;
+}
+
+function updatePaymentSummary() {
+    const paymentAmount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+    const fineAmount = document.getElementById('fineCheckbox').checked ? 
+        (parseFloat(document.getElementById('fineAmount').value) || 0) : 0;
+    
+    const summarySection = document.getElementById('paymentSummarySection');
+    const summaryPaymentAmount = document.getElementById('summaryPaymentAmount');
+    const summaryFineAmount = document.getElementById('summaryFineAmount');
+    const summaryFineRow = document.getElementById('summaryFineRow');
+    
+    if (paymentAmount > 0 || fineAmount > 0) {
+        summarySection.classList.remove('hidden');
+        summaryPaymentAmount.textContent = `R$ ${paymentAmount.toFixed(2)}`;
+        
+        if (fineAmount > 0) {
+            summaryFineRow.style.display = 'flex';
+            summaryFineAmount.textContent = `R$ ${fineAmount.toFixed(2)}`;
+        } else {
+            summaryFineRow.style.display = 'none';
+        }
+    } else {
+        summarySection.classList.add('hidden');
+    }
 }
 
 function validatePaymentAmount() {
@@ -5645,13 +5700,18 @@ async function loadPaymentHistory(loanId) {
         data.forEach(payment => {
             const paymentDate = new Date(payment.payment_date);
             const paymentAmount = parseFloat(payment.amount);
+            const fineAmount = parseFloat(payment.fine_amount || 0);
             const paymentType = getPaymentTypeText(payment.payment_type);
             const paymentNotes = payment.notes || 'Sem notas';
+            
+            const paymentDisplay = fineAmount > 0 
+                ? `<div>R$ ${paymentAmount.toFixed(2)}</div><div class="text-xs text-orange-400">+ Multa: R$ ${fineAmount.toFixed(2)}</div>`
+                : `R$ ${paymentAmount.toFixed(2)}`;
             
             tbody.innerHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(payment.payment_date)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${paymentAmount.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentDisplay}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -5728,6 +5788,22 @@ async function editPayment(paymentId) {
         document.getElementById('paymentDate').value = payment.payment_date;
         document.getElementById('paymentType').value = payment.payment_type;
         document.getElementById('paymentNotes').value = payment.notes || '';
+
+        // Preencher dados da multa se houver
+        const fineAmount = payment.fine_amount || 0;
+        const fineCheckbox = document.getElementById('fineCheckbox');
+        const fineContainer = document.getElementById('fineContainer');
+        const fineAmountInput = document.getElementById('fineAmount');
+
+        if (fineAmount > 0) {
+            fineCheckbox.checked = true;
+            fineContainer.classList.remove('hidden');
+            fineAmountInput.value = fineAmount;
+        } else {
+            fineCheckbox.checked = false;
+            fineContainer.classList.add('hidden');
+            fineAmountInput.value = '';
+        }
 
         // Mostrar o modal de pagamento
         showModal(paymentModal);
@@ -12004,6 +12080,7 @@ function renderWeeklyPaymentsTable(payments) {
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
+                ${payment.fine_amount > 0 ? `<div class="text-xs text-orange-400">+ Multa: R$ ${payment.fine_amount.toFixed(2)}</div>` : ''}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
@@ -12024,6 +12101,7 @@ function renderWeeklyPaymentsTable(payments) {
 // Função para atualizar resumo dos pagamentos semanais
 function updateWeeklyPaymentsSummary(payments) {
     const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalFines = payments.reduce((sum, payment) => sum + (payment.fine_amount || 0), 0);
     const totalCount = payments.length;
     const uniqueClients = new Set(payments.map(p => p.loans?.client_id).filter(Boolean)).size;
 
@@ -12031,10 +12109,25 @@ function updateWeeklyPaymentsSummary(payments) {
     const totalAmountEl = document.getElementById('totalPaymentsAmount');
     const totalCountEl = document.getElementById('totalPaymentsCount');
     const uniqueClientsEl = document.getElementById('uniqueClientsCount');
+    const totalFinesEl = document.getElementById('totalFinesAmount');
 
     if (totalAmountEl) totalAmountEl.textContent = `R$ ${totalAmount.toFixed(2)}`;
     if (totalCountEl) totalCountEl.textContent = totalCount.toString();
     if (uniqueClientsEl) uniqueClientsEl.textContent = uniqueClients.toString();
+    
+    // Atualizar total de multas se o elemento existir
+    if (totalFinesEl) {
+        totalFinesEl.textContent = `R$ ${totalFines.toFixed(2)}`;
+        // Mostrar/ocultar seção de multas baseado no valor
+        const finesSection = totalFinesEl.closest('.bg-gray-800');
+        if (finesSection) {
+            if (totalFines > 0) {
+                finesSection.classList.remove('hidden');
+            } else {
+                finesSection.classList.add('hidden');
+            }
+        }
+    }
 }
 
 // Função para obter classe CSS do método de pagamento
@@ -12497,6 +12590,7 @@ function renderWeekClientsModal(clients, weekData) {
                                 </div>
                                 <div class="text-right">
                                     <p class="text-sm font-semibold text-green-400">R$ ${payment.amount.toFixed(2)}</p>
+                                    ${payment.fine_amount > 0 ? `<p class="text-xs text-orange-400">+ Multa: R$ ${payment.fine_amount.toFixed(2)}</p>` : ''}
                                     <p class="text-xs text-gray-400">${getPaymentMethodText(payment.payment_method)}</p>
                                 </div>
                             </div>
@@ -12828,6 +12922,7 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         
         // Calcular totais
         const totalPayments = allWeeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalFines = allWeeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.fine_amount || 0), 0);
         const totalCapital = allWeeklyPayments.reduce((sum, payment) => {
             const loan = payment.loans;
             const loanAmount = parseFloat(loan.amount);

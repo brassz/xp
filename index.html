@@ -1167,6 +1167,15 @@
                             <p class="text-sm text-gray-400 mb-1">Clientes Únicos</p>
                             <p class="text-2xl font-bold text-white" id="uniqueClientsCount">0</p>
                         </div>
+                        <div class="glass-card p-6 rounded-xl text-center bg-gray-800 hidden">
+                            <div class="text-orange-400 mb-2">
+                                <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                                </svg>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-1">Multas (Separadas)</p>
+                            <p class="text-2xl font-bold text-orange-400" id="totalFinesAmount">R$ 0,00</p>
+                        </div>
                     </div>
 
                     <!-- Payments Table -->
@@ -1947,25 +1956,25 @@
     <!-- Payment Modal -->
     <div id="paymentModal" class="modal-overlay fixed inset-0 z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-sm p-3">
-                <div class="flex items-center justify-between mb-3">
-                    <h3 class="text-lg font-semibold text-white">Registrar Pagamento</h3>
+            <div class="modal-content w-full max-w-sm p-3 max-h-[90vh] overflow-y-auto">
+                <div class="flex items-center justify-between mb-2">
+                    <h3 class="text-base font-semibold text-white">Registrar Pagamento</h3>
                     <button id="closePaymentModal" class="text-gray-400 hover:text-white">
-                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                         </svg>
                     </button>
                 </div>
                 
-                <form id="paymentForm" class="space-y-2">
+                <form id="paymentForm" class="space-y-1.5">
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-1">Cliente</label>
                         <p class="text-white" id="paymentClientName">-</p>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Detalhes do Empréstimo</label>
-                        <div class="bg-gray-800 p-2 rounded-lg space-y-1 text-sm">
+                        <label class="block text-xs font-medium text-blue-200 mb-1">Detalhes do Empréstimo</label>
+                        <div class="bg-gray-800 p-1.5 rounded space-y-0.5 text-xs">
                             <div class="flex justify-between">
                                 <span class="text-gray-300">Capital:</span>
                                 <span class="text-white" id="paymentCapitalAmount">R$ 0,00</span>
@@ -1994,19 +2003,31 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Data do Pagamento</label>
-                        <input type="date" id="paymentDate" class="form-input w-full" required>
+                        <label class="block text-xs font-medium text-blue-200 mb-1">Data do Pagamento</label>
+                        <input type="date" id="paymentDate" class="form-input w-full text-sm" required>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Valor do Pagamento</label>
-                        <input type="number" id="paymentAmount" class="form-input w-full" step="0.01" min="0" required>
-                        <div id="paymentValidationFeedback" class="mt-1 text-sm hidden"></div>
+                        <label class="block text-xs font-medium text-blue-200 mb-1">Valor do Pagamento</label>
+                        <input type="number" id="paymentAmount" class="form-input w-full text-sm" step="0.01" min="0" required>
+                        <div id="paymentValidationFeedback" class="mt-1 text-xs hidden"></div>
+                    </div>
+
+                    <!-- Checkbox para Multa -->
+                    <div class="border-t border-gray-600 pt-2">
+                        <div class="flex items-center mb-1">
+                            <input type="checkbox" id="fineCheckbox" class="mr-2">
+                            <label class="text-sm font-medium text-orange-200">🚨 Multa (separada)</label>
+                        </div>
+                        <div id="fineContainer" class="hidden">
+                            <input type="number" id="fineAmount" class="form-input w-full text-sm" step="0.01" min="0" placeholder="Valor da multa">
+                            <p class="text-xs text-orange-300 mt-1">⚠️ Não afeta cálculos do empréstimo</p>
+                        </div>
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Tipo de Pagamento</label>
-                        <select id="paymentType" class="form-input w-full" required>
+                        <label class="block text-xs font-medium text-blue-200 mb-1">Tipo de Pagamento</label>
+                        <select id="paymentType" class="form-input w-full text-sm" required>
                             <option value="dinheiro">Dinheiro</option>
                             <option value="pix">Pix</option>
                             <option value="cartao">Cartão</option>
@@ -2014,28 +2035,39 @@
                     </div>
                     
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Notas/Observações</label>
-                        <textarea id="paymentNotes" class="form-input w-full text-sm" rows="1" placeholder="Observações sobre o pagamento..."></textarea>
+                        <label class="block text-xs font-medium text-blue-200 mb-1">Notas/Observações</label>
+                        <textarea id="paymentNotes" class="form-input w-full text-xs" rows="1" placeholder="Observações..."></textarea>
                     </div>
 
                     <!-- Optional Due Date Change -->
-                    <div class="border-t border-gray-600 pt-2">
-                        <div class="flex items-center mb-2">
+                    <div class="border-t border-gray-600 pt-1.5">
+                        <div class="flex items-center mb-1">
                             <input type="checkbox" id="changeDueDateCheckbox" class="mr-2">
-                            <label class="text-sm font-medium text-blue-200">Alterar data de vencimento (opcional)</label>
+                            <label class="text-xs font-medium text-blue-200">Alterar vencimento</label>
                         </div>
                         <div id="dueDateContainer" class="hidden">
-                            <label class="block text-sm font-medium text-blue-200 mb-1">Nova Data de Vencimento</label>
-                            <input type="date" id="newDueDate" class="form-input w-full">
+                            <input type="date" id="newDueDate" class="form-input w-full text-sm">
                         </div>
                     </div>
                     
-                    <div class="flex justify-end space-x-3 pt-2">
-                        <button type="button" id="cancelPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
+                    <!-- Resumo Compacto -->
+                    <div id="paymentSummarySection" class="hidden mt-2 p-2 bg-gray-800 rounded text-xs">
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400">Pagamento:</span>
+                            <span class="text-green-400 font-semibold" id="summaryPaymentAmount">R$ 0,00</span>
+                        </div>
+                        <div class="flex justify-between items-center" id="summaryFineRow" style="display: none;">
+                            <span class="text-gray-400">+ Multa:</span>
+                            <span class="text-orange-400 font-semibold" id="summaryFineAmount">R$ 0,00</span>
+                        </div>
+                    </div>
+
+                    <div class="flex justify-end space-x-2 pt-2">
+                        <button type="button" id="cancelPaymentBtn" class="px-4 py-1.5 border border-gray-600 text-gray-300 rounded text-sm hover:bg-gray-700 transition-colors">
                             Cancelar
                         </button>
-                        <button type="submit" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
-                            Registrar Pagamento
+                        <button type="submit" class="btn-primary px-4 py-1.5 rounded text-sm font-semibold text-white">
+                            Registrar
                         </button>
                     </div>
                 </form>
