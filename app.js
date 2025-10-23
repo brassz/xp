@@ -8876,6 +8876,14 @@ async function generateWeeklyPaymentsPDF() {
         doc.line(20, yPosition, 190, yPosition);
         yPosition += 10;
         
+        // Adicionar total de multas antes da tabela
+        const totalFines = allWeeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+        yPosition -= 15; // Voltar para adicionar a linha de multas
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total em Multas: R$ ${totalFines.toFixed(2)}`, 20, yPosition);
+        yPosition += 15;
+        
         // Cabeçalho da tabela
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -8887,10 +8895,11 @@ async function generateWeeklyPaymentsPDF() {
         doc.setFont('helvetica', 'bold');
         doc.text('Data', 20, yPosition);
         doc.text('Cliente', 45, yPosition);
-        doc.text('Valor Pago', 100, yPosition);
-        doc.text('Juros', 130, yPosition);
-        doc.text('Capital', 150, yPosition);
-        doc.text('Tipo', 170, yPosition);
+        doc.text('Valor Pago', 95, yPosition);
+        doc.text('Multa', 120, yPosition);
+        doc.text('Juros', 140, yPosition);
+        doc.text('Capital', 160, yPosition);
+        doc.text('Tipo', 180, yPosition);
         yPosition += 8;
         
         // Linha dos cabeçalhos
@@ -8910,10 +8919,11 @@ async function generateWeeklyPaymentsPDF() {
                 doc.setFont('helvetica', 'bold');
                 doc.text('Data', 20, yPosition);
                 doc.text('Cliente', 45, yPosition);
-                doc.text('Valor Pago', 100, yPosition);
-                doc.text('Juros', 130, yPosition);
-                doc.text('Capital', 150, yPosition);
-                doc.text('Tipo', 170, yPosition);
+                doc.text('Valor Pago', 95, yPosition);
+                doc.text('Multa', 120, yPosition);
+                doc.text('Juros', 140, yPosition);
+                doc.text('Capital', 160, yPosition);
+                doc.text('Tipo', 180, yPosition);
                 yPosition += 8;
                 doc.line(20, yPosition - 2, 190, yPosition - 2);
                 yPosition += 5;
@@ -8949,12 +8959,15 @@ async function generateWeeklyPaymentsPDF() {
                 paymentTypeText = 'PGTO';
             }
             
+            const fineAmount = parseFloat(payment.fine_amount) || 0;
+            
             doc.text(formatDate(payment.payment_date), 20, yPosition);
             doc.text(client.name.substring(0, 20), 45, yPosition);
-            doc.text(`R$ ${paymentAmount.toFixed(2)}`, 100, yPosition);
-            doc.text(`R$ ${interestPaid.toFixed(2)}`, 130, yPosition);
-            doc.text(`R$ ${capitalPaid.toFixed(2)}`, 150, yPosition);
-            doc.text(paymentTypeText, 170, yPosition);
+            doc.text(`R$ ${paymentAmount.toFixed(2)}`, 95, yPosition);
+            doc.text(fineAmount > 0 ? `R$ ${fineAmount.toFixed(2)}` : '-', 120, yPosition);
+            doc.text(`R$ ${interestPaid.toFixed(2)}`, 140, yPosition);
+            doc.text(`R$ ${capitalPaid.toFixed(2)}`, 160, yPosition);
+            doc.text(paymentTypeText, 180, yPosition);
             
             yPosition += 8;
         }
