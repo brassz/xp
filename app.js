@@ -416,6 +416,17 @@ function setupEventListeners() {
             document.getElementById('newDueDate').value = '';
         }
     });
+
+    // Checkbox para incluir multa no modal de pagamento
+    document.getElementById('includeFineCheckbox').addEventListener('change', function() {
+        const container = document.getElementById('fineContainer');
+        if (this.checked) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+            document.getElementById('fineAmount').value = '';
+        }
+    });
     
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
@@ -2161,6 +2172,10 @@ async function handlePayment(e) {
     const changeDueDate = document.getElementById('changeDueDateCheckbox').checked;
     const newDueDate = changeDueDate ? document.getElementById('newDueDate').value : null;
     
+    // Verificar se deve incluir multa
+    const includeFine = document.getElementById('includeFineCheckbox').checked;
+    const fineAmount = includeFine ? parseFloat(document.getElementById('fineAmount').value) || 0 : 0;
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -2188,12 +2203,12 @@ async function handlePayment(e) {
             const loan = loans.find(l => l.id === loanId);
             const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
             
-            // Para empréstimos vencidos, NÃO recalcular os valores originais
-            // Apenas registrar o pagamento e atualizar status/data posteriormente
-            if (currentLoanStatus !== 'overdue') {
-                // Verificar se é necessário recalcular o empréstimo apenas para empréstimos não vencidos
-                recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
-            }
+            // DESABILITADO: Não recalcular valores originais dos empréstimos
+            // Os valores originais devem SEMPRE permanecer inalterados
+            // O cálculo de valores restantes é feito baseado apenas nos pagamentos
+            // if (currentLoanStatus !== 'overdue') {
+            //     recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+            // }
         }
         
         // Registrar ou atualizar o pagamento
@@ -2207,6 +2222,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
+                    fine_amount: fineAmount,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', paymentId);
@@ -2221,6 +2237,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
+                    fine_amount: fineAmount,
                     created_by: currentUser.id,
                     created_at: new Date().toISOString()
                 }]);
@@ -2229,11 +2246,10 @@ async function handlePayment(e) {
         
         if (paymentError) throw paymentError;
         
-        // Se precisa recalcular, atualizar os valores do empréstimo
+        // Se precisa recalcular, atualizar APENAS status e data de vencimento (NUNCA o valor original)
         if (recalcInfo.shouldRecalculate) {
-            // Preparar dados para atualização
+            // Preparar dados para atualização - NUNCA alterar o campo amount (valor original)
             let updateData = {
-                amount: recalcInfo.newAmount,
                 updated_at: new Date().toISOString(),
                 status: recalcInfo.isFullyPaid ? 'paid' : 'active'
             };
@@ -2243,6 +2259,7 @@ async function handlePayment(e) {
                 updateData.due_date = recalcInfo.newDueDate;
             }
             
+            // IMPORTANTE: NÃO atualizar o campo 'amount' para preservar valor original
             const { error: loanUpdateError } = await supabase
                 .from('loans')
                 .update(updateData)
@@ -2903,7 +2920,8 @@ async function calculateAndShowRemainingAmount(loanId) {
         const loan = loans.find(l => l.id === loanId);
         if (!loan) return;
         
-        const currentCapital = parseFloat(loan.amount);
+        // SEMPRE usar o valor original do empréstimo (nunca o valor alterado)
+        const originalCapital = parseFloat(loan.original_amount || loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
         
         // Validação: se a taxa for muito alta, pode estar em formato incorreto
@@ -2912,13 +2930,13 @@ async function calculateAndShowRemainingAmount(loanId) {
             finalInterestRate = interestRate / 100;
         }
         
-        const currentInterestAmount = currentCapital * (finalInterestRate / 100);
-        const currentTotal = currentCapital + currentInterestAmount;
+        const originalInterestAmount = originalCapital * (finalInterestRate / 100);
+        const originalTotal = originalCapital + originalInterestAmount;
         
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount, payment_type, created_at')
+            .select('amount, payment_type, created_at, fine_amount')
             .eq('loan_id', loanId)
             .order('created_at', { ascending: true });
         
@@ -2927,77 +2945,54 @@ async function calculateAndShowRemainingAmount(loanId) {
         // Separar pagamentos reais de ajustes/notificações
         const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
         
-        // Calcular estado atual baseado nos pagamentos
-        let totalPaidThisCycle = 0;
+        // Calcular total pago até agora (todos os pagamentos reais + multas)
+        const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalFinesPaid = realPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
         
-        // Verificar se existe uma renovação recente que resetou o ciclo
-        const lastRenewal = payments.filter(p => p.payment_type === 'interest_renewal').pop();
+        // Calcular quanto foi pago de capital e quanto de juros (multas são separadas)
+        let capitalPaid = 0;
+        let interestPaid = 0;
         
-        if (lastRenewal) {
-            // Se houve renovação, considerar apenas pagamentos após ela
-            const renewalDate = new Date(lastRenewal.created_at);
-            const paymentsAfterRenewal = realPayments.filter(p => new Date(p.created_at) > renewalDate);
-            totalPaidThisCycle = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        if (totalPaid > originalInterestAmount) {
+            // Pagou mais que os juros originais, a diferença foi do capital
+            interestPaid = originalInterestAmount;
+            capitalPaid = totalPaid - originalInterestAmount;
         } else {
-            // Primeira vez ou sem renovações, considerar todos os pagamentos
-            totalPaidThisCycle = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            // Pagou menos ou igual aos juros originais
+            interestPaid = totalPaid;
+            capitalPaid = 0;
         }
         
-        // Calcular quanto ainda deve baseado no tipo de pagamento feito
-        let remainingAmount;
+        // Calcular capital restante
+        const remainingCapital = Math.max(0, originalCapital - capitalPaid);
         
-        if (totalPaidThisCycle === 0) {
-            // Nenhum pagamento feito ainda neste ciclo
-            remainingAmount = currentTotal;
-        } else {
-            // Houve pagamentos, vamos analisar o que foi pago
-            const paidExactlyInterest = Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01);
-            const paidMoreThanInterest = totalPaidThisCycle > currentInterestAmount;
-            const paidLessThanInterest = totalPaidThisCycle < currentInterestAmount;
-            
-            if (paidExactlyInterest) {
-                // PAGOU APENAS JUROS: Capital permanece, próximo período terá mesmo valor total
-                remainingAmount = currentCapital + currentInterestAmount;
-            } else if (paidMoreThanInterest) {
-                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
-                const paidCapital = totalPaidThisCycle - currentInterestAmount;
-                const newCapital = Math.max(0, currentCapital - paidCapital);
-                
-                console.log('Análise pagamento capital:', {
-                    totalPaidThisCycle,
-                    currentInterestAmount,
-                    currentCapital,
-                    paidCapital,
-                    newCapital
-                });
-                
-                if (newCapital <= 0) {
-                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
-                    remainingAmount = 0;
-                } else {
-                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
-                    const newInterest = newCapital * (finalInterestRate / 100);
-                    remainingAmount = newCapital + newInterest;
-                    
-                    console.log('Novo estado após pagamento parcial:', {
-                        newCapital,
-                        newInterest,
-                        remainingAmount
-                    });
-                }
-            } else if (paidLessThanInterest) {
-                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
-                const unpaidInterest = currentInterestAmount - totalPaidThisCycle;
-                const newInterest = currentCapital * (finalInterestRate / 100);
-                remainingAmount = currentCapital + unpaidInterest + newInterest;
-            } else {
-                // Fallback: lógica original
-                remainingAmount = currentTotal - totalPaidThisCycle;
-            }
-        }
+        // Calcular juros restantes baseado no capital restante
+        const remainingInterest = remainingCapital * (finalInterestRate / 100);
         
-        // O pagamento mínimo é sempre o valor dos juros atuais
-        const minimumPayment = currentInterestAmount;
+        // Valor total restante
+        const remainingAmount = remainingCapital + remainingInterest;
+        
+        // O pagamento mínimo é sempre o valor dos juros do capital restante
+        const minimumPayment = remainingInterest;
+        
+        console.log('=== CÁLCULO CORRETO DE VALOR RESTANTE ===');
+        console.log('Valores originais:', {
+            originalCapital,
+            originalInterestAmount,
+            originalTotal,
+            interestRate: finalInterestRate * 100 + '%'
+        });
+        console.log('Pagamentos analisados:', {
+            totalPaid,
+            capitalPaid,
+            interestPaid
+        });
+        console.log('Valores restantes:', {
+            remainingCapital,
+            remainingInterest,
+            remainingAmount,
+            minimumPayment
+        });
         
         console.log('=== DEBUG DETALHADO DO EMPRÉSTIMO ===');
         console.log('1. Estado atual do empréstimo:', {
@@ -3034,20 +3029,26 @@ async function calculateAndShowRemainingAmount(loanId) {
         });
         console.log('=== FIM DEBUG ===');
         
-        // Mostrar informações detalhadas
-        document.getElementById('paymentCapitalAmount').textContent = `R$ ${currentCapital.toFixed(2)}`;
+        // Mostrar informações detalhadas (sempre baseadas nos valores originais)
+        document.getElementById('paymentCapitalAmount').textContent = `R$ ${originalCapital.toFixed(2)}`;
         document.getElementById('paymentInterestRate').textContent = `${finalInterestRate.toFixed(2)}%`;
-        document.getElementById('paymentInterestAmount').textContent = `R$ ${currentInterestAmount.toFixed(2)}`;
-        document.getElementById('paymentTotalAmount').textContent = `R$ ${currentTotal.toFixed(2)}`;
+        document.getElementById('paymentInterestAmount').textContent = `R$ ${originalInterestAmount.toFixed(2)}`;
+        document.getElementById('paymentTotalAmount').textContent = `R$ ${originalTotal.toFixed(2)}`;
         document.getElementById('paymentRemainingAmount').textContent = `R$ ${Math.max(0, remainingAmount).toFixed(2)}`;
         document.getElementById('paymentMinimumAmount').textContent = `R$ ${minimumPayment.toFixed(2)}`;
         
+        // Mostrar separação de pagamentos já realizados
+        document.getElementById('paymentCapitalPaid').textContent = `R$ ${capitalPaid.toFixed(2)}`;
+        document.getElementById('paymentInterestPaid').textContent = `R$ ${interestPaid.toFixed(2)}`;
+        document.getElementById('paymentFinesPaid').textContent = `R$ ${totalFinesPaid.toFixed(2)}`;
+        document.getElementById('paymentTotalPaid').textContent = `R$ ${(totalPaid + totalFinesPaid).toFixed(2)}`;
+        
     } catch (error) {
         console.error('Erro ao calcular valor restante:', error);
-        // Em caso de erro, mostrar valores básicos
+        // Em caso de erro, mostrar valores básicos (sempre usar valor original)
         const loan = loans.find(l => l.id === loanId);
         if (loan) {
-            const capitalAmount = parseFloat(loan.amount);
+            const capitalAmount = parseFloat(loan.original_amount || loan.amount);
             let interestRate = parseFloat(loan.interest_rate);
             
             if (interestRate > 100) {
@@ -3063,6 +3064,12 @@ async function calculateAndShowRemainingAmount(loanId) {
             document.getElementById('paymentTotalAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
             document.getElementById('paymentRemainingAmount').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
             document.getElementById('paymentMinimumAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
+            
+            // Limpar informações de pagamentos (fallback)
+            document.getElementById('paymentCapitalPaid').textContent = `R$ 0,00`;
+            document.getElementById('paymentInterestPaid').textContent = `R$ 0,00`;
+            document.getElementById('paymentFinesPaid').textContent = `R$ 0,00`;
+            document.getElementById('paymentTotalPaid').textContent = `R$ 0,00`;
         }
     }
 }
@@ -3106,7 +3113,7 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
         // Buscar pagamentos anteriores para entender o estado atual
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount, payment_type, notes')
+            .select('amount, payment_type, notes, fine_amount')
             .eq('loan_id', loanId);
         
         if (error) throw error;
@@ -5173,7 +5180,7 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
         // Buscar histórico de pagamentos
         const { data: payments, error: paymentsError } = await supabase
             .from('payments')
-            .select('amount, payment_date, payment_type')
+            .select('amount, payment_date, payment_type, fine_amount')
             .eq('loan_id', loanId)
             .order('payment_date', { ascending: true });
 
@@ -5399,7 +5406,7 @@ async function sendWhatsAppMessage(loanId) {
         // Buscar histórico de pagamentos
         const { data: payments, error: paymentsError } = await supabase
             .from('payments')
-            .select('amount, payment_date, payment_type')
+            .select('amount, payment_date, payment_type, fine_amount')
             .eq('loan_id', loanId)
             .order('payment_date', { ascending: true });
 
@@ -5674,9 +5681,22 @@ function updatePaymentHistorySummary(loanId, payments) {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
     
-    const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+    const originalAmount = parseFloat(loan.original_amount || loan.amount);
+    const originalInterest = originalAmount * (parseFloat(loan.interest_rate) / 100);
+    const originalTotal = originalAmount + originalInterest;
     const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-    const remainingAmount = totalWithInterest - totalPaid;
+    
+    // Calcular valor restante baseado no valor original
+    let remainingAmount;
+    if (totalPaid >= originalTotal) {
+        remainingAmount = 0;
+    } else {
+        // Calcular quanto foi pago de capital
+        const capitalPaid = Math.max(0, totalPaid - originalInterest);
+        const remainingCapital = Math.max(0, originalAmount - capitalPaid);
+        const remainingInterest = remainingCapital * (parseFloat(loan.interest_rate) / 100);
+        remainingAmount = remainingCapital + remainingInterest;
+    }
     
     document.getElementById('paymentHistoryTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
     document.getElementById('paymentHistoryRemainingAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
@@ -5728,6 +5748,18 @@ async function editPayment(paymentId) {
         document.getElementById('paymentDate').value = payment.payment_date;
         document.getElementById('paymentType').value = payment.payment_type;
         document.getElementById('paymentNotes').value = payment.notes || '';
+        
+        // Preencher campo de multa se existir
+        const fineAmount = payment.fine_amount || 0;
+        if (fineAmount > 0) {
+            document.getElementById('includeFineCheckbox').checked = true;
+            document.getElementById('fineContainer').classList.remove('hidden');
+            document.getElementById('fineAmount').value = fineAmount;
+        } else {
+            document.getElementById('includeFineCheckbox').checked = false;
+            document.getElementById('fineContainer').classList.add('hidden');
+            document.getElementById('fineAmount').value = '';
+        }
 
         // Mostrar o modal de pagamento
         showModal(paymentModal);
@@ -5930,7 +5962,7 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
         // Buscar todos os pagamentos de uma vez
         const { data: allPayments, error: paymentsError } = await supabase
             .from('payments')
-            .select('loan_id, amount, payment_type')
+            .select('loan_id, amount, payment_type, fine_amount')
             .in('loan_id', loanIds);
         
         if (paymentsError) throw paymentsError;
@@ -5954,7 +5986,8 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
                 continue;
             }
             
-            const capitalAmount = parseFloat(loan.amount);
+            // SEMPRE usar o valor original (nunca o valor alterado)
+            const originalCapital = parseFloat(loan.original_amount || loan.amount);
             let interestRate = parseFloat(loan.interest_rate);
             
             // Ajustar taxa se necessário
@@ -5962,31 +5995,41 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
                 interestRate = interestRate / 100;
             }
             
-            const interestAmount = capitalAmount * (interestRate / 100);
-            const totalWithInterest = capitalAmount + interestAmount;
+            const originalInterest = originalCapital * (interestRate / 100);
+            const originalTotal = originalCapital + originalInterest;
             
             const payments = paymentsByLoan[loanId] || [];
             
-            // Verificar se houve renovações
+            // Separar pagamentos reais de ajustes
             const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
-            const hasRenewals = payments.some(p => p.payment_type === 'renewal');
             
-            let totalPaid;
-            if (hasRenewals) {
-                // Se houve renovação, considerar apenas pagamentos após a última renovação
-                const lastRenewalIndex = payments.map((p, index) => ({ ...p, originalIndex: index }))
-                    .filter(p => p.payment_type === 'renewal')
-                    .pop()?.originalIndex || -1;
-                
-                const paymentsAfterRenewal = payments.slice(lastRenewalIndex + 1);
-                totalPaid = paymentsAfterRenewal
-                    .filter(p => parseFloat(p.amount) > 0)
-                    .reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            // Calcular total pago (todos os pagamentos reais)
+            const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            
+            // Calcular valor restante baseado no valor original
+            let remaining;
+            if (totalPaid === 0) {
+                remaining = originalTotal;
+            } else if (totalPaid >= originalTotal) {
+                remaining = 0;
             } else {
-                totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+                // Calcular quanto foi pago de capital e juros
+                let capitalPaid = 0;
+                
+                if (totalPaid > originalInterest) {
+                    // Pagou mais que os juros originais, a diferença foi do capital
+                    capitalPaid = totalPaid - originalInterest;
+                }
+                
+                // Calcular capital restante
+                const remainingCapital = Math.max(0, originalCapital - capitalPaid);
+                
+                // Calcular juros restantes baseado no capital restante
+                const remainingInterest = remainingCapital * (interestRate / 100);
+                
+                // Valor total restante
+                remaining = remainingCapital + remainingInterest;
             }
-            
-            const remaining = Math.max(0, totalWithInterest - totalPaid);
             remainingAmounts.push(remaining);
             
             // Atualizar cache
@@ -6012,7 +6055,8 @@ async function calculateLoanRemainingAmount(loanId) {
         const loan = loans.find(l => l.id === loanId);
         if (!loan) return 0;
         
-        const capitalAmount = parseFloat(loan.amount);
+        // SEMPRE usar o valor original (nunca o valor alterado)
+        const originalCapital = parseFloat(loan.original_amount || loan.amount);
         let interestRate = parseFloat(loan.interest_rate);
         
         // Ajustar taxa se necessário
@@ -6020,13 +6064,13 @@ async function calculateLoanRemainingAmount(loanId) {
             interestRate = interestRate / 100;
         }
         
-        const interestAmount = capitalAmount * (interestRate / 100);
-        const totalWithInterest = capitalAmount + interestAmount;
+        const originalInterest = originalCapital * (interestRate / 100);
+        const originalTotal = originalCapital + originalInterest;
         
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount, payment_type')
+            .select('amount, payment_type, fine_amount')
             .eq('loan_id', loanId);
         
         if (error) throw error;
@@ -6049,40 +6093,38 @@ async function calculateLoanRemainingAmount(loanId) {
             totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
         }
         
-        // Calcular valor restante usando a mesma lógica da função principal
+        // Calcular valor restante baseado no valor original (NUNCA alterado)
         let remainingAmount;
         
         if (totalPaid === 0) {
-            remainingAmount = totalWithInterest;
+            // Nenhum pagamento feito
+            remainingAmount = originalTotal;
+        } else if (totalPaid >= originalTotal) {
+            // Empréstimo quitado
+            remainingAmount = 0;
         } else {
-            const paidExactlyInterest = Math.abs(totalPaid - interestAmount) <= (interestAmount * 0.01);
-            const paidMoreThanInterest = totalPaid > interestAmount;
-            const paidLessThanInterest = totalPaid < interestAmount;
+            // Calcular quanto foi pago de capital e juros
+            let capitalPaid = 0;
+            let interestPaid = 0;
             
-            if (paidExactlyInterest) {
-                // PAGOU APENAS JUROS: próximo período terá mesmo valor total
-                remainingAmount = capitalAmount + interestAmount;
-            } else if (paidMoreThanInterest) {
-                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
-                const paidCapital = totalPaid - interestAmount;
-                const newCapital = Math.max(0, capitalAmount - paidCapital);
-                
-                if (newCapital <= 0) {
-                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
-                    remainingAmount = 0;
-                } else {
-                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
-                    const newInterest = newCapital * (interestRate / 100);
-                    remainingAmount = newCapital + newInterest;
-                }
-            } else if (paidLessThanInterest) {
-                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
-                const unpaidInterest = interestAmount - totalPaid;
-                const newInterest = capitalAmount * (interestRate / 100);
-                remainingAmount = capitalAmount + unpaidInterest + newInterest;
+            if (totalPaid > originalInterest) {
+                // Pagou mais que os juros originais, a diferença foi do capital
+                interestPaid = originalInterest;
+                capitalPaid = totalPaid - originalInterest;
             } else {
-                remainingAmount = totalWithInterest - totalPaid;
+                // Pagou menos ou igual aos juros originais
+                interestPaid = totalPaid;
+                capitalPaid = 0;
             }
+            
+            // Calcular capital restante
+            const remainingCapital = Math.max(0, originalCapital - capitalPaid);
+            
+            // Calcular juros restantes baseado no capital restante
+            const remainingInterest = remainingCapital * (interestRate / 100);
+            
+            // Valor total restante
+            remainingAmount = remainingCapital + remainingInterest;
         }
         
         return Math.max(0, remainingAmount);
@@ -7432,6 +7474,7 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
                 type: 'payment',
                 date: payment.payment_date,
                 amount: parseFloat(payment.amount),
+                fineAmount: parseFloat(payment.fine_amount || 0),
                 paymentType: payment.payment_type,
                 notes: payment.notes || 'Sem notas',
                 loanAmount: parseFloat(loan.amount),
@@ -7447,6 +7490,7 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
             type: 'settlement',
             date: paidLoan.paid_date,
             amount: parseFloat(paidLoan.total_paid || 0),
+            fineAmount: 0, // Empréstimos quitados não têm multa separada
             paymentType: paidLoan.payment_method || 'Quitação',
             notes: paidLoan.notes || 'Empréstimo quitado completamente',
             loanAmount: parseFloat(paidLoan.original_amount || 0),
@@ -7461,7 +7505,7 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
     if (allPaymentInfo.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
                     Nenhum pagamento encontrado para este cliente
                 </td>
             </tr>
@@ -7481,6 +7525,9 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${info.isFromPaidLoan ? 'text-green-400 font-semibold' : 'text-gray-300'}">
                     R$ ${info.amount.toFixed(2)}
                     ${info.isFromPaidLoan ? '<div class="text-xs text-green-300">Quitação</div>' : ''}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${(info.fineAmount > 0) ? 'text-red-400' : 'text-gray-500'}">
+                    ${(info.fineAmount > 0) ? `R$ ${info.fineAmount.toFixed(2)}` : '-'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     ${typeDisplay}
@@ -8829,6 +8876,14 @@ async function generateWeeklyPaymentsPDF() {
         doc.line(20, yPosition, 190, yPosition);
         yPosition += 10;
         
+        // Adicionar total de multas antes da tabela
+        const totalFines = allWeeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+        yPosition -= 15; // Voltar para adicionar a linha de multas
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total em Multas: R$ ${totalFines.toFixed(2)}`, 20, yPosition);
+        yPosition += 15;
+        
         // Cabeçalho da tabela
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -8841,9 +8896,9 @@ async function generateWeeklyPaymentsPDF() {
         doc.text('Data', 20, yPosition);
         doc.text('Cliente', 45, yPosition);
         doc.text('Valor Pago', 100, yPosition);
-        doc.text('Juros', 130, yPosition);
-        doc.text('Capital', 150, yPosition);
-        doc.text('Tipo', 170, yPosition);
+        doc.text('Multa', 130, yPosition);
+        doc.text('Juros', 160, yPosition);
+        doc.text('Capital', 180, yPosition);
         yPosition += 8;
         
         // Linha dos cabeçalhos
@@ -8864,9 +8919,9 @@ async function generateWeeklyPaymentsPDF() {
                 doc.text('Data', 20, yPosition);
                 doc.text('Cliente', 45, yPosition);
                 doc.text('Valor Pago', 100, yPosition);
-                doc.text('Juros', 130, yPosition);
-                doc.text('Capital', 150, yPosition);
-                doc.text('Tipo', 170, yPosition);
+                doc.text('Multa', 130, yPosition);
+                doc.text('Juros', 160, yPosition);
+                doc.text('Capital', 180, yPosition);
                 yPosition += 8;
                 doc.line(20, yPosition - 2, 190, yPosition - 2);
                 yPosition += 5;
@@ -8902,12 +8957,14 @@ async function generateWeeklyPaymentsPDF() {
                 paymentTypeText = 'PGTO';
             }
             
+            const fineAmount = parseFloat(payment.fine_amount) || 0;
+            
             doc.text(formatDate(payment.payment_date), 20, yPosition);
-            doc.text(client.name.substring(0, 20), 45, yPosition);
+            doc.text(client.name.substring(0, 18), 45, yPosition);
             doc.text(`R$ ${paymentAmount.toFixed(2)}`, 100, yPosition);
-            doc.text(`R$ ${interestPaid.toFixed(2)}`, 130, yPosition);
-            doc.text(`R$ ${capitalPaid.toFixed(2)}`, 150, yPosition);
-            doc.text(paymentTypeText, 170, yPosition);
+            doc.text(fineAmount > 0 ? `R$ ${fineAmount.toFixed(2)}` : '-', 130, yPosition);
+            doc.text(`R$ ${interestPaid.toFixed(2)}`, 160, yPosition);
+            doc.text(`R$ ${capitalPaid.toFixed(2)}`, 180, yPosition);
             
             yPosition += 8;
         }
@@ -8920,8 +8977,9 @@ async function generateWeeklyPaymentsPDF() {
         doc.setFont('helvetica', 'bold');
         doc.text('TOTAIS DA SEMANA:', 20, yPosition);
         doc.text(`R$ ${totalPayments.toFixed(2)}`, 100, yPosition);
-        doc.text(`R$ ${totalInterest.toFixed(2)}`, 130, yPosition);
-        doc.text(`R$ ${totalCapital.toFixed(2)}`, 150, yPosition);
+        doc.text(`R$ ${totalFines.toFixed(2)}`, 130, yPosition);
+        doc.text(`R$ ${totalInterest.toFixed(2)}`, 160, yPosition);
+        doc.text(`R$ ${totalCapital.toFixed(2)}`, 180, yPosition);
         
         // Informações da empresa no rodapé
         const pageCount = doc.internal.getNumberOfPages();
@@ -11769,6 +11827,32 @@ async function generateWeeklyReportPDF() {
         doc.text(`Valor total com juros: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 15;
         
+        // Buscar informações sobre multas da semana
+        const { data: weeklyPayments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('fine_amount')
+            .gte('payment_date', last7Days.toISOString().split('T')[0])
+            .lte('payment_date', now.toISOString().split('T')[0]);
+        
+        if (!paymentsError && weeklyPayments) {
+            const totalFines = weeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            const fineCount = weeklyPayments.filter(payment => (parseFloat(payment.fine_amount) || 0) > 0).length;
+            
+            if (totalFines > 0) {
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text('MULTAS DA SEMANA', 20, yPosition);
+                yPosition += 10;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de multas aplicadas: ${fineCount}`, 20, yPosition);
+                yPosition += 6;
+                doc.text(`Valor total em multas: R$ ${totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                yPosition += 15;
+            }
+        }
+        
         // Distribuição diária
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -11896,6 +11980,35 @@ async function generateMonthlyReportPDF() {
         doc.text(`Crescimento: ${growth > 0 ? '+' : ''}${growth.toFixed(1)}%`, 20, yPosition);
         yPosition += 15;
         
+        // Buscar informações sobre multas do mês
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        
+        const { data: monthlyPayments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('fine_amount')
+            .gte('payment_date', startOfMonth.toISOString().split('T')[0])
+            .lte('payment_date', endOfMonth.toISOString().split('T')[0]);
+        
+        if (!paymentsError && monthlyPayments) {
+            const totalFines = monthlyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            const fineCount = monthlyPayments.filter(payment => (parseFloat(payment.fine_amount) || 0) > 0).length;
+            
+            if (totalFines > 0) {
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text('MULTAS DO MÊS', 20, yPosition);
+                yPosition += 10;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de multas aplicadas: ${fineCount}`, 20, yPosition);
+                yPosition += 6;
+                doc.text(`Valor total em multas: R$ ${totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                yPosition += 15;
+            }
+        }
+        
         // Distribuição por status no mês
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -12006,6 +12119,11 @@ function renderWeeklyPaymentsTable(payments) {
                 <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium ${payment.fine_amount > 0 ? 'text-red-400' : 'text-gray-500'}">
+                    ${payment.fine_amount > 0 ? `R$ ${payment.fine_amount.toFixed(2)}` : '-'}
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
                     ${getPaymentMethodText(payment.payment_method)}
                 </span>
@@ -12024,15 +12142,18 @@ function renderWeeklyPaymentsTable(payments) {
 // Função para atualizar resumo dos pagamentos semanais
 function updateWeeklyPaymentsSummary(payments) {
     const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalFines = payments.reduce((sum, payment) => sum + (payment.fine_amount || 0), 0);
     const totalCount = payments.length;
     const uniqueClients = new Set(payments.map(p => p.loans?.client_id).filter(Boolean)).size;
 
     // Atualizar elementos do DOM
     const totalAmountEl = document.getElementById('totalPaymentsAmount');
+    const totalFinesEl = document.getElementById('totalFinesAmount');
     const totalCountEl = document.getElementById('totalPaymentsCount');
     const uniqueClientsEl = document.getElementById('uniqueClientsCount');
 
     if (totalAmountEl) totalAmountEl.textContent = `R$ ${totalAmount.toFixed(2)}`;
+    if (totalFinesEl) totalFinesEl.textContent = `R$ ${totalFines.toFixed(2)}`;
     if (totalCountEl) totalCountEl.textContent = totalCount.toString();
     if (uniqueClientsEl) uniqueClientsEl.textContent = uniqueClients.toString();
 }
@@ -12847,6 +12968,11 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         doc.text(`Total em Juros: R$ ${totalInterest.toFixed(2)}`, 20, yPosition);
         yPosition += 8;
         doc.text(`Total em Capital: R$ ${totalCapital.toFixed(2)}`, 20, yPosition);
+        yPosition += 8;
+        
+        // Calcular e exibir total de multas
+        const totalFines = allWeeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+        doc.text(`Total em Multas: R$ ${totalFines.toFixed(2)}`, 20, yPosition);
         yPosition += 15;
         
         // Linha divisória
@@ -12866,9 +12992,9 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
             doc.text('Data', 20, yPosition);
             doc.text('Cliente', 45, yPosition);
             doc.text('Valor Pago', 100, yPosition);
-            doc.text('Juros', 130, yPosition);
-            doc.text('Capital', 150, yPosition);
-            doc.text('Tipo', 170, yPosition);
+            doc.text('Multa', 130, yPosition);
+            doc.text('Juros', 160, yPosition);
+            doc.text('Capital', 180, yPosition);
             yPosition += 5;
             
             // Linha separadora
@@ -12912,12 +13038,14 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
                     paymentTypeText = 'PGTO';
                 }
                 
+                const fineAmount = parseFloat(payment.fine_amount) || 0;
+                
                 doc.text(formatDate(payment.payment_date), 20, yPosition);
-                doc.text(client.name.substring(0, 20), 45, yPosition);
+                doc.text(client.name.substring(0, 18), 45, yPosition);
                 doc.text(`R$ ${paymentAmount.toFixed(2)}`, 100, yPosition);
-                doc.text(`R$ ${interestPaid.toFixed(2)}`, 130, yPosition);
-                doc.text(`R$ ${capitalPaid.toFixed(2)}`, 150, yPosition);
-                doc.text(paymentTypeText, 170, yPosition);
+                doc.text(fineAmount > 0 ? `R$ ${fineAmount.toFixed(2)}` : '-', 130, yPosition);
+                doc.text(`R$ ${interestPaid.toFixed(2)}`, 160, yPosition);
+                doc.text(`R$ ${capitalPaid.toFixed(2)}`, 180, yPosition);
                 
                 yPosition += 8;
             }
@@ -12930,8 +13058,9 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAIS DA SEMANA:', 20, yPosition);
             doc.text(`R$ ${totalPayments.toFixed(2)}`, 100, yPosition);
-            doc.text(`R$ ${totalInterest.toFixed(2)}`, 130, yPosition);
-            doc.text(`R$ ${totalCapital.toFixed(2)}`, 150, yPosition);
+            doc.text(`R$ ${totalFines.toFixed(2)}`, 130, yPosition);
+            doc.text(`R$ ${totalInterest.toFixed(2)}`, 160, yPosition);
+            doc.text(`R$ ${totalCapital.toFixed(2)}`, 180, yPosition);
         } else {
             doc.text('Nenhum pagamento encontrado no período selecionado.', 20, yPosition);
         }

@@ -176,6 +176,38 @@
             border-radius: 16px;
             box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
         }
+        
+        /* Garantir que o modal de pagamento seja acessível em telas pequenas */
+        @media (max-height: 700px) {
+            #paymentModal .modal-content {
+                max-height: 85vh;
+            }
+        }
+        
+        @media (max-height: 600px) {
+            #paymentModal .modal-content {
+                max-height: 90vh;
+            }
+        }
+        
+        /* Melhorar scroll em dispositivos móveis */
+        #paymentModal .modal-content {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(59, 130, 246, 0.5) transparent;
+        }
+        
+        #paymentModal .modal-content::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #paymentModal .modal-content::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        #paymentModal .modal-content::-webkit-scrollbar-thumb {
+            background-color: rgba(59, 130, 246, 0.5);
+            border-radius: 3px;
+        }
 
         .status-badge {
             padding: 4px 12px;
@@ -1159,6 +1191,15 @@
                             <p class="text-2xl font-bold text-white" id="totalPaymentsCount">0</p>
                         </div>
                         <div class="glass-card p-6 rounded-xl text-center">
+                            <div class="text-red-400 mb-2">
+                                <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                                </svg>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-1">Total Multas</p>
+                            <p class="text-2xl font-bold text-white" id="totalFinesAmount">R$ 0,00</p>
+                        </div>
+                        <div class="glass-card p-6 rounded-xl text-center">
                             <div class="text-purple-400 mb-2">
                                 <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                     <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"></path>
@@ -1182,6 +1223,7 @@
                                         <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Cliente</th>
                                         <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Empréstimo</th>
                                         <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Valor</th>
+                                        <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Multa</th>
                                         <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Método</th>
                                         <th class="px-6 py-4 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Status</th>
                                     </tr>
@@ -1674,6 +1716,7 @@
                                     <tr class="border-b border-gray-700">
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Data</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Valor</th>
+                                        <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Multa</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Tipo</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Empréstimo</th>
                                         <th class="px-6 py-3 text-left text-xs font-medium text-gray-300 uppercase tracking-wider">Notas</th>
@@ -1681,7 +1724,7 @@
                                 </thead>
                                 <tbody id="historyPaymentsTableBody" class="divide-y divide-gray-700">
                                     <tr>
-                                        <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                                        <td colspan="6" class="px-6 py-8 text-center text-gray-400">
                                             Selecione um cliente para ver o histórico de pagamentos
                                         </td>
                                     </tbody>
@@ -1946,8 +1989,8 @@
 
     <!-- Payment Modal -->
     <div id="paymentModal" class="modal-overlay fixed inset-0 z-50 hidden">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-sm p-3">
+        <div class="flex items-center justify-center min-h-screen p-2 sm:p-4">
+            <div class="modal-content w-full max-w-2xl max-h-[95vh] overflow-y-auto p-3 sm:p-4">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-lg font-semibold text-white">Registrar Pagamento</h3>
                     <button id="closePaymentModal" class="text-gray-400 hover:text-white">
@@ -1957,86 +2000,139 @@
                     </button>
                 </div>
                 
-                <form id="paymentForm" class="space-y-2">
+                <form id="paymentForm" class="space-y-4">
+                    <!-- Cliente -->
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-1">Cliente</label>
-                        <p class="text-white" id="paymentClientName">-</p>
+                        <p class="text-white font-semibold" id="paymentClientName">-</p>
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Detalhes do Empréstimo</label>
-                        <div class="bg-gray-800 p-2 rounded-lg space-y-1 text-sm">
-                            <div class="flex justify-between">
-                                <span class="text-gray-300">Capital:</span>
-                                <span class="text-white" id="paymentCapitalAmount">R$ 0,00</span>
+                    <!-- Informações do Empréstimo em 2 colunas -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Detalhes do Empréstimo</label>
+                            <div class="bg-gray-800 p-3 rounded-lg space-y-1 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">Capital:</span>
+                                    <span class="text-white font-semibold" id="paymentCapitalAmount">R$ 0,00</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">Juros (%):</span>
+                                    <span class="text-white" id="paymentInterestRate">0%</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">Valor dos Juros:</span>
+                                    <span class="text-white" id="paymentInterestAmount">R$ 0,00</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">Total com Juros:</span>
+                                    <span class="text-white font-semibold" id="paymentTotalAmount">R$ 0,00</span>
+                                </div>
+                                <div class="flex justify-between border-t border-gray-600 pt-1">
+                                    <span class="text-gray-300">Valor Restante:</span>
+                                    <span class="text-yellow-400 font-semibold" id="paymentRemainingAmount">R$ 0,00</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">Pagamento Mínimo:</span>
+                                    <span class="text-green-400 font-semibold" id="paymentMinimumAmount">R$ 0,00</span>
+                                </div>
                             </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-300">Juros (%):</span>
-                                <span class="text-white" id="paymentInterestRate">0%</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-300">Valor dos Juros:</span>
-                                <span class="text-white" id="paymentInterestAmount">R$ 0,00</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-300">Total com Juros:</span>
-                                <span class="text-white font-semibold" id="paymentTotalAmount">R$ 0,00</span>
-                            </div>
-                            <div class="flex justify-between border-t border-gray-600 pt-1">
-                                <span class="text-gray-300">Valor Restante:</span>
-                                <span class="text-yellow-400 font-semibold" id="paymentRemainingAmount">R$ 0,00</span>
-                            </div>
-                            <div class="flex justify-between">
-                                <span class="text-gray-300">Pagamento Mínimo (Juros):</span>
-                                <span class="text-green-400 font-semibold" id="paymentMinimumAmount">R$ 0,00</span>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Pagamentos Já Realizados</label>
+                            <div class="bg-gray-800 p-3 rounded-lg space-y-1 text-sm">
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">Capital Pago:</span>
+                                    <span class="text-blue-400 font-semibold" id="paymentCapitalPaid">R$ 0,00</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">Juros Pagos:</span>
+                                    <span class="text-yellow-400 font-semibold" id="paymentInterestPaid">R$ 0,00</span>
+                                </div>
+                                <div class="flex justify-between">
+                                    <span class="text-gray-300">Multas Pagas:</span>
+                                    <span class="text-red-400 font-semibold" id="paymentFinesPaid">R$ 0,00</span>
+                                </div>
+                                <div class="flex justify-between border-t border-gray-600 pt-1">
+                                    <span class="text-gray-300">Total Pago:</span>
+                                    <span class="text-green-400 font-semibold" id="paymentTotalPaid">R$ 0,00</span>
+                                </div>
                             </div>
                         </div>
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Data do Pagamento</label>
-                        <input type="date" id="paymentDate" class="form-input w-full" required>
+                    <!-- Campos de Pagamento em 2 colunas -->
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-1">Data do Pagamento</label>
+                            <input type="date" id="paymentDate" class="form-input w-full" required>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-1">Valor do Pagamento</label>
+                            <input type="number" id="paymentAmount" class="form-input w-full" step="0.01" min="0" required>
+                            <div id="paymentValidationFeedback" class="mt-1 text-sm hidden"></div>
+                        </div>
                     </div>
                     
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Valor do Pagamento</label>
-                        <input type="number" id="paymentAmount" class="form-input w-full" step="0.01" min="0" required>
-                        <div id="paymentValidationFeedback" class="mt-1 text-sm hidden"></div>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Tipo de Pagamento</label>
-                        <select id="paymentType" class="form-input w-full" required>
-                            <option value="dinheiro">Dinheiro</option>
-                            <option value="pix">Pix</option>
-                            <option value="cartao">Cartão</option>
-                        </select>
-                    </div>
-                    
-                    <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-1">Notas/Observações</label>
-                        <textarea id="paymentNotes" class="form-input w-full text-sm" rows="1" placeholder="Observações sobre o pagamento..."></textarea>
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-1">Tipo de Pagamento</label>
+                            <select id="paymentType" class="form-input w-full" required>
+                                <option value="dinheiro">Dinheiro</option>
+                                <option value="pix">Pix</option>
+                                <option value="cartao">Cartão</option>
+                            </select>
+                        </div>
+                        
+                        <div>
+                            <label class="block text-sm font-medium text-blue-200 mb-1">Notas/Observações</label>
+                            <textarea id="paymentNotes" class="form-input w-full text-sm" rows="2" placeholder="Observações..."></textarea>
+                        </div>
                     </div>
 
-                    <!-- Optional Due Date Change -->
-                    <div class="border-t border-gray-600 pt-2">
-                        <div class="flex items-center mb-2">
-                            <input type="checkbox" id="changeDueDateCheckbox" class="mr-2">
-                            <label class="text-sm font-medium text-blue-200">Alterar data de vencimento (opcional)</label>
-                        </div>
-                        <div id="dueDateContainer" class="hidden">
-                            <label class="block text-sm font-medium text-blue-200 mb-1">Nova Data de Vencimento</label>
-                            <input type="date" id="newDueDate" class="form-input w-full">
+                    <!-- Opções Avançadas em 2 colunas -->
+                    <div class="border-t border-gray-600 pt-4">
+                        <h4 class="text-sm font-medium text-blue-200 mb-3">Opções Avançadas</h4>
+                        <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                            <!-- Multa -->
+                            <div>
+                                <div class="flex items-center mb-2">
+                                    <input type="checkbox" id="includeFineCheckbox" class="mr-2">
+                                    <label class="text-sm font-medium text-blue-200">Incluir multa</label>
+                                </div>
+                                <div id="fineContainer" class="hidden">
+                                    <label class="block text-sm font-medium text-blue-200 mb-1">Valor da Multa</label>
+                                    <input type="number" id="fineAmount" class="form-input w-full" step="0.01" min="0" placeholder="0,00">
+                                    <p class="text-xs text-gray-400 mt-1">Valor adicional separado do pagamento</p>
+                                </div>
+                            </div>
+                            
+                            <!-- Alterar Vencimento -->
+                            <div>
+                                <div class="flex items-center mb-2">
+                                    <input type="checkbox" id="changeDueDateCheckbox" class="mr-2">
+                                    <label class="text-sm font-medium text-blue-200">Alterar vencimento</label>
+                                </div>
+                                <div id="dueDateContainer" class="hidden">
+                                    <label class="block text-sm font-medium text-blue-200 mb-1">Nova Data de Vencimento</label>
+                                    <input type="date" id="newDueDate" class="form-input w-full">
+                                </div>
+                            </div>
                         </div>
                     </div>
                     
-                    <div class="flex justify-end space-x-3 pt-2">
-                        <button type="button" id="cancelPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
-                            Cancelar
-                        </button>
-                        <button type="submit" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
-                            Registrar Pagamento
-                        </button>
+                    <!-- Botões de Ação -->
+                    <div class="border-t border-gray-600 pt-4 mt-6">
+                        <div class="flex justify-end space-x-3">
+                            <button type="button" id="cancelPaymentBtn" class="px-6 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-medium">
+                                Cancelar
+                            </button>
+                            <button type="submit" class="btn-primary px-8 py-3 rounded-lg font-semibold text-white shadow-lg hover:shadow-xl transition-all">
+                                💰 Registrar Pagamento
+                            </button>
+                        </div>
                     </div>
                 </form>
             </div>
