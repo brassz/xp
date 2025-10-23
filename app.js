@@ -2936,7 +2936,7 @@ async function calculateAndShowRemainingAmount(loanId) {
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount, payment_type, created_at')
+            .select('amount, payment_type, created_at, fine_amount')
             .eq('loan_id', loanId)
             .order('created_at', { ascending: true });
         
@@ -2945,10 +2945,11 @@ async function calculateAndShowRemainingAmount(loanId) {
         // Separar pagamentos reais de ajustes/notificações
         const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
         
-        // Calcular total pago até agora (todos os pagamentos reais)
+        // Calcular total pago até agora (todos os pagamentos reais + multas)
         const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalFinesPaid = realPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
         
-        // Calcular quanto foi pago de capital e quanto de juros
+        // Calcular quanto foi pago de capital e quanto de juros (multas são separadas)
         let capitalPaid = 0;
         let interestPaid = 0;
         
@@ -3039,7 +3040,8 @@ async function calculateAndShowRemainingAmount(loanId) {
         // Mostrar separação de pagamentos já realizados
         document.getElementById('paymentCapitalPaid').textContent = `R$ ${capitalPaid.toFixed(2)}`;
         document.getElementById('paymentInterestPaid').textContent = `R$ ${interestPaid.toFixed(2)}`;
-        document.getElementById('paymentTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
+        document.getElementById('paymentFinesPaid').textContent = `R$ ${totalFinesPaid.toFixed(2)}`;
+        document.getElementById('paymentTotalPaid').textContent = `R$ ${(totalPaid + totalFinesPaid).toFixed(2)}`;
         
     } catch (error) {
         console.error('Erro ao calcular valor restante:', error);
@@ -3066,6 +3068,7 @@ async function calculateAndShowRemainingAmount(loanId) {
             // Limpar informações de pagamentos (fallback)
             document.getElementById('paymentCapitalPaid').textContent = `R$ 0,00`;
             document.getElementById('paymentInterestPaid').textContent = `R$ 0,00`;
+            document.getElementById('paymentFinesPaid').textContent = `R$ 0,00`;
             document.getElementById('paymentTotalPaid').textContent = `R$ 0,00`;
         }
     }
@@ -3110,7 +3113,7 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
         // Buscar pagamentos anteriores para entender o estado atual
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount, payment_type, notes')
+            .select('amount, payment_type, notes, fine_amount')
             .eq('loan_id', loanId);
         
         if (error) throw error;
@@ -5177,7 +5180,7 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
         // Buscar histórico de pagamentos
         const { data: payments, error: paymentsError } = await supabase
             .from('payments')
-            .select('amount, payment_date, payment_type')
+            .select('amount, payment_date, payment_type, fine_amount')
             .eq('loan_id', loanId)
             .order('payment_date', { ascending: true });
 
@@ -5403,7 +5406,7 @@ async function sendWhatsAppMessage(loanId) {
         // Buscar histórico de pagamentos
         const { data: payments, error: paymentsError } = await supabase
             .from('payments')
-            .select('amount, payment_date, payment_type')
+            .select('amount, payment_date, payment_type, fine_amount')
             .eq('loan_id', loanId)
             .order('payment_date', { ascending: true });
 
@@ -5959,7 +5962,7 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
         // Buscar todos os pagamentos de uma vez
         const { data: allPayments, error: paymentsError } = await supabase
             .from('payments')
-            .select('loan_id, amount, payment_type')
+            .select('loan_id, amount, payment_type, fine_amount')
             .in('loan_id', loanIds);
         
         if (paymentsError) throw paymentsError;
@@ -6067,7 +6070,7 @@ async function calculateLoanRemainingAmount(loanId) {
         // Buscar pagamentos já feitos
         const { data: payments, error } = await supabase
             .from('payments')
-            .select('amount, payment_type')
+            .select('amount, payment_type, fine_amount')
             .eq('loan_id', loanId);
         
         if (error) throw error;
@@ -7487,6 +7490,7 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
             type: 'settlement',
             date: paidLoan.paid_date,
             amount: parseFloat(paidLoan.total_paid || 0),
+            fineAmount: 0, // Empréstimos quitados não têm multa separada
             paymentType: paidLoan.payment_method || 'Quitação',
             notes: paidLoan.notes || 'Empréstimo quitado completamente',
             loanAmount: parseFloat(paidLoan.original_amount || 0),
