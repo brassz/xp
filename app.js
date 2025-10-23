@@ -426,7 +426,12 @@ function setupEventListeners() {
             container.classList.add('hidden');
             document.getElementById('fineAmount').value = '';
         }
+        updatePaymentSummary();
     });
+
+    // Atualizar resumo quando valores mudarem
+    document.getElementById('paymentAmount').addEventListener('input', updatePaymentSummary);
+    document.getElementById('fineAmount').addEventListener('input', updatePaymentSummary);
     
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
@@ -2658,6 +2663,9 @@ function hideModal(modal) {
         document.getElementById('fineCheckbox').checked = false;
         document.getElementById('fineContainer').classList.add('hidden');
         document.getElementById('fineAmount').value = '';
+        
+        // Limpar resumo
+        document.getElementById('paymentSummarySection').classList.add('hidden');
     } else if (modal === paymentHistoryModal) {
         // Limpar dados do histórico
         document.getElementById('paymentHistoryTableBody').innerHTML = '';
@@ -2744,6 +2752,31 @@ function updateLoanSummary() {
     document.getElementById('summaryPrincipal').textContent = `R$ ${amount.toFixed(2)}`;
     document.getElementById('summaryInterest').textContent = `R$ ${interestAmount.toFixed(2)}`;
     document.getElementById('summaryTotal').textContent = `R$ ${total.toFixed(2)}`;
+}
+
+function updatePaymentSummary() {
+    const paymentAmount = parseFloat(document.getElementById('paymentAmount').value) || 0;
+    const fineAmount = document.getElementById('fineCheckbox').checked ? 
+        (parseFloat(document.getElementById('fineAmount').value) || 0) : 0;
+    
+    const summarySection = document.getElementById('paymentSummarySection');
+    const summaryPaymentAmount = document.getElementById('summaryPaymentAmount');
+    const summaryFineAmount = document.getElementById('summaryFineAmount');
+    const summaryFineRow = document.getElementById('summaryFineRow');
+    
+    if (paymentAmount > 0 || fineAmount > 0) {
+        summarySection.classList.remove('hidden');
+        summaryPaymentAmount.textContent = `R$ ${paymentAmount.toFixed(2)}`;
+        
+        if (fineAmount > 0) {
+            summaryFineRow.style.display = 'flex';
+            summaryFineAmount.textContent = `R$ ${fineAmount.toFixed(2)}`;
+        } else {
+            summaryFineRow.style.display = 'none';
+        }
+    } else {
+        summarySection.classList.add('hidden');
+    }
 }
 
 function validatePaymentAmount() {

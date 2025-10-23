@@ -2014,15 +2014,17 @@
                     </div>
 
                     <!-- Checkbox para Multa -->
-                    <div class="border-t border-gray-600 pt-2">
+                    <div class="border-t border-gray-600 pt-2 bg-gray-800 p-3 rounded-lg">
                         <div class="flex items-center mb-2">
                             <input type="checkbox" id="fineCheckbox" class="mr-2">
-                            <label class="text-sm font-medium text-blue-200">Aplicar multa (opcional)</label>
+                            <label class="text-sm font-medium text-orange-200">🚨 Aplicar multa (opcional)</label>
                         </div>
                         <div id="fineContainer" class="hidden">
-                            <label class="block text-sm font-medium text-blue-200 mb-1">Valor da Multa</label>
-                            <input type="number" id="fineAmount" class="form-input w-full" step="0.01" min="0" placeholder="0,00">
-                            <p class="text-xs text-gray-400 mt-1">⚠️ A multa é registrada separadamente e NÃO afeta os cálculos do empréstimo</p>
+                            <label class="block text-sm font-medium text-orange-200 mb-1">Valor da Multa (Separado)</label>
+                            <input type="number" id="fineAmount" class="form-input w-full border-orange-400" step="0.01" min="0" placeholder="0,00">
+                            <div class="mt-2 p-2 bg-orange-900 bg-opacity-30 border border-orange-400 rounded text-xs text-orange-200">
+                                <strong>⚠️ IMPORTANTE:</strong> A multa é registrada separadamente e <strong>NÃO afeta</strong> os cálculos do empréstimo (valor restante, juros, etc.). É apenas para controle administrativo.
+                            </div>
                         </div>
                     </div>
                     
@@ -2052,6 +2054,26 @@
                         </div>
                     </div>
                     
+                    <!-- Resumo dos Valores -->
+                    <div id="paymentSummarySection" class="border-t border-gray-600 pt-3 mt-3 bg-gray-800 p-3 rounded-lg hidden">
+                        <h4 class="text-sm font-medium text-blue-200 mb-2">📊 Resumo do Pagamento</h4>
+                        <div class="space-y-1 text-xs">
+                            <div class="flex justify-between">
+                                <span class="text-gray-400">Valor para cálculo do empréstimo:</span>
+                                <span class="text-green-400 font-semibold" id="summaryPaymentAmount">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between" id="summaryFineRow" style="display: none;">
+                                <span class="text-gray-400">Multa (separada):</span>
+                                <span class="text-orange-400 font-semibold" id="summaryFineAmount">R$ 0,00</span>
+                            </div>
+                            <div class="border-t border-gray-600 pt-1 mt-1">
+                                <p class="text-xs text-gray-400">
+                                    <strong>Nota:</strong> Apenas o valor do pagamento afeta o saldo do empréstimo. A multa é registrada separadamente.
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class="flex justify-end space-x-3 pt-2">
                         <button type="button" id="cancelPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
                             Cancelar
