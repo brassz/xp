@@ -2183,10 +2183,15 @@ async function handlePayment(e) {
         
         // Se é uma edição, não recalcular o empréstimo (manter lógica original)
         let recalcInfo = { shouldRecalculate: false };
+        let remainingAmountBeforePayment = 0;
+        
         if (!paymentId) {
             // Verificar se o empréstimo está vencido antes de recalcular
             const loan = loans.find(l => l.id === loanId);
             const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
+            
+            // CORREÇÃO: Calcular valor restante ANTES de inserir o novo pagamento
+            remainingAmountBeforePayment = await calculateLoanRemainingAmount(loanId);
             
             // Para empréstimos vencidos, NÃO recalcular os valores originais
             // Apenas registrar o pagamento e atualizar status/data posteriormente
@@ -2231,9 +2236,9 @@ async function handlePayment(e) {
         
         // Se precisa recalcular, atualizar os valores do empréstimo
         if (recalcInfo.shouldRecalculate) {
-            // Preparar dados para atualização
+            // CORREÇÃO: NÃO alterar o campo 'amount' para manter o valor original fixo
+            // O valor original deve sempre ser: capital inicial + juros iniciais
             let updateData = {
-                amount: recalcInfo.newAmount,
                 updated_at: new Date().toISOString(),
                 status: recalcInfo.isFullyPaid ? 'paid' : 'active'
             };
@@ -2320,10 +2325,9 @@ async function handlePayment(e) {
             // Como agora o tipo representa método de pagamento, vamos verificar se o pagamento quita o empréstimo
             const loan = loans.find(l => l.id === loanId);
             const totalLoanAmount = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-            const remainingAmount = await calculateLoanRemainingAmount(loanId);
             
             let newStatus = 'partial_paid';
-            if (paymentAmount >= remainingAmount) {
+            if (paymentAmount >= remainingAmountBeforePayment) {
                 newStatus = 'paid';
             }
             
@@ -2943,58 +2947,10 @@ async function calculateAndShowRemainingAmount(loanId) {
             totalPaidThisCycle = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
         }
         
-        // Calcular quanto ainda deve baseado no tipo de pagamento feito
-        let remainingAmount;
-        
-        if (totalPaidThisCycle === 0) {
-            // Nenhum pagamento feito ainda neste ciclo
-            remainingAmount = currentTotal;
-        } else {
-            // Houve pagamentos, vamos analisar o que foi pago
-            const paidExactlyInterest = Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01);
-            const paidMoreThanInterest = totalPaidThisCycle > currentInterestAmount;
-            const paidLessThanInterest = totalPaidThisCycle < currentInterestAmount;
-            
-            if (paidExactlyInterest) {
-                // PAGOU APENAS JUROS: Capital permanece, próximo período terá mesmo valor total
-                remainingAmount = currentCapital + currentInterestAmount;
-            } else if (paidMoreThanInterest) {
-                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
-                const paidCapital = totalPaidThisCycle - currentInterestAmount;
-                const newCapital = Math.max(0, currentCapital - paidCapital);
-                
-                console.log('Análise pagamento capital:', {
-                    totalPaidThisCycle,
-                    currentInterestAmount,
-                    currentCapital,
-                    paidCapital,
-                    newCapital
-                });
-                
-                if (newCapital <= 0) {
-                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
-                    remainingAmount = 0;
-                } else {
-                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
-                    const newInterest = newCapital * (finalInterestRate / 100);
-                    remainingAmount = newCapital + newInterest;
-                    
-                    console.log('Novo estado após pagamento parcial:', {
-                        newCapital,
-                        newInterest,
-                        remainingAmount
-                    });
-                }
-            } else if (paidLessThanInterest) {
-                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
-                const unpaidInterest = currentInterestAmount - totalPaidThisCycle;
-                const newInterest = currentCapital * (finalInterestRate / 100);
-                remainingAmount = currentCapital + unpaidInterest + newInterest;
-            } else {
-                // Fallback: lógica original
-                remainingAmount = currentTotal - totalPaidThisCycle;
-            }
-        }
+        // CORREÇÃO: Cálculo simplificado do valor restante
+        // Valor original fixo: capital inicial + juros iniciais  
+        // Valor restante: valor original - total pago
+        const remainingAmount = Math.max(0, currentTotal - totalPaidThisCycle);
         
         // O pagamento mínimo é sempre o valor dos juros atuais
         const minimumPayment = currentInterestAmount;
@@ -6049,41 +6005,10 @@ async function calculateLoanRemainingAmount(loanId) {
             totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
         }
         
-        // Calcular valor restante usando a mesma lógica da função principal
-        let remainingAmount;
-        
-        if (totalPaid === 0) {
-            remainingAmount = totalWithInterest;
-        } else {
-            const paidExactlyInterest = Math.abs(totalPaid - interestAmount) <= (interestAmount * 0.01);
-            const paidMoreThanInterest = totalPaid > interestAmount;
-            const paidLessThanInterest = totalPaid < interestAmount;
-            
-            if (paidExactlyInterest) {
-                // PAGOU APENAS JUROS: próximo período terá mesmo valor total
-                remainingAmount = capitalAmount + interestAmount;
-            } else if (paidMoreThanInterest) {
-                // PAGOU MAIS QUE OS JUROS: Pode ser quitação total ou pagamento parcial de capital
-                const paidCapital = totalPaid - interestAmount;
-                const newCapital = Math.max(0, capitalAmount - paidCapital);
-                
-                if (newCapital <= 0) {
-                    // QUITAÇÃO TOTAL: Capital foi totalmente pago
-                    remainingAmount = 0;
-                } else {
-                    // PAGAMENTO PARCIAL DE CAPITAL: Capital foi reduzido mas ainda existe
-                    const newInterest = newCapital * (interestRate / 100);
-                    remainingAmount = newCapital + newInterest;
-                }
-            } else if (paidLessThanInterest) {
-                // PAGOU MENOS QUE OS JUROS: Juros pendentes + novos juros
-                const unpaidInterest = interestAmount - totalPaid;
-                const newInterest = capitalAmount * (interestRate / 100);
-                remainingAmount = capitalAmount + unpaidInterest + newInterest;
-            } else {
-                remainingAmount = totalWithInterest - totalPaid;
-            }
-        }
+        // CORREÇÃO: Cálculo simplificado do valor restante
+        // Valor original fixo: capital inicial + juros iniciais
+        // Valor restante: valor original - total pago
+        const remainingAmount = Math.max(0, totalWithInterest - totalPaid);
         
         return Math.max(0, remainingAmount);
         
