@@ -416,6 +416,17 @@ function setupEventListeners() {
             document.getElementById('newDueDate').value = '';
         }
     });
+
+    // Checkbox para incluir multa no modal de pagamento
+    document.getElementById('includeFineCheckbox').addEventListener('change', function() {
+        const container = document.getElementById('fineContainer');
+        if (this.checked) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+            document.getElementById('fineAmount').value = '';
+        }
+    });
     
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
@@ -2161,6 +2172,10 @@ async function handlePayment(e) {
     const changeDueDate = document.getElementById('changeDueDateCheckbox').checked;
     const newDueDate = changeDueDate ? document.getElementById('newDueDate').value : null;
     
+    // Verificar se deve incluir multa
+    const includeFine = document.getElementById('includeFineCheckbox').checked;
+    const fineAmount = includeFine ? parseFloat(document.getElementById('fineAmount').value) || 0 : 0;
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -2207,6 +2222,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
+                    fine_amount: fineAmount,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', paymentId);
@@ -2221,6 +2237,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
+                    fine_amount: fineAmount,
                     created_by: currentUser.id,
                     created_at: new Date().toISOString()
                 }]);
@@ -5728,6 +5745,18 @@ async function editPayment(paymentId) {
         document.getElementById('paymentDate').value = payment.payment_date;
         document.getElementById('paymentType').value = payment.payment_type;
         document.getElementById('paymentNotes').value = payment.notes || '';
+        
+        // Preencher campo de multa se existir
+        const fineAmount = payment.fine_amount || 0;
+        if (fineAmount > 0) {
+            document.getElementById('includeFineCheckbox').checked = true;
+            document.getElementById('fineContainer').classList.remove('hidden');
+            document.getElementById('fineAmount').value = fineAmount;
+        } else {
+            document.getElementById('includeFineCheckbox').checked = false;
+            document.getElementById('fineContainer').classList.add('hidden');
+            document.getElementById('fineAmount').value = '';
+        }
 
         // Mostrar o modal de pagamento
         showModal(paymentModal);
@@ -7432,6 +7461,7 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
                 type: 'payment',
                 date: payment.payment_date,
                 amount: parseFloat(payment.amount),
+                fineAmount: parseFloat(payment.fine_amount || 0),
                 paymentType: payment.payment_type,
                 notes: payment.notes || 'Sem notas',
                 loanAmount: parseFloat(loan.amount),
@@ -7461,7 +7491,7 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
     if (allPaymentInfo.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
                     Nenhum pagamento encontrado para este cliente
                 </td>
             </tr>
@@ -7481,6 +7511,9 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${info.isFromPaidLoan ? 'text-green-400 font-semibold' : 'text-gray-300'}">
                     R$ ${info.amount.toFixed(2)}
                     ${info.isFromPaidLoan ? '<div class="text-xs text-green-300">Quitação</div>' : ''}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${(info.fineAmount > 0) ? 'text-red-400' : 'text-gray-500'}">
+                    ${(info.fineAmount > 0) ? `R$ ${info.fineAmount.toFixed(2)}` : '-'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     ${typeDisplay}
@@ -11769,6 +11802,32 @@ async function generateWeeklyReportPDF() {
         doc.text(`Valor total com juros: R$ ${totalWithInterest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
         yPosition += 15;
         
+        // Buscar informações sobre multas da semana
+        const { data: weeklyPayments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('fine_amount')
+            .gte('payment_date', last7Days.toISOString().split('T')[0])
+            .lte('payment_date', now.toISOString().split('T')[0]);
+        
+        if (!paymentsError && weeklyPayments) {
+            const totalFines = weeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            const fineCount = weeklyPayments.filter(payment => (parseFloat(payment.fine_amount) || 0) > 0).length;
+            
+            if (totalFines > 0) {
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text('MULTAS DA SEMANA', 20, yPosition);
+                yPosition += 10;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de multas aplicadas: ${fineCount}`, 20, yPosition);
+                yPosition += 6;
+                doc.text(`Valor total em multas: R$ ${totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                yPosition += 15;
+            }
+        }
+        
         // Distribuição diária
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -11896,6 +11955,35 @@ async function generateMonthlyReportPDF() {
         doc.text(`Crescimento: ${growth > 0 ? '+' : ''}${growth.toFixed(1)}%`, 20, yPosition);
         yPosition += 15;
         
+        // Buscar informações sobre multas do mês
+        const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+        const endOfMonth = new Date(now.getFullYear(), now.getMonth() + 1, 0);
+        
+        const { data: monthlyPayments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('fine_amount')
+            .gte('payment_date', startOfMonth.toISOString().split('T')[0])
+            .lte('payment_date', endOfMonth.toISOString().split('T')[0]);
+        
+        if (!paymentsError && monthlyPayments) {
+            const totalFines = monthlyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            const fineCount = monthlyPayments.filter(payment => (parseFloat(payment.fine_amount) || 0) > 0).length;
+            
+            if (totalFines > 0) {
+                doc.setFontSize(12);
+                doc.setFont('helvetica', 'bold');
+                doc.text('MULTAS DO MÊS', 20, yPosition);
+                yPosition += 10;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de multas aplicadas: ${fineCount}`, 20, yPosition);
+                yPosition += 6;
+                doc.text(`Valor total em multas: R$ ${totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                yPosition += 15;
+            }
+        }
+        
         // Distribuição por status no mês
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
@@ -12006,6 +12094,11 @@ function renderWeeklyPaymentsTable(payments) {
                 <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium ${payment.fine_amount > 0 ? 'text-red-400' : 'text-gray-500'}">
+                    ${payment.fine_amount > 0 ? `R$ ${payment.fine_amount.toFixed(2)}` : '-'}
+                </div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
                     ${getPaymentMethodText(payment.payment_method)}
                 </span>
@@ -12024,15 +12117,18 @@ function renderWeeklyPaymentsTable(payments) {
 // Função para atualizar resumo dos pagamentos semanais
 function updateWeeklyPaymentsSummary(payments) {
     const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalFines = payments.reduce((sum, payment) => sum + (payment.fine_amount || 0), 0);
     const totalCount = payments.length;
     const uniqueClients = new Set(payments.map(p => p.loans?.client_id).filter(Boolean)).size;
 
     // Atualizar elementos do DOM
     const totalAmountEl = document.getElementById('totalPaymentsAmount');
+    const totalFinesEl = document.getElementById('totalFinesAmount');
     const totalCountEl = document.getElementById('totalPaymentsCount');
     const uniqueClientsEl = document.getElementById('uniqueClientsCount');
 
     if (totalAmountEl) totalAmountEl.textContent = `R$ ${totalAmount.toFixed(2)}`;
+    if (totalFinesEl) totalFinesEl.textContent = `R$ ${totalFines.toFixed(2)}`;
     if (totalCountEl) totalCountEl.textContent = totalCount.toString();
     if (uniqueClientsEl) uniqueClientsEl.textContent = uniqueClients.toString();
 }
