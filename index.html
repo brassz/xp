@@ -1167,6 +1167,15 @@
                             <p class="text-sm text-gray-400 mb-1">Clientes Únicos</p>
                             <p class="text-2xl font-bold text-white" id="uniqueClientsCount">0</p>
                         </div>
+                        <div class="glass-card p-6 rounded-xl text-center bg-gray-800 hidden">
+                            <div class="text-orange-400 mb-2">
+                                <svg class="w-8 h-8 mx-auto" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L3.732 16.5c-.77.833.192 2.5 1.732 2.5z"></path>
+                                </svg>
+                            </div>
+                            <p class="text-sm text-gray-400 mb-1">Total de Multas</p>
+                            <p class="text-2xl font-bold text-orange-400" id="totalFinesAmount">R$ 0,00</p>
+                        </div>
                     </div>
 
                     <!-- Payments Table -->
@@ -2002,6 +2011,19 @@
                         <label class="block text-sm font-medium text-blue-200 mb-1">Valor do Pagamento</label>
                         <input type="number" id="paymentAmount" class="form-input w-full" step="0.01" min="0" required>
                         <div id="paymentValidationFeedback" class="mt-1 text-sm hidden"></div>
+                    </div>
+
+                    <!-- Checkbox para Multa -->
+                    <div class="border-t border-gray-600 pt-2">
+                        <div class="flex items-center mb-2">
+                            <input type="checkbox" id="fineCheckbox" class="mr-2">
+                            <label class="text-sm font-medium text-blue-200">Aplicar multa (opcional)</label>
+                        </div>
+                        <div id="fineContainer" class="hidden">
+                            <label class="block text-sm font-medium text-blue-200 mb-1">Valor da Multa</label>
+                            <input type="number" id="fineAmount" class="form-input w-full" step="0.01" min="0" placeholder="0,00">
+                            <p class="text-xs text-gray-400 mt-1">A multa será adicionada ao valor total do pagamento</p>
+                        </div>
                     </div>
                     
                     <div>

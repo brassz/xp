@@ -416,6 +416,17 @@ function setupEventListeners() {
             document.getElementById('newDueDate').value = '';
         }
     });
+
+    // Checkbox para aplicar multa no modal de pagamento
+    document.getElementById('fineCheckbox').addEventListener('change', function() {
+        const container = document.getElementById('fineContainer');
+        if (this.checked) {
+            container.classList.remove('hidden');
+        } else {
+            container.classList.add('hidden');
+            document.getElementById('fineAmount').value = '';
+        }
+    });
     
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
@@ -2161,6 +2172,10 @@ async function handlePayment(e) {
     const changeDueDate = document.getElementById('changeDueDateCheckbox').checked;
     const newDueDate = changeDueDate ? document.getElementById('newDueDate').value : null;
     
+    // Verificar se há multa aplicada
+    const hasFine = document.getElementById('fineCheckbox').checked;
+    const fineAmount = hasFine ? parseFloat(document.getElementById('fineAmount').value) || 0 : 0;
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -2207,6 +2222,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
+                    fine_amount: fineAmount,
                     updated_at: new Date().toISOString()
                 })
                 .eq('id', paymentId);
@@ -2221,6 +2237,7 @@ async function handlePayment(e) {
                     payment_date: paymentDate,
                     payment_type: paymentType,
                     notes: paymentNotes,
+                    fine_amount: fineAmount,
                     created_by: currentUser.id,
                     created_at: new Date().toISOString()
                 }]);
@@ -2636,6 +2653,11 @@ function hideModal(modal) {
         document.getElementById('paymentForm').reset();
         document.getElementById('paymentDate').value = formatDateForInput(new Date());
         document.getElementById('paymentType').value = 'dinheiro';
+        
+        // Limpar campos de multa
+        document.getElementById('fineCheckbox').checked = false;
+        document.getElementById('fineContainer').classList.add('hidden');
+        document.getElementById('fineAmount').value = '';
     } else if (modal === paymentHistoryModal) {
         // Limpar dados do histórico
         document.getElementById('paymentHistoryTableBody').innerHTML = '';
@@ -5728,6 +5750,22 @@ async function editPayment(paymentId) {
         document.getElementById('paymentDate').value = payment.payment_date;
         document.getElementById('paymentType').value = payment.payment_type;
         document.getElementById('paymentNotes').value = payment.notes || '';
+
+        // Preencher dados da multa se houver
+        const fineAmount = payment.fine_amount || 0;
+        const fineCheckbox = document.getElementById('fineCheckbox');
+        const fineContainer = document.getElementById('fineContainer');
+        const fineAmountInput = document.getElementById('fineAmount');
+
+        if (fineAmount > 0) {
+            fineCheckbox.checked = true;
+            fineContainer.classList.remove('hidden');
+            fineAmountInput.value = fineAmount;
+        } else {
+            fineCheckbox.checked = false;
+            fineContainer.classList.add('hidden');
+            fineAmountInput.value = '';
+        }
 
         // Mostrar o modal de pagamento
         showModal(paymentModal);
@@ -12004,6 +12042,7 @@ function renderWeeklyPaymentsTable(payments) {
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
+                ${payment.fine_amount > 0 ? `<div class="text-xs text-orange-400">Multa: R$ ${payment.fine_amount.toFixed(2)}</div>` : ''}
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
                 <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
@@ -12024,6 +12063,7 @@ function renderWeeklyPaymentsTable(payments) {
 // Função para atualizar resumo dos pagamentos semanais
 function updateWeeklyPaymentsSummary(payments) {
     const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
+    const totalFines = payments.reduce((sum, payment) => sum + (payment.fine_amount || 0), 0);
     const totalCount = payments.length;
     const uniqueClients = new Set(payments.map(p => p.loans?.client_id).filter(Boolean)).size;
 
@@ -12031,10 +12071,25 @@ function updateWeeklyPaymentsSummary(payments) {
     const totalAmountEl = document.getElementById('totalPaymentsAmount');
     const totalCountEl = document.getElementById('totalPaymentsCount');
     const uniqueClientsEl = document.getElementById('uniqueClientsCount');
+    const totalFinesEl = document.getElementById('totalFinesAmount');
 
     if (totalAmountEl) totalAmountEl.textContent = `R$ ${totalAmount.toFixed(2)}`;
     if (totalCountEl) totalCountEl.textContent = totalCount.toString();
     if (uniqueClientsEl) uniqueClientsEl.textContent = uniqueClients.toString();
+    
+    // Atualizar total de multas se o elemento existir
+    if (totalFinesEl) {
+        totalFinesEl.textContent = `R$ ${totalFines.toFixed(2)}`;
+        // Mostrar/ocultar seção de multas baseado no valor
+        const finesSection = totalFinesEl.closest('.bg-gray-800');
+        if (finesSection) {
+            if (totalFines > 0) {
+                finesSection.classList.remove('hidden');
+            } else {
+                finesSection.classList.add('hidden');
+            }
+        }
+    }
 }
 
 // Função para obter classe CSS do método de pagamento
@@ -12828,6 +12883,7 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         
         // Calcular totais
         const totalPayments = allWeeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalFines = allWeeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.fine_amount || 0), 0);
         const totalCapital = allWeeklyPayments.reduce((sum, payment) => {
             const loan = payment.loans;
             const loanAmount = parseFloat(loan.amount);
