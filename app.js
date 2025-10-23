@@ -2183,10 +2183,15 @@ async function handlePayment(e) {
         
         // Se é uma edição, não recalcular o empréstimo (manter lógica original)
         let recalcInfo = { shouldRecalculate: false };
+        let remainingAmountBeforePayment = 0;
+        
         if (!paymentId) {
             // Verificar se o empréstimo está vencido antes de recalcular
             const loan = loans.find(l => l.id === loanId);
             const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
+            
+            // CORREÇÃO: Calcular valor restante ANTES de inserir o novo pagamento
+            remainingAmountBeforePayment = await calculateLoanRemainingAmount(loanId);
             
             // Para empréstimos vencidos, NÃO recalcular os valores originais
             // Apenas registrar o pagamento e atualizar status/data posteriormente
@@ -2320,10 +2325,9 @@ async function handlePayment(e) {
             // Como agora o tipo representa método de pagamento, vamos verificar se o pagamento quita o empréstimo
             const loan = loans.find(l => l.id === loanId);
             const totalLoanAmount = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-            const remainingAmount = await calculateLoanRemainingAmount(loanId);
             
             let newStatus = 'partial_paid';
-            if (paymentAmount >= remainingAmount) {
+            if (paymentAmount >= remainingAmountBeforePayment) {
                 newStatus = 'paid';
             }
             
