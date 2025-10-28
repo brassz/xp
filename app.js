@@ -13259,43 +13259,25 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
             `)
             .limit(10000);
         
-        // 2. Buscar TODOS os pagamentos de parcelamentos (se necessário)
-        const installmentPaymentsQuery = supabase
-            .from('installment_payments')
-            .select(`
-                *,
-                installments (
-                    id,
-                    total_amount,
-                    client_id,
-                    clients (
-                        id,
-                        name,
-                        cpf
-                    )
-                )
-            `)
-            .eq('status', 'paid') // Apenas pagamentos realizados
-            .limit(10000);
+        // 2. NÃO buscar pagamentos de parcelamentos (conforme solicitado)
         
-        // 3. Buscar empréstimos quitados (paid_loans) - para incluir quitações completas
+        // 3. Buscar empréstimos quitados (paid_loans) - SEM relacionamento
         const paidLoansQuery = supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    id,
-                    name,
-                    cpf
-                )
-            `)
+            .select('*')
             .limit(10000);
         
-        // Executar as consultas em paralelo
-        const [paymentsResult, installmentPaymentsResult, paidLoansResult] = await Promise.all([
+        // 4. Buscar clientes para join manual
+        const clientsQuery = supabase
+            .from('clients')
+            .select('id, name, cpf')
+            .limit(10000);
+        
+        // Executar as consultas em paralelo (SEM parcelamentos)
+        const [paymentsResult, paidLoansResult, clientsResult] = await Promise.all([
             paymentsQuery,
-            installmentPaymentsQuery,
-            paidLoansQuery
+            paidLoansQuery,
+            clientsQuery
         ]);
         
         if (paymentsResult.error) {
@@ -13304,20 +13286,26 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
         }
         
         const payments = paymentsResult.data || [];
-        const installmentPayments = (installmentPaymentsResult.error ? [] : installmentPaymentsResult.data) || [];
         const paidLoans = (paidLoansResult.error ? [] : paidLoansResult.data) || [];
+        const clients = (clientsResult.error ? [] : clientsResult.data) || [];
         
-        if (installmentPaymentsResult.error) {
-            console.warn('Tabela installment_payments não encontrada ou erro:', installmentPaymentsResult.error.message);
-        }
         if (paidLoansResult.error) {
-            console.warn('Tabela paid_loans não encontrada ou erro:', paidLoansResult.error.message);
+            console.error('ERRO na consulta paid_loans:', paidLoansResult.error);
+        }
+        if (clientsResult.error) {
+            console.error('ERRO na consulta clients:', clientsResult.error);
         }
         
-        console.log(`Pagamentos encontrados por tabela:`);
+        // Criar mapa de clientes para join manual
+        const clientsMap = {};
+        clients.forEach(client => {
+            clientsMap[client.id] = client;
+        });
+        
+        console.log(`Dados encontrados por tabela:`);
         console.log(`- Pagamentos regulares (payments): ${payments.length}`);
-        console.log(`- Pagamentos de parcelamentos (installment_payments): ${installmentPayments.length}`);
         console.log(`- Empréstimos quitados (paid_loans): ${paidLoans.length}`);
+        console.log(`- Clientes para join: ${clients.length}`);
         
         // Processar pagamentos regulares
         payments.forEach(payment => {
@@ -13358,49 +13346,27 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
             }
         });
         
-        // Processar pagamentos de parcelamentos (se houver)
-        installmentPayments.forEach(payment => {
-            if (payment.installments) {
-                const installment = payment.installments;
-                const paymentAmount = parseFloat(payment.paid_amount || payment.amount || 0);
-                
-                // Para parcelamentos, assumir uma taxa de juros padrão ou buscar da configuração
-                const defaultInterestRate = 2.5; // Pode ser configurável
-                const commissionableAmount = paymentAmount * (defaultInterestRate / 100);
-                
-                allPayments.push({
-                    id: payment.id,
-                    payment_date: payment.paid_date,
-                    payment_amount: paymentAmount,
-                    loan_amount: parseFloat(installment.total_amount || 0),
-                    interest_rate: defaultInterestRate,
-                    interest_amount: commissionableAmount,
-                    commissionable_amount: commissionableAmount,
-                    paid_interest: commissionableAmount,
-                    paid_capital: paymentAmount - commissionableAmount,
-                    client: installment.clients,
-                    loan_id: installment.id,
-                    loan_date: null,
-                    loan_status: 'installment',
-                    payment_type: 'installment',
-                    notes: payment.notes
-                });
-            }
-        });
+        // NÃO processar pagamentos de parcelamentos (conforme solicitado)
         
         // Processar empréstimos quitados (paid_loans) - NOVA FUNCIONALIDADE
-        paidLoans.forEach(paidLoan => {
+        console.log(`\n🔍 PROCESSANDO ${paidLoans.length} EMPRÉSTIMOS QUITADOS...`);
+        
+        paidLoans.forEach((paidLoan, index) => {
             const loanAmount = parseFloat(paidLoan.original_amount || 0);
             const interestRate = parseFloat(paidLoan.interest_rate || 0);
             const totalWithInterest = parseFloat(paidLoan.total_with_interest || 0);
             const totalPaid = parseFloat(paidLoan.total_paid || 0);
             
+            // Buscar cliente usando join manual
+            const client = clientsMap[paidLoan.client_id];
+            
             // Calcular juros totais do empréstimo quitado
             const totalInterest = totalWithInterest - loanAmount;
             
-            console.log(`\n=== EMPRÉSTIMO QUITADO ===`);
+            console.log(`\n=== EMPRÉSTIMO QUITADO ${index + 1}/${paidLoans.length} ===`);
             console.log(`ID: ${paidLoan.id}`);
-            console.log(`Cliente: ${paidLoan.clients?.name || 'Sem nome'}`);
+            console.log(`Client ID: ${paidLoan.client_id}`);
+            console.log(`Cliente: ${client?.name || 'CLIENTE NÃO ENCONTRADO'}`);
             console.log(`Valor original: R$ ${loanAmount.toFixed(2)}`);
             console.log(`Taxa de juros: ${interestRate}%`);
             console.log(`Total com juros: R$ ${totalWithInterest.toFixed(2)}`);
@@ -13408,23 +13374,28 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
             console.log(`Juros totais (COMISSÃO): R$ ${totalInterest.toFixed(2)}`);
             console.log(`Data de quitação: ${paidLoan.paid_date}`);
             
-            allPayments.push({
-                id: `paid_loan_${paidLoan.id}`, // Prefixo para distinguir de pagamentos regulares
-                payment_date: paidLoan.paid_date,
-                payment_amount: totalPaid,
-                loan_amount: loanAmount,
-                interest_rate: interestRate,
-                interest_amount: totalInterest,
-                commissionable_amount: totalInterest, // Comissão sobre juros totais
-                paid_interest: totalInterest,
-                paid_capital: loanAmount,
-                client: paidLoan.clients,
-                loan_id: paidLoan.loan_id,
-                loan_date: paidLoan.loan_date,
-                loan_status: 'paid',
-                payment_type: 'loan_payoff', // Novo tipo: quitação completa
-                notes: `QUITAÇÃO COMPLETA - Juros totais: R$ ${totalInterest.toFixed(2)}`
-            });
+            if (totalInterest > 0) {
+                allPayments.push({
+                    id: `paid_loan_${paidLoan.id}`, // Prefixo para distinguir de pagamentos regulares
+                    payment_date: paidLoan.paid_date,
+                    payment_amount: totalPaid,
+                    loan_amount: loanAmount,
+                    interest_rate: interestRate,
+                    interest_amount: totalInterest,
+                    commissionable_amount: totalInterest, // Comissão sobre juros totais
+                    paid_interest: totalInterest,
+                    paid_capital: loanAmount,
+                    client: client,
+                    loan_id: paidLoan.loan_id,
+                    loan_date: paidLoan.loan_date,
+                    loan_status: 'paid',
+                    payment_type: 'loan_payoff', // Novo tipo: quitação completa
+                    notes: `QUITAÇÃO COMPLETA - Juros totais: R$ ${totalInterest.toFixed(2)}`
+                });
+                console.log(`✅ ADICIONADO À LISTA DE COMISSÕES`);
+            } else {
+                console.log(`⚠️ JUROS = 0, NÃO ADICIONADO`);
+            }
         });
         
         console.log(`Total de pagamentos no sistema: ${allPayments.length}`);
