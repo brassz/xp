@@ -13179,10 +13179,7 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             .from('paid_loans')
             .select('*');
         
-        // 3. Buscar TODOS os empréstimos cancelados (SEM relacionamento)
-        const cancelledQuery = supabase
-            .from('cancelled_loans')
-            .select('*');
+        // 3. NÃO buscar empréstimos cancelados (conforme solicitado)
         
         // 4. Buscar TODOS os empréstimos vencidos (SEM relacionamento)
         const overdueQuery = supabase
@@ -13199,11 +13196,10 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             .from('clients')
             .select('id, name, cpf');
         
-        // Executar todas as consultas em paralelo
-        const [activeResult, paidResult, cancelledResult, overdueResult, partialPaidResult, clientsResult] = await Promise.all([
+        // Executar todas as consultas em paralelo (SEM cancelados)
+        const [activeResult, paidResult, overdueResult, partialPaidResult, clientsResult] = await Promise.all([
             activeQuery,
             paidQuery,
-            cancelledQuery,
             overdueQuery,
             partialPaidQuery,
             clientsQuery
@@ -13216,7 +13212,6 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
         
         const activeLoans = activeResult.data || [];
         const paidLoans = paidResult.data || [];
-        const cancelledLoans = (cancelledResult.error ? [] : cancelledResult.data) || [];
         const overdueLoans = (overdueResult.error ? [] : overdueResult.data) || [];
         const partialPaidLoans = (partialPaidResult.error ? [] : partialPaidResult.data) || [];
         const clients = clientsResult.data || [];
@@ -13227,7 +13222,7 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             clientsMap[client.id] = client;
         });
         
-        console.log(`Empréstimos encontrados - Ativos: ${activeLoans.length}, Pagos: ${paidLoans.length}, Cancelados: ${cancelledLoans.length}, Vencidos: ${overdueLoans.length}, Parcialmente Pagos: ${partialPaidLoans.length}`);
+        console.log(`Empréstimos encontrados - Ativos: ${activeLoans.length}, Pagos: ${paidLoans.length}, Vencidos: ${overdueLoans.length}, Parcialmente Pagos: ${partialPaidLoans.length}`);
         
         // Processar empréstimos ativos e determinar status real
         activeLoans.forEach(loan => {
@@ -13263,17 +13258,8 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             });
         });
         
-        // Processar empréstimos cancelados (com join manual)
-        cancelledLoans.forEach(loan => {
-            const client = clientsMap[loan.client_id];
-            allLoans.push({
-                ...loan,
-                status: 'cancelled',
-                amount: loan.original_amount || loan.amount,
-                loan_type: 'cancelled',
-                clients: client || null
-            });
-        });
+        // NÃO processar empréstimos cancelados (conforme solicitado)
+        // cancelledLoans não devem aparecer na aba de comissões
         
         // Processar empréstimos vencidos da tabela separada (com join manual)
         overdueLoans.forEach(loan => {
@@ -13300,16 +13286,36 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
         });
         
         console.log(`Total de empréstimos no sistema: ${allLoans.length}`);
+        console.log('Amostra de empréstimos encontrados:', allLoans.slice(0, 3).map(loan => ({
+            id: loan.id,
+            client: loan.clients?.name || 'Sem cliente',
+            amount: loan.amount,
+            loan_date: loan.loan_date,
+            created_at: loan.created_at,
+            status: loan.status
+        })));
         
         // Aplicar filtros de data APÓS buscar todos os empréstimos
         let filteredByDate = allLoans;
         if (startDate || endDate) {
+            console.log(`Aplicando filtro de data: ${startDate} até ${endDate}`);
             filteredByDate = allLoans.filter(loan => {
-                const loanDate = new Date(loan.loan_date);
+                // Verificar diferentes campos de data dependendo do tipo de empréstimo
+                let loanDateStr = loan.loan_date || loan.created_at;
+                
+                if (!loanDateStr) {
+                    console.warn('Empréstimo sem data encontrado:', loan);
+                    return false;
+                }
+                
+                const loanDate = new Date(loanDateStr);
+                loanDate.setHours(0, 0, 0, 0); // Normalizar para início do dia
+                
                 let matchesDate = true;
                 
                 if (startDate) {
                     const start = new Date(startDate);
+                    start.setHours(0, 0, 0, 0);
                     matchesDate = matchesDate && loanDate >= start;
                 }
                 
@@ -13338,8 +13344,6 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
                         return loan.status === 'due_today';
                     case 'paid':
                         return loan.status === 'paid';
-                    case 'cancelled':
-                        return loan.status === 'cancelled';
                     case 'partial_paid':
                         return loan.status === 'partial_paid';
                     default:
@@ -13354,7 +13358,6 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             overdue: finalFiltered.filter(l => l.status === 'overdue').length,
             due_today: finalFiltered.filter(l => l.status === 'due_today').length,
             paid: finalFiltered.filter(l => l.status === 'paid').length,
-            cancelled: finalFiltered.filter(l => l.status === 'cancelled').length,
             partial_paid: finalFiltered.filter(l => l.status === 'partial_paid').length
         });
         
@@ -13474,8 +13477,7 @@ function getStatusBadge(status) {
         'due_today': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-orange-100 text-orange-800">Vence Hoje</span>',
         'overdue': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-red-100 text-red-800">Vencido</span>',
         'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Quitado</span>',
-        'partial_paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-yellow-100 text-yellow-800">Parcial</span>',
-        'cancelled': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Cancelado</span>'
+        'partial_paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-yellow-100 text-yellow-800">Parcial</span>'
     };
     
     return badges[status] || '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Desconhecido</span>';
