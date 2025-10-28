@@ -262,6 +262,42 @@
             width: 100% !important;
             height: 100% !important;
         }
+
+        /* Estilos específicos para a seção de comissões */
+        #commissions {
+            width: 100%;
+            max-width: 100%;
+        }
+
+        #commissions .grid {
+            width: 100%;
+        }
+
+        #commissions .table-container {
+            width: 100%;
+            max-width: 100%;
+            overflow-x: auto;
+        }
+
+        #commissions .table-container table {
+            min-width: 800px; /* Largura mínima para a tabela */
+        }
+
+        /* Responsividade para telas menores */
+        @media (max-width: 1024px) {
+            #commissions .grid-cols-1.lg\\:grid-cols-3 {
+                grid-template-columns: 1fr;
+                gap: 1rem;
+            }
+        }
+
+        @media (max-width: 768px) {
+            #commissions .table-container table th,
+            #commissions .table-container table td {
+                padding: 0.5rem;
+                font-size: 0.75rem;
+            }
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -1750,7 +1786,8 @@
                     </div>
                     
                     <!-- Resumo das Comissões -->
-                    <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+                    <div class="w-full">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6 mb-8">
                         <div class="glass-card p-6 rounded-xl">
                             <div class="flex items-center justify-between">
                                 <div>
@@ -1793,8 +1830,10 @@
                             </div>
                         </div>
                     </div>
+                    </div>
                     
                     <!-- Controles -->
+                    <div class="w-full">
                     <div class="glass-card p-6 rounded-xl mb-6">
                         <div class="flex items-center justify-between">
                             <h3 class="text-lg font-semibold text-white">Filtros e Controles</h3>
@@ -1803,7 +1842,7 @@
                             </button>
                         </div>
                         
-                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
+                        <div class="grid grid-cols-1 lg:grid-cols-3 gap-4 mt-4">
                             <div>
                                 <label class="block text-sm font-medium text-blue-200 mb-2">Período Inicial</label>
                                 <input type="date" id="commissionStartDate" class="form-input w-full">
@@ -1824,13 +1863,15 @@
                             </div>
                         </div>
                     </div>
+                    </div>
                     
                     <!-- Tabela de Empréstimos e Comissões -->
+                    <div class="w-full">
                     <div class="table-container">
                         <div class="table-header px-6 py-4">
                             <h3 class="text-lg font-semibold text-white">Detalhamento das Comissões por Empréstimo</h3>
                         </div>
-                        <div class="overflow-x-auto">
+                        <div class="overflow-x-auto max-w-full">
                             <table class="w-full">
                                 <thead class="table-header">
                                     <tr>
@@ -1853,6 +1894,7 @@
                                 </tbody>
                             </table>
                         </div>
+                    </div>
                     </div>
                 </div>
 
