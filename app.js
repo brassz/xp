@@ -13172,29 +13172,34 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
                     name,
                     cpf
                 )
-            `);
+            `)
+            .limit(10000); // Garantir que busque muitos registros
         
         // 2. Buscar TODOS os empréstimos pagos da tabela paid_loans (SEM relacionamento)
         const paidQuery = supabase
             .from('paid_loans')
-            .select('*');
+            .select('*')
+            .limit(10000);
         
         // 3. NÃO buscar empréstimos cancelados (conforme solicitado)
         
         // 4. Buscar TODOS os empréstimos vencidos (SEM relacionamento)
         const overdueQuery = supabase
             .from('overdue_loans')
-            .select('*');
+            .select('*')
+            .limit(10000);
         
         // 5. Buscar TODOS os empréstimos parcialmente pagos (SEM relacionamento)
         const partialPaidQuery = supabase
             .from('partial_paid_loans')
-            .select('*');
+            .select('*')
+            .limit(10000);
         
         // 6. Buscar TODOS os clientes para fazer o join manualmente
         const clientsQuery = supabase
             .from('clients')
-            .select('id, name, cpf');
+            .select('id, name, cpf')
+            .limit(10000);
         
         // Executar todas as consultas em paralelo (SEM cancelados)
         const [activeResult, paidResult, overdueResult, partialPaidResult, clientsResult] = await Promise.all([
@@ -13205,10 +13210,26 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             clientsQuery
         ]);
         
-        if (activeResult.error) throw activeResult.error;
-        if (paidResult.error) throw paidResult.error;
-        if (clientsResult.error) throw clientsResult.error;
-        // Ignorar erros das outras tabelas se não existirem
+        if (activeResult.error) {
+            console.error('Erro na consulta de empréstimos ativos:', activeResult.error);
+            throw activeResult.error;
+        }
+        if (paidResult.error) {
+            console.error('Erro na consulta de empréstimos pagos:', paidResult.error);
+            throw paidResult.error;
+        }
+        if (clientsResult.error) {
+            console.error('Erro na consulta de clientes:', clientsResult.error);
+            throw clientsResult.error;
+        }
+        
+        // Verificar erros das outras tabelas e logar se houver
+        if (overdueResult.error) {
+            console.warn('Tabela overdue_loans não encontrada ou erro:', overdueResult.error.message);
+        }
+        if (partialPaidResult.error) {
+            console.warn('Tabela partial_paid_loans não encontrada ou erro:', partialPaidResult.error.message);
+        }
         
         const activeLoans = activeResult.data || [];
         const paidLoans = paidResult.data || [];
@@ -13222,7 +13243,12 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             clientsMap[client.id] = client;
         });
         
-        console.log(`Empréstimos encontrados - Ativos: ${activeLoans.length}, Pagos: ${paidLoans.length}, Vencidos: ${overdueLoans.length}, Parcialmente Pagos: ${partialPaidLoans.length}`);
+        console.log(`Empréstimos encontrados por tabela:`);
+        console.log(`- Ativos (loans): ${activeLoans.length}`);
+        console.log(`- Pagos (paid_loans): ${paidLoans.length}`);
+        console.log(`- Vencidos (overdue_loans): ${overdueLoans.length}`);
+        console.log(`- Parcialmente Pagos (partial_paid_loans): ${partialPaidLoans.length}`);
+        console.log(`- Total de clientes: ${clients.length}`);
         
         // Processar empréstimos ativos e determinar status real
         activeLoans.forEach(loan => {
@@ -13297,14 +13323,23 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
         
         // Mostrar distribuição por data de TODOS os empréstimos
         const allDatesDistribution = {};
+        const monthlyDistribution = {};
         allLoans.forEach(loan => {
             const dateStr = loan.loan_date || loan.created_at;
             if (dateStr) {
                 const date = new Date(dateStr).toISOString().split('T')[0];
+                const month = date.substring(0, 7); // YYYY-MM
                 allDatesDistribution[date] = (allDatesDistribution[date] || 0) + 1;
+                monthlyDistribution[month] = (monthlyDistribution[month] || 0) + 1;
             }
         });
-        console.log('Distribuição por data de TODOS os empréstimos:', allDatesDistribution);
+        console.log('Distribuição por mês de TODOS os empréstimos:', monthlyDistribution);
+        console.log('Distribuição por data de TODOS os empréstimos (primeiros 20):', 
+            Object.entries(allDatesDistribution)
+                .sort(([a], [b]) => b.localeCompare(a))
+                .slice(0, 20)
+                .reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {})
+        );
         
         // Aplicar filtros de data APÓS buscar todos os empréstimos
         let filteredByDate = allLoans;
