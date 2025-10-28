@@ -323,6 +323,12 @@ function setupEventListeners() {
         calculateCommissionsBtn.addEventListener('click', calculateCommissions);
     }
 
+    // Event listener para o botão de gerar PDF das comissões
+    const generateCommissionsPDFBtn = document.getElementById('generateCommissionsPDFBtn');
+    if (generateCommissionsPDFBtn) {
+        generateCommissionsPDFBtn.addEventListener('click', generateCommissionsPDF);
+    }
+
     // Event listener para mudança de semana
     const weekSelector = document.getElementById('weekSelector');
     if (weekSelector) {
@@ -9193,6 +9199,164 @@ async function generateMonthlyExpensesPDF() {
     } catch (error) {
         console.error('Erro ao gerar PDF das despesas:', error);
         showInfoMessage('Erro ao gerar PDF das despesas: ' + error.message);
+    }
+}
+
+// Função para gerar PDF das comissões da semana selecionada
+async function generateCommissionsPDF() {
+    try {
+        // Obter as datas do período selecionado
+        const startDate = document.getElementById('commissionStartDate').value;
+        const endDate = document.getElementById('commissionEndDate').value;
+        const loanStatus = document.getElementById('commissionLoanStatus').value;
+
+        if (!startDate || !endDate) {
+            showErrorMessage('Por favor, selecione o período inicial e final para gerar o PDF.');
+            return;
+        }
+
+        console.log('Gerando PDF das comissões para:', { startDate, endDate, loanStatus });
+
+        // Buscar todos os pagamentos para comissões
+        const allPayments = await fetchAllPaymentsForCommissions(startDate, endDate, loanStatus);
+
+        if (!allPayments || allPayments.length === 0) {
+            showInfoMessage('Nenhum pagamento encontrado para o período selecionado.');
+            return;
+        }
+
+        // Calcular comissões baseado nos pagamentos
+        const commissionsData = calculateCommissionsFromPayments(allPayments);
+
+        // Criar novo documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        // Configurações do documento
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO DE COMISSÕES', 105, 20, { align: 'center' });
+        
+        // Período
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        const startDateFormatted = new Date(startDate + 'T00:00:00').toLocaleDateString('pt-BR');
+        const endDateFormatted = new Date(endDate + 'T00:00:00').toLocaleDateString('pt-BR');
+        doc.text(`Período: ${startDateFormatted} a ${endDateFormatted}`, 105, 30, { align: 'center' });
+
+        // Status do filtro
+        const statusText = loanStatus === 'all' ? 'Todos os Status' : 
+                          loanStatus === 'active' ? 'Ativos' :
+                          loanStatus === 'due_today' ? 'Vence Hoje' :
+                          loanStatus === 'overdue' ? 'Vencidos' :
+                          loanStatus === 'paid' ? 'Quitados' : loanStatus;
+        doc.text(`Filtro: ${statusText}`, 105, 38, { align: 'center' });
+
+        // Resumo das comissões
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO DAS COMISSÕES', 20, 55);
+
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de Juros (Base para Comissão): R$ ${commissionsData.summary.totalInterest.toFixed(2)}`, 20, 65);
+        doc.text(`Comissão Vinicius (66%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
+        doc.text(`Comissão Douglas (33%): R$ ${commissionsData.summary.totalDouglasCommission.toFixed(2)}`, 20, 81);
+        doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 89);
+
+        // Linha separadora
+        doc.setLineWidth(0.5);
+        doc.line(20, 95, 190, 95);
+
+        // Cabeçalho da tabela
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DETALHAMENTO POR PAGAMENTO', 20, 105);
+
+        // Cabeçalhos das colunas
+        doc.setFontSize(9);
+        let yPos = 115;
+        doc.text('Cliente', 20, yPos);
+        doc.text('Data', 65, yPos);
+        doc.text('Valor Pago', 90, yPos);
+        doc.text('Base Comissão', 125, yPos);
+        doc.text('Vinicius (66%)', 155, yPos);
+        doc.text('Douglas (33%)', 180, yPos);
+
+        // Linha do cabeçalho
+        doc.setLineWidth(0.3);
+        doc.line(20, yPos + 2, 200, yPos + 2);
+
+        // Dados da tabela
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(8);
+        yPos += 8;
+
+        for (let i = 0; i < commissionsData.details.length; i++) {
+            const item = commissionsData.details[i];
+            
+            // Verificar se precisa de nova página
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+                
+                // Repetir cabeçalho na nova página
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Cliente', 20, yPos);
+                doc.text('Data', 65, yPos);
+                doc.text('Valor Pago', 90, yPos);
+                doc.text('Base Comissão', 125, yPos);
+                doc.text('Vinicius (66%)', 155, yPos);
+                doc.text('Douglas (33%)', 180, yPos);
+                
+                doc.setLineWidth(0.3);
+                doc.line(20, yPos + 2, 200, yPos + 2);
+                
+                doc.setFont('helvetica', 'normal');
+                doc.setFontSize(8);
+                yPos += 8;
+            }
+
+            const clientName = item.client?.name || 'Cliente não encontrado';
+            const paymentDate = new Date(item.paymentDate).toLocaleDateString('pt-BR');
+            
+            // Truncar nome do cliente se for muito longo
+            const truncatedName = clientName.length > 20 ? clientName.substring(0, 17) + '...' : clientName;
+            
+            doc.text(truncatedName, 20, yPos);
+            doc.text(paymentDate, 65, yPos);
+            doc.text(`R$ ${item.paymentAmount.toFixed(2)}`, 90, yPos);
+            doc.text(`R$ ${item.commissionableAmount.toFixed(2)}`, 125, yPos);
+            doc.text(`R$ ${item.viniciusCommission.toFixed(2)}`, 155, yPos);
+            doc.text(`R$ ${item.douglasCommission.toFixed(2)}`, 180, yPos);
+
+            yPos += 6;
+        }
+
+        // Rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+            doc.text(`Gerado em: ${new Date().toLocaleString('pt-BR')}`, 20, 290);
+            doc.text('Nexus Gestão Financeira', 20, 295);
+        }
+
+        // Salvar o PDF
+        const fileName = `Comissoes_${startDateFormatted.replace(/\//g, '-')}_a_${endDateFormatted.replace(/\//g, '-')}.pdf`;
+        doc.save(fileName);
+
+        showSuccessMessage(`PDF gerado com sucesso! ${commissionsData.details.length} pagamentos processados.`);
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF das comissões:', error);
+        showErrorMessage('Erro ao gerar PDF das comissões: ' + error.message);
     }
 }
 
