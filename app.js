@@ -317,6 +317,12 @@ function setupEventListeners() {
         closePdfHistoryModal.addEventListener('click', () => hideModal(document.getElementById('pdfHistoryModal')));
     }
 
+    // Event listener para o botão de calcular comissões
+    const calculateCommissionsBtn = document.getElementById('calculateCommissionsBtn');
+    if (calculateCommissionsBtn) {
+        calculateCommissionsBtn.addEventListener('click', calculateCommissions);
+    }
+
     // Event listener para mudança de semana
     const weekSelector = document.getElementById('weekSelector');
     if (weekSelector) {
@@ -916,6 +922,12 @@ function handleNavigation(e) {
             if (target === 'overdueLoans') {
                 console.log('Seção de empréstimos vencidos ativada, carregando dados...');
                 loadOverdueLoans();
+            }
+            
+            // Inicializar seção de comissões quando for exibida
+            if (target === 'commissions') {
+                console.log('Seção de comissões ativada, inicializando...');
+                initializeCommissionsSection();
             }
             
 
@@ -13097,4 +13109,260 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         console.error('Erro ao gerar PDF dos pagamentos semanais:', error);
         showErrorMessage('Erro ao gerar PDF: ' + error.message);
     }
+}
+
+// ============================================================================
+// FUNÇÕES DE COMISSÕES
+// ============================================================================
+
+// Inicializar seção de comissões
+function initializeCommissionsSection() {
+    // Definir data padrão (último mês)
+    const today = new Date();
+    const firstDay = new Date(today.getFullYear(), today.getMonth(), 1);
+    const lastDay = new Date(today.getFullYear(), today.getMonth() + 1, 0);
+    
+    document.getElementById('commissionStartDate').value = firstDay.toISOString().split('T')[0];
+    document.getElementById('commissionEndDate').value = lastDay.toISOString().split('T')[0];
+}
+
+// Calcular comissões
+async function calculateCommissions() {
+    try {
+        const startDate = document.getElementById('commissionStartDate').value;
+        const endDate = document.getElementById('commissionEndDate').value;
+        const loanStatus = document.getElementById('commissionLoanStatus').value;
+        
+        console.log('Calculando comissões para:', { startDate, endDate, loanStatus });
+        
+        // Buscar todos os empréstimos
+        const allLoans = await fetchAllLoansForCommissions(startDate, endDate, loanStatus);
+        
+        // Calcular comissões
+        const commissionsData = calculateCommissionsFromLoans(allLoans);
+        
+        // Atualizar interface
+        updateCommissionsSummary(commissionsData.summary);
+        renderCommissionsTable(commissionsData.details);
+        
+        showSuccessMessage(`Comissões calculadas! ${commissionsData.details.length} empréstimos processados.`);
+        
+    } catch (error) {
+        console.error('Erro ao calcular comissões:', error);
+        showErrorMessage('Erro ao calcular comissões: ' + error.message);
+    }
+}
+
+// Buscar todos os empréstimos para cálculo de comissões
+async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
+    const allLoans = [];
+    
+    try {
+        // Construir query base
+        let query = supabase
+            .from('loans')
+            .select(`
+                *,
+                clients (
+                    id,
+                    name,
+                    cpf
+                )
+            `);
+        
+        // Aplicar filtros de data se fornecidos
+        if (startDate) {
+            query = query.gte('loan_date', startDate);
+        }
+        if (endDate) {
+            query = query.lte('loan_date', endDate);
+        }
+        
+        // Aplicar filtro de status se não for "all"
+        if (loanStatus && loanStatus !== 'all') {
+            if (loanStatus === 'active') {
+                query = query.eq('status', 'active');
+            } else if (loanStatus === 'overdue') {
+                query = query.eq('status', 'overdue');
+            } else if (loanStatus === 'paid') {
+                // Buscar empréstimos pagos na tabela paid_loans
+                const { data: paidLoans, error: paidError } = await supabase
+                    .from('paid_loans')
+                    .select(`
+                        *,
+                        clients (
+                            id,
+                            name,
+                            cpf
+                        )
+                    `);
+                
+                if (paidError) throw paidError;
+                
+                // Adicionar empréstimos pagos com status 'paid'
+                paidLoans.forEach(loan => {
+                    allLoans.push({
+                        ...loan,
+                        status: 'paid',
+                        amount: loan.original_amount || loan.amount
+                    });
+                });
+            }
+        }
+        
+        // Buscar empréstimos ativos/vencidos se não for apenas "paid"
+        if (!loanStatus || loanStatus === 'all' || loanStatus !== 'paid') {
+            const { data: activeLoans, error: activeError } = await query;
+            
+            if (activeError) throw activeError;
+            
+            allLoans.push(...activeLoans);
+        }
+        
+        // Buscar parcelamentos se incluído
+        if (!loanStatus || loanStatus === 'all' || loanStatus === 'installment') {
+            const { data: installments, error: installmentError } = await supabase
+                .from('installments')
+                .select(`
+                    *,
+                    clients (
+                        id,
+                        name,
+                        cpf
+                    )
+                `);
+            
+            if (installmentError) throw installmentError;
+            
+            // Adicionar parcelamentos com status 'installment'
+            installments.forEach(installment => {
+                allLoans.push({
+                    ...installment,
+                    status: 'installment',
+                    loan_date: installment.created_at,
+                    due_date: installment.next_due_date
+                });
+            });
+        }
+        
+        console.log(`Total de empréstimos encontrados: ${allLoans.length}`);
+        return allLoans;
+        
+    } catch (error) {
+        console.error('Erro ao buscar empréstimos:', error);
+        throw error;
+    }
+}
+
+// Calcular comissões dos empréstimos
+function calculateCommissionsFromLoans(loans) {
+    const details = [];
+    let totalInterest = 0;
+    
+    loans.forEach(loan => {
+        const loanAmount = parseFloat(loan.amount || 0);
+        const interestRate = parseFloat(loan.interest_rate || 0);
+        const interestAmount = loanAmount * (interestRate / 100);
+        
+        // Calcular comissões (66% Vinicius, 33% Douglas)
+        const viniciusCommission = interestAmount * 0.66;
+        const douglasCommission = interestAmount * 0.33;
+        
+        totalInterest += interestAmount;
+        
+        details.push({
+            id: loan.id,
+            client: loan.clients,
+            loanAmount: loanAmount,
+            interestRate: interestRate,
+            interestAmount: interestAmount,
+            viniciusCommission: viniciusCommission,
+            douglasCommission: douglasCommission,
+            loanDate: loan.loan_date,
+            status: loan.status || 'active'
+        });
+    });
+    
+    const totalViniciusCommission = totalInterest * 0.66;
+    const totalDouglasCommission = totalInterest * 0.33;
+    
+    return {
+        summary: {
+            totalInterest,
+            totalViniciusCommission,
+            totalDouglasCommission,
+            totalLoans: loans.length
+        },
+        details
+    };
+}
+
+// Atualizar resumo das comissões
+function updateCommissionsSummary(summary) {
+    document.getElementById('totalInterest').textContent = `R$ ${summary.totalInterest.toFixed(2)}`;
+    document.getElementById('viniciusCommission').textContent = `R$ ${summary.totalViniciusCommission.toFixed(2)}`;
+    document.getElementById('douglasCommission').textContent = `R$ ${summary.totalDouglasCommission.toFixed(2)}`;
+}
+
+// Renderizar tabela de comissões
+function renderCommissionsTable(commissionsDetails) {
+    const tableBody = document.getElementById('commissionsTableBody');
+    
+    if (commissionsDetails.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="8" class="px-3 py-6 text-center text-gray-400 text-sm">
+                    Nenhum empréstimo encontrado para o período selecionado
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tableBody.innerHTML = commissionsDetails.map(item => {
+        const statusBadge = getStatusBadge(item.status);
+        const clientName = item.client?.name || 'Cliente não encontrado';
+        
+        return `
+            <tr class="table-row">
+                <td class="px-3 py-3 whitespace-nowrap">
+                    <div class="text-xs font-medium text-white">${clientName}</div>
+                    <div class="text-xs text-gray-300">${item.client?.cpf || ''}</div>
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
+                    R$ ${item.loanAmount.toFixed(2)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
+                    ${item.interestRate.toFixed(1)}%
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-white font-semibold">
+                    R$ ${item.interestAmount.toFixed(2)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-green-400 font-semibold">
+                    R$ ${item.viniciusCommission.toFixed(2)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-purple-400 font-semibold">
+                    R$ ${item.douglasCommission.toFixed(2)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
+                    ${formatDate(item.loanDate)}
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap">
+                    ${statusBadge}
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Obter badge de status
+function getStatusBadge(status) {
+    const badges = {
+        'active': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-green-100 text-green-800">Ativo</span>',
+        'overdue': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-red-100 text-red-800">Vencido</span>',
+        'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Pago</span>',
+        'installment': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-yellow-100 text-yellow-800">Parcelamento</span>'
+    };
+    
+    return badges[status] || '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Desconhecido</span>';
 }
