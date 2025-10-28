@@ -13295,11 +13295,32 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             status: loan.status
         })));
         
+        // Mostrar distribuição por data de TODOS os empréstimos
+        const allDatesDistribution = {};
+        allLoans.forEach(loan => {
+            const dateStr = loan.loan_date || loan.created_at;
+            if (dateStr) {
+                const date = new Date(dateStr).toISOString().split('T')[0];
+                allDatesDistribution[date] = (allDatesDistribution[date] || 0) + 1;
+            }
+        });
+        console.log('Distribuição por data de TODOS os empréstimos:', allDatesDistribution);
+        
         // Aplicar filtros de data APÓS buscar todos os empréstimos
         let filteredByDate = allLoans;
         if (startDate || endDate) {
             console.log(`Aplicando filtro de data: ${startDate} até ${endDate}`);
-            filteredByDate = allLoans.filter(loan => {
+            console.log(`Total de empréstimos antes do filtro de data: ${allLoans.length}`);
+            
+            // Mostrar algumas datas de exemplo para debug
+            console.log('Datas de exemplo dos empréstimos:', allLoans.slice(0, 10).map(loan => ({
+                id: loan.id,
+                loan_date: loan.loan_date,
+                created_at: loan.created_at,
+                type: loan.loan_type
+            })));
+            
+            filteredByDate = allLoans.filter((loan, index) => {
                 // Verificar diferentes campos de data dependendo do tipo de empréstimo
                 let loanDateStr = loan.loan_date || loan.created_at;
                 
@@ -13309,20 +13330,40 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
                 }
                 
                 const loanDate = new Date(loanDateStr);
+                const originalLoanDate = new Date(loanDate); // Manter original para log
                 loanDate.setHours(0, 0, 0, 0); // Normalizar para início do dia
                 
                 let matchesDate = true;
+                let startCheck = true;
+                let endCheck = true;
                 
                 if (startDate) {
                     const start = new Date(startDate);
                     start.setHours(0, 0, 0, 0);
-                    matchesDate = matchesDate && loanDate >= start;
+                    startCheck = loanDate >= start;
+                    matchesDate = matchesDate && startCheck;
                 }
                 
                 if (endDate) {
                     const end = new Date(endDate);
                     end.setHours(23, 59, 59, 999); // Incluir todo o dia final
-                    matchesDate = matchesDate && loanDate <= end;
+                    endCheck = loanDate <= end;
+                    matchesDate = matchesDate && endCheck;
+                }
+                
+                // Log detalhado para os primeiros 5 empréstimos
+                if (index < 5) {
+                    console.log(`Empréstimo ${index + 1}:`, {
+                        id: loan.id,
+                        originalDate: originalLoanDate.toISOString().split('T')[0],
+                        normalizedDate: loanDate.toISOString().split('T')[0],
+                        startDate: startDate,
+                        endDate: endDate,
+                        startCheck: startCheck,
+                        endCheck: endCheck,
+                        matchesDate: matchesDate,
+                        type: loan.loan_type
+                    });
                 }
                 
                 return matchesDate;
@@ -13330,6 +13371,19 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
         }
         
         console.log(`Empréstimos após filtro de data: ${filteredByDate.length}`);
+        
+        // Mostrar distribuição por data dos empréstimos filtrados
+        if (filteredByDate.length > 0) {
+            const dateDistribution = {};
+            filteredByDate.forEach(loan => {
+                const dateStr = loan.loan_date || loan.created_at;
+                if (dateStr) {
+                    const date = new Date(dateStr).toISOString().split('T')[0];
+                    dateDistribution[date] = (dateDistribution[date] || 0) + 1;
+                }
+            });
+            console.log('Distribuição por data dos empréstimos filtrados:', dateDistribution);
+        }
         
         // Aplicar filtro de status APÓS filtro de data
         let finalFiltered = filteredByDate;
