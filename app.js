@@ -587,8 +587,10 @@ function setupEventListeners() {
     // Cálculos em tempo real
     document.getElementById('loanAmount').addEventListener('input', updateLoanSummary);
     document.getElementById('loanInterest').addEventListener('input', updateLoanSummary);
+    document.getElementById('loanType').addEventListener('change', updateLoanSummary);
     document.getElementById('editLoanAmount').addEventListener('input', updateEditLoanSummary);
     document.getElementById('editLoanInterest').addEventListener('input', updateEditLoanSummary);
+    document.getElementById('editLoanType').addEventListener('change', updateEditLoanSummary);
     
     // Validação do valor de pagamento
     document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
@@ -1786,6 +1788,11 @@ async function renderLoansTable() {
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full ${loan.loan_type === 'weekly' ? 'bg-green-900 text-green-300' : 'bg-blue-900 text-blue-300'}">
+                        ${loan.loan_type === 'weekly' ? 'Semanal' : 'Mensal'}
+                    </span>
+                </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.due_date)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
@@ -2119,6 +2126,7 @@ async function handleNewLoan(e) {
         interest_rate: parseFloat(document.getElementById('loanInterest').value),
         loan_date: document.getElementById('loanDate').value,
         due_date: document.getElementById('loanDueDate').value,
+        loan_type: document.getElementById('loanType').value,
         status: 'active',
         created_by: currentUser.id,
         created_at: new Date().toISOString()
@@ -2575,6 +2583,7 @@ async function handleEditLoan(e) {
         interest_rate: parseFloat(document.getElementById('editLoanInterest').value),
         loan_date: document.getElementById('editLoanDate').value,
         due_date: document.getElementById('editLoanDueDate').value,
+        loan_type: document.getElementById('editLoanType').value,
         status: document.getElementById('editLoanStatus').value,
         updated_at: new Date().toISOString()
     };
@@ -3255,10 +3264,19 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
         
         if (isInterestOnlyPayment) {
             // PAGAMENTO APENAS DE JUROS: Capital permanece o mesmo
-            // Próximo mês: mesmo capital + novos juros
-            // Não há recálculo, apenas renovação da data
+            // Calcular nova data de vencimento baseada no tipo de empréstimo
             const currentDueDate = parseLocalDate(loan.due_date);
-            const newDueDate = new Date(currentDueDate.getFullYear(), currentDueDate.getMonth() + 1, currentDueDate.getDate());
+            let newDueDate;
+            
+            // Verificar se é empréstimo semanal ou mensal
+            if (loan.loan_type === 'weekly') {
+                // Para empréstimos semanais: adicionar 4 semanas (28 dias)
+                newDueDate = new Date(currentDueDate);
+                newDueDate.setDate(currentDueDate.getDate() + 28);
+            } else {
+                // Para empréstimos mensais: adicionar 1 mês
+                newDueDate = new Date(currentDueDate.getFullYear(), currentDueDate.getMonth() + 1, currentDueDate.getDate());
+            }
             
             return {
                 shouldRecalculate: true,
@@ -4172,6 +4190,7 @@ function editLoan(loanId) {
     document.getElementById('editLoanInterest').value = loan.interest_rate;
     document.getElementById('editLoanDate').value = loan.loan_date;
     document.getElementById('editLoanDueDate').value = loan.due_date;
+    document.getElementById('editLoanType').value = loan.loan_type || 'monthly';
     document.getElementById('editLoanStatus').value = loan.status || 'active';
     
     // Preencher o select de clientes
