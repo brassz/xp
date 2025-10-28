@@ -13155,43 +13155,80 @@ async function calculateCommissions() {
 
 // Extrair valor de juros pagos das notas do pagamento
 function extractPaidInterestFromNotes(notes, paymentAmount, loanAmount, interestRate) {
+    console.log(`\n=== ANALISANDO PAGAMENTO ===`);
+    console.log(`Valor pago: R$ ${paymentAmount.toFixed(2)}`);
+    console.log(`Notas: ${notes || 'SEM NOTAS'}`);
+    
     if (!notes) {
-        // Se não há notas, assumir que o pagamento é proporcional aos juros
-        const totalInterest = loanAmount * (interestRate / 100);
-        const totalWithInterest = loanAmount + totalInterest;
-        return totalWithInterest > 0 ? (paymentAmount * totalInterest) / totalWithInterest : 0;
+        console.log(`⚠️ SEM NOTAS - Assumindo pagamento integral como juros`);
+        return paymentAmount; // Se não há notas, assumir que todo pagamento é juros
     }
     
-    // Tentar extrair "Juros pagos: R$ X.XX" das notas
+    // 1. Tentar extrair "Juros pagos: R$ X.XX" das notas
     const jurosRegex = /Juros pagos:\s*R\$\s*([\d.,]+)/i;
-    const match = notes.match(jurosRegex);
+    const jurosMatch = notes.match(jurosRegex);
     
-    if (match) {
-        const jurosStr = match[1].replace(/\./g, '').replace(',', '.');
+    if (jurosMatch) {
+        const jurosStr = jurosMatch[1].replace(/\./g, '').replace(',', '.');
         const jurosValue = parseFloat(jurosStr);
         if (!isNaN(jurosValue)) {
-            console.log(`Juros extraídos das notas: R$ ${jurosValue.toFixed(2)} (Pagamento: R$ ${paymentAmount.toFixed(2)})`);
+            console.log(`✅ JUROS EXTRAÍDOS DAS NOTAS: R$ ${jurosValue.toFixed(2)}`);
             return jurosValue;
         }
     }
     
-    // Se não conseguiu extrair das notas, usar lógica baseada no tipo de pagamento
-    if (notes.includes('PAGAMENTO APENAS DE JUROS') || notes.includes('RENOVAÇÃO')) {
-        // Pagamento apenas de juros - todo o valor é comissionável
-        return paymentAmount;
-    } else if (notes.includes('PAGAMENTO PARCIAL DE JUROS')) {
-        // Pagamento parcial de juros - todo o valor é comissionável
-        return paymentAmount;
-    } else if (notes.includes('PAGAMENTO DE CAPITAL')) {
-        // Pagamento de capital - extrair juros se possível, senão calcular proporcionalmente
-        const totalInterest = loanAmount * (interestRate / 100);
-        return Math.min(paymentAmount, totalInterest);
-    } else {
-        // Caso padrão: calcular proporcionalmente
-        const totalInterest = loanAmount * (interestRate / 100);
-        const totalWithInterest = loanAmount + totalInterest;
-        return totalWithInterest > 0 ? (paymentAmount * totalInterest) / totalWithInterest : 0;
+    // 2. Tentar extrair "Capital pago: R$ X.XX" das notas
+    const capitalRegex = /Capital pago:\s*R\$\s*([\d.,]+)/i;
+    const capitalMatch = notes.match(capitalRegex);
+    
+    if (capitalMatch) {
+        const capitalStr = capitalMatch[1].replace(/\./g, '').replace(',', '.');
+        const capitalValue = parseFloat(capitalStr);
+        if (!isNaN(capitalValue)) {
+            const jurosCalculado = paymentAmount - capitalValue;
+            console.log(`✅ CAPITAL EXTRAÍDO DAS NOTAS: R$ ${capitalValue.toFixed(2)}`);
+            console.log(`✅ JUROS CALCULADO: R$ ${paymentAmount.toFixed(2)} - R$ ${capitalValue.toFixed(2)} = R$ ${jurosCalculado.toFixed(2)}`);
+            return Math.max(0, jurosCalculado);
+        }
     }
+    
+    // 3. Analisar tipo de pagamento pelas palavras-chave
+    if (notes.includes('PAGAMENTO APENAS DE JUROS') || notes.includes('RENOVAÇÃO')) {
+        console.log(`✅ PAGAMENTO APENAS DE JUROS - Todo valor é comissão: R$ ${paymentAmount.toFixed(2)}`);
+        return paymentAmount;
+    }
+    
+    if (notes.includes('PAGAMENTO PARCIAL DE JUROS')) {
+        console.log(`✅ PAGAMENTO PARCIAL DE JUROS - Todo valor é comissão: R$ ${paymentAmount.toFixed(2)}`);
+        return paymentAmount;
+    }
+    
+    // 4. Para pagamentos com capital, tentar extrair valores específicos das notas
+    if (notes.includes('PAGAMENTO DE CAPITAL') || notes.includes('REDUÇÃO DE CAPITAL')) {
+        // Tentar extrair valores mais específicos
+        const novoCapitalRegex = /Novo capital:\s*R\$\s*([\d.,]+)/i;
+        const capitalAnteriorRegex = /Capital anterior:\s*R\$\s*([\d.,]+)/i;
+        
+        const novoCapitalMatch = notes.match(novoCapitalRegex);
+        const capitalAnteriorMatch = notes.match(capitalAnteriorRegex);
+        
+        if (novoCapitalMatch && capitalAnteriorMatch) {
+            const novoCapital = parseFloat(novoCapitalMatch[1].replace(/\./g, '').replace(',', '.'));
+            const capitalAnterior = parseFloat(capitalAnteriorMatch[1].replace(/\./g, '').replace(',', '.'));
+            
+            if (!isNaN(novoCapital) && !isNaN(capitalAnterior)) {
+                const capitalPago = capitalAnterior - novoCapital;
+                const jurosCalculado = paymentAmount - capitalPago;
+                console.log(`✅ CAPITAL CALCULADO: R$ ${capitalAnterior.toFixed(2)} - R$ ${novoCapital.toFixed(2)} = R$ ${capitalPago.toFixed(2)}`);
+                console.log(`✅ JUROS CALCULADO: R$ ${paymentAmount.toFixed(2)} - R$ ${capitalPago.toFixed(2)} = R$ ${jurosCalculado.toFixed(2)}`);
+                return Math.max(0, jurosCalculado);
+            }
+        }
+    }
+    
+    // 5. Caso padrão: assumir que todo o pagamento é juros (mais conservador para comissões)
+    console.log(`⚠️ NÃO CONSEGUIU EXTRAIR - Assumindo todo pagamento como juros: R$ ${paymentAmount.toFixed(2)}`);
+    return paymentAmount;
 }
 
 // Buscar todos os pagamentos para cálculo de comissões
@@ -13273,6 +13310,14 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
                 
                 // Extrair valor de juros pagos das notas do pagamento
                 const paidInterest = extractPaidInterestFromNotes(payment.notes, paymentAmount, loanAmount, interestRate);
+                const paidCapital = Math.max(0, paymentAmount - paidInterest);
+                
+                console.log(`RESULTADO FINAL - Pagamento ID ${payment.id}:`);
+                console.log(`- Valor total pago: R$ ${paymentAmount.toFixed(2)}`);
+                console.log(`- Juros pagos (COMISSÃO): R$ ${paidInterest.toFixed(2)}`);
+                console.log(`- Capital pago: R$ ${paidCapital.toFixed(2)}`);
+                console.log(`- Vinicius (66%): R$ ${(paidInterest * 0.66).toFixed(2)}`);
+                console.log(`- Douglas (33%): R$ ${(paidInterest * 0.33).toFixed(2)}`);
                 
                 allPayments.push({
                     id: payment.id,
@@ -13281,9 +13326,9 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
                     loan_amount: loanAmount,
                     interest_rate: interestRate,
                     interest_amount: loanAmount * (interestRate / 100), // Juros totais do empréstimo
-                    commissionable_amount: paidInterest, // Comissão sobre juros pagos
+                    commissionable_amount: paidInterest, // Comissão = JUROS PAGOS INTEGRALMENTE
                     paid_interest: paidInterest,
-                    paid_capital: paymentAmount - paidInterest,
+                    paid_capital: paidCapital,
                     client: loan.clients,
                     loan_id: loan.id,
                     loan_date: loan.loan_date,
