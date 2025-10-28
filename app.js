@@ -13136,16 +13136,16 @@ async function calculateCommissions() {
         console.log('Calculando comissões para:', { startDate, endDate, loanStatus });
         
         // Buscar todos os empréstimos
-        const allLoans = await fetchAllLoansForCommissions(startDate, endDate, loanStatus);
-        
-        // Calcular comissões
-        const commissionsData = calculateCommissionsFromLoans(allLoans);
+        const allPayments = await fetchAllPaymentsForCommissions(startDate, endDate, loanStatus);
+
+        // Calcular comissões baseado nos pagamentos
+        const commissionsData = calculateCommissionsFromPayments(allPayments);
         
         // Atualizar interface
         updateCommissionsSummary(commissionsData.summary);
         renderCommissionsTable(commissionsData.details);
         
-        showSuccessMessage(`Comissões calculadas! ${commissionsData.details.length} empréstimos processados.`);
+        showSuccessMessage(`Comissões calculadas! ${commissionsData.details.length} pagamentos processados.`);
         
     } catch (error) {
         console.error('Erro ao calcular comissões:', error);
@@ -13153,145 +13153,431 @@ async function calculateCommissions() {
     }
 }
 
-// Buscar todos os empréstimos para cálculo de comissões
-async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
-    const allLoans = [];
+// Extrair valor de juros pagos das notas do pagamento
+function extractPaidInterestFromNotes(notes, paymentAmount, loanAmount, interestRate) {
+    console.log(`\n=== ANALISANDO PAGAMENTO ===`);
+    console.log(`Valor pago: R$ ${paymentAmount.toFixed(2)}`);
+    console.log(`Notas: ${notes || 'SEM NOTAS'}`);
     
-    try {
-        // Construir query base
-        let query = supabase
-            .from('loans')
-            .select(`
-                *,
-                clients (
-                    id,
-                    name,
-                    cpf
-                )
-            `);
-        
-        // Aplicar filtros de data se fornecidos
-        if (startDate) {
-            query = query.gte('loan_date', startDate);
+    if (!notes) {
+        console.log(`⚠️ SEM NOTAS - Assumindo pagamento integral como juros`);
+        return paymentAmount; // Se não há notas, assumir que todo pagamento é juros
+    }
+    
+    // 1. Tentar extrair "Juros pagos: R$ X.XX" das notas
+    const jurosRegex = /Juros pagos:\s*R\$\s*([\d.,]+)/i;
+    const jurosMatch = notes.match(jurosRegex);
+    
+    if (jurosMatch) {
+        const jurosStr = jurosMatch[1].replace(/\./g, '').replace(',', '.');
+        const jurosValue = parseFloat(jurosStr);
+        if (!isNaN(jurosValue)) {
+            console.log(`✅ JUROS EXTRAÍDOS DAS NOTAS: R$ ${jurosValue.toFixed(2)}`);
+            return jurosValue;
         }
-        if (endDate) {
-            query = query.lte('loan_date', endDate);
+    }
+    
+    // 2. Tentar extrair "Capital pago: R$ X.XX" das notas
+    const capitalRegex = /Capital pago:\s*R\$\s*([\d.,]+)/i;
+    const capitalMatch = notes.match(capitalRegex);
+    
+    if (capitalMatch) {
+        const capitalStr = capitalMatch[1].replace(/\./g, '').replace(',', '.');
+        const capitalValue = parseFloat(capitalStr);
+        if (!isNaN(capitalValue)) {
+            const jurosCalculado = paymentAmount - capitalValue;
+            console.log(`✅ CAPITAL EXTRAÍDO DAS NOTAS: R$ ${capitalValue.toFixed(2)}`);
+            console.log(`✅ JUROS CALCULADO: R$ ${paymentAmount.toFixed(2)} - R$ ${capitalValue.toFixed(2)} = R$ ${jurosCalculado.toFixed(2)}`);
+            return Math.max(0, jurosCalculado);
         }
+    }
+    
+    // 3. Analisar tipo de pagamento pelas palavras-chave
+    if (notes.includes('PAGAMENTO APENAS DE JUROS') || notes.includes('RENOVAÇÃO')) {
+        console.log(`✅ PAGAMENTO APENAS DE JUROS - Todo valor é comissão: R$ ${paymentAmount.toFixed(2)}`);
+        return paymentAmount;
+    }
+    
+    if (notes.includes('PAGAMENTO PARCIAL DE JUROS')) {
+        console.log(`✅ PAGAMENTO PARCIAL DE JUROS - Todo valor é comissão: R$ ${paymentAmount.toFixed(2)}`);
+        return paymentAmount;
+    }
+    
+    // 4. Para pagamentos com capital, tentar extrair valores específicos das notas
+    if (notes.includes('PAGAMENTO DE CAPITAL') || notes.includes('REDUÇÃO DE CAPITAL')) {
+        // Tentar extrair valores mais específicos
+        const novoCapitalRegex = /Novo capital:\s*R\$\s*([\d.,]+)/i;
+        const capitalAnteriorRegex = /Capital anterior:\s*R\$\s*([\d.,]+)/i;
         
-        // Aplicar filtro de status se não for "all"
-        if (loanStatus && loanStatus !== 'all') {
-            if (loanStatus === 'active') {
-                query = query.eq('status', 'active');
-            } else if (loanStatus === 'overdue') {
-                query = query.eq('status', 'overdue');
-            } else if (loanStatus === 'paid') {
-                // Buscar empréstimos pagos na tabela paid_loans
-                const { data: paidLoans, error: paidError } = await supabase
-                    .from('paid_loans')
-                    .select(`
-                        *,
-                        clients (
-                            id,
-                            name,
-                            cpf
-                        )
-                    `);
-                
-                if (paidError) throw paidError;
-                
-                // Adicionar empréstimos pagos com status 'paid'
-                paidLoans.forEach(loan => {
-                    allLoans.push({
-                        ...loan,
-                        status: 'paid',
-                        amount: loan.original_amount || loan.amount
-                    });
-                });
+        const novoCapitalMatch = notes.match(novoCapitalRegex);
+        const capitalAnteriorMatch = notes.match(capitalAnteriorRegex);
+        
+        if (novoCapitalMatch && capitalAnteriorMatch) {
+            const novoCapital = parseFloat(novoCapitalMatch[1].replace(/\./g, '').replace(',', '.'));
+            const capitalAnterior = parseFloat(capitalAnteriorMatch[1].replace(/\./g, '').replace(',', '.'));
+            
+            if (!isNaN(novoCapital) && !isNaN(capitalAnterior)) {
+                const capitalPago = capitalAnterior - novoCapital;
+                const jurosCalculado = paymentAmount - capitalPago;
+                console.log(`✅ CAPITAL CALCULADO: R$ ${capitalAnterior.toFixed(2)} - R$ ${novoCapital.toFixed(2)} = R$ ${capitalPago.toFixed(2)}`);
+                console.log(`✅ JUROS CALCULADO: R$ ${paymentAmount.toFixed(2)} - R$ ${capitalPago.toFixed(2)} = R$ ${jurosCalculado.toFixed(2)}`);
+                return Math.max(0, jurosCalculado);
             }
         }
+    }
+    
+    // 5. Caso padrão: assumir que todo o pagamento é juros (mais conservador para comissões)
+    console.log(`⚠️ NÃO CONSEGUIU EXTRAIR - Assumindo todo pagamento como juros: R$ ${paymentAmount.toFixed(2)}`);
+    return paymentAmount;
+}
+
+// Buscar todos os pagamentos para cálculo de comissões
+async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
+    const allPayments = [];
+    
+    try {
+        console.log('Buscando TODOS os pagamentos do sistema...');
         
-        // Buscar empréstimos ativos/vencidos se não for apenas "paid"
-        if (!loanStatus || loanStatus === 'all' || loanStatus !== 'paid') {
-            const { data: activeLoans, error: activeError } = await query;
-            
-            if (activeError) throw activeError;
-            
-            allLoans.push(...activeLoans);
-        }
-        
-        // Buscar parcelamentos se incluído
-        if (!loanStatus || loanStatus === 'all' || loanStatus === 'installment') {
-            const { data: installments, error: installmentError } = await supabase
-                .from('installments')
-                .select(`
-                    *,
+        // 1. Buscar TODOS os pagamentos da tabela payments (pagamentos de empréstimos regulares)
+        const paymentsQuery = supabase
+            .from('payments')
+            .select(`
+                *,
+                loans (
+                    id,
+                    amount,
+                    interest_rate,
+                    loan_date,
+                    due_date,
+                    status,
                     clients (
                         id,
                         name,
                         cpf
                     )
-                `);
-            
-            if (installmentError) throw installmentError;
-            
-            // Adicionar parcelamentos com status 'installment'
-            installments.forEach(installment => {
-                allLoans.push({
-                    ...installment,
-                    status: 'installment',
-                    loan_date: installment.created_at,
-                    due_date: installment.next_due_date
+                )
+            `)
+            .limit(10000);
+        
+        // 2. NÃO buscar pagamentos de parcelamentos (conforme solicitado)
+        
+        // 3. Buscar empréstimos quitados (paid_loans) - SEM relacionamento
+        const paidLoansQuery = supabase
+            .from('paid_loans')
+            .select('*')
+            .limit(10000);
+        
+        // 4. Buscar clientes para join manual
+        const clientsQuery = supabase
+            .from('clients')
+            .select('id, name, cpf')
+            .limit(10000);
+        
+        // Executar as consultas em paralelo (SEM parcelamentos)
+        const [paymentsResult, paidLoansResult, clientsResult] = await Promise.all([
+            paymentsQuery,
+            paidLoansQuery,
+            clientsQuery
+        ]);
+        
+        if (paymentsResult.error) {
+            console.error('Erro na consulta de pagamentos:', paymentsResult.error);
+            throw paymentsResult.error;
+        }
+        
+        const payments = paymentsResult.data || [];
+        const paidLoans = (paidLoansResult.error ? [] : paidLoansResult.data) || [];
+        const clients = (clientsResult.error ? [] : clientsResult.data) || [];
+        
+        if (paidLoansResult.error) {
+            console.error('ERRO na consulta paid_loans:', paidLoansResult.error);
+        }
+        if (clientsResult.error) {
+            console.error('ERRO na consulta clients:', clientsResult.error);
+        }
+        
+        // Criar mapa de clientes para join manual
+        const clientsMap = {};
+        clients.forEach(client => {
+            clientsMap[client.id] = client;
+        });
+        
+        console.log(`Dados encontrados por tabela:`);
+        console.log(`- Pagamentos regulares (payments): ${payments.length}`);
+        console.log(`- Empréstimos quitados (paid_loans): ${paidLoans.length}`);
+        console.log(`- Clientes para join: ${clients.length}`);
+        
+        // Processar pagamentos regulares
+        payments.forEach(payment => {
+            if (payment.loans) {
+                const loan = payment.loans;
+                const loanAmount = parseFloat(loan.amount || 0);
+                const interestRate = parseFloat(loan.interest_rate || 0);
+                const paymentAmount = parseFloat(payment.amount || 0);
+                
+                // Extrair valor de juros pagos das notas do pagamento
+                const paidInterest = extractPaidInterestFromNotes(payment.notes, paymentAmount, loanAmount, interestRate);
+                const paidCapital = Math.max(0, paymentAmount - paidInterest);
+                
+                console.log(`RESULTADO FINAL - Pagamento ID ${payment.id}:`);
+                console.log(`- Valor total pago: R$ ${paymentAmount.toFixed(2)}`);
+                console.log(`- Juros pagos (COMISSÃO): R$ ${paidInterest.toFixed(2)}`);
+                console.log(`- Capital pago: R$ ${paidCapital.toFixed(2)}`);
+                console.log(`- Vinicius (66%): R$ ${(paidInterest * 0.66).toFixed(2)}`);
+                console.log(`- Douglas (33%): R$ ${(paidInterest * 0.33).toFixed(2)}`);
+                
+                allPayments.push({
+                    id: payment.id,
+                    payment_date: payment.payment_date,
+                    payment_amount: paymentAmount,
+                    loan_amount: loanAmount,
+                    interest_rate: interestRate,
+                    interest_amount: loanAmount * (interestRate / 100), // Juros totais do empréstimo
+                    commissionable_amount: paidInterest, // Comissão = JUROS PAGOS INTEGRALMENTE
+                    paid_interest: paidInterest,
+                    paid_capital: paidCapital,
+                    client: loan.clients,
+                    loan_id: loan.id,
+                    loan_date: loan.loan_date,
+                    loan_status: loan.status,
+                    payment_type: 'regular',
+                    notes: payment.notes
                 });
+            }
+        });
+        
+        // NÃO processar pagamentos de parcelamentos (conforme solicitado)
+        
+        // Processar empréstimos quitados (paid_loans) - NOVA FUNCIONALIDADE
+        console.log(`\n🔍 PROCESSANDO ${paidLoans.length} EMPRÉSTIMOS QUITADOS...`);
+        
+        paidLoans.forEach((paidLoan, index) => {
+            const loanAmount = parseFloat(paidLoan.original_amount || 0);
+            const interestRate = parseFloat(paidLoan.interest_rate || 0);
+            const totalWithInterest = parseFloat(paidLoan.total_with_interest || 0);
+            const totalPaid = parseFloat(paidLoan.total_paid || 0);
+            
+            // Buscar cliente usando join manual
+            const client = clientsMap[paidLoan.client_id];
+            
+            // Calcular juros totais do empréstimo quitado
+            const totalInterest = totalWithInterest - loanAmount;
+            
+            console.log(`\n=== EMPRÉSTIMO QUITADO ${index + 1}/${paidLoans.length} ===`);
+            console.log(`ID: ${paidLoan.id}`);
+            console.log(`Client ID: ${paidLoan.client_id}`);
+            console.log(`Cliente: ${client?.name || 'CLIENTE NÃO ENCONTRADO'}`);
+            console.log(`Valor original: R$ ${loanAmount.toFixed(2)}`);
+            console.log(`Taxa de juros: ${interestRate}%`);
+            console.log(`Total com juros: R$ ${totalWithInterest.toFixed(2)}`);
+            console.log(`Total pago: R$ ${totalPaid.toFixed(2)}`);
+            console.log(`Juros totais (COMISSÃO): R$ ${totalInterest.toFixed(2)}`);
+            console.log(`Data de quitação: ${paidLoan.paid_date}`);
+            
+            if (totalInterest > 0) {
+                allPayments.push({
+                    id: `paid_loan_${paidLoan.id}`, // Prefixo para distinguir de pagamentos regulares
+                    payment_date: paidLoan.paid_date,
+                    payment_amount: totalPaid,
+                    loan_amount: loanAmount,
+                    interest_rate: interestRate,
+                    interest_amount: totalInterest,
+                    commissionable_amount: totalInterest, // Comissão sobre juros totais
+                    paid_interest: totalInterest,
+                    paid_capital: loanAmount,
+                    client: client,
+                    loan_id: paidLoan.loan_id,
+                    loan_date: paidLoan.loan_date,
+                    loan_status: 'paid',
+                    payment_type: 'loan_payoff', // Novo tipo: quitação completa
+                    notes: `QUITAÇÃO COMPLETA - Juros totais: R$ ${totalInterest.toFixed(2)}`
+                });
+                console.log(`✅ ADICIONADO À LISTA DE COMISSÕES`);
+            } else {
+                console.log(`⚠️ JUROS = 0, NÃO ADICIONADO`);
+            }
+        });
+        
+        console.log(`Total de pagamentos no sistema: ${allPayments.length}`);
+        console.log('Amostra de pagamentos encontrados:', allPayments.slice(0, 3).map(payment => ({
+            id: payment.id,
+            client: payment.client?.name || 'Sem cliente',
+            payment_amount: payment.payment_amount,
+            paid_interest: payment.paid_interest,
+            paid_capital: payment.paid_capital,
+            commissionable_amount: payment.commissionable_amount,
+            payment_date: payment.payment_date,
+            type: payment.payment_type,
+            notes: payment.notes?.substring(0, 100) + '...'
+        })));
+        
+        // Mostrar distribuição por data de TODOS os pagamentos
+        const allDatesDistribution = {};
+        const monthlyDistribution = {};
+        allPayments.forEach(payment => {
+            const dateStr = payment.payment_date;
+            if (dateStr) {
+                const date = new Date(dateStr).toISOString().split('T')[0];
+                const month = date.substring(0, 7); // YYYY-MM
+                allDatesDistribution[date] = (allDatesDistribution[date] || 0) + 1;
+                monthlyDistribution[month] = (monthlyDistribution[month] || 0) + 1;
+            }
+        });
+        console.log('Distribuição por mês de TODOS os pagamentos:', monthlyDistribution);
+        console.log('Distribuição por data de TODOS os pagamentos (primeiros 20):', 
+            Object.entries(allDatesDistribution)
+                .sort(([a], [b]) => b.localeCompare(a))
+                .slice(0, 20)
+                .reduce((obj, [key, value]) => ({ ...obj, [key]: value }), {})
+        );
+        
+        // Aplicar filtros de data APÓS buscar todos os pagamentos
+        let filteredByDate = allPayments;
+        if (startDate || endDate) {
+            console.log(`Aplicando filtro de data nos pagamentos e quitações: ${startDate} até ${endDate}`);
+            console.log(`Total de pagamentos/quitações antes do filtro de data: ${allPayments.length}`);
+            
+            filteredByDate = allPayments.filter((payment, index) => {
+                const paymentDateStr = payment.payment_date;
+                
+                if (!paymentDateStr) {
+                    console.warn('Pagamento/quitação sem data encontrado:', payment);
+                    return false;
+                }
+                
+                const paymentDate = new Date(paymentDateStr);
+                paymentDate.setHours(0, 0, 0, 0);
+                
+                let matchesDate = true;
+                let startCheck = true;
+                let endCheck = true;
+                
+                if (startDate) {
+                    const start = new Date(startDate);
+                    start.setHours(0, 0, 0, 0);
+                    startCheck = paymentDate >= start;
+                    matchesDate = matchesDate && startCheck;
+                }
+                
+                if (endDate) {
+                    const end = new Date(endDate);
+                    end.setHours(23, 59, 59, 999);
+                    endCheck = paymentDate <= end;
+                    matchesDate = matchesDate && endCheck;
+                }
+                
+                // Log detalhado para os primeiros 5 itens
+                if (index < 5) {
+                    console.log(`${payment.payment_type === 'loan_payoff' ? 'Quitação' : 'Pagamento'} ${index + 1}:`, {
+                        id: payment.id,
+                        type: payment.payment_type,
+                        paymentDate: paymentDate.toISOString().split('T')[0],
+                        startDate: startDate,
+                        endDate: endDate,
+                        startCheck: startCheck,
+                        endCheck: endCheck,
+                        matchesDate: matchesDate,
+                        amount: payment.payment_amount,
+                        commission: payment.commissionable_amount
+                    });
+                }
+                
+                return matchesDate;
             });
         }
         
-        console.log(`Total de empréstimos encontrados: ${allLoans.length}`);
-        return allLoans;
+        console.log(`Pagamentos após filtro de data: ${filteredByDate.length}`);
+        
+        // Mostrar distribuição por data dos pagamentos filtrados
+        if (filteredByDate.length > 0) {
+            const dateDistribution = {};
+            filteredByDate.forEach(payment => {
+                const dateStr = payment.payment_date;
+                if (dateStr) {
+                    const date = new Date(dateStr).toISOString().split('T')[0];
+                    dateDistribution[date] = (dateDistribution[date] || 0) + 1;
+                }
+            });
+            console.log('Distribuição por data dos pagamentos filtrados:', dateDistribution);
+        }
+        
+        // Aplicar filtro de status do empréstimo (se especificado)
+        let finalFiltered = filteredByDate;
+        if (loanStatus && loanStatus !== 'all') {
+            finalFiltered = filteredByDate.filter(payment => {
+                switch (loanStatus) {
+                    case 'active':
+                        return payment.loan_status === 'active';
+                    case 'overdue':
+                        return payment.loan_status === 'overdue';
+                    case 'due_today':
+                        return payment.loan_status === 'due_today';
+                    case 'paid':
+                        return payment.loan_status === 'paid';
+                    case 'partial_paid':
+                        return payment.loan_status === 'partial_paid';
+                    default:
+                        return true;
+                }
+            });
+        }
+        
+        console.log(`Pagamentos finais após todos os filtros: ${finalFiltered.length}`);
+        console.log('Distribuição por status do empréstimo:', {
+            active: finalFiltered.filter(p => p.loan_status === 'active').length,
+            overdue: finalFiltered.filter(p => p.loan_status === 'overdue').length,
+            paid: finalFiltered.filter(p => p.loan_status === 'paid').length,
+            installment: finalFiltered.filter(p => p.payment_type === 'installment').length
+        });
+        
+        return finalFiltered;
         
     } catch (error) {
-        console.error('Erro ao buscar empréstimos:', error);
+        console.error('Erro ao buscar pagamentos:', error);
         throw error;
     }
 }
 
-// Calcular comissões dos empréstimos
-function calculateCommissionsFromLoans(loans) {
+// Calcular comissões baseado nos pagamentos realizados
+function calculateCommissionsFromPayments(payments) {
     const details = [];
-    let totalInterest = 0;
+    let totalCommissionableAmount = 0;
     
-    loans.forEach(loan => {
-        const loanAmount = parseFloat(loan.amount || 0);
-        const interestRate = parseFloat(loan.interest_rate || 0);
-        const interestAmount = loanAmount * (interestRate / 100);
+    payments.forEach(payment => {
+        const commissionableAmount = parseFloat(payment.commissionable_amount || 0);
         
         // Calcular comissões (66% Vinicius, 33% Douglas)
-        const viniciusCommission = interestAmount * 0.66;
-        const douglasCommission = interestAmount * 0.33;
+        const viniciusCommission = commissionableAmount * 0.66;
+        const douglasCommission = commissionableAmount * 0.33;
         
-        totalInterest += interestAmount;
+        totalCommissionableAmount += commissionableAmount;
         
         details.push({
-            id: loan.id,
-            client: loan.clients,
-            loanAmount: loanAmount,
-            interestRate: interestRate,
-            interestAmount: interestAmount,
+            id: payment.id,
+            client: payment.client,
+            paymentAmount: payment.payment_amount,
+            loanAmount: payment.loan_amount,
+            interestRate: payment.interest_rate,
+            commissionableAmount: commissionableAmount,
             viniciusCommission: viniciusCommission,
             douglasCommission: douglasCommission,
-            loanDate: loan.loan_date,
-            status: loan.status || 'active'
+            paymentDate: payment.payment_date,
+            loanDate: payment.loan_date,
+            status: payment.loan_status || payment.payment_type,
+            paymentType: payment.payment_type,
+            notes: payment.notes
         });
     });
     
-    const totalViniciusCommission = totalInterest * 0.66;
-    const totalDouglasCommission = totalInterest * 0.33;
+    const totalViniciusCommission = totalCommissionableAmount * 0.66;
+    const totalDouglasCommission = totalCommissionableAmount * 0.33;
     
     return {
         summary: {
-            totalInterest,
+            totalInterest: totalCommissionableAmount, // Mantendo nome para compatibilidade
             totalViniciusCommission,
             totalDouglasCommission,
-            totalLoans: loans.length
+            totalPayments: payments.length
         },
         details
     };
@@ -13311,8 +13597,8 @@ function renderCommissionsTable(commissionsDetails) {
     if (commissionsDetails.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="8" class="px-3 py-6 text-center text-gray-400 text-sm">
-                    Nenhum empréstimo encontrado para o período selecionado
+                <td colspan="9" class="px-3 py-6 text-center text-gray-400 text-sm">
+                    Nenhum pagamento encontrado para o período selecionado
                 </td>
             </tr>
         `;
@@ -13320,7 +13606,9 @@ function renderCommissionsTable(commissionsDetails) {
     }
     
     tableBody.innerHTML = commissionsDetails.map(item => {
-        const statusBadge = getStatusBadge(item.status);
+        // Usar payment_type para badge se for quitação, senão usar status
+        const badgeStatus = item.paymentType === 'loan_payoff' ? 'loan_payoff' : item.status;
+        const statusBadge = getStatusBadge(badgeStatus);
         const clientName = item.client?.name || 'Cliente não encontrado';
         
         return `
@@ -13330,13 +13618,17 @@ function renderCommissionsTable(commissionsDetails) {
                     <div class="text-xs text-gray-300">${item.client?.cpf || ''}</div>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
+                    <div>R$ ${item.paymentAmount.toFixed(2)}</div>
+                    <div class="text-xs text-gray-400">J: ${item.paid_interest?.toFixed(2) || '0.00'} | C: ${item.paid_capital?.toFixed(2) || '0.00'}</div>
+                </td>
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     R$ ${item.loanAmount.toFixed(2)}
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     ${item.interestRate.toFixed(1)}%
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-white font-semibold">
-                    R$ ${item.interestAmount.toFixed(2)}
+                    R$ ${item.commissionableAmount.toFixed(2)}
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-green-400 font-semibold">
                     R$ ${item.viniciusCommission.toFixed(2)}
@@ -13345,7 +13637,7 @@ function renderCommissionsTable(commissionsDetails) {
                     R$ ${item.douglasCommission.toFixed(2)}
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
-                    ${formatDate(item.loanDate)}
+                    ${formatDate(item.paymentDate)}
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap">
                     ${statusBadge}
@@ -13359,9 +13651,12 @@ function renderCommissionsTable(commissionsDetails) {
 function getStatusBadge(status) {
     const badges = {
         'active': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-green-100 text-green-800">Ativo</span>',
+        'due_today': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-orange-100 text-orange-800">Vence Hoje</span>',
         'overdue': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-red-100 text-red-800">Vencido</span>',
-        'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Pago</span>',
-        'installment': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-yellow-100 text-yellow-800">Parcelamento</span>'
+        'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Quitado</span>',
+        'partial_paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-yellow-100 text-yellow-800">Parcial</span>',
+        'loan_payoff': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-emerald-100 text-emerald-800">Quitação</span>',
+        'installment': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-purple-100 text-purple-800">Parcelamento</span>'
     };
     
     return badges[status] || '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Desconhecido</span>';
