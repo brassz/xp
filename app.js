@@ -13311,7 +13311,7 @@ function renderCommissionsTable(commissionsDetails) {
     if (commissionsDetails.length === 0) {
         tableBody.innerHTML = `
             <tr>
-                <td colspan="8" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="8" class="px-3 py-6 text-center text-gray-400 text-sm">
                     Nenhum empréstimo encontrado para o período selecionado
                 </td>
             </tr>
@@ -13325,29 +13325,29 @@ function renderCommissionsTable(commissionsDetails) {
         
         return `
             <tr class="table-row">
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-white">${clientName}</div>
-                    <div class="text-sm text-gray-300">${item.client?.cpf || ''}</div>
+                <td class="px-3 py-3 whitespace-nowrap">
+                    <div class="text-xs font-medium text-white">${clientName}</div>
+                    <div class="text-xs text-gray-300">${item.client?.cpf || ''}</div>
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     R$ ${item.loanAmount.toFixed(2)}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     ${item.interestRate.toFixed(1)}%
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-white font-semibold">
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-white font-semibold">
                     R$ ${item.interestAmount.toFixed(2)}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-green-400 font-semibold">
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-green-400 font-semibold">
                     R$ ${item.viniciusCommission.toFixed(2)}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-purple-400 font-semibold">
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-purple-400 font-semibold">
                     R$ ${item.douglasCommission.toFixed(2)}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     ${formatDate(item.loanDate)}
                 </td>
-                <td class="px-6 py-4 whitespace-nowrap">
+                <td class="px-3 py-3 whitespace-nowrap">
                     ${statusBadge}
                 </td>
             </tr>
@@ -13358,11 +13358,11 @@ function renderCommissionsTable(commissionsDetails) {
 // Obter badge de status
 function getStatusBadge(status) {
     const badges = {
-        'active': '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-green-100 text-green-800">Ativo</span>',
-        'overdue': '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-red-100 text-red-800">Vencido</span>',
-        'paid': '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-blue-100 text-blue-800">Pago</span>',
-        'installment': '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-yellow-100 text-yellow-800">Parcelamento</span>'
+        'active': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-green-100 text-green-800">Ativo</span>',
+        'overdue': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-red-100 text-red-800">Vencido</span>',
+        'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Pago</span>',
+        'installment': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-yellow-100 text-yellow-800">Parcelamento</span>'
     };
     
-    return badges[status] || '<span class="px-2 inline-flex text-xs leading-5 font-semibold rounded-full bg-gray-100 text-gray-800">Desconhecido</span>';
+    return badges[status] || '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Desconhecido</span>';
 }
