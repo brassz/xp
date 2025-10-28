@@ -13251,43 +13251,51 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             });
         });
         
-        // Processar empréstimos pagos
+        // Processar empréstimos pagos (com join manual)
         paidLoans.forEach(loan => {
+            const client = clientsMap[loan.client_id];
             allLoans.push({
                 ...loan,
                 status: 'paid',
                 amount: loan.original_amount || loan.amount,
-                loan_type: 'paid'
+                loan_type: 'paid',
+                clients: client || null
             });
         });
         
-        // Processar empréstimos cancelados
+        // Processar empréstimos cancelados (com join manual)
         cancelledLoans.forEach(loan => {
+            const client = clientsMap[loan.client_id];
             allLoans.push({
                 ...loan,
                 status: 'cancelled',
                 amount: loan.original_amount || loan.amount,
-                loan_type: 'cancelled'
+                loan_type: 'cancelled',
+                clients: client || null
             });
         });
         
-        // Processar empréstimos vencidos (da tabela separada)
+        // Processar empréstimos vencidos da tabela separada (com join manual)
         overdueLoans.forEach(loan => {
+            const client = clientsMap[loan.client_id];
             allLoans.push({
                 ...loan,
                 status: 'overdue',
                 amount: loan.original_amount || loan.amount,
-                loan_type: 'overdue'
+                loan_type: 'overdue',
+                clients: client || null
             });
         });
         
-        // Processar empréstimos parcialmente pagos
+        // Processar empréstimos parcialmente pagos (com join manual)
         partialPaidLoans.forEach(loan => {
+            const client = clientsMap[loan.client_id];
             allLoans.push({
                 ...loan,
                 status: 'partial_paid',
                 amount: loan.original_amount || loan.amount,
-                loan_type: 'partial_paid'
+                loan_type: 'partial_paid',
+                clients: client || null
             });
         });
         
