@@ -13174,65 +13174,44 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
                 )
             `);
         
-        // 2. Buscar TODOS os empréstimos pagos da tabela paid_loans (SEM filtros de data na consulta)
+        // 2. Buscar TODOS os empréstimos pagos da tabela paid_loans (SEM relacionamento)
         const paidQuery = supabase
             .from('paid_loans')
-            .select(`
-                *,
-                clients (
-                    id,
-                    name,
-                    cpf
-                )
-            `);
+            .select('*');
         
-        // 3. Buscar TODOS os empréstimos cancelados
+        // 3. Buscar TODOS os empréstimos cancelados (SEM relacionamento)
         const cancelledQuery = supabase
             .from('cancelled_loans')
-            .select(`
-                *,
-                clients (
-                    id,
-                    name,
-                    cpf
-                )
-            `);
+            .select('*');
         
-        // 4. Buscar TODOS os empréstimos vencidos (se existir tabela separada)
+        // 4. Buscar TODOS os empréstimos vencidos (SEM relacionamento)
         const overdueQuery = supabase
             .from('overdue_loans')
-            .select(`
-                *,
-                clients (
-                    id,
-                    name,
-                    cpf
-                )
-            `);
+            .select('*');
         
-        // 5. Buscar TODOS os empréstimos parcialmente pagos
+        // 5. Buscar TODOS os empréstimos parcialmente pagos (SEM relacionamento)
         const partialPaidQuery = supabase
             .from('partial_paid_loans')
-            .select(`
-                *,
-                clients (
-                    id,
-                    name,
-                    cpf
-                )
-            `);
+            .select('*');
+        
+        // 6. Buscar TODOS os clientes para fazer o join manualmente
+        const clientsQuery = supabase
+            .from('clients')
+            .select('id, name, cpf');
         
         // Executar todas as consultas em paralelo
-        const [activeResult, paidResult, cancelledResult, overdueResult, partialPaidResult] = await Promise.all([
+        const [activeResult, paidResult, cancelledResult, overdueResult, partialPaidResult, clientsResult] = await Promise.all([
             activeQuery,
             paidQuery,
             cancelledQuery,
             overdueQuery,
-            partialPaidQuery
+            partialPaidQuery,
+            clientsQuery
         ]);
         
         if (activeResult.error) throw activeResult.error;
         if (paidResult.error) throw paidResult.error;
+        if (clientsResult.error) throw clientsResult.error;
         // Ignorar erros das outras tabelas se não existirem
         
         const activeLoans = activeResult.data || [];
@@ -13240,6 +13219,13 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
         const cancelledLoans = (cancelledResult.error ? [] : cancelledResult.data) || [];
         const overdueLoans = (overdueResult.error ? [] : overdueResult.data) || [];
         const partialPaidLoans = (partialPaidResult.error ? [] : partialPaidResult.data) || [];
+        const clients = clientsResult.data || [];
+        
+        // Criar um mapa de clientes para lookup rápido
+        const clientsMap = {};
+        clients.forEach(client => {
+            clientsMap[client.id] = client;
+        });
         
         console.log(`Empréstimos encontrados - Ativos: ${activeLoans.length}, Pagos: ${paidLoans.length}, Cancelados: ${cancelledLoans.length}, Vencidos: ${overdueLoans.length}, Parcialmente Pagos: ${partialPaidLoans.length}`);
         
