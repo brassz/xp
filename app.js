@@ -13153,6 +13153,47 @@ async function calculateCommissions() {
     }
 }
 
+// Extrair valor de juros pagos das notas do pagamento
+function extractPaidInterestFromNotes(notes, paymentAmount, loanAmount, interestRate) {
+    if (!notes) {
+        // Se não há notas, assumir que o pagamento é proporcional aos juros
+        const totalInterest = loanAmount * (interestRate / 100);
+        const totalWithInterest = loanAmount + totalInterest;
+        return totalWithInterest > 0 ? (paymentAmount * totalInterest) / totalWithInterest : 0;
+    }
+    
+    // Tentar extrair "Juros pagos: R$ X.XX" das notas
+    const jurosRegex = /Juros pagos:\s*R\$\s*([\d.,]+)/i;
+    const match = notes.match(jurosRegex);
+    
+    if (match) {
+        const jurosStr = match[1].replace(/\./g, '').replace(',', '.');
+        const jurosValue = parseFloat(jurosStr);
+        if (!isNaN(jurosValue)) {
+            console.log(`Juros extraídos das notas: R$ ${jurosValue.toFixed(2)} (Pagamento: R$ ${paymentAmount.toFixed(2)})`);
+            return jurosValue;
+        }
+    }
+    
+    // Se não conseguiu extrair das notas, usar lógica baseada no tipo de pagamento
+    if (notes.includes('PAGAMENTO APENAS DE JUROS') || notes.includes('RENOVAÇÃO')) {
+        // Pagamento apenas de juros - todo o valor é comissionável
+        return paymentAmount;
+    } else if (notes.includes('PAGAMENTO PARCIAL DE JUROS')) {
+        // Pagamento parcial de juros - todo o valor é comissionável
+        return paymentAmount;
+    } else if (notes.includes('PAGAMENTO DE CAPITAL')) {
+        // Pagamento de capital - extrair juros se possível, senão calcular proporcionalmente
+        const totalInterest = loanAmount * (interestRate / 100);
+        return Math.min(paymentAmount, totalInterest);
+    } else {
+        // Caso padrão: calcular proporcionalmente
+        const totalInterest = loanAmount * (interestRate / 100);
+        const totalWithInterest = loanAmount + totalInterest;
+        return totalWithInterest > 0 ? (paymentAmount * totalInterest) / totalWithInterest : 0;
+    }
+}
+
 // Buscar todos os pagamentos para cálculo de comissões
 async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
     const allPayments = [];
@@ -13230,10 +13271,8 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
                 const interestRate = parseFloat(loan.interest_rate || 0);
                 const paymentAmount = parseFloat(payment.amount || 0);
                 
-                // Calcular proporção do pagamento em relação ao empréstimo
-                const paymentRatio = loanAmount > 0 ? paymentAmount / loanAmount : 0;
-                const interestAmount = loanAmount * (interestRate / 100);
-                const commissionableAmount = interestAmount * paymentRatio;
+                // Extrair valor de juros pagos das notas do pagamento
+                const paidInterest = extractPaidInterestFromNotes(payment.notes, paymentAmount, loanAmount, interestRate);
                 
                 allPayments.push({
                     id: payment.id,
@@ -13241,8 +13280,10 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
                     payment_amount: paymentAmount,
                     loan_amount: loanAmount,
                     interest_rate: interestRate,
-                    interest_amount: interestAmount,
-                    commissionable_amount: commissionableAmount,
+                    interest_amount: loanAmount * (interestRate / 100), // Juros totais do empréstimo
+                    commissionable_amount: paidInterest, // Comissão sobre juros pagos
+                    paid_interest: paidInterest,
+                    paid_capital: paymentAmount - paidInterest,
                     client: loan.clients,
                     loan_id: loan.id,
                     loan_date: loan.loan_date,
@@ -13286,9 +13327,12 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
             id: payment.id,
             client: payment.client?.name || 'Sem cliente',
             payment_amount: payment.payment_amount,
+            paid_interest: payment.paid_interest,
+            paid_capital: payment.paid_capital,
             commissionable_amount: payment.commissionable_amount,
             payment_date: payment.payment_date,
-            type: payment.payment_type
+            type: payment.payment_type,
+            notes: payment.notes?.substring(0, 100) + '...'
         })));
         
         // Mostrar distribuição por data de TODOS os pagamentos
@@ -13494,7 +13538,8 @@ function renderCommissionsTable(commissionsDetails) {
                     <div class="text-xs text-gray-300">${item.client?.cpf || ''}</div>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
-                    R$ ${item.paymentAmount.toFixed(2)}
+                    <div>R$ ${item.paymentAmount.toFixed(2)}</div>
+                    <div class="text-xs text-gray-400">J: ${item.paid_interest?.toFixed(2) || '0.00'} | C: ${item.paid_capital?.toFixed(2) || '0.00'}</div>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     R$ ${item.loanAmount.toFixed(2)}
