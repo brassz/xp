@@ -13156,10 +13156,12 @@ async function calculateCommissions() {
 // Buscar todos os empréstimos para cálculo de comissões
 async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
     const allLoans = [];
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
     
     try {
-        // Construir query base
-        let query = supabase
+        // 1. Buscar empréstimos ativos da tabela loans
+        let activeQuery = supabase
             .from('loans')
             .select(`
                 *,
@@ -13172,81 +13174,102 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
         
         // Aplicar filtros de data se fornecidos
         if (startDate) {
-            query = query.gte('loan_date', startDate);
+            activeQuery = activeQuery.gte('loan_date', startDate);
         }
         if (endDate) {
-            query = query.lte('loan_date', endDate);
+            activeQuery = activeQuery.lte('loan_date', endDate);
         }
         
-        // Aplicar filtro de status se não for "all"
-        if (loanStatus && loanStatus !== 'all') {
-            if (loanStatus === 'active') {
-                query = query.eq('status', 'active');
-            } else if (loanStatus === 'overdue') {
-                query = query.eq('status', 'overdue');
-            } else if (loanStatus === 'paid') {
-                // Buscar empréstimos pagos na tabela paid_loans
-                const { data: paidLoans, error: paidError } = await supabase
-                    .from('paid_loans')
-                    .select(`
-                        *,
-                        clients (
-                            id,
-                            name,
-                            cpf
-                        )
-                    `);
-                
-                if (paidError) throw paidError;
-                
-                // Adicionar empréstimos pagos com status 'paid'
-                paidLoans.forEach(loan => {
-                    allLoans.push({
-                        ...loan,
-                        status: 'paid',
-                        amount: loan.original_amount || loan.amount
-                    });
-                });
+        // 2. Buscar empréstimos pagos da tabela paid_loans
+        let paidQuery = supabase
+            .from('paid_loans')
+            .select(`
+                *,
+                clients (
+                    id,
+                    name,
+                    cpf
+                )
+            `);
+        
+        // Aplicar filtros de data para empréstimos pagos
+        if (startDate) {
+            paidQuery = paidQuery.gte('loan_date', startDate);
+        }
+        if (endDate) {
+            paidQuery = paidQuery.lte('loan_date', endDate);
+        }
+        
+        // Executar as consultas
+        const [activeResult, paidResult] = await Promise.all([
+            activeQuery,
+            paidQuery
+        ]);
+        
+        if (activeResult.error) throw activeResult.error;
+        if (paidResult.error) throw paidResult.error;
+        
+        const activeLoans = activeResult.data || [];
+        const paidLoans = paidResult.data || [];
+        
+        // Processar empréstimos ativos e determinar status real
+        activeLoans.forEach(loan => {
+            const dueDate = new Date(loan.due_date);
+            dueDate.setHours(0, 0, 0, 0);
+            
+            let realStatus = loan.status;
+            if (loan.status === 'active') {
+                if (dueDate.getTime() === today.getTime()) {
+                    realStatus = 'due_today';
+                } else if (dueDate < today) {
+                    realStatus = 'overdue';
+                }
             }
-        }
+            
+            allLoans.push({
+                ...loan,
+                status: realStatus,
+                amount: loan.amount
+            });
+        });
         
-        // Buscar empréstimos ativos/vencidos se não for apenas "paid"
-        if (!loanStatus || loanStatus === 'all' || loanStatus !== 'paid') {
-            const { data: activeLoans, error: activeError } = await query;
-            
-            if (activeError) throw activeError;
-            
-            allLoans.push(...activeLoans);
-        }
+        // Processar empréstimos pagos
+        paidLoans.forEach(loan => {
+            allLoans.push({
+                ...loan,
+                status: 'paid',
+                amount: loan.original_amount || loan.amount
+            });
+        });
         
-        // Buscar parcelamentos se incluído
-        if (!loanStatus || loanStatus === 'all' || loanStatus === 'installment') {
-            const { data: installments, error: installmentError } = await supabase
-                .from('installments')
-                .select(`
-                    *,
-                    clients (
-                        id,
-                        name,
-                        cpf
-                    )
-                `);
-            
-            if (installmentError) throw installmentError;
-            
-            // Adicionar parcelamentos com status 'installment'
-            installments.forEach(installment => {
-                allLoans.push({
-                    ...installment,
-                    status: 'installment',
-                    loan_date: installment.created_at,
-                    due_date: installment.next_due_date
-                });
+        // Filtrar por status se especificado
+        let filteredLoans = allLoans;
+        if (loanStatus && loanStatus !== 'all') {
+            filteredLoans = allLoans.filter(loan => {
+                switch (loanStatus) {
+                    case 'active':
+                        return loan.status === 'active';
+                    case 'overdue':
+                        return loan.status === 'overdue';
+                    case 'due_today':
+                        return loan.status === 'due_today';
+                    case 'paid':
+                        return loan.status === 'paid';
+                    default:
+                        return true;
+                }
             });
         }
         
-        console.log(`Total de empréstimos encontrados: ${allLoans.length}`);
-        return allLoans;
+        console.log(`Total de empréstimos encontrados: ${filteredLoans.length}`);
+        console.log('Distribuição por status:', {
+            active: filteredLoans.filter(l => l.status === 'active').length,
+            overdue: filteredLoans.filter(l => l.status === 'overdue').length,
+            due_today: filteredLoans.filter(l => l.status === 'due_today').length,
+            paid: filteredLoans.filter(l => l.status === 'paid').length
+        });
+        
+        return filteredLoans;
         
     } catch (error) {
         console.error('Erro ao buscar empréstimos:', error);
@@ -13359,9 +13382,9 @@ function renderCommissionsTable(commissionsDetails) {
 function getStatusBadge(status) {
     const badges = {
         'active': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-green-100 text-green-800">Ativo</span>',
+        'due_today': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-orange-100 text-orange-800">Vence Hoje</span>',
         'overdue': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-red-100 text-red-800">Vencido</span>',
-        'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Pago</span>',
-        'installment': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-yellow-100 text-yellow-800">Parcelamento</span>'
+        'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Quitado</span>'
     };
     
     return badges[status] || '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Desconhecido</span>';
