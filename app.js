@@ -13160,8 +13160,10 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
     today.setHours(0, 0, 0, 0);
     
     try {
-        // 1. Buscar empréstimos ativos da tabela loans
-        let activeQuery = supabase
+        console.log('Buscando TODOS os empréstimos do sistema...');
+        
+        // 1. Buscar TODOS os empréstimos ativos da tabela loans (SEM filtros de data na consulta)
+        const activeQuery = supabase
             .from('loans')
             .select(`
                 *,
@@ -13172,16 +13174,8 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
                 )
             `);
         
-        // Aplicar filtros de data se fornecidos
-        if (startDate) {
-            activeQuery = activeQuery.gte('loan_date', startDate);
-        }
-        if (endDate) {
-            activeQuery = activeQuery.lte('loan_date', endDate);
-        }
-        
-        // 2. Buscar empréstimos pagos da tabela paid_loans
-        let paidQuery = supabase
+        // 2. Buscar TODOS os empréstimos pagos da tabela paid_loans (SEM filtros de data na consulta)
+        const paidQuery = supabase
             .from('paid_loans')
             .select(`
                 *,
@@ -13192,25 +13186,62 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
                 )
             `);
         
-        // Aplicar filtros de data para empréstimos pagos
-        if (startDate) {
-            paidQuery = paidQuery.gte('loan_date', startDate);
-        }
-        if (endDate) {
-            paidQuery = paidQuery.lte('loan_date', endDate);
-        }
+        // 3. Buscar TODOS os empréstimos cancelados
+        const cancelledQuery = supabase
+            .from('cancelled_loans')
+            .select(`
+                *,
+                clients (
+                    id,
+                    name,
+                    cpf
+                )
+            `);
         
-        // Executar as consultas
-        const [activeResult, paidResult] = await Promise.all([
+        // 4. Buscar TODOS os empréstimos vencidos (se existir tabela separada)
+        const overdueQuery = supabase
+            .from('overdue_loans')
+            .select(`
+                *,
+                clients (
+                    id,
+                    name,
+                    cpf
+                )
+            `);
+        
+        // 5. Buscar TODOS os empréstimos parcialmente pagos
+        const partialPaidQuery = supabase
+            .from('partial_paid_loans')
+            .select(`
+                *,
+                clients (
+                    id,
+                    name,
+                    cpf
+                )
+            `);
+        
+        // Executar todas as consultas em paralelo
+        const [activeResult, paidResult, cancelledResult, overdueResult, partialPaidResult] = await Promise.all([
             activeQuery,
-            paidQuery
+            paidQuery,
+            cancelledQuery,
+            overdueQuery,
+            partialPaidQuery
         ]);
         
         if (activeResult.error) throw activeResult.error;
         if (paidResult.error) throw paidResult.error;
+        // Ignorar erros das outras tabelas se não existirem
         
         const activeLoans = activeResult.data || [];
         const paidLoans = paidResult.data || [];
+        const cancelledLoans = (cancelledResult.error ? [] : cancelledResult.data) || [];
+        const overdueLoans = (overdueResult.error ? [] : overdueResult.data) || [];
+        const partialPaidLoans = (partialPaidResult.error ? [] : partialPaidResult.data) || [];
+        
+        console.log(`Empréstimos encontrados - Ativos: ${activeLoans.length}, Pagos: ${paidLoans.length}, Cancelados: ${cancelledLoans.length}, Vencidos: ${overdueLoans.length}, Parcialmente Pagos: ${partialPaidLoans.length}`);
         
         // Processar empréstimos ativos e determinar status real
         activeLoans.forEach(loan => {
@@ -13229,7 +13260,8 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             allLoans.push({
                 ...loan,
                 status: realStatus,
-                amount: loan.amount
+                amount: loan.amount,
+                loan_type: 'active'
             });
         });
         
@@ -13238,14 +13270,71 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
             allLoans.push({
                 ...loan,
                 status: 'paid',
-                amount: loan.original_amount || loan.amount
+                amount: loan.original_amount || loan.amount,
+                loan_type: 'paid'
             });
         });
         
-        // Filtrar por status se especificado
-        let filteredLoans = allLoans;
+        // Processar empréstimos cancelados
+        cancelledLoans.forEach(loan => {
+            allLoans.push({
+                ...loan,
+                status: 'cancelled',
+                amount: loan.original_amount || loan.amount,
+                loan_type: 'cancelled'
+            });
+        });
+        
+        // Processar empréstimos vencidos (da tabela separada)
+        overdueLoans.forEach(loan => {
+            allLoans.push({
+                ...loan,
+                status: 'overdue',
+                amount: loan.original_amount || loan.amount,
+                loan_type: 'overdue'
+            });
+        });
+        
+        // Processar empréstimos parcialmente pagos
+        partialPaidLoans.forEach(loan => {
+            allLoans.push({
+                ...loan,
+                status: 'partial_paid',
+                amount: loan.original_amount || loan.amount,
+                loan_type: 'partial_paid'
+            });
+        });
+        
+        console.log(`Total de empréstimos no sistema: ${allLoans.length}`);
+        
+        // Aplicar filtros de data APÓS buscar todos os empréstimos
+        let filteredByDate = allLoans;
+        if (startDate || endDate) {
+            filteredByDate = allLoans.filter(loan => {
+                const loanDate = new Date(loan.loan_date);
+                let matchesDate = true;
+                
+                if (startDate) {
+                    const start = new Date(startDate);
+                    matchesDate = matchesDate && loanDate >= start;
+                }
+                
+                if (endDate) {
+                    const end = new Date(endDate);
+                    end.setHours(23, 59, 59, 999); // Incluir todo o dia final
+                    matchesDate = matchesDate && loanDate <= end;
+                }
+                
+                return matchesDate;
+            });
+        }
+        
+        console.log(`Empréstimos após filtro de data: ${filteredByDate.length}`);
+        
+        // Aplicar filtro de status APÓS filtro de data
+        let finalFiltered = filteredByDate;
         if (loanStatus && loanStatus !== 'all') {
-            filteredLoans = allLoans.filter(loan => {
+            finalFiltered = filteredByDate.filter(loan => {
                 switch (loanStatus) {
                     case 'active':
                         return loan.status === 'active';
@@ -13255,21 +13344,27 @@ async function fetchAllLoansForCommissions(startDate, endDate, loanStatus) {
                         return loan.status === 'due_today';
                     case 'paid':
                         return loan.status === 'paid';
+                    case 'cancelled':
+                        return loan.status === 'cancelled';
+                    case 'partial_paid':
+                        return loan.status === 'partial_paid';
                     default:
                         return true;
                 }
             });
         }
         
-        console.log(`Total de empréstimos encontrados: ${filteredLoans.length}`);
+        console.log(`Empréstimos finais após todos os filtros: ${finalFiltered.length}`);
         console.log('Distribuição por status:', {
-            active: filteredLoans.filter(l => l.status === 'active').length,
-            overdue: filteredLoans.filter(l => l.status === 'overdue').length,
-            due_today: filteredLoans.filter(l => l.status === 'due_today').length,
-            paid: filteredLoans.filter(l => l.status === 'paid').length
+            active: finalFiltered.filter(l => l.status === 'active').length,
+            overdue: finalFiltered.filter(l => l.status === 'overdue').length,
+            due_today: finalFiltered.filter(l => l.status === 'due_today').length,
+            paid: finalFiltered.filter(l => l.status === 'paid').length,
+            cancelled: finalFiltered.filter(l => l.status === 'cancelled').length,
+            partial_paid: finalFiltered.filter(l => l.status === 'partial_paid').length
         });
         
-        return filteredLoans;
+        return finalFiltered;
         
     } catch (error) {
         console.error('Erro ao buscar empréstimos:', error);
@@ -13384,7 +13479,9 @@ function getStatusBadge(status) {
         'active': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-green-100 text-green-800">Ativo</span>',
         'due_today': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-orange-100 text-orange-800">Vence Hoje</span>',
         'overdue': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-red-100 text-red-800">Vencido</span>',
-        'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Quitado</span>'
+        'paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-blue-100 text-blue-800">Quitado</span>',
+        'partial_paid': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-yellow-100 text-yellow-800">Parcial</span>',
+        'cancelled': '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Cancelado</span>'
     };
     
     return badges[status] || '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Desconhecido</span>';
