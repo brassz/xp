@@ -13542,7 +13542,7 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
                 allPayments.push({
                     id: `paid_loan_${paidLoan.id}`, // Prefixo para distinguir de pagamentos regulares
                     payment_date: paidLoan.paid_date,
-                    payment_amount: totalPaid,
+                    payment_amount: totalInterest, // CORRIGIDO: usar apenas os juros ao invés do valor total pago
                     loan_amount: loanAmount,
                     interest_rate: interestRate,
                     interest_amount: totalInterest,
