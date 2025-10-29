@@ -2131,9 +2131,12 @@ async function handleNewClient(e) {
 async function handleNewLoan(e) {
     e.preventDefault();
     
+    const loanAmount = parseFloat(document.getElementById('loanAmount').value);
+    
     const formData = {
         client_id: document.getElementById('loanClient').value,
-        amount: parseFloat(document.getElementById('loanAmount').value),
+        amount: loanAmount,
+        original_amount: loanAmount, // Preservar valor original do empréstimo
         interest_rate: parseFloat(document.getElementById('loanInterest').value),
         loan_date: document.getElementById('loanDate').value,
         due_date: document.getElementById('loanDueDate').value,
