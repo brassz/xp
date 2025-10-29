@@ -7117,7 +7117,7 @@ async function markLoanAsPaid(loanId) {
                 // Calcular valores
                 const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
                 
-                // Buscar total pago
+                // Buscar total pago em pagamentos parciais
                 const { data: payments, error: paymentsError } = await supabase
                     .from('payments')
                     .select('amount')
@@ -7125,7 +7125,15 @@ async function markLoanAsPaid(loanId) {
                 
                 if (paymentsError) throw paymentsError;
                 
-                const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+                const totalPaidInPartialPayments = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+                
+                // Para empréstimos quitados, o total pago deve ser o valor total com juros
+                const totalPaid = totalWithInterest;
+                
+                console.log(`🔧 CORRIGINDO QUITAÇÃO - Empréstimo ID ${loanId}:`);
+                console.log(`  - Pagamentos parciais: R$ ${totalPaidInPartialPayments.toFixed(2)}`);
+                console.log(`  - Total com juros: R$ ${totalWithInterest.toFixed(2)}`);
+                console.log(`  - Total pago (CORRIGIDO): R$ ${totalPaid.toFixed(2)}`);
                 
                 // Inserir na tabela paid_loans
                 const { error: insertError } = await supabase
@@ -13535,14 +13543,18 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
             console.log(`Taxa de juros: ${interestRate}%`);
             console.log(`Total com juros: R$ ${totalWithInterest.toFixed(2)}`);
             console.log(`Total pago: R$ ${totalPaid.toFixed(2)}`);
-            console.log(`Juros totais (COMISSÃO): R$ ${totalInterest.toFixed(2)}`);
+            console.log(`Juros totais calculados: R$ ${totalInterest.toFixed(2)} (${totalWithInterest} - ${loanAmount})`);
             console.log(`Data de quitação: ${paidLoan.paid_date}`);
+            console.log(`🔍 VALORES PARA COMISSÃO:`);
+            console.log(`  - payment_amount (ANTES): totalPaid = R$ ${totalPaid.toFixed(2)}`);
+            console.log(`  - payment_amount (AGORA): totalInterest = R$ ${totalInterest.toFixed(2)}`);
+            console.log(`  - commissionable_amount: R$ ${totalInterest.toFixed(2)}`);
             
             if (totalInterest > 0) {
                 allPayments.push({
                     id: `paid_loan_${paidLoan.id}`, // Prefixo para distinguir de pagamentos regulares
                     payment_date: paidLoan.paid_date,
-                    payment_amount: totalPaid,
+                    payment_amount: totalInterest, // CORRIGIDO: usar apenas os juros ao invés do valor total pago
                     loan_amount: loanAmount,
                     interest_rate: interestRate,
                     interest_amount: totalInterest,
@@ -13557,6 +13569,13 @@ async function fetchAllPaymentsForCommissions(startDate, endDate, loanStatus) {
                     notes: `QUITAÇÃO COMPLETA - Juros totais: R$ ${totalInterest.toFixed(2)}`
                 });
                 console.log(`✅ ADICIONADO À LISTA DE COMISSÕES`);
+                console.log(`📋 ITEM ADICIONADO:`, {
+                    id: `paid_loan_${paidLoan.id}`,
+                    payment_amount: totalInterest,
+                    commissionable_amount: totalInterest,
+                    client: client?.name,
+                    payment_type: 'loan_payoff'
+                });
             } else {
                 console.log(`⚠️ JUROS = 0, NÃO ADICIONADO`);
             }
@@ -13707,8 +13726,18 @@ function calculateCommissionsFromPayments(payments) {
     const details = [];
     let totalCommissionableAmount = 0;
     
-    payments.forEach(payment => {
+    payments.forEach((payment, index) => {
         const commissionableAmount = parseFloat(payment.commissionable_amount || 0);
+        
+        // Log para empréstimos quitados
+        if (payment.payment_type === 'loan_payoff') {
+            console.log(`🔍 PROCESSANDO EMPRÉSTIMO QUITADO ${index + 1}:`, {
+                id: payment.id,
+                payment_amount: payment.payment_amount,
+                commissionable_amount: payment.commissionable_amount,
+                client: payment.client?.name
+            });
+        }
         
         // Calcular comissões (66% Vinicius, 33% Douglas)
         const viniciusCommission = commissionableAmount * 0.66;
@@ -13769,7 +13798,17 @@ function renderCommissionsTable(commissionsDetails) {
         return;
     }
     
-    tableBody.innerHTML = commissionsDetails.map(item => {
+    tableBody.innerHTML = commissionsDetails.map((item, index) => {
+        // Log para empréstimos quitados
+        if (item.paymentType === 'loan_payoff') {
+            console.log(`🎯 RENDERIZANDO EMPRÉSTIMO QUITADO ${index + 1}:`, {
+                id: item.id,
+                paymentAmount: item.paymentAmount,
+                commissionableAmount: item.commissionableAmount,
+                client: item.client?.name
+            });
+        }
+        
         // Usar payment_type para badge se for quitação, senão usar status
         const badgeStatus = item.paymentType === 'loan_payoff' ? 'loan_payoff' : item.status;
         const statusBadge = getStatusBadge(badgeStatus);
