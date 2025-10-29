@@ -2133,10 +2133,12 @@ async function handleNewLoan(e) {
     
     const loanAmount = parseFloat(document.getElementById('loanAmount').value);
     
+    // Primeiro, verificar se a coluna original_amount existe na tabela
+    let includeOriginalAmount = true;
+    
     const formData = {
         client_id: document.getElementById('loanClient').value,
         amount: loanAmount,
-        original_amount: loanAmount, // Preservar valor original do empréstimo
         interest_rate: parseFloat(document.getElementById('loanInterest').value),
         loan_date: document.getElementById('loanDate').value,
         due_date: document.getElementById('loanDueDate').value,
@@ -2145,37 +2147,83 @@ async function handleNewLoan(e) {
         created_at: new Date().toISOString()
     };
     
+    // Adicionar original_amount se a coluna existir
+    if (includeOriginalAmount) {
+        formData.original_amount = loanAmount; // Preservar valor original do empréstimo
+    }
+    
     try {
         const { data, error } = await supabase
             .from('loans')
             .insert([formData])
             .select();
         
+        // Se houver erro relacionado ao original_amount, tentar sem esse campo
+        if (error && error.message && error.message.includes('original_amount')) {
+            console.log('Tentando criar empréstimo sem o campo original_amount...');
+            delete formData.original_amount;
+            
+            const { data: retryData, error: retryError } = await supabase
+                .from('loans')
+                .insert([formData])
+                .select();
+                
+            if (retryError) throw retryError;
+            
+            // Se conseguiu criar sem original_amount, atualizar para incluir esse campo
+            if (retryData && retryData[0]) {
+                try {
+                    await supabase
+                        .from('loans')
+                        .update({ original_amount: loanAmount })
+                        .eq('id', retryData[0].id);
+                } catch (updateError) {
+                    console.log('Não foi possível atualizar original_amount:', updateError.message);
+                }
+            }
+            
+            // Usar os dados do retry
+            const finalData = retryData;
+            const finalError = retryError;
+            
+            if (finalError) throw finalError;
+            
+            // Continuar com o fluxo normal
+            handleLoanCreationSuccess(finalData);
+            return;
+        }
+        
         if (error) throw error;
         
-        hideModal(newLoanModal);
-        newLoanForm.reset();
-        
-        invalidateLoanRemainingAmountsCache();
-        await loadLoans();
-        await updateDashboard();
-        
-        // Perguntar se deseja gerar contrato
-        const generateContractNow = confirm('Empréstimo criado com sucesso! Deseja gerar o contrato agora?');
-        if (generateContractNow && data && data[0]) {
-            await generateContract(data[0].id);
-        }
-        
-        // Mostrar modal para enviar resumo via WhatsApp
-        if (data && data[0]) {
-            // Aguardar um pouco para garantir que os dados estejam atualizados
-            setTimeout(() => {
-                showWhatsAppSummaryModal(data[0].id);
-            }, 500);
-        }
+        // Sucesso no primeiro try
+        handleLoanCreationSuccess(data);
         
     } catch (error) {
         alert('Erro ao criar empréstimo: ' + error.message);
+    }
+}
+
+// Função auxiliar para lidar com o sucesso da criação do empréstimo
+async function handleLoanCreationSuccess(data) {
+    hideModal(newLoanModal);
+    newLoanForm.reset();
+    
+    invalidateLoanRemainingAmountsCache();
+    await loadLoans();
+    await updateDashboard();
+    
+    // Perguntar se deseja gerar contrato
+    const generateContractNow = confirm('Empréstimo criado com sucesso! Deseja gerar o contrato agora?');
+    if (generateContractNow && data && data[0]) {
+        await generateContract(data[0].id);
+    }
+    
+    // Mostrar modal para enviar resumo via WhatsApp
+    if (data && data[0]) {
+        // Aguardar um pouco para garantir que os dados estejam atualizados
+        setTimeout(() => {
+            showWhatsAppSummaryModal(data[0].id);
+        }, 500);
     }
 }
 
