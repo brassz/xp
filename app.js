@@ -9267,8 +9267,8 @@ async function generateCommissionsPDF() {
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de Juros (Base para Comissão): R$ ${commissionsData.summary.totalInterest.toFixed(2)}`, 20, 65);
-        doc.text(`Comissão Vinicius (66%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
-        doc.text(`Comissão Douglas (33%): R$ ${commissionsData.summary.totalDouglasCommission.toFixed(2)}`, 20, 81);
+        doc.text(`Comissão Vinicius (66,6%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
+        doc.text(`Comissão Douglas (33,3%): R$ ${commissionsData.summary.totalDouglasCommission.toFixed(2)}`, 20, 81);
         doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 89);
 
         // Linha separadora
@@ -13714,9 +13714,9 @@ function calculateCommissionsFromPayments(payments) {
     payments.forEach(payment => {
         const commissionableAmount = parseFloat(payment.commissionable_amount || 0);
         
-        // Calcular comissões (66% Vinicius, 33% Douglas)
-        const viniciusCommission = commissionableAmount * 0.66;
-        const douglasCommission = commissionableAmount * 0.33;
+        // Calcular comissões (66,6% Vinicius, 33,3% Douglas)
+        const viniciusCommission = commissionableAmount * 0.666;
+        const douglasCommission = commissionableAmount * 0.333;
         
         totalCommissionableAmount += commissionableAmount;
         
@@ -13737,8 +13737,8 @@ function calculateCommissionsFromPayments(payments) {
         });
     });
     
-    const totalViniciusCommission = totalCommissionableAmount * 0.66;
-    const totalDouglasCommission = totalCommissionableAmount * 0.33;
+    const totalViniciusCommission = totalCommissionableAmount * 0.666;
+    const totalDouglasCommission = totalCommissionableAmount * 0.333;
     
     return {
         summary: {
