@@ -2131,9 +2131,12 @@ async function handleNewClient(e) {
 async function handleNewLoan(e) {
     e.preventDefault();
     
+    const loanAmount = parseFloat(document.getElementById('loanAmount').value);
+    
     const formData = {
         client_id: document.getElementById('loanClient').value,
-        amount: parseFloat(document.getElementById('loanAmount').value),
+        amount: loanAmount,
+        original_amount: loanAmount, // Preservar valor original do empréstimo
         interest_rate: parseFloat(document.getElementById('loanInterest').value),
         loan_date: document.getElementById('loanDate').value,
         due_date: document.getElementById('loanDueDate').value,
@@ -7890,6 +7893,7 @@ async function restorePaidLoan(paidLoanId) {
                 id: paidLoan.loan_id, // Manter o ID original
                 client_id: paidLoan.client_id,
                 amount: paidLoan.original_amount,
+                original_amount: paidLoan.original_amount, // Preservar valor original
                 interest_rate: paidLoan.interest_rate,
                 loan_date: paidLoan.loan_date,
                 due_date: paidLoan.due_date,
