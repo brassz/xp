@@ -7117,7 +7117,7 @@ async function markLoanAsPaid(loanId) {
                 // Calcular valores
                 const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
                 
-                // Buscar total pago
+                // Buscar total pago em pagamentos parciais
                 const { data: payments, error: paymentsError } = await supabase
                     .from('payments')
                     .select('amount')
@@ -7125,7 +7125,15 @@ async function markLoanAsPaid(loanId) {
                 
                 if (paymentsError) throw paymentsError;
                 
-                const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+                const totalPaidInPartialPayments = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+                
+                // Para empréstimos quitados, o total pago deve ser o valor total com juros
+                const totalPaid = totalWithInterest;
+                
+                console.log(`🔧 CORRIGINDO QUITAÇÃO - Empréstimo ID ${loanId}:`);
+                console.log(`  - Pagamentos parciais: R$ ${totalPaidInPartialPayments.toFixed(2)}`);
+                console.log(`  - Total com juros: R$ ${totalWithInterest.toFixed(2)}`);
+                console.log(`  - Total pago (CORRIGIDO): R$ ${totalPaid.toFixed(2)}`);
                 
                 // Inserir na tabela paid_loans
                 const { error: insertError } = await supabase
