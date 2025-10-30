@@ -18,6 +18,10 @@ Foi implementado um sistema de seleção de empresas no Nexus que permite gerenc
    - Supabase URL: `https://eemfnpefgojllvzzaimu.supabase.co`
    - Uploadcare Key: `72349b0b9769d2be0d8c`
 
+4. **ERECHIM**
+   - Supabase URL: `https://adjrvtupfshdhwjvhmgj.supabase.co`
+   - Uploadcare Key: `CONFIGURE_UPLOADCARE_KEY_HERE` (pendente configuração)
+
 ### Funcionalidades Implementadas
 
 #### 1. Interface de Seleção de Empresa
@@ -100,8 +104,13 @@ NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2=026feb50f83d7cdfe4ea
 
 # Empresa 3 - MOGIANA CRED
 NEXT_PUBLIC_SUPABASE_URL_EMPRESA3=https://eemfnpefgojllvzzaimu.supabase.co
-NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ5...
 NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3=72349b0b9769d2be0d8c
+
+# Empresa 4 - ERECHIM
+NEXT_PUBLIC_SUPABASE_URL_EMPRESA4=https://adjrvtupfshdhwjvhmgj.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA4=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA4=CONFIGURE_UPLOADCARE_KEY_HERE
 ```
 
 #### Configuração no Vercel:

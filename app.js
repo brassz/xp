@@ -20,7 +20,10 @@ function getEnvVar(name, fallback = '') {
         'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2': '026feb50f83d7cdfe4ea',
         'NEXT_PUBLIC_SUPABASE_URL_EMPRESA3': 'https://eemfnpefgojllvzzaimu.supabase.co',
         'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y',
-        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3': '72349b0b9769d2be0d8c'
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3': '72349b0b9769d2be0d8c',
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA4': 'https://adjrvtupfshdhwjvhmgj.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA4': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkanJ2dHVwZnNoZGh3anZobWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MDAyMDUsImV4cCI6MjA3MzE3NjIwNX0.iSl7bECBz8yl5HHcBwL6gp5Pd5Y06nNFWgLTzvLgVSY',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA4': 'CONFIGURE_UPLOADCARE_KEY_HERE'
     };
     
     return fallbacks[name] || fallback;
@@ -56,6 +59,16 @@ const COMPANIES_CONFIG = {
         },
         uploadcare: {
             publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3')
+        }
+    },
+    erechim: {
+        name: 'ERECHIM',
+        supabase: {
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA4'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA4')
+        },
+        uploadcare: {
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA4')
         }
     }
 };
