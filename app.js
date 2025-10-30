@@ -20,7 +20,10 @@ function getEnvVar(name, fallback = '') {
         'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA2': '026feb50f83d7cdfe4ea',
         'NEXT_PUBLIC_SUPABASE_URL_EMPRESA3': 'https://eemfnpefgojllvzzaimu.supabase.co',
         'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA3': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVlbWZucGVmZ29qbGx2enphaW11Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTcxNjUyNjIsImV4cCI6MjA3Mjc0MTI2Mn0.PKJJ-scljbF3CFrFtMz6Rq03lVt36NQxooEH3kOcr5Y',
-        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3': '72349b0b9769d2be0d8c'
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3': '72349b0b9769d2be0d8c',
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA4': 'https://adjrvtupfshdhwjvhmgj.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA4': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImFkanJ2dHVwZnNoZGh3anZobWdqIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTc2MDAyMDUsImV4cCI6MjA3MzE3NjIwNX0.iSl7bECBz8yl5HHcBwL6gp5Pd5Y06nNFWgLTzvLgVSY',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA4': 'CONFIGURE_UPLOADCARE_KEY_HERE'
     };
     
     return fallbacks[name] || fallback;
@@ -56,6 +59,16 @@ const COMPANIES_CONFIG = {
         },
         uploadcare: {
             publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3')
+        }
+    },
+    erechim: {
+        name: 'ERECHIM',
+        supabase: {
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA4'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA4')
+        },
+        uploadcare: {
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA4')
         }
     }
 };
@@ -8012,7 +8025,7 @@ async function handleNewExpense(e) {
             description: description,
             category_id: category, // Este será o ID da categoria
             amount: amount,
-            date: date,
+            expense_date: date,
             notes: notes,
             payment_method: 'cash', // valor padrão
             status: 'pending',
@@ -8065,7 +8078,7 @@ async function loadExpenses() {
         }
         
         const { data: expensesData, error: expensesError } = await expensesQuery
-            .order('date', { ascending: false });
+            .order('expense_date', { ascending: false });
             
         if (expensesError) throw expensesError;
         
@@ -8136,7 +8149,7 @@ function displayExpenses() {
                 <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
             </td>
             <td class="px-6 py-4">
-                <span class="text-gray-300">${formatDate(expense.date)}</span>
+                <span class="text-gray-300">${formatDate(expense.expense_date)}</span>
             </td>
             <td class="px-6 py-4">
                 <div>
@@ -8188,7 +8201,7 @@ function updateExpensesSummary() {
     // Total do mês atual
     const monthlyTotal = expenses
         .filter(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = new Date(expense.expense_date);
             return expenseDate.getMonth() === currentMonth && expenseDate.getFullYear() === currentYear;
         })
         .reduce((sum, expense) => sum + expense.amount, 0);
@@ -8196,7 +8209,7 @@ function updateExpensesSummary() {
     // Total do ano atual
     const yearlyTotal = expenses
         .filter(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = new Date(expense.expense_date);
             return expenseDate.getFullYear() === currentYear;
         })
         .reduce((sum, expense) => sum + expense.amount, 0);
@@ -9046,7 +9059,7 @@ async function generateMonthlyExpensesPDF() {
         
         // Filtrar despesas do último mês
         const monthlyExpenses = expenses.filter(expense => {
-            const expenseDate = new Date(expense.date);
+            const expenseDate = new Date(expense.expense_date);
             return expenseDate >= oneMonthAgo;
         });
 
@@ -9165,7 +9178,7 @@ async function generateMonthlyExpensesPDF() {
                 doc.setFont('helvetica', 'normal');
             }
             
-            const expenseDate = formatDate(expense.date);
+            const expenseDate = formatDate(expense.expense_date);
             const description = expense.title || expense.description || 'Sem descrição';
             const categoryName = expense.expense_categories?.name || 'Outros';
             const amount = parseFloat(expense.amount);
