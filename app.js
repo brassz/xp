@@ -13345,6 +13345,34 @@ function initializeCommissionsSection() {
     
     document.getElementById('commissionStartDate').value = firstDay.toISOString().split('T')[0];
     document.getElementById('commissionEndDate').value = lastDay.toISOString().split('T')[0];
+    
+    // Configurar visibilidade do card do Bruno baseado na empresa
+    const isErechim = currentCompany === 'erechim';
+    const brunoCard = document.getElementById('brunoCommissionCard');
+    const commissionsGrid = document.getElementById('commissionsCardsGrid');
+    const brunoColumns = document.querySelectorAll('.bruno-column');
+    const viniciusLabel = document.getElementById('viniciusCommissionLabel');
+    const douglasLabel = document.getElementById('douglasCommissionLabel');
+    
+    if (isErechim) {
+        // ERECHIM: Mostrar card do Bruno e coluna na tabela, atualizar labels para 33,3%
+        if (brunoCard) brunoCard.style.display = 'block';
+        if (commissionsGrid) {
+            commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-4 gap-4 mb-6';
+        }
+        if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (33,3%)';
+        if (douglasLabel) douglasLabel.textContent = 'Comissão Douglas (33,3%)';
+        brunoColumns.forEach(col => col.style.display = '');
+    } else {
+        // Outras empresas: Esconder card do Bruno e coluna na tabela, manter labels originais
+        if (brunoCard) brunoCard.style.display = 'none';
+        if (commissionsGrid) {
+            commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6';
+        }
+        if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (66,6%)';
+        if (douglasLabel) douglasLabel.textContent = 'Comissão Douglas (33,3%)';
+        brunoColumns.forEach(col => col.style.display = 'none');
+    }
 }
 
 // Calcular comissões
@@ -13841,14 +13869,21 @@ function updateCommissionsSummary(summary) {
     // Atualizar comissão do Bruno (somente para Erechim)
     const brunoCard = document.getElementById('brunoCommissionCard');
     const brunoCommissionElement = document.getElementById('brunoCommission');
+    const commissionsGrid = document.getElementById('commissionsCardsGrid');
     
     if (isErechim) {
         if (brunoCard) brunoCard.style.display = 'block';
         if (brunoCommissionElement) {
             brunoCommissionElement.textContent = `R$ ${summary.totalBrunoCommission.toFixed(2)}`;
         }
+        if (commissionsGrid) {
+            commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-4 gap-4 mb-6';
+        }
     } else {
         if (brunoCard) brunoCard.style.display = 'none';
+        if (commissionsGrid) {
+            commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6';
+        }
     }
 }
 
