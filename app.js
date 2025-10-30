@@ -9272,6 +9272,9 @@ async function generateCommissionsPDF() {
                           loanStatus === 'paid' ? 'Quitados' : loanStatus;
         doc.text(`Filtro: ${statusText}`, 105, 38, { align: 'center' });
 
+        // Verificar se é Erechim
+        const isErechim = currentCompany === 'erechim';
+        
         // Resumo das comissões
         doc.setFontSize(14);
         doc.setFont('helvetica', 'bold');
@@ -9280,28 +9283,49 @@ async function generateCommissionsPDF() {
         doc.setFontSize(11);
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de Juros (Base para Comissão): R$ ${commissionsData.summary.totalInterest.toFixed(2)}`, 20, 65);
-        doc.text(`Comissão Vinicius (66,6%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
-        doc.text(`Comissão Douglas (33,3%): R$ ${commissionsData.summary.totalDouglasCommission.toFixed(2)}`, 20, 81);
-        doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 89);
+        
+        if (isErechim) {
+            // ERECHIM: Mostrar 3 comissões
+            doc.text(`Comissão Bruno (33,3%): R$ ${commissionsData.summary.totalBrunoCommission.toFixed(2)}`, 20, 73);
+            doc.text(`Comissão Vinicius (33,3%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 81);
+            doc.text(`Comissão Douglas (33,3%): R$ ${commissionsData.summary.totalDouglasCommission.toFixed(2)}`, 20, 89);
+            doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 97);
+        } else {
+            // Outras empresas: Mostrar 2 comissões
+            doc.text(`Comissão Vinicius (66,6%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
+            doc.text(`Comissão Douglas (33,3%): R$ ${commissionsData.summary.totalDouglasCommission.toFixed(2)}`, 20, 81);
+            doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 89);
+        }
 
         // Linha separadora
         doc.setLineWidth(0.5);
-        doc.line(20, 95, 190, 95);
+        const separatorY = isErechim ? 103 : 95;
+        doc.line(20, separatorY, 190, separatorY);
 
         // Cabeçalho da tabela
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        doc.text('DETALHAMENTO POR PAGAMENTO', 20, 105);
+        const tableHeaderY = isErechim ? 113 : 105;
+        doc.text('DETALHAMENTO POR PAGAMENTO', 20, tableHeaderY);
 
         // Cabeçalhos das colunas
         doc.setFontSize(9);
-        let yPos = 115;
+        let yPos = isErechim ? 123 : 115;
         doc.text('Cliente', 20, yPos);
-        doc.text('Data', 65, yPos);
-        doc.text('Valor Pago', 90, yPos);
-        doc.text('Base Comissão', 125, yPos);
-        doc.text('Vinicius (66%)', 155, yPos);
-        doc.text('Douglas (33%)', 180, yPos);
+        doc.text('Data', 60, yPos);
+        doc.text('Pago', 85, yPos);
+        doc.text('Base', 108, yPos);
+        
+        if (isErechim) {
+            // ERECHIM: 3 colunas de comissão
+            doc.text('Bruno', 130, yPos);
+            doc.text('Vinicius', 152, yPos);
+            doc.text('Douglas', 175, yPos);
+        } else {
+            // Outras empresas: 2 colunas de comissão
+            doc.text('Vinicius (66%)', 155, yPos);
+            doc.text('Douglas (33%)', 180, yPos);
+        }
 
         // Linha do cabeçalho
         doc.setLineWidth(0.3);
@@ -9324,11 +9348,18 @@ async function generateCommissionsPDF() {
                 doc.setFontSize(9);
                 doc.setFont('helvetica', 'bold');
                 doc.text('Cliente', 20, yPos);
-                doc.text('Data', 65, yPos);
-                doc.text('Valor Pago', 90, yPos);
-                doc.text('Base Comissão', 125, yPos);
-                doc.text('Vinicius (66%)', 155, yPos);
-                doc.text('Douglas (33%)', 180, yPos);
+                doc.text('Data', 60, yPos);
+                doc.text('Pago', 85, yPos);
+                doc.text('Base', 108, yPos);
+                
+                if (isErechim) {
+                    doc.text('Bruno', 130, yPos);
+                    doc.text('Vinicius', 152, yPos);
+                    doc.text('Douglas', 175, yPos);
+                } else {
+                    doc.text('Vinicius (66%)', 155, yPos);
+                    doc.text('Douglas (33%)', 180, yPos);
+                }
                 
                 doc.setLineWidth(0.3);
                 doc.line(20, yPos + 2, 200, yPos + 2);
@@ -9342,14 +9373,23 @@ async function generateCommissionsPDF() {
             const paymentDate = new Date(item.paymentDate).toLocaleDateString('pt-BR');
             
             // Truncar nome do cliente se for muito longo
-            const truncatedName = clientName.length > 20 ? clientName.substring(0, 17) + '...' : clientName;
+            const truncatedName = clientName.length > 15 ? clientName.substring(0, 12) + '...' : clientName;
             
             doc.text(truncatedName, 20, yPos);
-            doc.text(paymentDate, 65, yPos);
-            doc.text(`R$ ${item.paymentAmount.toFixed(2)}`, 90, yPos);
-            doc.text(`R$ ${item.commissionableAmount.toFixed(2)}`, 125, yPos);
-            doc.text(`R$ ${item.viniciusCommission.toFixed(2)}`, 155, yPos);
-            doc.text(`R$ ${item.douglasCommission.toFixed(2)}`, 180, yPos);
+            doc.text(paymentDate, 60, yPos);
+            doc.text(`${item.paymentAmount.toFixed(0)}`, 85, yPos);
+            doc.text(`${item.commissionableAmount.toFixed(0)}`, 108, yPos);
+            
+            if (isErechim) {
+                // ERECHIM: Mostrar 3 comissões
+                doc.text(`${item.brunoCommission.toFixed(2)}`, 130, yPos);
+                doc.text(`${item.viniciusCommission.toFixed(2)}`, 152, yPos);
+                doc.text(`${item.douglasCommission.toFixed(2)}`, 175, yPos);
+            } else {
+                // Outras empresas: Mostrar 2 comissões
+                doc.text(`${item.viniciusCommission.toFixed(2)}`, 155, yPos);
+                doc.text(`${item.douglasCommission.toFixed(2)}`, 180, yPos);
+            }
 
             yPos += 6;
         }
@@ -13724,12 +13764,25 @@ function calculateCommissionsFromPayments(payments) {
     const details = [];
     let totalCommissionableAmount = 0;
     
+    // Verificar se é empresa Erechim para dividir por 3 pessoas
+    const isErechim = currentCompany === 'erechim';
+    
     payments.forEach(payment => {
         const commissionableAmount = parseFloat(payment.commissionable_amount || 0);
         
-        // Calcular comissões (66,6% Vinicius, 33,3% Douglas)
-        const viniciusCommission = commissionableAmount * 0.666;
-        const douglasCommission = commissionableAmount * 0.333;
+        let viniciusCommission, douglasCommission, brunoCommission;
+        
+        if (isErechim) {
+            // ERECHIM: Dividir igualmente entre Bruno, Vinicius e Douglas (33,33% cada)
+            brunoCommission = commissionableAmount / 3;
+            viniciusCommission = commissionableAmount / 3;
+            douglasCommission = commissionableAmount / 3;
+        } else {
+            // Outras empresas: 66,6% Vinicius, 33,3% Douglas
+            viniciusCommission = commissionableAmount * 0.666;
+            douglasCommission = commissionableAmount * 0.333;
+            brunoCommission = 0;
+        }
         
         totalCommissionableAmount += commissionableAmount;
         
@@ -13742,6 +13795,7 @@ function calculateCommissionsFromPayments(payments) {
             commissionableAmount: commissionableAmount,
             viniciusCommission: viniciusCommission,
             douglasCommission: douglasCommission,
+            brunoCommission: brunoCommission,
             paymentDate: payment.payment_date,
             loanDate: payment.loan_date,
             status: payment.loan_status || payment.payment_type,
@@ -13750,14 +13804,26 @@ function calculateCommissionsFromPayments(payments) {
         });
     });
     
-    const totalViniciusCommission = totalCommissionableAmount * 0.666;
-    const totalDouglasCommission = totalCommissionableAmount * 0.333;
+    let totalViniciusCommission, totalDouglasCommission, totalBrunoCommission;
+    
+    if (isErechim) {
+        // ERECHIM: Dividir igualmente entre Bruno, Vinicius e Douglas
+        totalBrunoCommission = totalCommissionableAmount / 3;
+        totalViniciusCommission = totalCommissionableAmount / 3;
+        totalDouglasCommission = totalCommissionableAmount / 3;
+    } else {
+        // Outras empresas
+        totalViniciusCommission = totalCommissionableAmount * 0.666;
+        totalDouglasCommission = totalCommissionableAmount * 0.333;
+        totalBrunoCommission = 0;
+    }
     
     return {
         summary: {
             totalInterest: totalCommissionableAmount, // Mantendo nome para compatibilidade
             totalViniciusCommission,
             totalDouglasCommission,
+            totalBrunoCommission,
             totalPayments: payments.length
         },
         details
@@ -13766,19 +13832,42 @@ function calculateCommissionsFromPayments(payments) {
 
 // Atualizar resumo das comissões
 function updateCommissionsSummary(summary) {
+    const isErechim = currentCompany === 'erechim';
+    
     document.getElementById('totalInterest').textContent = `R$ ${summary.totalInterest.toFixed(2)}`;
     document.getElementById('viniciusCommission').textContent = `R$ ${summary.totalViniciusCommission.toFixed(2)}`;
     document.getElementById('douglasCommission').textContent = `R$ ${summary.totalDouglasCommission.toFixed(2)}`;
+    
+    // Atualizar comissão do Bruno (somente para Erechim)
+    const brunoCard = document.getElementById('brunoCommissionCard');
+    const brunoCommissionElement = document.getElementById('brunoCommission');
+    
+    if (isErechim) {
+        if (brunoCard) brunoCard.style.display = 'block';
+        if (brunoCommissionElement) {
+            brunoCommissionElement.textContent = `R$ ${summary.totalBrunoCommission.toFixed(2)}`;
+        }
+    } else {
+        if (brunoCard) brunoCard.style.display = 'none';
+    }
 }
 
 // Renderizar tabela de comissões
 function renderCommissionsTable(commissionsDetails) {
     const tableBody = document.getElementById('commissionsTableBody');
+    const isErechim = currentCompany === 'erechim';
+    
+    // Mostrar/esconder coluna do Bruno baseado na empresa
+    const brunoColumns = document.querySelectorAll('.bruno-column');
+    brunoColumns.forEach(col => {
+        col.style.display = isErechim ? '' : 'none';
+    });
     
     if (commissionsDetails.length === 0) {
+        const colspan = isErechim ? "10" : "9";
         tableBody.innerHTML = `
             <tr>
-                <td colspan="9" class="px-3 py-6 text-center text-gray-400 text-sm">
+                <td colspan="${colspan}" class="px-3 py-6 text-center text-gray-400 text-sm">
                     Nenhum pagamento encontrado para o período selecionado
                 </td>
             </tr>
@@ -13791,6 +13880,12 @@ function renderCommissionsTable(commissionsDetails) {
         const badgeStatus = item.paymentType === 'loan_payoff' ? 'loan_payoff' : item.status;
         const statusBadge = getStatusBadge(badgeStatus);
         const clientName = item.client?.name || 'Cliente não encontrado';
+        
+        // Construir coluna do Bruno apenas se for Erechim
+        const brunoColumn = isErechim ? `
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-orange-400 font-semibold bruno-column">
+                    R$ ${item.brunoCommission.toFixed(2)}
+                </td>` : '';
         
         return `
             <tr class="table-row">
@@ -13811,6 +13906,7 @@ function renderCommissionsTable(commissionsDetails) {
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-white font-semibold">
                     R$ ${item.commissionableAmount.toFixed(2)}
                 </td>
+                ${brunoColumn}
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-green-400 font-semibold">
                     R$ ${item.viniciusCommission.toFixed(2)}
                 </td>
