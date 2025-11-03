@@ -2384,11 +2384,6 @@ async function handlePayment(e) {
                 updated_at: new Date().toISOString()
             };
             
-            // Se deve alterar a data de vencimento
-            if (changeDueDate && newDueDate) {
-                updateData.due_date = newDueDate;
-            }
-            
             // NOVA LÓGICA: Se o empréstimo estava vencido (overdue) e recebeu um pagamento,
             // atualizar status para 'active' e estender data de vencimento para 30 dias
             const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
@@ -2413,19 +2408,25 @@ async function handlePayment(e) {
                     updateData.status = 'paid';
                 } else {
                     // Empréstimo parcialmente pago - reativar com nova data de vencimento
-                    // Calcular nova data de vencimento: 30 dias a partir da data do pagamento
-                    const paymentDateObj = new Date(paymentDate);
-                    const newDueDateObj = new Date(paymentDateObj);
-                    newDueDateObj.setDate(newDueDateObj.getDate() + 30);
-                    
-                    // Formatar a nova data no formato YYYY-MM-DD
-                    const newDueDateFormatted = newDueDateObj.toISOString().split('T')[0];
-                    
                     updateData.status = 'active';
-                    updateData.due_date = newDueDateFormatted;
+                    
+                    // PRIORIZAR alteração manual da data de vencimento
+                    if (changeDueDate && newDueDate) {
+                        // Usuário escolheu alterar a data manualmente - usar a data fornecida
+                        updateData.due_date = newDueDate;
+                    } else {
+                        // Calcular nova data de vencimento automaticamente: 30 dias a partir da data do pagamento
+                        const paymentDateObj = new Date(paymentDate);
+                        const newDueDateObj = new Date(paymentDateObj);
+                        newDueDateObj.setDate(newDueDateObj.getDate() + 30);
+                        
+                        // Formatar a nova data no formato YYYY-MM-DD
+                        const newDueDateFormatted = newDueDateObj.toISOString().split('T')[0];
+                        updateData.due_date = newDueDateFormatted;
+                    }
                     
                     // Registrar nota sobre a reativação do empréstimo
-                    const reactivationNote = `EMPRÉSTIMO REATIVADO: Status alterado de 'vencido' para 'ativo'. Nova data de vencimento: ${newDueDateFormatted} (30 dias a partir do pagamento de ${paymentDate}). Valor restante: R$ ${(totalWithInterest - totalPaid).toFixed(2)}`;
+                    const reactivationNote = `EMPRÉSTIMO REATIVADO: Status alterado de 'vencido' para 'ativo'. Nova data de vencimento: ${updateData.due_date} ${changeDueDate && newDueDate ? '(definida manualmente)' : `(30 dias a partir do pagamento de ${paymentDate})`}. Valor restante: R$ ${(totalWithInterest - totalPaid).toFixed(2)}`;
                     
                     const { error: reactivationNoteError } = await supabase
                         .from('payments')
@@ -2440,6 +2441,11 @@ async function handlePayment(e) {
                         }]);
                     
                     if (reactivationNoteError) console.warn('Erro ao registrar nota de reativação:', reactivationNoteError);
+                }
+            } else {
+                // Se o empréstimo NÃO está vencido, aplicar alteração manual da data de vencimento se solicitado
+                if (changeDueDate && newDueDate) {
+                    updateData.due_date = newDueDate;
                 }
             }
             
