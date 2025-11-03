@@ -2921,15 +2921,15 @@ function validatePaymentAmount() {
     feedbackDiv.className = `mt-2 text-sm ${feedbackColor}`;
 }
 
-function showPaymentModal(loanId) {
+async function showPaymentModal(loanId) {
     const loan = loans.find(l => l.id === loanId);
     if (!loan) return;
     
     // Preencher dados do empréstimo
     document.getElementById('paymentClientName').textContent = loan.clients?.name || 'Cliente não encontrado';
     
-    // Calcular valor restante considerando pagamentos já feitos
-    calculateAndShowRemainingAmount(loanId);
+    // Calcular valor restante considerando pagamentos já feitos (AGUARDAR o cálculo)
+    await calculateAndShowRemainingAmount(loanId);
     
     // Definir data padrão como hoje
     document.getElementById('paymentDate').value = formatDateForInput(new Date());
@@ -2957,7 +2957,23 @@ function showPaymentModal(loanId) {
 
 async function calculateAndShowRemainingAmount(loanId) {
     try {
-        const loan = loans.find(l => l.id === loanId);
+        // Buscar loan diretamente do banco para garantir dados atualizados
+        const { data: loanData, error: loanError } = await supabase
+            .from('loans')
+            .select('*')
+            .eq('id', loanId)
+            .single();
+        
+        let loan;
+        if (loanError || !loanData) {
+            console.error('Erro ao buscar loan:', loanError);
+            // Fallback: tentar usar loan da variável global
+            loan = loans.find(l => l.id === loanId);
+            if (!loan) return;
+        } else {
+            loan = loanData;
+        }
+        
         if (!loan) return;
         
         // SEMPRE usar o valor original do empréstimo (nunca o valor alterado)
@@ -3033,49 +3049,25 @@ async function calculateAndShowRemainingAmount(loanId) {
             remainingAmount,
             minimumPayment
         });
+        console.log('=== ATUALIZAÇÃO DOS VALORES NO MODAL ===');
+        console.log('✅ JUROS: R$', originalInterestAmount.toFixed(2), '→ R$', remainingInterest.toFixed(2));
+        console.log('✅ CAPITAL: R$', originalCapital.toFixed(2), '→ R$', remainingCapital.toFixed(2));
+        console.log('✅ PAGAMENTO MÍNIMO: R$', remainingInterest.toFixed(2));
+        console.log('✅ VALOR RESTANTE TOTAL: R$', remainingAmount.toFixed(2));
         
-        console.log('=== DEBUG DETALHADO DO EMPRÉSTIMO ===');
-        console.log('1. Estado atual do empréstimo:', {
-            loanId,
-            currentCapital,
-            currentInterestAmount, 
-            currentTotal,
-            finalInterestRate
-        });
-        
-        console.log('2. Análise de pagamentos:', {
-            totalPayments: payments.length,
-            realPayments: realPayments.length,
-            lastRenewal: lastRenewal ? lastRenewal.created_at : 'nenhuma',
-            totalPaidThisCycle,
-            paymentsList: realPayments.map(p => ({
-                amount: p.amount,
-                type: p.payment_type,
-                date: p.created_at
-            }))
-        });
-        
-        console.log('3. Cálculo do valor restante:', {
-            remainingAmount,
-            logicUsed: totalPaidThisCycle === 0 ? 'sem_pagamentos' : 
-                      Math.abs(totalPaidThisCycle - currentInterestAmount) <= (currentInterestAmount * 0.01) ? 'apenas_juros' :
-                      totalPaidThisCycle > currentInterestAmount ? 'capital_e_juros' : 'juros_parcial'
-        });
-        
-        console.log('4. Resultado final:', {
-            minimumPayment,
-            remainingAmount,
-            hasRenewal: !!lastRenewal
-        });
-        console.log('=== FIM DEBUG ===');
-        
-        // Mostrar informações detalhadas (sempre baseadas nos valores originais)
-        document.getElementById('paymentCapitalAmount').textContent = `R$ ${originalCapital.toFixed(2)}`;
+        // Mostrar informações detalhadas
+        document.getElementById('paymentCapitalAmount').textContent = `R$ ${remainingCapital.toFixed(2)}`;
         document.getElementById('paymentInterestRate').textContent = `${finalInterestRate.toFixed(2)}%`;
-        document.getElementById('paymentInterestAmount').textContent = `R$ ${originalInterestAmount.toFixed(2)}`;
+        document.getElementById('paymentInterestAmount').textContent = `R$ ${remainingInterest.toFixed(2)}`;
         document.getElementById('paymentTotalAmount').textContent = `R$ ${originalTotal.toFixed(2)}`;
         document.getElementById('paymentRemainingAmount').textContent = `R$ ${Math.max(0, remainingAmount).toFixed(2)}`;
         document.getElementById('paymentMinimumAmount').textContent = `R$ ${minimumPayment.toFixed(2)}`;
+        
+        console.log('=== VALORES ATUALIZADOS NO HTML ===');
+        console.log('Element paymentCapitalAmount:', document.getElementById('paymentCapitalAmount').textContent);
+        console.log('Element paymentInterestAmount:', document.getElementById('paymentInterestAmount').textContent);
+        console.log('Element paymentMinimumAmount:', document.getElementById('paymentMinimumAmount').textContent);
+        console.log('=========================================');
         
         // Mostrar separação de pagamentos já realizados
         document.getElementById('paymentCapitalPaid').textContent = `R$ ${capitalPaid.toFixed(2)}`;
@@ -3098,6 +3090,7 @@ async function calculateAndShowRemainingAmount(loanId) {
             const interestAmount = capitalAmount * (interestRate / 100);
             const totalWithInterest = capitalAmount + interestAmount;
             
+            // Fallback: usar valores originais se houver erro
             document.getElementById('paymentCapitalAmount').textContent = `R$ ${capitalAmount.toFixed(2)}`;
             document.getElementById('paymentInterestRate').textContent = `${interestRate.toFixed(2)}%`;
             document.getElementById('paymentInterestAmount').textContent = `R$ ${interestAmount.toFixed(2)}`;
@@ -3116,14 +3109,22 @@ async function calculateAndShowRemainingAmount(loanId) {
 
 // Função para calcular o pagamento mínimo baseado no valor restante
 function calculateMinimumPayment(capitalAmount, interestAmount, totalPaid, remainingAmount) {
-    // O valor mínimo é sempre o valor dos juros originais do empréstimo
-    // Isso garante que pelo menos os juros sejam pagos
+    // O valor mínimo é sempre o valor dos juros do CAPITAL RESTANTE
+    // Isso garante que pelo menos os juros atuais sejam pagos
     
     if (!interestAmount || interestAmount <= 0 || isNaN(interestAmount)) {
         return 0;
     }
     
-    return interestAmount;
+    // Calcular quanto foi pago de capital
+    const capitalPaid = Math.max(0, totalPaid - interestAmount);
+    const remainingCapital = Math.max(0, capitalAmount - capitalPaid);
+    
+    // Calcular juros sobre o capital restante
+    const interestRate = interestAmount / capitalAmount;
+    const minimumPayment = remainingCapital * interestRate;
+    
+    return minimumPayment;
 }
 
 // Função para verificar se o pagamento requer recálculo e aplicar juros
@@ -4848,15 +4849,15 @@ function getRelationshipText(relationship) {
     return relationships[relationship] || relationship;
 }
 
-function showNewPaymentFromHistory() {
+async function showNewPaymentFromHistory() {
     const loanId = document.getElementById('paymentHistoryLoanId').value;
     if (!loanId) return;
     
     // Fechar modal de histórico
     hideModal(paymentHistoryModal);
     
-    // Mostrar modal de pagamento
-    showPaymentModal(loanId);
+    // Mostrar modal de pagamento (aguardar cálculo dos valores)
+    await showPaymentModal(loanId);
 }
 
 // Função para mostrar o modal de confirmação do WhatsApp
