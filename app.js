@@ -3033,6 +3033,7 @@ async function calculateAndShowRemainingAmount(loanId) {
             remainingAmount,
             minimumPayment
         });
+        console.log('✅ ATUALIZAÇÃO DE JUROS: O campo de juros foi atualizado de R$', originalInterestAmount.toFixed(2), 'para R$', remainingInterest.toFixed(2));
         
         console.log('=== DEBUG DETALHADO DO EMPRÉSTIMO ===');
         console.log('1. Estado atual do empréstimo:', {
@@ -3069,10 +3070,10 @@ async function calculateAndShowRemainingAmount(loanId) {
         });
         console.log('=== FIM DEBUG ===');
         
-        // Mostrar informações detalhadas (sempre baseadas nos valores originais)
-        document.getElementById('paymentCapitalAmount').textContent = `R$ ${originalCapital.toFixed(2)}`;
+        // Mostrar informações detalhadas
+        document.getElementById('paymentCapitalAmount').textContent = `R$ ${remainingCapital.toFixed(2)}`;
         document.getElementById('paymentInterestRate').textContent = `${finalInterestRate.toFixed(2)}%`;
-        document.getElementById('paymentInterestAmount').textContent = `R$ ${originalInterestAmount.toFixed(2)}`;
+        document.getElementById('paymentInterestAmount').textContent = `R$ ${remainingInterest.toFixed(2)}`;
         document.getElementById('paymentTotalAmount').textContent = `R$ ${originalTotal.toFixed(2)}`;
         document.getElementById('paymentRemainingAmount').textContent = `R$ ${Math.max(0, remainingAmount).toFixed(2)}`;
         document.getElementById('paymentMinimumAmount').textContent = `R$ ${minimumPayment.toFixed(2)}`;
