@@ -6054,12 +6054,37 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
             } else if (totalPaid >= originalTotal) {
                 remaining = 0;
             } else {
-                // Calcular quanto foi pago de capital e juros
-                let capitalPaid = 0;
+                // Calcular quanto foi pago de capital
+                // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
+                const interestOnlyTypes = ['renewal', 'interest_renewal', 'early_payment_partial_interest', 
+                                          'early_payment_interest_renewal', 'partial_interest'];
                 
-                if (totalPaid > originalInterest) {
-                    // Pagou mais que os juros originais, a diferença foi do capital
-                    capitalPaid = totalPaid - originalInterest;
+                // Calcular capital pago acumulado
+                let capitalPaid = 0;
+                let currentCapital = originalCapital;
+                
+                // Processar cada pagamento em ordem
+                for (const payment of realPayments) {
+                    const paymentAmount = parseFloat(payment.amount);
+                    const paymentType = payment.payment_type;
+                    
+                    // Se for pagamento apenas de juros, não reduz capital
+                    if (interestOnlyTypes.includes(paymentType)) {
+                        // Capital permanece o mesmo
+                        continue;
+                    }
+                    
+                    // Para outros tipos de pagamento, calcular quanto foi de capital
+                    // Juros atuais baseados no capital atual
+                    const currentInterest = currentCapital * (interestRate / 100);
+                    
+                    if (paymentAmount > currentInterest) {
+                        // Pagou mais que os juros, a diferença reduziu o capital
+                        const capitalReduction = paymentAmount - currentInterest;
+                        capitalPaid += capitalReduction;
+                        currentCapital = Math.max(0, currentCapital - capitalReduction);
+                    }
+                    // Se pagou menos ou igual aos juros, não reduziu capital
                 }
                 
                 // Calcular capital restante
@@ -6116,23 +6141,11 @@ async function calculateLoanRemainingAmount(loanId) {
         
         if (error) throw error;
         
-        // Verificar se houve renovações
+        // Separar pagamentos reais (com valor > 0)
         const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
-        const hasRenewals = payments.some(p => p.payment_type === 'renewal');
         
-        let totalPaid;
-        if (hasRenewals) {
-            // Se houve renovação, considerar apenas pagamentos após a última renovação
-            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
-            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
-                const paymentIndex = payments.findIndex(p => p === payment);
-                return paymentIndex > lastRenewalIndex;
-            });
-            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        } else {
-            // Lógica original
-            totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        }
+        // Calcular total pago (todos os pagamentos reais)
+        const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
         
         // Calcular valor restante baseado no valor original (NUNCA alterado)
         let remainingAmount;
@@ -6144,18 +6157,37 @@ async function calculateLoanRemainingAmount(loanId) {
             // Empréstimo quitado
             remainingAmount = 0;
         } else {
-            // Calcular quanto foi pago de capital e juros
-            let capitalPaid = 0;
-            let interestPaid = 0;
+            // Calcular quanto foi pago de capital
+            // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
+            const interestOnlyTypes = ['renewal', 'interest_renewal', 'early_payment_partial_interest', 
+                                      'early_payment_interest_renewal', 'partial_interest'];
             
-            if (totalPaid > originalInterest) {
-                // Pagou mais que os juros originais, a diferença foi do capital
-                interestPaid = originalInterest;
-                capitalPaid = totalPaid - originalInterest;
-            } else {
-                // Pagou menos ou igual aos juros originais
-                interestPaid = totalPaid;
-                capitalPaid = 0;
+            // Calcular capital pago acumulado
+            let capitalPaid = 0;
+            let currentCapital = originalCapital;
+            
+            // Processar cada pagamento em ordem
+            for (const payment of realPayments) {
+                const paymentAmount = parseFloat(payment.amount);
+                const paymentType = payment.payment_type;
+                
+                // Se for pagamento apenas de juros, não reduz capital
+                if (interestOnlyTypes.includes(paymentType)) {
+                    // Capital permanece o mesmo
+                    continue;
+                }
+                
+                // Para outros tipos de pagamento, calcular quanto foi de capital
+                // Juros atuais baseados no capital atual
+                const currentInterest = currentCapital * (interestRate / 100);
+                
+                if (paymentAmount > currentInterest) {
+                    // Pagou mais que os juros, a diferença reduziu o capital
+                    const capitalReduction = paymentAmount - currentInterest;
+                    capitalPaid += capitalReduction;
+                    currentCapital = Math.max(0, currentCapital - capitalReduction);
+                }
+                // Se pagou menos ou igual aos juros, não reduziu capital
             }
             
             // Calcular capital restante
