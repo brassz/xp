@@ -121,12 +121,59 @@ document.getElementById('paymentTotalAmount').textContent = `R$ ${remainingAmoun
 
 Agora o campo "Total com Juros" mostra corretamente: **Capital Restante + Juros Restantes**
 
+## Correção Final: Cálculo do VALOR RESTANTE
+
+### Problema Crítico Descoberto
+
+A função `calculateAndShowRemainingAmount` estava **ignorando o `payment_type`** ao calcular o valor restante!
+
+**Lógica Antiga (ERRADA)**:
+```javascript
+if (totalPaid > originalInterestAmount) {
+    interestPaid = originalInterestAmount;
+    capitalPaid = totalPaid - originalInterestAmount;  // ❌ ASSUMIA QUE O RESTO ERA CAPITAL
+}
+```
+
+**Exemplo do erro**:
+- Empréstimo: R$ 500 a 40% = R$ 700 total
+- Cliente pagou 2 renovações de R$ 200 (total R$ 400)
+- Sistema calculava: `capitalPaid = 400 - 200 = R$ 200` ❌
+- Mostrava: Capital restante R$ 300, Valor restante R$ 420 ❌
+- **CORRETO**: Capital R$ 500, Valor restante R$ 700 ✅
+
+### Correção Aplicada
+
+Agora a função **verifica o `payment_type` de cada pagamento**:
+
+```javascript
+for (const payment of realPayments) {
+    if (interestOnlyTypes.includes(paymentType)) {
+        interestPaid += paymentAmount;
+        // Capital permanece o mesmo ✅
+    } else {
+        // Calcula quanto foi de capital
+    }
+}
+```
+
+### Resultado
+
+Agora o modal mostra corretamente:
+- **Capital**: Valor que ainda falta pagar do principal
+- **Valor dos Juros**: Juros calculados sobre o capital restante
+- **Total com Juros**: Capital + Juros (mesmo que Valor Restante)
+- **Valor Restante**: Total que falta pagar
+- **Pagamento Mínimo**: Valor dos juros (para renovar)
+
 ## Commits
 
 ```
 a84e3b1 Fix: Correção da tabela de valores com pagamento de renovação (somente juros)
 13b38be Add SQL script to fix payment_type constraint
 2a4d390 Fix: Corrigir exibição do 'Total com Juros' no modal de pagamento
+c9ea305 docs: Atualizar documentação com correção do modal de pagamento
+adf89bf Fix: Corrigir cálculo do VALOR RESTANTE no modal de pagamento
 ```
 
 ## Data
