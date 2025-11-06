@@ -2233,17 +2233,38 @@ async function handlePayment(e) {
         // Se é uma edição, não recalcular o empréstimo (manter lógica original)
         let recalcInfo = { shouldRecalculate: false };
         if (!paymentId) {
-            // Verificar se o empréstimo está vencido antes de recalcular
-            const loan = loans.find(l => l.id === loanId);
-            const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
-            
             // REATIVADO: Identificar tipo de pagamento (renovação, capital, etc)
             // IMPORTANTE: Não altera o valor original do empréstimo (campo amount)
             // Apenas identifica o tipo para registrar corretamente nos pagamentos
-            if (currentLoanStatus !== 'overdue') {
-                recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+            // Funciona tanto para empréstimos ativos quanto vencidos
+            recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+        }
+        
+        // Determinar o tipo correto de pagamento baseado na análise do recalcInfo
+        let finalPaymentType = paymentType; // Por padrão, usa o método de pagamento
+        let paymentMethodNote = `Método: ${paymentType}`; // Salvar método nas notas
+        
+        // Se foi identificado um tipo especial de pagamento (renovação, capital, etc), usar esse tipo
+        if (recalcInfo.shouldRecalculate) {
+            if (recalcInfo.isInterestOnlyRenewal) {
+                finalPaymentType = 'interest_renewal';
+            } else if (recalcInfo.isEarlyPaymentPartialInterest) {
+                finalPaymentType = 'early_payment_partial_interest';
+            } else if (recalcInfo.isEarlyPaymentInterestRenewal) {
+                finalPaymentType = 'early_payment_interest_renewal';
+            } else if (recalcInfo.isEarlyPaymentCapitalReduction) {
+                finalPaymentType = 'early_payment_capital_reduction';
+            } else if (recalcInfo.isCapitalReduction) {
+                finalPaymentType = 'capital_payment';
+            } else if (recalcInfo.isPartialInterestPayment) {
+                finalPaymentType = 'partial_interest';
             }
         }
+        
+        // Combinar notas do usuário com método de pagamento
+        const combinedNotes = paymentNotes 
+            ? `${paymentNotes} | ${paymentMethodNote}`
+            : paymentMethodNote;
         
         // Registrar ou atualizar o pagamento
         let paymentError;
@@ -2254,8 +2275,8 @@ async function handlePayment(e) {
                 .update({
                     amount: paymentAmount,
                     payment_date: paymentDate,
-                    payment_type: paymentType,
-                    notes: paymentNotes,
+                    payment_type: finalPaymentType,
+                    notes: combinedNotes,
                     fine_amount: fineAmount,
                     updated_at: new Date().toISOString()
                 })
@@ -2269,8 +2290,8 @@ async function handlePayment(e) {
                     loan_id: loanId,
                     amount: paymentAmount,
                     payment_date: paymentDate,
-                    payment_type: paymentType,
-                    notes: paymentNotes,
+                    payment_type: finalPaymentType,
+                    notes: combinedNotes,
                     fine_amount: fineAmount,
                     created_by: currentUser.id,
                     created_at: new Date().toISOString()
@@ -2301,71 +2322,8 @@ async function handlePayment(e) {
             
             if (loanUpdateError) throw loanUpdateError;
             
-            // Registrar nota sobre o tipo de operação
-            let actionNotes;
-            let actionType;
-            
-            if (recalcInfo.isInterestOnlyRenewal) {
-                actionType = 'interest_renewal';
-                actionNotes = `RENOVAÇÃO - PAGAMENTO APENAS DE JUROS: ` +
-                            `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                            `Juros pagos: R$ ${recalcInfo.paidAmount.toFixed(2)} | ` +
-                            `Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)} | ` +
-                            `Nova data vencimento: ${recalcInfo.newDueDate}`;
-            } else if (recalcInfo.isEarlyPaymentPartialInterest) {
-                actionType = 'early_payment_partial_interest';
-                actionNotes = `PAGAMENTO ANTECIPADO PARCIAL DE JUROS: ` +
-                            `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                            `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
-                            `Juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
-            } else if (recalcInfo.isEarlyPaymentInterestRenewal) {
-                actionType = 'early_payment_interest_renewal';
-                actionNotes = `PAGAMENTO ANTECIPADO - RENOVAÇÃO: ` +
-                            `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                            `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
-                            `Próximos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
-            } else if (recalcInfo.isEarlyPaymentCapitalReduction) {
-                actionType = 'early_payment_capital_reduction';
-                actionNotes = `PAGAMENTO ANTECIPADO COM REDUÇÃO DE CAPITAL: ` +
-                            `Capital anterior: R$ ${recalcInfo.originalAmount.toFixed(2)} | ` +
-                            `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
-                            `Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)} | ` +
-                            `Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                            `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
-            } else if (recalcInfo.isCapitalReduction) {
-                actionType = 'capital_payment';
-                actionNotes = `PAGAMENTO DE CAPITAL: ` +
-                            `Capital anterior: R$ ${recalcInfo.originalAmount.toFixed(2)} | ` +
-                            `Capital pago: R$ ${recalcInfo.paidCapital.toFixed(2)} | ` +
-                            `Juros pagos: R$ ${recalcInfo.paidInterest.toFixed(2)} | ` +
-                            `Novo capital: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                            `Novos juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
-            } else if (recalcInfo.isPartialInterestPayment) {
-                actionType = 'partial_interest';
-                actionNotes = `PAGAMENTO PARCIAL DE JUROS: ` +
-                            `Capital mantido: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                            `Juros pagos: R$ ${recalcInfo.paidAmount.toFixed(2)} | ` +
-                            `Novos juros acumulados: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
-            } else {
-                actionType = 'adjustment';
-                actionNotes = `AJUSTE AUTOMÁTICO: ` +
-                            `Capital: R$ ${recalcInfo.newAmount.toFixed(2)} | ` +
-                            `Juros: R$ ${recalcInfo.newInterestAmount.toFixed(2)}`;
-            }
-            
-            const { error: actionNoteError } = await supabase
-                .from('payments')
-                .insert([{
-                    loan_id: loanId,
-                    amount: 0,
-                    payment_date: paymentDate,
-                    payment_type: actionType,
-                    notes: actionNotes,
-                    created_by: currentUser.id,
-                    created_at: new Date().toISOString()
-                }]);
-            
-            if (actionNoteError) console.warn('Erro ao registrar nota de ação:', actionNoteError);
+            // Nota: O tipo de operação já foi registrado no pagamento principal com o payment_type correto
+            // Não é mais necessário criar um segundo registro de pagamento
         } else {
             // Atualizar status do empréstimo baseado no valor do pagamento
             // Como agora o tipo representa método de pagamento, vamos verificar se o pagamento quita o empréstimo
