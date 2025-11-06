@@ -95,6 +95,40 @@ A correção garante que:
 
 - `app.js` - Função `handlePayment` (linhas ~2233-2331)
 
+## Correção Adicional: Exibição de Valores no Modal
+
+### Problema Adicional Encontrado
+
+No modal de pagamento, o campo **"Total com Juros"** estava mostrando o valor original do empréstimo em vez do valor atual.
+
+**Exemplo**:
+- Capital Restante: R$ 300,00
+- Juros (40%): R$ 120,00
+- **Total com Juros mostrava**: R$ 700,00 ❌ (valor original do empréstimo)
+- **Total com Juros correto**: R$ 420,00 ✅ (300 + 120)
+
+### Correção Aplicada
+
+Alterada linha 3021 em `app.js`:
+
+```javascript
+// ANTES:
+document.getElementById('paymentTotalAmount').textContent = `R$ ${originalTotal.toFixed(2)}`;
+
+// DEPOIS:
+document.getElementById('paymentTotalAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
+```
+
+Agora o campo "Total com Juros" mostra corretamente: **Capital Restante + Juros Restantes**
+
+## Commits
+
+```
+a84e3b1 Fix: Correção da tabela de valores com pagamento de renovação (somente juros)
+13b38be Add SQL script to fix payment_type constraint
+2a4d390 Fix: Corrigir exibição do 'Total com Juros' no modal de pagamento
+```
+
 ## Data
 
 2025-11-06
