@@ -2237,12 +2237,12 @@ async function handlePayment(e) {
             const loan = loans.find(l => l.id === loanId);
             const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
             
-            // DESABILITADO: Não recalcular valores originais dos empréstimos
-            // Os valores originais devem SEMPRE permanecer inalterados
-            // O cálculo de valores restantes é feito baseado apenas nos pagamentos
-            // if (currentLoanStatus !== 'overdue') {
-            //     recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
-            // }
+            // REATIVADO: Identificar tipo de pagamento (renovação, capital, etc)
+            // IMPORTANTE: Não altera o valor original do empréstimo (campo amount)
+            // Apenas identifica o tipo para registrar corretamente nos pagamentos
+            if (currentLoanStatus !== 'overdue') {
+                recalcInfo = await checkAndRecalculateLoan(loanId, paymentAmount, paymentType);
+            }
         }
         
         // Registrar ou atualizar o pagamento
