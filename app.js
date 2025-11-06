@@ -3017,7 +3017,8 @@ async function calculateAndShowRemainingAmount(loanId) {
         document.getElementById('paymentCapitalAmount').textContent = `R$ ${remainingCapital.toFixed(2)}`;
         document.getElementById('paymentInterestRate').textContent = `${finalInterestRate.toFixed(2)}%`;
         document.getElementById('paymentInterestAmount').textContent = `R$ ${remainingInterest.toFixed(2)}`;
-        document.getElementById('paymentTotalAmount').textContent = `R$ ${originalTotal.toFixed(2)}`;
+        // Total com Juros = Capital Restante + Juros Restantes (não usar originalTotal)
+        document.getElementById('paymentTotalAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
         document.getElementById('paymentRemainingAmount').textContent = `R$ ${Math.max(0, remainingAmount).toFixed(2)}`;
         document.getElementById('paymentMinimumAmount').textContent = `R$ ${minimumPayment.toFixed(2)}`;
         
