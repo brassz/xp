@@ -2158,8 +2158,35 @@
                 <form id="newLoanForm" class="space-y-4">
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-2">Cliente</label>
+                        
+                        <!-- Campo de busca -->
+                        <div class="relative mb-3">
+                            <input 
+                                type="text" 
+                                id="loanClientSearch" 
+                                class="form-input w-full pl-10" 
+                                placeholder="Digite o nome ou CPF do cliente para buscar..."
+                                autocomplete="off"
+                            >
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- Lista de resultados de busca -->
+                        <div id="loanClientResults" class="hidden mb-3">
+                            <div class="max-h-60 overflow-y-auto border border-gray-600 rounded-lg bg-gray-800">
+                                <div id="loanClientResultsList" class="divide-y divide-gray-600">
+                                    <!-- Resultados aparecerão aqui -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Select tradicional (mantido como fallback) -->
                         <select id="loanClient" class="form-input w-full" required>
-                            <option value="">Selecione um cliente</option>
+                            <option value="">Ou selecione da lista completa</option>
                         </select>
                     </div>
                     
@@ -2705,8 +2732,35 @@
                     <input type="hidden" id="editLoanId">
                     <div>
                         <label class="block text-sm font-medium text-blue-200 mb-2">Cliente</label>
+                        
+                        <!-- Campo de busca -->
+                        <div class="relative mb-3">
+                            <input 
+                                type="text" 
+                                id="editLoanClientSearch" 
+                                class="form-input w-full pl-10" 
+                                placeholder="Digite o nome ou CPF do cliente para buscar..."
+                                autocomplete="off"
+                            >
+                            <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                </svg>
+                            </div>
+                        </div>
+                        
+                        <!-- Lista de resultados de busca -->
+                        <div id="editLoanClientResults" class="hidden mb-3">
+                            <div class="max-h-60 overflow-y-auto border border-gray-600 rounded-lg bg-gray-800">
+                                <div id="editLoanClientResultsList" class="divide-y divide-gray-600">
+                                    <!-- Resultados aparecerão aqui -->
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <!-- Select tradicional (mantido como fallback) -->
                         <select id="editLoanClient" class="form-input w-full" required>
-                            <option value="">Selecione um cliente</option>
+                            <option value="">Ou selecione da lista completa</option>
                         </select>
                     </div>
                     
@@ -3168,10 +3222,37 @@
                 
                 <form id="newInstallmentForm" class="space-y-6">
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6">
-                        <div>
+                        <div class="md:col-span-2">
                             <label class="block text-sm font-medium text-blue-200 mb-2">Cliente</label>
+                            
+                            <!-- Campo de busca -->
+                            <div class="relative mb-3">
+                                <input 
+                                    type="text" 
+                                    id="installmentClientSearch" 
+                                    class="form-input w-full pl-10" 
+                                    placeholder="Digite o nome ou CPF do cliente para buscar..."
+                                    autocomplete="off"
+                                >
+                                <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
+                                    <svg class="h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                            
+                            <!-- Lista de resultados de busca -->
+                            <div id="installmentClientResults" class="hidden mb-3">
+                                <div class="max-h-60 overflow-y-auto border border-gray-600 rounded-lg bg-gray-800">
+                                    <div id="installmentClientResultsList" class="divide-y divide-gray-600">
+                                        <!-- Resultados aparecerão aqui -->
+                                    </div>
+                                </div>
+                            </div>
+                            
+                            <!-- Select tradicional (mantido como fallback) -->
                             <select id="installmentClientId" class="form-input w-full" required>
-                                <option value="">Selecione um cliente</option>
+                                <option value="">Ou selecione da lista completa</option>
                             </select>
                         </div>
                         

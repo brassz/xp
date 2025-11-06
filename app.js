@@ -2614,6 +2614,23 @@ function showModal(modal) {
     if (modal === newLoanModal) {
         populateClientSelect();
         setDefaultDates();
+        // Configurar busca de clientes
+        setupClientSearch(
+            'loanClientSearch',
+            'loanClient', 
+            'loanClientResultsList', 
+            'loanClientResults'
+        );
+    }
+    
+    // Configurar busca para modal de parcelamentos
+    if (modal === newInstallmentModal) {
+        setupClientSearch(
+            'installmentClientSearch',
+            'installmentClientId',
+            'installmentClientResultsList',
+            'installmentClientResults'
+        );
     }
 }
 
@@ -2707,7 +2724,7 @@ function showDashboard() {
 
 function populateClientSelect() {
     const select = document.getElementById('loanClient');
-    select.innerHTML = '<option value="">Selecione um cliente</option>';
+    select.innerHTML = '<option value="">Ou selecione da lista completa</option>';
     
     clients.forEach(client => {
         const option = document.createElement('option');
@@ -4202,6 +4219,20 @@ function editLoan(loanId) {
     updateEditLoanSummary();
     
     showModal(document.getElementById('editLoanModal'));
+    
+    // Configurar busca de clientes
+    setupClientSearch(
+        'editLoanClientSearch',
+        'editLoanClient',
+        'editLoanClientResultsList',
+        'editLoanClientResults'
+    );
+    
+    // Preencher campo de busca com o cliente atual
+    const client = clients.find(c => c.id === loan.client_id);
+    if (client) {
+        document.getElementById('editLoanClientSearch').value = `${client.name} - ${client.cpf}`;
+    }
     
     // Mostrar mensagem informativa
     const clientName = loan.clients?.name || 'Cliente não encontrado';
@@ -6633,7 +6664,7 @@ async function deleteDocument(documentId) {
 
 function populateEditLoanClientSelect(selectedClientId) {
     const select = document.getElementById('editLoanClient');
-    select.innerHTML = '<option value="">Selecione um cliente</option>';
+    select.innerHTML = '<option value="">Ou selecione da lista completa</option>';
     
     clients.forEach(client => {
         const option = document.createElement('option');
@@ -9674,7 +9705,7 @@ async function loadClientsForInstallment() {
         if (error) throw error;
 
         const clientSelect = document.getElementById('installmentClientId');
-        clientSelect.innerHTML = '<option value="">Selecione um cliente</option>';
+        clientSelect.innerHTML = '<option value="">Ou selecione da lista completa</option>';
 
         allClients.forEach(client => {
             const option = document.createElement('option');
@@ -13991,4 +14022,147 @@ function getStatusBadge(status) {
     };
     
     return badges[status] || '<span class="px-1 py-0.5 inline-flex text-xs leading-4 font-medium rounded bg-gray-100 text-gray-800">Desconhecido</span>';
+}
+
+// ==================== FUNÇÕES REUTILIZÁVEIS DE BUSCA DE CLIENTES ====================
+
+/**
+ * Função genérica para buscar clientes por nome, CPF, RG ou email
+ * @param {string} searchTerm - Termo de busca
+ * @returns {Array} - Array de clientes que correspondem ao termo de busca
+ */
+function searchClients(searchTerm) {
+    if (!clients || clients.length === 0) {
+        return [];
+    }
+    
+    if (!searchTerm || searchTerm.trim().length < 2) {
+        return [];
+    }
+    
+    const term = searchTerm.toLowerCase().trim();
+    return clients.filter(client => 
+        client.name.toLowerCase().includes(term) ||
+        (client.cpf && client.cpf.includes(term)) ||
+        (client.rg && client.rg.toLowerCase().includes(term)) ||
+        (client.email && client.email.toLowerCase().includes(term))
+    );
+}
+
+/**
+ * Função genérica para renderizar resultados de busca de clientes
+ * @param {Array} results - Array de clientes encontrados
+ * @param {string} resultsListId - ID do elemento HTML onde os resultados serão exibidos
+ * @param {string} resultsContainerId - ID do container dos resultados
+ * @param {Function} onSelectCallback - Função callback a ser executada ao selecionar um cliente
+ */
+function renderClientSearchResults(results, resultsListId, resultsContainerId, onSelectCallback) {
+    const resultsList = document.getElementById(resultsListId);
+    const resultsContainer = document.getElementById(resultsContainerId);
+    
+    if (!results || results.length === 0) {
+        resultsContainer.classList.add('hidden');
+        return;
+    }
+    
+    resultsList.innerHTML = '';
+    
+    results.forEach(client => {
+        const resultItem = document.createElement('div');
+        resultItem.className = 'p-3 hover:bg-gray-700 cursor-pointer transition-colors';
+        resultItem.innerHTML = `
+            <div class="text-white font-medium">${client.name}</div>
+            <div class="text-gray-400 text-sm">CPF: ${client.cpf}</div>
+            ${client.email ? `<div class="text-gray-400 text-sm">Email: ${client.email}</div>` : ''}
+        `;
+        
+        resultItem.addEventListener('click', () => {
+            onSelectCallback(client);
+        });
+        
+        resultsList.appendChild(resultItem);
+    });
+    
+    resultsContainer.classList.remove('hidden');
+}
+
+/**
+ * Função genérica para selecionar um cliente da busca
+ * @param {Object} client - Objeto do cliente selecionado
+ * @param {string} searchInputId - ID do input de busca
+ * @param {string} selectId - ID do select tradicional
+ * @param {string} resultsContainerId - ID do container dos resultados
+ */
+function selectClientFromSearch(client, searchInputId, selectId, resultsContainerId) {
+    // Atualizar o campo de busca
+    document.getElementById(searchInputId).value = `${client.name} - ${client.cpf}`;
+    
+    // Atualizar o select
+    document.getElementById(selectId).value = client.id;
+    
+    // Esconder resultados
+    document.getElementById(resultsContainerId).classList.add('hidden');
+    
+    // Trigger change event no select para que outras funções possam reagir
+    const selectElement = document.getElementById(selectId);
+    const event = new Event('change', { bubbles: true });
+    selectElement.dispatchEvent(event);
+}
+
+/**
+ * Configurar busca de clientes para um modal específico
+ * @param {string} searchInputId - ID do input de busca
+ * @param {string} selectId - ID do select tradicional
+ * @param {string} resultsListId - ID do elemento onde os resultados serão listados
+ * @param {string} resultsContainerId - ID do container dos resultados
+ */
+function setupClientSearch(searchInputId, selectId, resultsListId, resultsContainerId) {
+    const searchInput = document.getElementById(searchInputId);
+    
+    if (!searchInput) {
+        console.warn(`Input de busca ${searchInputId} não encontrado`);
+        return;
+    }
+    
+    // Remover event listeners anteriores (se existirem)
+    const newSearchInput = searchInput.cloneNode(true);
+    searchInput.parentNode.replaceChild(newSearchInput, searchInput);
+    
+    // Adicionar event listener para busca
+    newSearchInput.addEventListener('input', function(e) {
+        const searchTerm = e.target.value;
+        const results = searchClients(searchTerm);
+        
+        renderClientSearchResults(
+            results, 
+            resultsListId, 
+            resultsContainerId,
+            (client) => selectClientFromSearch(client, searchInputId, selectId, resultsContainerId)
+        );
+    });
+    
+    // Limpar resultados ao focar novamente no input
+    newSearchInput.addEventListener('focus', function() {
+        if (this.value.trim().length >= 2) {
+            const results = searchClients(this.value);
+            renderClientSearchResults(
+                results, 
+                resultsListId, 
+                resultsContainerId,
+                (client) => selectClientFromSearch(client, searchInputId, selectId, resultsContainerId)
+            );
+        }
+    });
+    
+    // Esconder resultados ao clicar fora
+    document.addEventListener('click', function(e) {
+        const resultsContainer = document.getElementById(resultsContainerId);
+        const searchInputElement = document.getElementById(searchInputId);
+        
+        if (searchInputElement && resultsContainer && 
+            !searchInputElement.contains(e.target) && 
+            !resultsContainer.contains(e.target)) {
+            resultsContainer.classList.add('hidden');
+        }
+    });
 }
