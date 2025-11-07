@@ -14161,11 +14161,11 @@ function getStatusBadge(status) {
 // ==================== FUNÇÕES REUTILIZÁVEIS DE BUSCA DE CLIENTES ====================
 
 /**
- * Função genérica para buscar clientes por nome, CPF, RG ou email
+ * Função genérica para buscar clientes por nome, CPF, RG ou email (para dropdowns)
  * @param {string} searchTerm - Termo de busca
  * @returns {Array} - Array de clientes que correspondem ao termo de busca
  */
-function searchClients(searchTerm) {
+function findClientsForDropdown(searchTerm) {
     if (!clients || clients.length === 0) {
         return [];
     }
@@ -14265,7 +14265,7 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
     // Adicionar event listener para busca
     newSearchInput.addEventListener('input', function(e) {
         const searchTerm = e.target.value;
-        const results = searchClients(searchTerm);
+        const results = findClientsForDropdown(searchTerm);
         
         renderClientSearchResults(
             results, 
@@ -14278,7 +14278,7 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
     // Limpar resultados ao focar novamente no input
     newSearchInput.addEventListener('focus', function() {
         if (this.value.trim().length >= 2) {
-            const results = searchClients(this.value);
+            const results = findClientsForDropdown(this.value);
             renderClientSearchResults(
                 results, 
                 resultsListId, 
