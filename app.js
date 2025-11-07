@@ -419,6 +419,9 @@ function setupEventListeners() {
     document.getElementById('cancelGuarantorBtn').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('cancelEmergencyContactBtn').addEventListener('click', () => hideModal(emergencyContactModal));
     
+    // Botão de renovar empréstimo por +30 dias
+    document.getElementById('renewLoanBtn').addEventListener('click', () => handleLoanRenewal());
+    
     // Capital Raising cancel buttons
     if (document.getElementById('cancelCapitalRaising')) {
         document.getElementById('cancelCapitalRaising').addEventListener('click', () => hideModal(newCapitalRaisingModal));
@@ -2192,6 +2195,122 @@ async function handleNewLoan(e) {
     }
 }
 
+async function handleLoanRenewal() {
+    try {
+        const loanId = document.getElementById('paymentForm').dataset.loanId;
+        const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+        const paymentDate = document.getElementById('paymentDate').value;
+        const paymentType = document.getElementById('paymentType').value;
+        const paymentNotes = document.getElementById('paymentNotes').value;
+        
+        // Obter valores do modal para validação
+        const interestText = document.getElementById('paymentInterestAmount').textContent;
+        const currentInterestAmount = parseMonetaryValue(interestText);
+        
+        // Validar que o pagamento é exatamente o valor dos juros
+        if (Math.abs(paymentAmount - currentInterestAmount) > 0.01) {
+            alert('O valor do pagamento deve ser exatamente o valor dos juros para renovar o empréstimo.');
+            return;
+        }
+        
+        // Obter o empréstimo atual
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            alert('Empréstimo não encontrado.');
+            return;
+        }
+        
+        // Confirmar com o usuário
+        const confirmMsg = `Confirmar renovação do empréstimo por +30 dias?\n\nValor do pagamento (juros): R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDateToAdd30Days(loan.due_date)}`;
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+        
+        // Registrar o pagamento dos juros
+        const paymentMethodNote = `Método: ${paymentType}`;
+        const combinedNotes = paymentNotes 
+            ? `RENOVAÇÃO +30 DIAS | ${paymentNotes} | ${paymentMethodNote}`
+            : `RENOVAÇÃO +30 DIAS | ${paymentMethodNote}`;
+        
+        const { data: paymentData, error: paymentError } = await supabase
+            .from('payments')
+            .insert({
+                loan_id: loanId,
+                amount: paymentAmount,
+                payment_date: paymentDate,
+                payment_type: 'interest_renewal',
+                notes: combinedNotes,
+                fine_amount: 0
+            })
+            .select();
+        
+        if (paymentError) throw paymentError;
+        
+        // Calcular nova data de vencimento (atual + 30 dias)
+        const currentDueDate = new Date(loan.due_date);
+        const newDueDate = new Date(currentDueDate);
+        newDueDate.setDate(newDueDate.getDate() + 30);
+        const newDueDateStr = newDueDate.toISOString().split('T')[0];
+        
+        // Atualizar o empréstimo com a nova data de vencimento
+        const { error: loanError } = await supabase
+            .from('loans')
+            .update({
+                due_date: newDueDateStr,
+                status: 'active'
+            })
+            .eq('id', loanId);
+        
+        if (loanError) throw loanError;
+        
+        // Registrar a renovação nos pagamentos
+        const renewalNote = `EMPRÉSTIMO RENOVADO: Data de vencimento estendida em +30 dias. Nova data: ${formatDate(newDueDateStr)}. Pagamento de juros: R$ ${paymentAmount.toFixed(2)}`;
+        await supabase
+            .from('payments')
+            .insert({
+                loan_id: loanId,
+                amount: 0,
+                payment_date: paymentDate,
+                payment_type: 'loan_renewal',
+                notes: renewalNote,
+                fine_amount: 0
+            });
+        
+        // Fechar modal e atualizar interface
+        hideModal(paymentModal);
+        document.getElementById('paymentForm').reset();
+        await loadLoans();
+        
+        // Mostrar mensagem de sucesso
+        alert(`✅ Empréstimo renovado com sucesso!\n\nPagamento de juros: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDate(newDueDateStr)}\n(+30 dias)`);
+        
+    } catch (error) {
+        console.error('Erro ao renovar empréstimo:', error);
+        alert('Erro ao renovar empréstimo: ' + error.message);
+    }
+}
+
+// Função auxiliar para converter valor monetário brasileiro para número
+function parseMonetaryValue(text) {
+    // Remove "R$" e espaços
+    let cleanText = text.replace('R$', '').trim();
+    
+    // Se tem vírgula, assume formato brasileiro (1.234,56)
+    if (cleanText.includes(',')) {
+        // Remove pontos (separadores de milhares) e substitui vírgula por ponto
+        cleanText = cleanText.replace(/\./g, '').replace(',', '.');
+    }
+    
+    return parseFloat(cleanText);
+}
+
+// Função auxiliar para formatar data + 30 dias
+function formatDateToAdd30Days(dateStr) {
+    const date = new Date(dateStr);
+    date.setDate(date.getDate() + 30);
+    return formatDate(date.toISOString().split('T')[0]);
+}
+
 async function handlePayment(e) {
     e.preventDefault();
     
@@ -2789,21 +2908,6 @@ function validatePaymentAmount() {
         return;
     }
     
-    // Função auxiliar para converter valor monetário brasileiro para número
-    function parseMonetaryValue(text) {
-        // Remove "R$" e espaços
-        let cleanText = text.replace('R$', '').trim();
-        
-        // Se tem vírgula, assume formato brasileiro (1.234,56)
-        if (cleanText.includes(',')) {
-            // Remove pontos (separadores de milhares) e substitui vírgula por ponto
-            cleanText = cleanText.replace(/\./g, '').replace(',', '.');
-        }
-        // Se não tem vírgula, assume que já está no formato correto (1234.56)
-        
-        return parseFloat(cleanText);
-    }
-    
     const currentCapital = parseMonetaryValue(capitalText);
     const currentInterestAmount = parseMonetaryValue(interestText);
     const remainingAmount = parseMonetaryValue(remainingText);
@@ -2815,6 +2919,25 @@ function validatePaymentAmount() {
     let feedbackColor = '';
     
     feedbackDiv.classList.remove('hidden');
+    
+    // Verificar se o valor é exatamente igual aos juros para ativar botão de renovação
+    const renewBtn = document.getElementById('renewLoanBtn');
+    const renewHint = document.getElementById('renewLoanHint');
+    const isInterestOnlyPayment = Math.abs(paymentAmount - currentInterestAmount) <= 0.01;
+    
+    if (isInterestOnlyPayment && currentInterestAmount > 0) {
+        renewBtn.disabled = false;
+        renewHint.classList.remove('hidden');
+        renewHint.textContent = '✅ Botão de renovação ativado!';
+        renewHint.classList.remove('text-gray-400');
+        renewHint.classList.add('text-green-400');
+    } else {
+        renewBtn.disabled = true;
+        renewHint.classList.remove('hidden');
+        renewHint.textContent = 'Pague apenas os juros para ativar';
+        renewHint.classList.remove('text-green-400');
+        renewHint.classList.add('text-gray-400');
+    }
     
     if (paymentAmount < minimumAmount) {
         feedbackText = `⚠️ Valor abaixo do mínimo (R$ ${minimumAmount.toFixed(2)}). Pagamento não permitido.`;
@@ -2923,6 +3046,12 @@ async function showPaymentModal(loanId) {
     const feedbackDiv = document.getElementById('paymentValidationFeedback');
     feedbackDiv.className = 'mt-2 text-sm hidden';
     document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500', 'border-purple-500');
+    
+    // Resetar botão de renovação
+    const renewBtn = document.getElementById('renewLoanBtn');
+    const renewHint = document.getElementById('renewLoanHint');
+    renewBtn.disabled = true;
+    renewHint.classList.add('hidden');
     
     // Armazenar ID do empréstimo
     document.getElementById('paymentForm').dataset.loanId = loanId;
