@@ -5769,6 +5769,11 @@ function getPaymentTypeText(type) {
         case 'interest_renewal': return '🔄 Renovação (Juros)';
         case 'capital_payment': return '💰 Pagamento Capital';
         case 'partial_interest': return '⚠️ Juros Parcial';
+        case 'early_payment_partial_interest': return '⚡ Pagamento Antecipado (Juros Parcial)';
+        case 'early_payment_interest_renewal': return '⚡ Renovação Antecipada (Juros)';
+        case 'early_payment_capital_reduction': return '⚡ Pagamento Antecipado (Redução Capital)';
+        case 'loan_reactivation': return '🔓 Reativação de Empréstimo';
+        case 'loan_payoff': return '✅ Quitação Total';
         default: return type;
     }
 }
