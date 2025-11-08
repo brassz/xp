@@ -2520,9 +2520,20 @@ async function handlePayment(e) {
                     if (reactivationNoteError) console.warn('Erro ao registrar nota de reativação:', reactivationNoteError);
                 }
             } else {
-                // Se o empréstimo NÃO está vencido, aplicar alteração manual da data de vencimento se solicitado
+                // Se o empréstimo NÃO está vencido, atualizar data de vencimento
+                // PRIORIZAR alteração manual da data de vencimento
                 if (changeDueDate && newDueDate) {
+                    // Usuário escolheu alterar a data manualmente - usar a data fornecida
                     updateData.due_date = newDueDate;
+                } else {
+                    // Calcular nova data de vencimento automaticamente: 30 dias a partir da data do pagamento
+                    const paymentDateObj = new Date(paymentDate);
+                    const newDueDateObj = new Date(paymentDateObj);
+                    newDueDateObj.setDate(newDueDateObj.getDate() + 30);
+                    
+                    // Formatar a nova data no formato YYYY-MM-DD
+                    const newDueDateFormatted = newDueDateObj.toISOString().split('T')[0];
+                    updateData.due_date = newDueDateFormatted;
                 }
             }
             
@@ -2573,6 +2584,9 @@ async function handlePayment(e) {
         // Adicionar informação sobre alteração de data de vencimento
         if (changeDueDate && newDueDate) {
             successMessage += `\n\n📅 DATA DE VENCIMENTO ALTERADA!\n• Nova data: ${formatDate(newDueDate)}`;
+        } else if (updateData && updateData.due_date && !recalcInfo.shouldRecalculate) {
+            // Informar sobre atualização automática da data de vencimento
+            successMessage += `\n\n📅 DATA DE VENCIMENTO ATUALIZADA!\n• Nova data: ${formatDate(updateData.due_date)}\n• (+30 dias a partir do pagamento)`;
         }
         
         if (recalcInfo.shouldRecalculate) {
