@@ -9483,8 +9483,9 @@ async function generateCommissionsPDF() {
                           loanStatus === 'paid' ? 'Quitados' : loanStatus;
         doc.text(`Filtro: ${statusText}`, 105, 38, { align: 'center' });
 
-        // Verificar se é Erechim
+        // Verificar tipo de empresa
         const isErechim = currentCompany === 'erechim';
+        const isImperatriz = currentCompany === 'imperatriz';
         
         // Resumo das comissões
         doc.setFontSize(14);
@@ -9496,13 +9497,18 @@ async function generateCommissionsPDF() {
         doc.text(`Total de Juros (Base para Comissão): R$ ${commissionsData.summary.totalInterest.toFixed(2)}`, 20, 65);
         
         if (isErechim) {
-            // ERECHIM: Mostrar 3 comissões
+            // ERECHIM: Mostrar 3 comissões (Bruno, Vinicius, Douglas)
             doc.text(`Comissão Bruno (33,3%): R$ ${commissionsData.summary.totalBrunoCommission.toFixed(2)}`, 20, 73);
             doc.text(`Comissão Vinicius (33,3%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 81);
             doc.text(`Comissão Douglas (33,3%): R$ ${commissionsData.summary.totalDouglasCommission.toFixed(2)}`, 20, 89);
             doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 97);
+        } else if (isImperatriz) {
+            // IMPERATRIZ CRED: Mostrar 2 comissões (Vinicius e Alex)
+            doc.text(`Comissão Vinicius (50%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
+            doc.text(`Comissão Alex (50%): R$ ${commissionsData.summary.totalAlexCommission.toFixed(2)}`, 20, 81);
+            doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 89);
         } else {
-            // Outras empresas: Mostrar 2 comissões
+            // Outras empresas: Mostrar 2 comissões (Vinicius e Douglas)
             doc.text(`Comissão Vinicius (66,6%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
             doc.text(`Comissão Douglas (33,3%): R$ ${commissionsData.summary.totalDouglasCommission.toFixed(2)}`, 20, 81);
             doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 89);
@@ -9532,8 +9538,12 @@ async function generateCommissionsPDF() {
             doc.text('Bruno', 130, yPos);
             doc.text('Vinicius', 152, yPos);
             doc.text('Douglas', 175, yPos);
+        } else if (isImperatriz) {
+            // IMPERATRIZ CRED: 2 colunas de comissão (Vinicius e Alex)
+            doc.text('Vinicius (50%)', 155, yPos);
+            doc.text('Alex (50%)', 180, yPos);
         } else {
-            // Outras empresas: 2 colunas de comissão
+            // Outras empresas: 2 colunas de comissão (Vinicius e Douglas)
             doc.text('Vinicius (66%)', 155, yPos);
             doc.text('Douglas (33%)', 180, yPos);
         }
@@ -9567,6 +9577,9 @@ async function generateCommissionsPDF() {
                     doc.text('Bruno', 130, yPos);
                     doc.text('Vinicius', 152, yPos);
                     doc.text('Douglas', 175, yPos);
+                } else if (isImperatriz) {
+                    doc.text('Vinicius (50%)', 155, yPos);
+                    doc.text('Alex (50%)', 180, yPos);
                 } else {
                     doc.text('Vinicius (66%)', 155, yPos);
                     doc.text('Douglas (33%)', 180, yPos);
@@ -9596,8 +9609,12 @@ async function generateCommissionsPDF() {
                 doc.text(`${item.brunoCommission.toFixed(2)}`, 130, yPos);
                 doc.text(`${item.viniciusCommission.toFixed(2)}`, 152, yPos);
                 doc.text(`${item.douglasCommission.toFixed(2)}`, 175, yPos);
+            } else if (isImperatriz) {
+                // IMPERATRIZ CRED: Mostrar 2 comissões (Vinicius e Alex)
+                doc.text(`${item.viniciusCommission.toFixed(2)}`, 155, yPos);
+                doc.text(`${item.alexCommission.toFixed(2)}`, 180, yPos);
             } else {
-                // Outras empresas: Mostrar 2 comissões
+                // Outras empresas: Mostrar 2 comissões (Vinicius e Douglas)
                 doc.text(`${item.viniciusCommission.toFixed(2)}`, 155, yPos);
                 doc.text(`${item.douglasCommission.toFixed(2)}`, 180, yPos);
             }
@@ -13557,32 +13574,59 @@ function initializeCommissionsSection() {
     document.getElementById('commissionStartDate').value = firstDay.toISOString().split('T')[0];
     document.getElementById('commissionEndDate').value = lastDay.toISOString().split('T')[0];
     
-    // Configurar visibilidade do card do Bruno baseado na empresa
+    // Configurar visibilidade dos cards baseado na empresa
     const isErechim = currentCompany === 'erechim';
+    const isImperatriz = currentCompany === 'imperatriz';
     const brunoCard = document.getElementById('brunoCommissionCard');
+    const alexCard = document.getElementById('alexCommissionCard');
+    const douglasCard = document.querySelector('.glass-card p#douglasCommission')?.closest('.glass-card');
     const commissionsGrid = document.getElementById('commissionsCardsGrid');
     const brunoColumns = document.querySelectorAll('.bruno-column');
+    const alexColumns = document.querySelectorAll('.alex-column');
+    const douglasColumns = document.querySelectorAll('.douglas-column');
     const viniciusLabel = document.getElementById('viniciusCommissionLabel');
     const douglasLabel = document.getElementById('douglasCommissionLabel');
+    const alexLabel = document.getElementById('alexCommissionLabel');
     
     if (isErechim) {
-        // ERECHIM: Mostrar card do Bruno e coluna na tabela, atualizar labels para 33,3%
+        // ERECHIM: Mostrar Bruno, Vinicius e Douglas (33,3% cada)
         if (brunoCard) brunoCard.style.display = 'block';
+        if (alexCard) alexCard.style.display = 'none';
+        if (douglasCard) douglasCard.style.display = 'block';
         if (commissionsGrid) {
             commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-4 gap-4 mb-6';
         }
         if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (33,3%)';
         if (douglasLabel) douglasLabel.textContent = 'Comissão Douglas (33,3%)';
         brunoColumns.forEach(col => col.style.display = '');
-    } else {
-        // Outras empresas: Esconder card do Bruno e coluna na tabela, manter labels originais
+        alexColumns.forEach(col => col.style.display = 'none');
+        douglasColumns.forEach(col => col.style.display = '');
+    } else if (isImperatriz) {
+        // IMPERATRIZ CRED: Mostrar Vinicius e Alex (50% cada), esconder Douglas e Bruno
         if (brunoCard) brunoCard.style.display = 'none';
+        if (alexCard) alexCard.style.display = 'block';
+        if (douglasCard) douglasCard.style.display = 'none';
+        if (commissionsGrid) {
+            commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6';
+        }
+        if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (50%)';
+        if (alexLabel) alexLabel.textContent = 'Comissão Alex (50%)';
+        brunoColumns.forEach(col => col.style.display = 'none');
+        alexColumns.forEach(col => col.style.display = '');
+        douglasColumns.forEach(col => col.style.display = 'none');
+    } else {
+        // OUTRAS EMPRESAS: Mostrar Vinicius (66,6%) e Douglas (33,3%)
+        if (brunoCard) brunoCard.style.display = 'none';
+        if (alexCard) alexCard.style.display = 'none';
+        if (douglasCard) douglasCard.style.display = 'block';
         if (commissionsGrid) {
             commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6';
         }
         if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (66,6%)';
         if (douglasLabel) douglasLabel.textContent = 'Comissão Douglas (33,3%)';
         brunoColumns.forEach(col => col.style.display = 'none');
+        alexColumns.forEach(col => col.style.display = 'none');
+        douglasColumns.forEach(col => col.style.display = '');
     }
 }
 
@@ -14003,24 +14047,33 @@ function calculateCommissionsFromPayments(payments) {
     const details = [];
     let totalCommissionableAmount = 0;
     
-    // Verificar se é empresa Erechim para dividir por 3 pessoas
+    // Verificar o tipo de empresa para dividir comissões
     const isErechim = currentCompany === 'erechim';
+    const isImperatriz = currentCompany === 'imperatriz';
     
     payments.forEach(payment => {
         const commissionableAmount = parseFloat(payment.commissionable_amount || 0);
         
-        let viniciusCommission, douglasCommission, brunoCommission;
+        let viniciusCommission, douglasCommission, brunoCommission, alexCommission;
         
         if (isErechim) {
             // ERECHIM: Dividir igualmente entre Bruno, Vinicius e Douglas (33,33% cada)
             brunoCommission = commissionableAmount / 3;
             viniciusCommission = commissionableAmount / 3;
             douglasCommission = commissionableAmount / 3;
+            alexCommission = 0;
+        } else if (isImperatriz) {
+            // IMPERATRIZ CRED: Dividir igualmente entre Vinicius e Alex (50% cada)
+            viniciusCommission = commissionableAmount * 0.5;
+            alexCommission = commissionableAmount * 0.5;
+            douglasCommission = 0;
+            brunoCommission = 0;
         } else {
             // Outras empresas: 66,6% Vinicius, 33,3% Douglas
             viniciusCommission = commissionableAmount * 0.666;
             douglasCommission = commissionableAmount * 0.333;
             brunoCommission = 0;
+            alexCommission = 0;
         }
         
         totalCommissionableAmount += commissionableAmount;
@@ -14035,6 +14088,7 @@ function calculateCommissionsFromPayments(payments) {
             viniciusCommission: viniciusCommission,
             douglasCommission: douglasCommission,
             brunoCommission: brunoCommission,
+            alexCommission: alexCommission,
             paymentDate: payment.payment_date,
             loanDate: payment.loan_date,
             status: payment.loan_status || payment.payment_type,
@@ -14043,18 +14097,26 @@ function calculateCommissionsFromPayments(payments) {
         });
     });
     
-    let totalViniciusCommission, totalDouglasCommission, totalBrunoCommission;
+    let totalViniciusCommission, totalDouglasCommission, totalBrunoCommission, totalAlexCommission;
     
     if (isErechim) {
         // ERECHIM: Dividir igualmente entre Bruno, Vinicius e Douglas
         totalBrunoCommission = totalCommissionableAmount / 3;
         totalViniciusCommission = totalCommissionableAmount / 3;
         totalDouglasCommission = totalCommissionableAmount / 3;
+        totalAlexCommission = 0;
+    } else if (isImperatriz) {
+        // IMPERATRIZ CRED: Dividir igualmente entre Vinicius e Alex (50% cada)
+        totalViniciusCommission = totalCommissionableAmount * 0.5;
+        totalAlexCommission = totalCommissionableAmount * 0.5;
+        totalDouglasCommission = 0;
+        totalBrunoCommission = 0;
     } else {
         // Outras empresas
         totalViniciusCommission = totalCommissionableAmount * 0.666;
         totalDouglasCommission = totalCommissionableAmount * 0.333;
         totalBrunoCommission = 0;
+        totalAlexCommission = 0;
     }
     
     return {
@@ -14063,6 +14125,7 @@ function calculateCommissionsFromPayments(payments) {
             totalViniciusCommission,
             totalDouglasCommission,
             totalBrunoCommission,
+            totalAlexCommission,
             totalPayments: payments.length
         },
         details
@@ -14072,26 +14135,61 @@ function calculateCommissionsFromPayments(payments) {
 // Atualizar resumo das comissões
 function updateCommissionsSummary(summary) {
     const isErechim = currentCompany === 'erechim';
+    const isImperatriz = currentCompany === 'imperatriz';
     
+    // Atualizar valor total de juros
     document.getElementById('totalInterest').textContent = `R$ ${summary.totalInterest.toFixed(2)}`;
+    
+    // Atualizar comissão Vinicius (sempre visível)
     document.getElementById('viniciusCommission').textContent = `R$ ${summary.totalViniciusCommission.toFixed(2)}`;
+    
+    // Atualizar comissão Douglas
     document.getElementById('douglasCommission').textContent = `R$ ${summary.totalDouglasCommission.toFixed(2)}`;
     
-    // Atualizar comissão do Bruno (somente para Erechim)
+    // Elementos dos cards
     const brunoCard = document.getElementById('brunoCommissionCard');
     const brunoCommissionElement = document.getElementById('brunoCommission');
+    const alexCard = document.getElementById('alexCommissionCard');
+    const alexCommissionElement = document.getElementById('alexCommission');
+    const douglasCard = document.querySelector('.glass-card p#douglasCommission')?.closest('.glass-card');
     const commissionsGrid = document.getElementById('commissionsCardsGrid');
+    const viniciusLabel = document.getElementById('viniciusCommissionLabel');
+    const douglasLabel = document.getElementById('douglasCommissionLabel');
     
     if (isErechim) {
+        // ERECHIM: Mostrar Bruno, Vinicius e Douglas (33,3% cada)
         if (brunoCard) brunoCard.style.display = 'block';
         if (brunoCommissionElement) {
             brunoCommissionElement.textContent = `R$ ${summary.totalBrunoCommission.toFixed(2)}`;
         }
+        if (alexCard) alexCard.style.display = 'none';
+        if (douglasCard) douglasCard.style.display = 'block';
+        if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (33,3%)';
+        if (douglasLabel) douglasLabel.textContent = 'Comissão Douglas (33,3%)';
         if (commissionsGrid) {
             commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-4 gap-4 mb-6';
         }
-    } else {
+    } else if (isImperatriz) {
+        // IMPERATRIZ CRED: Mostrar Vinicius e Alex (50% cada), esconder Douglas e Bruno
         if (brunoCard) brunoCard.style.display = 'none';
+        if (alexCard) {
+            alexCard.style.display = 'block';
+            if (alexCommissionElement) {
+                alexCommissionElement.textContent = `R$ ${summary.totalAlexCommission.toFixed(2)}`;
+            }
+        }
+        if (douglasCard) douglasCard.style.display = 'none';
+        if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (50%)';
+        if (commissionsGrid) {
+            commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6';
+        }
+    } else {
+        // OUTRAS EMPRESAS: Mostrar Vinicius (66,6%) e Douglas (33,3%)
+        if (brunoCard) brunoCard.style.display = 'none';
+        if (alexCard) alexCard.style.display = 'none';
+        if (douglasCard) douglasCard.style.display = 'block';
+        if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (66,6%)';
+        if (douglasLabel) douglasLabel.textContent = 'Comissão Douglas (33,3%)';
         if (commissionsGrid) {
             commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6';
         }
@@ -14102,15 +14200,30 @@ function updateCommissionsSummary(summary) {
 function renderCommissionsTable(commissionsDetails) {
     const tableBody = document.getElementById('commissionsTableBody');
     const isErechim = currentCompany === 'erechim';
+    const isImperatriz = currentCompany === 'imperatriz';
     
-    // Mostrar/esconder coluna do Bruno baseado na empresa
+    // Mostrar/esconder colunas baseado na empresa
     const brunoColumns = document.querySelectorAll('.bruno-column');
+    const alexColumns = document.querySelectorAll('.alex-column');
+    const douglasColumns = document.querySelectorAll('.douglas-column');
+    
     brunoColumns.forEach(col => {
         col.style.display = isErechim ? '' : 'none';
     });
     
+    alexColumns.forEach(col => {
+        col.style.display = isImperatriz ? '' : 'none';
+    });
+    
+    douglasColumns.forEach(col => {
+        col.style.display = isImperatriz ? 'none' : '';
+    });
+    
     if (commissionsDetails.length === 0) {
-        const colspan = isErechim ? "10" : "9";
+        let colspan = "9"; // Padrão: outras empresas
+        if (isErechim) colspan = "10"; // Erechim tem Bruno
+        if (isImperatriz) colspan = "10"; // Imperatriz tem Alex
+        
         tableBody.innerHTML = `
             <tr>
                 <td colspan="${colspan}" class="px-3 py-6 text-center text-gray-400 text-sm">
@@ -14133,6 +14246,18 @@ function renderCommissionsTable(commissionsDetails) {
                     R$ ${item.brunoCommission.toFixed(2)}
                 </td>` : '';
         
+        // Construir coluna do Alex apenas se for Imperatriz
+        const alexColumn = isImperatriz ? `
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-yellow-400 font-semibold alex-column">
+                    R$ ${item.alexCommission.toFixed(2)}
+                </td>` : '';
+        
+        // Construir coluna do Douglas (esconder se for Imperatriz)
+        const douglasColumn = !isImperatriz ? `
+                <td class="px-3 py-3 whitespace-nowrap text-xs text-purple-400 font-semibold douglas-column">
+                    R$ ${item.douglasCommission.toFixed(2)}
+                </td>` : '';
+        
         return `
             <tr class="table-row">
                 <td class="px-3 py-3 whitespace-nowrap">
@@ -14153,11 +14278,11 @@ function renderCommissionsTable(commissionsDetails) {
                     R$ ${item.commissionableAmount.toFixed(2)}
                 </td>
                 ${brunoColumn}
+                ${alexColumn}
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-green-400 font-semibold">
                     R$ ${item.viniciusCommission.toFixed(2)}
                 </td>
-                <td class="px-3 py-3 whitespace-nowrap text-xs text-purple-400 font-semibold">
-                    R$ ${item.douglasCommission.toFixed(2)}
+                ${douglasColumn}
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     ${formatDate(item.paymentDate)}
