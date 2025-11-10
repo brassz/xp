@@ -2434,10 +2434,13 @@ async function handlePayment(e) {
         
         if (paymentError) throw paymentError;
         
+        // Declarar updateData no escopo da função para uso posterior
+        let updateData = null;
+        
         // Se precisa recalcular, atualizar APENAS status e data de vencimento (NUNCA o valor original)
         if (recalcInfo.shouldRecalculate) {
             // Preparar dados para atualização - NUNCA alterar o campo amount (valor original)
-            let updateData = {
+            updateData = {
                 updated_at: new Date().toISOString(),
                 status: recalcInfo.isFullyPaid ? 'paid' : 'active'
             };
@@ -2470,7 +2473,7 @@ async function handlePayment(e) {
             }
             
             // Preparar dados de atualização
-            let updateData = {
+            updateData = {
                 status: newStatus,
                 updated_at: new Date().toISOString()
             };
