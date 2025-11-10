@@ -99,6 +99,12 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* Content Section Styles */
+        .content-section {
+            position: relative;
+            z-index: 1;
+        }
+
         .slide-in {
             animation: slideIn 0.3s ease-out;
         }
@@ -1838,7 +1844,7 @@
                     <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
                         <!-- Chat Area -->
                         <div class="lg:col-span-2">
-                            <div class="glass-card rounded-xl overflow-hidden flex flex-col" style="height: calc(100vh - 250px);">
+                            <div class="glass-card rounded-xl overflow-hidden flex flex-col" style="height: 600px; max-height: calc(100vh - 200px);">
                                 <!-- Chat Header -->
                                 <div class="bg-gradient-to-r from-blue-600 to-blue-500 p-4">
                                     <div class="flex items-center space-x-3">
@@ -1901,7 +1907,7 @@
 
                         <!-- Info Panel -->
                         <div class="lg:col-span-1">
-                            <div class="glass-card p-6 rounded-xl space-y-6">
+                            <div class="glass-card p-6 rounded-xl space-y-6" style="height: 600px; max-height: calc(100vh - 200px); overflow-y-auto;">
                                 <div>
                                     <h3 class="text-lg font-semibold text-white mb-3">Como usar</h3>
                                     <div class="space-y-3 text-sm text-gray-300">
