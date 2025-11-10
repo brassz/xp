@@ -22,6 +22,10 @@ Foi implementado um sistema de seleção de empresas no Nexus que permite gerenc
    - Supabase URL: `https://adjrvtupfshdhwjvhmgj.supabase.co`
    - Uploadcare Key: `CONFIGURE_UPLOADCARE_KEY_HERE` (pendente configuração)
 
+5. **IMPERATRIZ CRED**
+   - Supabase URL: `https://eppzphzwwpvpoocospxy.supabase.co`
+   - Uploadcare Key: `CONFIGURE_UPLOADCARE_KEY_HERE` (pendente configuração)
+
 ### Funcionalidades Implementadas
 
 #### 1. Interface de Seleção de Empresa
@@ -111,6 +115,11 @@ NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA3=72349b0b9769d2be0d8c
 NEXT_PUBLIC_SUPABASE_URL_EMPRESA4=https://adjrvtupfshdhwjvhmgj.supabase.co
 NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA4=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA4=CONFIGURE_UPLOADCARE_KEY_HERE
+
+# Empresa 5 - IMPERATRIZ CRED
+NEXT_PUBLIC_SUPABASE_URL_EMPRESA5=https://eppzphzwwpvpoocospxy.supabase.co
+NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA5=eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcHpwaHp3d3B2cG9vY29zcHh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NTc1MDEsImV4cCI6MjA3NTAzMzUwMX0.QwiFlP-h3sk0-pDBmrOMkQmhWZtewD2wDMPYbXAATXI
+NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA5=CONFIGURE_UPLOADCARE_KEY_HERE
 ```
 
 #### Configuração no Vercel:
