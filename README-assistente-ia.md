@@ -45,6 +45,12 @@ O assistente fornece:
    - Valores originais, juros aplicados, valores restantes
    - Datas de vencimento
    - Status atualizado
+   - **Botão "Ver Detalhes Completos"** para expandir informações:
+     - Todas as parcelas do empréstimo (pagas, pendentes, vencidas)
+     - Histórico completo de pagamentos
+     - Formas de pagamento utilizadas
+     - Multas aplicadas
+     - Observações específicas do empréstimo
 
 6. **Anotações e Observações**
    - Notas cadastradas sobre o cliente
@@ -92,6 +98,23 @@ Assistente: Retorna informações completas incluindo:
 - 1 empréstimo ativo em atraso
 - Alerta destacando 3 pagamentos realizados com atraso
 - Detalhes das datas e dias de atraso
+- Botão "Ver Detalhes Completos" em cada empréstimo ativo
+```
+
+**Exemplo 3: Expandindo detalhes do empréstimo**
+```
+Usuário: Clica em "Ver Detalhes Completos" em um empréstimo ativo
+
+Sistema exibe:
+- 📄 Informações completas (ID, descrição, forma de pagamento)
+- 📋 Lista de todas as parcelas:
+  ✅ 5 pagas
+  ⏳ 2 pendentes
+  ⚠️ 1 vencida
+- 💳 Histórico detalhado de cada pagamento
+- Multas aplicadas
+- Observações específicas do empréstimo
+- Botão "Ocultar Detalhes" para colapsar
 ```
 
 ## 🎨 Interface
@@ -113,6 +136,9 @@ Assistente: Retorna informações completas incluindo:
 - Respostas do assistente em cinza (lado esquerdo)
 - Ícones e emojis para facilitar leitura
 - Cores diferenciadas para alertas e informações importantes
+- **Botões interativos** para expandir/colapsar detalhes dos empréstimos
+- **Scroll automático** nas listas de parcelas e pagamentos
+- **Indicadores visuais** com cores para status (verde=pago, azul=pendente, amarelo=vencido)
 
 ## 🔍 Processamento de Linguagem Natural
 
@@ -129,6 +155,9 @@ O sistema utiliza algoritmos para:
 2. **Use variações**: Se não encontrar, tente com nome completo ou apelido
 3. **Múltiplos clientes**: Se houver clientes com nomes similares, o sistema listará todos
 4. **Scroll automático**: As mensagens mais recentes sempre ficam visíveis
+5. **Detalhes expansíveis**: Clique em "Ver Detalhes Completos" para ver parcelas e pagamentos
+6. **Informações completas**: Os detalhes incluem todas as parcelas pagas, pendentes e vencidas
+7. **Análise visual**: Use as cores dos cards para identificar rapidamente o status (verde, azul, amarelo)
 
 ## 🔧 Tecnologias Utilizadas
 
@@ -200,6 +229,119 @@ Obtenha resumo completo de qualquer cliente para reuniões e decisões
 - Não armazena histórico de conversas entre sessões
 - Respeita todas as permissões do Supabase
 
+## 🔍 Detalhes Expansíveis dos Empréstimos
+
+### Como Funciona
+
+Quando um cliente possui empréstimos ativos ou vencidos, cada empréstimo exibe um botão **"Ver Detalhes Completos"**. Ao clicar:
+
+1. **Carregamento Dinâmico**: Sistema busca informações detalhadas do banco de dados
+2. **Expansão Suave**: Área de detalhes expande abaixo do resumo do empréstimo
+3. **Informações Completas**: Exibe todas as parcelas e pagamentos
+4. **Botão de Colapsar**: "Ocultar Detalhes" para fechar a seção
+
+### O Que é Mostrado
+
+#### 📄 Informações Gerais
+- ID único do empréstimo
+- Descrição (se cadastrada)
+- Data de criação
+- Forma de pagamento
+- Dia de vencimento padrão
+
+#### 📋 Parcelas (Installments)
+- **Resumo**: Total de parcelas pagas, pendentes e vencidas
+- **Lista Detalhada** de cada parcela:
+  - Número da parcela
+  - Valor
+  - Data de vencimento
+  - Data de pagamento (se paga)
+  - Multas aplicadas
+  - Status visual com cores:
+    - 🟢 Verde: Paga
+    - 🔵 Azul: Pendente
+    - 🟡 Amarelo: Vencida
+
+#### 💳 Histórico de Pagamentos
+- Total pago até o momento
+- Lista de cada pagamento:
+  - Valor pago
+  - Data do pagamento
+  - Data de vencimento
+  - Tipo de pagamento (PIX, dinheiro, etc.)
+  - Multas cobradas
+  - Indicador de atraso (se aplicável)
+
+#### 📝 Observações Específicas
+- Notas cadastradas para aquele empréstimo específico
+- Observações sobre condições especiais
+
+### Interface Visual
+
+```
+┌─────────────────────────────────────┐
+│ 🔄 ATIVO                  01/10/2024│
+│ ────────────────────────────────── │
+│ Valor Original: R$ 1.000,00         │
+│ Juros: 40%                          │
+│ Total com Juros: R$ 1.400,00        │
+│ Valor Restante: R$ 800,00           │
+│ ────────────────────────────────── │
+│ [🔵 Ver Detalhes Completos]         │
+└─────────────────────────────────────┘
+
+(Após clicar no botão)
+
+┌─────────────────────────────────────┐
+│ 🔄 ATIVO                  01/10/2024│
+│ ────────────────────────────────── │
+│ Valor Original: R$ 1.000,00         │
+│ Juros: 40%                          │
+│ Total com Juros: R$ 1.400,00        │
+│ Valor Restante: R$ 800,00           │
+│ ────────────────────────────────── │
+│                                     │
+│ 📄 Informações Completas            │
+│ • ID: abc123                        │
+│ • Data: 01/10/2024                  │
+│ • Forma: Mensal                     │
+│                                     │
+│ 📋 Parcelas (3 total)               │
+│ ✅ Pagas: 1  ⏳ Pendentes: 1       │
+│ ⚠️ Vencidas: 1                     │
+│                                     │
+│ ┌─ ✅ Parcela 1 ─ R$ 466,67 ──┐   │
+│ │ Vencimento: 01/11/2024       │   │
+│ │ Pago em: 01/11/2024          │   │
+│ └──────────────────────────────┘   │
+│                                     │
+│ ┌─ ⚠️ Parcela 2 ─ R$ 466,67 ──┐   │
+│ │ Vencimento: 01/12/2024       │   │
+│ │ Pago em: 10/12/2024          │   │
+│ │ ⚠️ Pago com atraso           │   │
+│ └──────────────────────────────┘   │
+│                                     │
+│ ┌─ ⏳ Parcela 3 ─ R$ 466,67 ──┐   │
+│ │ Vencimento: 01/01/2025       │   │
+│ │ Status: Pendente             │   │
+│ └──────────────────────────────┘   │
+│                                     │
+│ 💳 Histórico de Pagamentos (2)      │
+│ Total Pago: R$ 933,34               │
+│                                     │
+│ [Ocultar Detalhes]                  │
+└─────────────────────────────────────┘
+```
+
+### Vantagens
+
+1. ✅ **Visão Completa**: Todos os dados do empréstimo em um só lugar
+2. ✅ **Performance**: Carrega detalhes apenas quando solicitado
+3. ✅ **Organização**: Informações categorizadas e fáceis de ler
+4. ✅ **Visual**: Cores e ícones facilitam identificação rápida
+5. ✅ **Interativo**: Expandir/colapsar conforme necessidade
+6. ✅ **Scroll Inteligente**: Listas longas com scroll próprio
+
 ## 🆕 Melhorias Futuras
 
 Possíveis expansões:
@@ -210,6 +352,7 @@ Possíveis expansões:
 - [ ] Comparação entre clientes
 - [ ] Previsões e recomendações
 - [ ] Integração com WhatsApp para notificações
+- [ ] Ações rápidas nos detalhes (registrar pagamento, enviar cobrança)
 
 ## 📞 Suporte
 

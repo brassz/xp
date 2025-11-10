@@ -15108,7 +15108,8 @@ async function generateClientResponse(clientName) {
                 <div class="space-y-3">
         `;
         
-        activeLoansData.forEach(loan => {
+        for (let i = 0; i < activeLoansData.length; i++) {
+            const loan = activeLoansData[i];
             const statusColors = {
                 'ativo': 'text-blue-400',
                 'vencido': 'text-yellow-400',
@@ -15124,6 +15125,7 @@ async function generateClientResponse(clientName) {
             };
             
             const interestRate = loan.interest_rate || 0;
+            const loanId = loan.id;
             
             response += `
                 <div class="bg-gray-900 rounded p-3 text-sm">
@@ -15133,16 +15135,28 @@ async function generateClientResponse(clientName) {
                         </span>
                         <span class="text-gray-400">${formatAIDate(loan.loan_date)}</span>
                     </div>
-                    <div class="grid grid-cols-2 gap-2 text-xs text-gray-300">
+                    <div class="grid grid-cols-2 gap-2 text-xs text-gray-300 mb-2">
                         <p><strong>Valor Original:</strong> ${formatAICurrency(loan.original_amount || loan.amount)}</p>
                         <p><strong>Juros:</strong> ${interestRate}%</p>
                         <p><strong>Total com Juros:</strong> ${formatAICurrency(loan.total_amount)}</p>
                         <p><strong>Valor Restante:</strong> ${formatAICurrency(loan.remaining_amount)}</p>
                     </div>
-                    ${loan.due_date ? `<p class="text-xs text-gray-400 mt-1">Vencimento: ${formatAIDate(loan.due_date)}</p>` : ''}
+                    ${loan.due_date ? `<p class="text-xs text-gray-400 mb-2">Vencimento: ${formatAIDate(loan.due_date)}</p>` : ''}
+                    <button 
+                        onclick="toggleLoanDetails('${loanId}')" 
+                        class="mt-2 bg-blue-600 hover:bg-blue-700 text-white text-xs px-3 py-1.5 rounded transition-all flex items-center space-x-1"
+                    >
+                        <svg class="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <span>Ver Detalhes Completos</span>
+                    </button>
+                    <div id="loan-details-${loanId}" class="hidden mt-3 pt-3 border-t border-gray-700">
+                        <div class="text-xs text-gray-400">Carregando detalhes...</div>
+                    </div>
                 </div>
             `;
-        });
+        }
         
         response += `
                 </div>
@@ -15186,6 +15200,213 @@ async function processAIMessage(userMessage) {
                 <p class="text-gray-300 mt-2 text-sm">Por favor, tente novamente.</p>`;
     }
 }
+
+// Função para buscar parcelas do empréstimo
+async function getLoanInstallments(loanId) {
+    try {
+        const { data, error } = await supabase
+            .from('installments')
+            .select('*')
+            .eq('loan_id', loanId)
+            .order('installment_number', { ascending: true });
+        
+        if (error) throw error;
+        return data || [];
+    } catch (error) {
+        console.error('Erro ao buscar parcelas:', error);
+        return [];
+    }
+}
+
+// Função para exibir/ocultar detalhes do empréstimo
+async function toggleLoanDetails(loanId) {
+    const detailsDiv = document.getElementById(`loan-details-${loanId}`);
+    
+    if (!detailsDiv) return;
+    
+    // Se já está visível, apenas esconder
+    if (!detailsDiv.classList.contains('hidden')) {
+        detailsDiv.classList.add('hidden');
+        return;
+    }
+    
+    // Mostrar e carregar detalhes
+    detailsDiv.classList.remove('hidden');
+    detailsDiv.innerHTML = '<div class="text-xs text-gray-400 text-center py-2">🔄 Carregando detalhes...</div>';
+    
+    try {
+        // Buscar empréstimo completo
+        const { data: loan, error: loanError } = await supabase
+            .from('loans')
+            .select('*')
+            .eq('id', loanId)
+            .single();
+        
+        if (loanError) throw loanError;
+        
+        // Buscar parcelas
+        const installments = await getLoanInstallments(loanId);
+        
+        // Buscar pagamentos
+        const payments = await getLoanPayments(loanId);
+        
+        // Construir HTML com detalhes
+        let detailsHTML = '<div class="space-y-3">';
+        
+        // Informações gerais do empréstimo
+        detailsHTML += `
+            <div class="bg-gray-800 rounded p-3">
+                <h5 class="text-blue-300 font-semibold mb-2 text-xs">📄 Informações Completas</h5>
+                <div class="grid grid-cols-2 gap-2 text-xs text-gray-300">
+                    ${loan.description ? `<p class="col-span-2"><strong>Descrição:</strong> ${loan.description}</p>` : ''}
+                    <p><strong>ID:</strong> ${loan.id}</p>
+                    <p><strong>Data:</strong> ${formatAIDate(loan.loan_date)}</p>
+                    ${loan.payment_method ? `<p><strong>Forma de Pagamento:</strong> ${loan.payment_method}</p>` : ''}
+                    ${loan.payment_day ? `<p><strong>Dia de Pagamento:</strong> ${loan.payment_day}</p>` : ''}
+                </div>
+            </div>
+        `;
+        
+        // Parcelas (se houver)
+        if (installments && installments.length > 0) {
+            const paidInstallments = installments.filter(i => i.status === 'pago').length;
+            const pendingInstallments = installments.filter(i => i.status === 'pendente').length;
+            const overdueInstallments = installments.filter(i => i.status === 'vencido').length;
+            
+            detailsHTML += `
+                <div class="bg-gray-800 rounded p-3">
+                    <h5 class="text-blue-300 font-semibold mb-2 text-xs">📋 Parcelas (${installments.length} total)</h5>
+                    <div class="flex justify-between text-xs mb-3 text-gray-300">
+                        <span>✅ Pagas: <strong class="text-green-400">${paidInstallments}</strong></span>
+                        <span>⏳ Pendentes: <strong class="text-blue-400">${pendingInstallments}</strong></span>
+                        <span>⚠️ Vencidas: <strong class="text-yellow-400">${overdueInstallments}</strong></span>
+                    </div>
+                    <div class="max-h-48 overflow-y-auto space-y-2">
+            `;
+            
+            installments.forEach(inst => {
+                const statusColors = {
+                    'pago': 'bg-green-900 border-green-600',
+                    'pendente': 'bg-blue-900 border-blue-600',
+                    'vencido': 'bg-yellow-900 border-yellow-600'
+                };
+                
+                const statusIcons = {
+                    'pago': '✅',
+                    'pendente': '⏳',
+                    'vencido': '⚠️'
+                };
+                
+                const statusClass = statusColors[inst.status] || 'bg-gray-700 border-gray-600';
+                const statusIcon = statusIcons[inst.status] || '📌';
+                
+                detailsHTML += `
+                    <div class="${statusClass} border rounded p-2">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-white font-semibold text-xs">${statusIcon} Parcela ${inst.installment_number}</span>
+                            <span class="text-white text-xs">${formatAICurrency(inst.amount)}</span>
+                        </div>
+                        <div class="text-xs text-gray-300">
+                            <p><strong>Vencimento:</strong> ${formatAIDate(inst.due_date)}</p>
+                            ${inst.payment_date ? `<p><strong>Pago em:</strong> ${formatAIDate(inst.payment_date)}</p>` : ''}
+                            ${inst.fine ? `<p><strong>Multa:</strong> ${formatAICurrency(inst.fine)}</p>` : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            detailsHTML += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Pagamentos (se houver)
+        if (payments && payments.length > 0) {
+            const totalPaid = payments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+            
+            detailsHTML += `
+                <div class="bg-gray-800 rounded p-3">
+                    <h5 class="text-blue-300 font-semibold mb-2 text-xs">💳 Histórico de Pagamentos (${payments.length})</h5>
+                    <p class="text-xs text-gray-300 mb-2">
+                        <strong>Total Pago:</strong> <span class="text-green-400 font-semibold">${formatAICurrency(totalPaid)}</span>
+                    </p>
+                    <div class="max-h-48 overflow-y-auto space-y-2">
+            `;
+            
+            payments.forEach(payment => {
+                const isLate = payment.due_date && payment.payment_date && 
+                              new Date(payment.payment_date) > new Date(payment.due_date);
+                
+                const bgColor = isLate ? 'bg-yellow-900 border-yellow-600' : 'bg-green-900 border-green-600';
+                
+                detailsHTML += `
+                    <div class="${bgColor} border rounded p-2">
+                        <div class="flex justify-between items-start mb-1">
+                            <span class="text-white font-semibold text-xs">${isLate ? '⚠️' : '✅'} ${formatAICurrency(payment.amount)}</span>
+                            <span class="text-gray-300 text-xs">${formatAIDate(payment.payment_date)}</span>
+                        </div>
+                        <div class="text-xs text-gray-300">
+                            ${payment.due_date ? `<p><strong>Vencimento:</strong> ${formatAIDate(payment.due_date)}</p>` : ''}
+                            ${payment.payment_type ? `<p><strong>Tipo:</strong> ${payment.payment_type}</p>` : ''}
+                            ${payment.fine ? `<p><strong>Multa:</strong> ${formatAICurrency(payment.fine)}</p>` : ''}
+                            ${isLate ? '<p class="text-yellow-200 mt-1">⚠️ Pago com atraso</p>' : ''}
+                        </div>
+                    </div>
+                `;
+            });
+            
+            detailsHTML += `
+                    </div>
+                </div>
+            `;
+        }
+        
+        // Se não houver parcelas nem pagamentos registrados
+        if ((!installments || installments.length === 0) && (!payments || payments.length === 0)) {
+            detailsHTML += `
+                <div class="bg-gray-800 rounded p-3 text-center">
+                    <p class="text-xs text-gray-400">ℹ️ Nenhuma parcela ou pagamento registrado para este empréstimo.</p>
+                </div>
+            `;
+        }
+        
+        // Observações do empréstimo
+        if (loan.notes || loan.observations) {
+            detailsHTML += `
+                <div class="bg-blue-900 bg-opacity-30 border border-blue-600 rounded p-3">
+                    <h5 class="text-blue-300 font-semibold mb-1 text-xs">📝 Observações</h5>
+                    <p class="text-xs text-gray-300">${loan.notes || loan.observations}</p>
+                </div>
+            `;
+        }
+        
+        detailsHTML += '</div>';
+        
+        // Adicionar botão para fechar
+        detailsHTML += `
+            <button 
+                onclick="toggleLoanDetails('${loanId}')" 
+                class="mt-3 w-full bg-gray-700 hover:bg-gray-600 text-white text-xs px-3 py-1.5 rounded transition-all"
+            >
+                Ocultar Detalhes
+            </button>
+        `;
+        
+        detailsDiv.innerHTML = detailsHTML;
+        
+    } catch (error) {
+        console.error('Erro ao carregar detalhes do empréstimo:', error);
+        detailsDiv.innerHTML = `
+            <div class="bg-red-900 bg-opacity-30 border border-red-600 rounded p-3 text-center">
+                <p class="text-xs text-red-200">❌ Erro ao carregar detalhes do empréstimo.</p>
+            </div>
+        `;
+    }
+}
+
+// Tornar função global para ser acessível pelo onclick
+window.toggleLoanDetails = toggleLoanDetails;
 
 // Event listener para o chat de IA
 document.addEventListener('DOMContentLoaded', function() {
