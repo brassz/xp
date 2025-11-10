@@ -5543,24 +5543,24 @@ async function contactGuarantorOrEmergency(loanId) {
 // Função para mostrar modal de seleção de contato
 function showContactSelectionModal(loanId, client, guarantors, emergencyContacts) {
     const modalHTML = `
-        <div id="contactSelectionModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4">
-            <div class="modal-content max-w-2xl w-full max-h-[90vh] overflow-y-auto">
-                <div class="flex justify-between items-center mb-6">
+        <div id="contactSelectionModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-6">
+            <div class="modal-content max-w-3xl w-full max-h-[85vh] overflow-y-auto p-8">
+                <div class="flex justify-between items-center mb-8">
                     <h3 class="text-2xl font-bold text-white">Selecione o Contato</h3>
-                    <button onclick="closeContactSelectionModal()" class="text-gray-400 hover:text-white text-2xl">×</button>
+                    <button onclick="closeContactSelectionModal()" class="text-gray-400 hover:text-white text-3xl leading-none">×</button>
                 </div>
                 
-                <div class="space-y-6">
+                <div class="space-y-8">
                     ${guarantors && guarantors.length > 0 ? `
                         <div>
-                            <h4 class="text-lg font-semibold text-blue-300 mb-3">Avalistas</h4>
-                            <div class="space-y-2">
+                            <h4 class="text-xl font-semibold text-blue-300 mb-4">Avalistas</h4>
+                            <div class="space-y-3">
                                 ${guarantors.map(guarantor => `
                                     <button 
                                         onclick="sendContactMessageById('${loanId}', '${guarantor.id}', 'guarantor')"
-                                        class="w-full p-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors"
+                                        class="w-full p-5 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors shadow-lg hover:shadow-xl"
                                     >
-                                        <div class="flex items-center space-x-4">
+                                        <div class="flex items-center space-x-5">
                                             ${guarantor.photo ? `
                                                 <img src="${guarantor.photo}" alt="${guarantor.name}" class="w-12 h-12 rounded-full object-cover border-2 border-blue-500">
                                             ` : `
@@ -5583,14 +5583,14 @@ function showContactSelectionModal(loanId, client, guarantors, emergencyContacts
                     
                     ${emergencyContacts && emergencyContacts.length > 0 ? `
                         <div>
-                            <h4 class="text-lg font-semibold text-yellow-300 mb-3">Contatos de Emergência</h4>
-                            <div class="space-y-2">
+                            <h4 class="text-xl font-semibold text-yellow-300 mb-4">Contatos de Emergência</h4>
+                            <div class="space-y-3">
                                 ${emergencyContacts.map(contact => `
                                     <button 
                                         onclick="sendContactMessageById('${loanId}', '${contact.id}', 'emergency')"
-                                        class="w-full p-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors"
+                                        class="w-full p-5 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors shadow-lg hover:shadow-xl"
                                     >
-                                        <div class="flex items-center space-x-4">
+                                        <div class="flex items-center space-x-5">
                                             <div class="w-12 h-12 rounded-full bg-yellow-600 flex items-center justify-center">
                                                 <span class="text-white font-semibold">${contact.name ? contact.name.charAt(0).toUpperCase() : '?'}</span>
                                             </div>
