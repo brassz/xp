@@ -1835,6 +1835,7 @@ async function renderLoansTable() {
                     <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                    <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="contactGuarantorOrEmergency('${loan.id}')" title="Contatar Avalista ou Emergência">👥</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -5455,6 +5456,336 @@ Após o vencimento, será aplicada uma multa diária de R$ 50,00.
 
         // Mostrar mensagem de sucesso
         showSuccessMessage(`Cobrança enviada para ${client.name} via ${bankName}`);
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem do WhatsApp:', error);
+        showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
+    }
+}
+
+// Função para contatar avalista ou contato de emergência
+async function contactGuarantorOrEmergency(loanId) {
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showErrorMessage('Empréstimo não encontrado!');
+        return;
+    }
+
+    // Usar client_id diretamente do loan
+    const clientId = loan.client_id;
+    if (!clientId) {
+        showErrorMessage('Cliente não encontrado para este empréstimo!');
+        return;
+    }
+
+    // Buscar dados completos do cliente
+    const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('id, name, cpf, phone')
+        .eq('id', clientId)
+        .single();
+
+    if (clientError || !clientData) {
+        showErrorMessage('Erro ao buscar dados do cliente!');
+        return;
+    }
+
+    const client = clientData;
+
+    try {
+        // Buscar avalistas do cliente
+        const { data: guarantors, error: guarantorError } = await supabase
+            .from('guarantors')
+            .select('*')
+            .eq('client_id', clientId);
+
+        if (guarantorError) throw guarantorError;
+
+        // Buscar contatos de emergência do cliente
+        const { data: emergencyContacts, error: emergencyError } = await supabase
+            .from('emergency_contacts')
+            .select('*')
+            .eq('client_id', clientId);
+
+        if (emergencyError) throw emergencyError;
+
+        // Verificar se existe pelo menos um contato disponível
+        if ((!guarantors || guarantors.length === 0) && (!emergencyContacts || emergencyContacts.length === 0)) {
+            showErrorMessage('Este cliente não possui avalista ou contato de emergência cadastrado!');
+            return;
+        }
+
+        // Se existe mais de um contato, mostrar modal para seleção
+        if ((guarantors && guarantors.length > 0) && (emergencyContacts && emergencyContacts.length > 0)) {
+            showContactSelectionModal(loanId, client, guarantors, emergencyContacts);
+        } else if (guarantors && guarantors.length > 0) {
+            // Se existe apenas avalista
+            if (guarantors.length === 1) {
+                await sendContactMessageById(loanId, guarantors[0].id, 'guarantor');
+            } else {
+                showContactSelectionModal(loanId, client, guarantors, []);
+            }
+        } else if (emergencyContacts && emergencyContacts.length > 0) {
+            // Se existe apenas contato de emergência
+            if (emergencyContacts.length === 1) {
+                await sendContactMessageById(loanId, emergencyContacts[0].id, 'emergency');
+            } else {
+                showContactSelectionModal(loanId, client, [], emergencyContacts);
+            }
+        }
+
+    } catch (error) {
+        console.error('Erro ao buscar contatos:', error);
+        showErrorMessage('Erro ao buscar contatos do cliente: ' + error.message);
+    }
+}
+
+// Função para mostrar modal de seleção de contato
+function showContactSelectionModal(loanId, client, guarantors, emergencyContacts) {
+    const modalHTML = `
+        <div id="contactSelectionModal" class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-6">
+            <div class="modal-content max-w-3xl w-full max-h-[85vh] overflow-y-auto p-8">
+                <div class="flex justify-between items-center mb-8">
+                    <h3 class="text-2xl font-bold text-white">Selecione o Contato</h3>
+                    <button onclick="closeContactSelectionModal()" class="text-gray-400 hover:text-white text-3xl leading-none">×</button>
+                </div>
+                
+                <div class="space-y-8">
+                    ${guarantors && guarantors.length > 0 ? `
+                        <div>
+                            <h4 class="text-xl font-semibold text-blue-300 mb-4">Avalistas</h4>
+                            <div class="space-y-3">
+                                ${guarantors.map(guarantor => `
+                                    <button 
+                                        onclick="sendContactMessageById('${loanId}', '${guarantor.id}', 'guarantor')"
+                                        class="w-full p-5 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors shadow-lg hover:shadow-xl"
+                                    >
+                                        <div class="flex items-center space-x-5">
+                                            ${guarantor.photo ? `
+                                                <img src="${guarantor.photo}" alt="${guarantor.name}" class="w-12 h-12 rounded-full object-cover border-2 border-blue-500">
+                                            ` : `
+                                                <div class="w-12 h-12 rounded-full bg-blue-600 flex items-center justify-center">
+                                                    <span class="text-white font-semibold">${guarantor.name.charAt(0).toUpperCase()}</span>
+                                                </div>
+                                            `}
+                                            <div class="flex-1">
+                                                <h5 class="text-white font-semibold">${guarantor.name}</h5>
+                                                <p class="text-gray-300 text-sm">📱 ${guarantor.phone}</p>
+                                                ${guarantor.relationship ? `<p class="text-blue-300 text-sm">Relacionamento: ${getRelationshipText(guarantor.relationship)}</p>` : ''}
+                                            </div>
+                                            <span class="text-blue-400">👥 Avalista</span>
+                                        </div>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                    
+                    ${emergencyContacts && emergencyContacts.length > 0 ? `
+                        <div>
+                            <h4 class="text-xl font-semibold text-yellow-300 mb-4">Contatos de Emergência</h4>
+                            <div class="space-y-3">
+                                ${emergencyContacts.map(contact => `
+                                    <button 
+                                        onclick="sendContactMessageById('${loanId}', '${contact.id}', 'emergency')"
+                                        class="w-full p-5 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors shadow-lg hover:shadow-xl"
+                                    >
+                                        <div class="flex items-center space-x-5">
+                                            <div class="w-12 h-12 rounded-full bg-yellow-600 flex items-center justify-center">
+                                                <span class="text-white font-semibold">${contact.name ? contact.name.charAt(0).toUpperCase() : '?'}</span>
+                                            </div>
+                                            <div class="flex-1">
+                                                <h5 class="text-white font-semibold">${contact.name || 'Sem nome'}</h5>
+                                                <p class="text-gray-300 text-sm">📱 ${contact.phone}</p>
+                                                ${contact.relationship ? `<p class="text-yellow-300 text-sm">Relacionamento: ${getRelationshipText(contact.relationship)}</p>` : ''}
+                                            </div>
+                                            <span class="text-yellow-400">🚨 Emergência</span>
+                                        </div>
+                                    </button>
+                                `).join('')}
+                            </div>
+                        </div>
+                    ` : ''}
+                </div>
+            </div>
+        </div>
+    `;
+    
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// Função para fechar modal de seleção de contato
+function closeContactSelectionModal() {
+    const modal = document.getElementById('contactSelectionModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Função auxiliar para enviar mensagem buscando dados pelo ID
+async function sendContactMessageById(loanId, contactId, contactType) {
+    try {
+        // Buscar dados do contato
+        const tableName = contactType === 'guarantor' ? 'guarantors' : 'emergency_contacts';
+        const { data: contact, error: contactError } = await supabase
+            .from(tableName)
+            .select('*')
+            .eq('id', contactId)
+            .single();
+
+        if (contactError || !contact) {
+            showErrorMessage('Erro ao buscar dados do contato!');
+            return;
+        }
+
+        // Buscar dados do empréstimo e cliente
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            showErrorMessage('Empréstimo não encontrado!');
+            return;
+        }
+
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, name, cpf, phone')
+            .eq('id', loan.client_id)
+            .single();
+
+        if (clientError || !client) {
+            showErrorMessage('Erro ao buscar dados do cliente!');
+            return;
+        }
+
+        // Chamar função principal de envio
+        await sendGuarantorOrEmergencyMessage(loanId, client, contact, contactType);
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem:', error);
+        showErrorMessage('Erro ao preparar mensagem: ' + error.message);
+    }
+}
+
+// Função para enviar mensagem para avalista ou contato de emergência
+async function sendGuarantorOrEmergencyMessage(loanId, client, contact, contactType) {
+    // Fechar modal se estiver aberto
+    closeContactSelectionModal();
+    
+    const loan = loans.find(l => l.id === loanId);
+    if (!loan) {
+        showErrorMessage('Empréstimo não encontrado!');
+        return;
+    }
+
+    // Verificar se o contato tem telefone
+    if (!contact.phone) {
+        showErrorMessage('Este contato não possui telefone cadastrado!');
+        return;
+    }
+
+    try {
+        // Calcular valores atuais do empréstimo
+        const principalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const interestAmount = principalAmount * (interestRate / 100);
+        const totalWithInterest = principalAmount + interestAmount;
+        
+        // Buscar histórico de pagamentos
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('amount, payment_date, payment_type, fine_amount')
+            .eq('loan_id', loanId)
+            .order('payment_date', { ascending: true });
+
+        if (paymentsError) throw paymentsError;
+
+        // Verificar se houve renovações e calcular total pago corretamente
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        const hasRenewals = payments.some(p => p.payment_type === 'renewal' || p.payment_type === 'interest_renewal');
+        
+        let totalPaid;
+        if (hasRenewals) {
+            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
+            const lastInterestRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('interest_renewal');
+            const lastRenewalIdx = Math.max(lastRenewalIndex, lastInterestRenewalIndex);
+            
+            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
+                const paymentIndex = payments.findIndex(p => p === payment);
+                return paymentIndex > lastRenewalIdx;
+            });
+            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        } else {
+            const validPayments = realPayments.filter(p => 
+                p.payment_type !== 'renewal' && 
+                p.payment_type !== 'interest_renewal'
+            );
+            totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        }
+        
+        // Calcular valor restante
+        const remainingAmount = Math.max(0, totalWithInterest - totalPaid);
+        
+        // Calcular multa se estiver vencido
+        const dueDate = new Date(loan.due_date);
+        const today = new Date();
+        const daysOverdue = Math.floor((today - dueDate) / (1000 * 60 * 60 * 24));
+        const dailyFine = 50.00; // Multa diária de R$ 50,00
+        const currentFine = daysOverdue > 0 ? daysOverdue * dailyFine : 0;
+
+        // Formatar data de vencimento
+        const formattedDueDate = formatDate(loan.due_date);
+        
+        // Definir texto do tipo de contato
+        const contactTypeText = contactType === 'guarantor' ? 'avalista' : 'contato de emergência';
+        const contactIcon = contactType === 'guarantor' ? '👥' : '🚨';
+
+        // Montar mensagem do WhatsApp personalizada
+        const message = `${contactIcon} ATENÇÃO - CONTATO SOBRE EMPRÉSTIMO
+
+Olá, ${contact.name}!
+
+Estamos entrando em contato com você como ${contactTypeText} do(a) cliente ${client.name}.
+
+📋 INFORMAÇÕES DO EMPRÉSTIMO:
+👤 Cliente: ${client.name}
+📅 Data de Vencimento: ${formattedDueDate}
+💰 Valor do Capital: R$ ${principalAmount.toFixed(2)}
+📈 Juros: R$ ${interestAmount.toFixed(2)}
+💳 Valor Total: R$ ${totalWithInterest.toFixed(2)}
+💸 Valor Restante: R$ ${remainingAmount.toFixed(2)}
+${daysOverdue > 0 ? `⚠️ Multa acumulada: R$ ${currentFine.toFixed(2)} (${daysOverdue} dias em atraso)` : ''}
+
+${daysOverdue > 0 ? 
+`⏰ O empréstimo está VENCIDO há ${daysOverdue} dia(s).
+É fundamental que você entre em contato com o(a) ${client.name} para regularizar a situação o mais breve possível.` : 
+`⏰ O empréstimo está próximo do vencimento.
+Por favor, entre em contato com o(a) ${client.name} para garantir que o pagamento seja realizado até a data estabelecida.`}
+
+⚠️ IMPORTANTE:
+${contactType === 'guarantor' ? 
+`Como avalista deste empréstimo, você é corresponsável pelo pagamento caso o cliente não honre o compromisso.` : 
+`Como contato de emergência, pedimos sua ajuda para localizar ou alertar o(a) cliente sobre a necessidade de regularização.`}
+
+Após o vencimento, incide uma multa diária de R$ 50,00.
+
+📱 Por favor, entre em contato com ${client.name}${client.phone ? ` pelo telefone ${client.phone}` : ''} com urgência.
+
+Agradecemos sua colaboração!`;
+
+        // Limpar o número de telefone (remover caracteres especiais)
+        const cleanPhone = contact.phone.replace(/\D/g, '');
+        
+        // Verificar se o número tem o código do país
+        const phoneNumber = cleanPhone.startsWith('55') ? cleanPhone : '55' + cleanPhone;
+
+        // Criar URL do WhatsApp
+        const whatsappUrl = `https://wa.me/${phoneNumber}?text=${encodeURIComponent(message)}`;
+
+        // Abrir WhatsApp em nova aba
+        window.open(whatsappUrl, '_blank');
+
+        // Mostrar mensagem de sucesso
+        const successMsg = `Mensagem enviada para ${contact.name} (${contactTypeText}) via WhatsApp`;
+        showSuccessMessage(successMsg);
 
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp:', error);
