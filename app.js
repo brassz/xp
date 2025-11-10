@@ -5471,18 +5471,33 @@ async function contactGuarantorOrEmergency(loanId) {
         return;
     }
 
-    const client = loan.clients;
-    if (!client) {
-        showErrorMessage('Dados do cliente não encontrados!');
+    // Usar client_id diretamente do loan
+    const clientId = loan.client_id;
+    if (!clientId) {
+        showErrorMessage('Cliente não encontrado para este empréstimo!');
         return;
     }
+
+    // Buscar dados completos do cliente
+    const { data: clientData, error: clientError } = await supabase
+        .from('clients')
+        .select('id, name, cpf, phone')
+        .eq('id', clientId)
+        .single();
+
+    if (clientError || !clientData) {
+        showErrorMessage('Erro ao buscar dados do cliente!');
+        return;
+    }
+
+    const client = clientData;
 
     try {
         // Buscar avalistas do cliente
         const { data: guarantors, error: guarantorError } = await supabase
             .from('guarantors')
             .select('*')
-            .eq('client_id', client.id);
+            .eq('client_id', clientId);
 
         if (guarantorError) throw guarantorError;
 
@@ -5490,7 +5505,7 @@ async function contactGuarantorOrEmergency(loanId) {
         const { data: emergencyContacts, error: emergencyError } = await supabase
             .from('emergency_contacts')
             .select('*')
-            .eq('client_id', client.id);
+            .eq('client_id', clientId);
 
         if (emergencyError) throw emergencyError;
 
@@ -5506,14 +5521,14 @@ async function contactGuarantorOrEmergency(loanId) {
         } else if (guarantors && guarantors.length > 0) {
             // Se existe apenas avalista
             if (guarantors.length === 1) {
-                await sendGuarantorOrEmergencyMessage(loanId, client, guarantors[0], 'guarantor');
+                await sendContactMessageById(loanId, guarantors[0].id, 'guarantor');
             } else {
                 showContactSelectionModal(loanId, client, guarantors, []);
             }
         } else if (emergencyContacts && emergencyContacts.length > 0) {
             // Se existe apenas contato de emergência
             if (emergencyContacts.length === 1) {
-                await sendGuarantorOrEmergencyMessage(loanId, client, emergencyContacts[0], 'emergency');
+                await sendContactMessageById(loanId, emergencyContacts[0].id, 'emergency');
             } else {
                 showContactSelectionModal(loanId, client, [], emergencyContacts);
             }
@@ -5542,7 +5557,7 @@ function showContactSelectionModal(loanId, client, guarantors, emergencyContacts
                             <div class="space-y-2">
                                 ${guarantors.map(guarantor => `
                                     <button 
-                                        onclick="sendGuarantorOrEmergencyMessage('${loanId}', ${JSON.stringify(client).replace(/"/g, '&quot;')}, ${JSON.stringify(guarantor).replace(/"/g, '&quot;')}, 'guarantor')"
+                                        onclick="sendContactMessageById('${loanId}', '${guarantor.id}', 'guarantor')"
                                         class="w-full p-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors"
                                     >
                                         <div class="flex items-center space-x-4">
@@ -5572,7 +5587,7 @@ function showContactSelectionModal(loanId, client, guarantors, emergencyContacts
                             <div class="space-y-2">
                                 ${emergencyContacts.map(contact => `
                                     <button 
-                                        onclick="sendGuarantorOrEmergencyMessage('${loanId}', ${JSON.stringify(client).replace(/"/g, '&quot;')}, ${JSON.stringify(contact).replace(/"/g, '&quot;')}, 'emergency')"
+                                        onclick="sendContactMessageById('${loanId}', '${contact.id}', 'emergency')"
                                         class="w-full p-4 bg-gray-700 hover:bg-gray-600 rounded-lg text-left transition-colors"
                                     >
                                         <div class="flex items-center space-x-4">
@@ -5604,6 +5619,49 @@ function closeContactSelectionModal() {
     const modal = document.getElementById('contactSelectionModal');
     if (modal) {
         modal.remove();
+    }
+}
+
+// Função auxiliar para enviar mensagem buscando dados pelo ID
+async function sendContactMessageById(loanId, contactId, contactType) {
+    try {
+        // Buscar dados do contato
+        const tableName = contactType === 'guarantor' ? 'guarantors' : 'emergency_contacts';
+        const { data: contact, error: contactError } = await supabase
+            .from(tableName)
+            .select('*')
+            .eq('id', contactId)
+            .single();
+
+        if (contactError || !contact) {
+            showErrorMessage('Erro ao buscar dados do contato!');
+            return;
+        }
+
+        // Buscar dados do empréstimo e cliente
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            showErrorMessage('Empréstimo não encontrado!');
+            return;
+        }
+
+        const { data: client, error: clientError } = await supabase
+            .from('clients')
+            .select('id, name, cpf, phone')
+            .eq('id', loan.client_id)
+            .single();
+
+        if (clientError || !client) {
+            showErrorMessage('Erro ao buscar dados do cliente!');
+            return;
+        }
+
+        // Chamar função principal de envio
+        await sendGuarantorOrEmergencyMessage(loanId, client, contact, contactType);
+
+    } catch (error) {
+        console.error('Erro ao enviar mensagem:', error);
+        showErrorMessage('Erro ao preparar mensagem: ' + error.message);
     }
 }
 

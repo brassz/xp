@@ -246,6 +246,31 @@ Usuário revisa e envia
 
 ---
 
-**Versão**: 1.0  
+## 🔄 Changelog
+
+### Versão 1.1 - 2025-11-10
+**Correção de Bug - UUID Inválido**
+- ✅ Corrigido erro "invalid input syntax for type uuid: 'undefined'"
+- ✅ Função `contactGuarantorOrEmergency` agora usa `loan.client_id` diretamente
+- ✅ Adicionada busca explícita de dados do cliente via Supabase
+- ✅ Criada função auxiliar `sendContactMessageById` para melhor separação de responsabilidades
+- ✅ Simplificado modal para passar apenas IDs em vez de objetos JSON complexos
+- ✅ Melhorada robustez e tratamento de erros
+
+**Mudanças Técnicas:**
+- Modal agora chama `sendContactMessageById(loanId, contactId, contactType)`
+- Dados de cliente e contato são buscados frescos do banco antes de enviar mensagem
+- Reduzida complexidade de passar objetos via `onclick` em HTML dinâmico
+
+### Versão 1.0 - 2025-11-10
+**Lançamento Inicial**
+- ✅ Botão de contato na tabela de empréstimos
+- ✅ Modal de seleção de contatos
+- ✅ Mensagens automáticas para avalistas e contatos de emergência
+- ✅ Integração com WhatsApp
+
+---
+
+**Versão Atual**: 1.1  
 **Data**: 2025-11-10  
 **Desenvolvido para**: Sistema de Gestão de Empréstimos
