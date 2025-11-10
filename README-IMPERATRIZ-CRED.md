@@ -10,6 +10,16 @@
 
 ✅ **Concluído** - Empresa adicionada ao sistema multi-empresas
 
+## ⚠️ CORREÇÃO NECESSÁRIA - Erro de Despesas
+
+**Erro Identificado:** `column expenses.date does not exist`
+
+**Causa:** O banco de dados foi criado com a coluna `expense_date`, mas o código espera `date`.
+
+**Solução:** Execute o script `fix-imperatriz-expenses.sql` no Supabase.
+
+👉 **Ver instruções completas em:** `INSTRUCOES-CORRECAO-IMPERATRIZ.md`
+
 ### Alterações Realizadas
 
 1. **app.js**: Adicionada configuração da empresa no `COMPANIES_CONFIG`
@@ -127,9 +137,25 @@ Se for necessário um modelo diferente (como o da ERECHIM com 3 pessoas), será 
 1. ✅ Empresa adicionada ao sistema
 2. ⏳ Configurar variáveis de ambiente no Vercel
 3. ⏳ Executar scripts de banco de dados
-4. ⏳ Configurar conta do Uploadcare
-5. ⏳ Criar primeiro usuário administrador
-6. ⏳ Testar funcionalidades principais
+4. 🔧 **URGENTE:** Executar `fix-imperatriz-expenses.sql` para corrigir erro de despesas
+5. ⏳ Configurar conta do Uploadcare
+6. ⏳ Criar primeiro usuário administrador
+7. ⏳ Testar funcionalidades principais
+
+### Script de Correção Prioritário
+
+**Arquivo:** `fix-imperatriz-expenses.sql`
+
+Este script corrige o erro `column expenses.date does not exist` renomeando a coluna de `expense_date` para `date`.
+
+**Como executar:**
+1. Acesse: https://eppzphzwwpvpoocospxy.supabase.co
+2. Vá para SQL Editor
+3. Cole o conteúdo de `fix-imperatriz-expenses.sql`
+4. Execute o script
+5. Verifique a mensagem de sucesso
+
+📖 **Instruções detalhadas:** Ver arquivo `INSTRUCOES-CORRECAO-IMPERATRIZ.md`
 
 ## Suporte
 
