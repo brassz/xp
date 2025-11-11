@@ -64,4 +64,8 @@ SELECT
 -- 3. O usuário poderá fazer login com as novas credenciais
 -- 4. Como admin, terá acesso total ao sistema
 --
+-- IMPORTANTE: 
+-- O arquivo app.js foi atualizado para verificar a senha do banco de dados
+-- ao invés de usar senhas hardcoded.
+--
 -- =====================================================
