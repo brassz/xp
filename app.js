@@ -767,9 +767,9 @@ async function handleLogin(e) {
             throw new Error('Usuário não encontrado ou inativo');
         }
         
-        // Para demonstração, aceitar senha simples
-        // Em produção, implementar hash de senha
-        if (password === '1020' || password === 'user123') {
+        // Verificar senha contra o banco de dados
+        // Em produção, implementar hash de senha (bcrypt)
+        if (password === userData.password_hash) {
             currentUser = userData;
             
             // Salvar usuário no localStorage
