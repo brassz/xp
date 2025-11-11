@@ -2475,9 +2475,29 @@ async function handleNewRenewalPayment(paymentOption) {
         hideModal(paymentModal);
         document.getElementById('paymentForm').reset();
         await loadLoans();
+        await updateDashboard();
         
         // Mostrar mensagem de sucesso
-        alert(`✅ Empréstimo renovado com sucesso!\n\n${paymentDescription}\nValor: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDate(newDueDateStr)}\n(+30 dias)`);
+        showSuccessMessage(`✅ Empréstimo renovado com sucesso!\n\n${paymentDescription}\nValor: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDate(newDueDateStr)}\n(+30 dias)`);
+        
+        // Preparar informações do pagamento para envio via WhatsApp
+        const paymentInfo = {
+            amount: paymentAmount,
+            type: finalPaymentType,
+            date: paymentDate,
+            newDueDate: newDueDateStr,
+            isFullyPaid: false,
+            isRenewal: true,
+            recalcInfo: {
+                isInterestOnlyRenewal: finalPaymentType === 'interest_renewal',
+                isCapitalReduction: finalPaymentType === 'capital_renewal',
+                paidCapital: finalPaymentType === 'capital_renewal' ? paymentAmount : (finalPaymentType === 'capital_interest_renewal' ? capitalAmount : 0),
+                paidInterest: finalPaymentType === 'interest_renewal' ? paymentAmount : (finalPaymentType === 'capital_interest_renewal' ? interestAmount : 0)
+            }
+        };
+        
+        // Enviar mensagem via WhatsApp automaticamente
+        await showPaymentMessageModal(loanId, paymentInfo);
         
     } catch (error) {
         console.error('Erro ao renovar empréstimo:', error);
@@ -7387,6 +7407,132 @@ function showSuccessMessage(message) {
 }
 
 // Função para mostrar o modal de mensagens de pagamento
+// Função para gerar mensagem detalhada de pagamento
+function generateDetailedPaymentMessage(clientName, paymentInfo, loan, remainingAmount) {
+    const paymentAmount = paymentInfo.amount;
+    const paymentType = paymentInfo.type;
+    
+    // Calcular valores
+    const originalCapital = parseFloat(loan.original_amount || loan.amount);
+    const interestRate = parseFloat(loan.interest_rate);
+    const interest = originalCapital * (interestRate / 100);
+    const totalLoan = originalCapital + interest;
+    
+    // Determinar tipo de pagamento baseado no payment_type ou nas flags
+    let paymentTypeText = '';
+    let paymentDetails = '';
+    
+    if (paymentInfo.isFullyPaid || loan.status === 'paid') {
+        // Empréstimo quitado
+        return `🎉 *Parabéns, ${clientName}!*
+
+Seu empréstimo foi *QUITADO COMPLETAMENTE*! 
+
+💰 *Último pagamento:* R$ ${paymentAmount.toFixed(2)}
+
+✅ Agradecemos pela confiança em nossos serviços
+✅ Seu nome está limpo e livre de pendências  
+✅ Estamos sempre à disposição para futuras necessidades
+
+Muito obrigado pela parceria e pontualidade! 🤝
+
+_Equipe Nexus Financeira_`;
+    }
+    
+    // Identificar tipo de pagamento
+    if (paymentInfo.recalcInfo?.isInterestOnlyRenewal || paymentType === 'interest_renewal' || paymentType === 'capital_interest_renewal') {
+        if (paymentType === 'capital_interest_renewal') {
+            paymentTypeText = '💰 Capital + Juros';
+            paymentDetails = `Capital pago: R$ ${originalCapital.toFixed(2)}\nJuros pagos: R$ ${interest.toFixed(2)}`;
+        } else {
+            paymentTypeText = '🔄 Somente Juros (Renovação)';
+            paymentDetails = `Juros pagos: R$ ${paymentAmount.toFixed(2)}\nCapital mantido: R$ ${originalCapital.toFixed(2)}`;
+        }
+    } else if (paymentInfo.recalcInfo?.isCapitalReduction || paymentType === 'capital_payment' || paymentType === 'capital_renewal') {
+        if (paymentType === 'capital_renewal') {
+            paymentTypeText = '💵 Somente Capital';
+            paymentDetails = `Capital pago: R$ ${paymentAmount.toFixed(2)}`;
+        } else {
+            paymentTypeText = '💰 Pagamento de Capital';
+            const capitalPaid = paymentInfo.recalcInfo?.paidCapital || 0;
+            const interestPaid = paymentInfo.recalcInfo?.paidInterest || 0;
+            paymentDetails = `Capital pago: R$ ${capitalPaid.toFixed(2)}\nJuros pagos: R$ ${interestPaid.toFixed(2)}`;
+        }
+    } else if (paymentInfo.recalcInfo?.isPartialInterestPayment) {
+        paymentTypeText = '⚠️ Pagamento Parcial de Juros';
+        paymentDetails = `Juros parciais pagos: R$ ${paymentAmount.toFixed(2)}`;
+    } else {
+        // Pagamento misto ou outro tipo
+        if (paymentAmount >= totalLoan) {
+            paymentTypeText = '💰 Pagamento Total';
+            paymentDetails = `Capital + Juros: R$ ${paymentAmount.toFixed(2)}`;
+        } else if (paymentAmount > interest) {
+            paymentTypeText = '💰 Capital + Juros';
+            const capitalPortion = paymentAmount - interest;
+            paymentDetails = `Capital pago: R$ ${capitalPortion.toFixed(2)}\nJuros pagos: R$ ${interest.toFixed(2)}`;
+        } else {
+            paymentTypeText = '🔄 Pagamento de Juros';
+            paymentDetails = `Juros pagos: R$ ${paymentAmount.toFixed(2)}`;
+        }
+    }
+    
+    // Calcular próxima data de vencimento
+    let nextPaymentDate = '';
+    if (paymentInfo.newDueDate) {
+        nextPaymentDate = formatDate(paymentInfo.newDueDate);
+    } else if (loan.due_date) {
+        nextPaymentDate = formatDate(loan.due_date);
+    }
+    
+    // Montar mensagem
+    let message = `💙 Obrigado pelo pagamento, *${clientName}*!
+
+✅ Pagamento registrado com sucesso!
+
+💳 *Valor pago:* R$ ${paymentAmount.toFixed(2)}
+📋 *Tipo:* ${paymentTypeText}
+${paymentDetails}
+
+📊 *Novo saldo do empréstimo:* R$ ${remainingAmount.toFixed(2)}`;
+    
+    if (nextPaymentDate) {
+        message += `\n📅 *Próximo vencimento:* ${nextPaymentDate}`;
+    }
+    
+    message += `\n\nAgradecemos pela confiança e pontualidade. Estamos sempre à disposição para esclarecer dúvidas.
+
+Tenha um ótimo dia! 😊
+
+_Equipe Nexus Financeira_`;
+    
+    return message;
+}
+
+// Função auxiliar para abrir WhatsApp automaticamente
+function openWhatsAppWithMessage(phone, message) {
+    if (!phone) {
+        alert('Número de telefone do cliente não encontrado.');
+        return false;
+    }
+    
+    // Limpar e formatar telefone
+    let cleanPhone = phone.replace(/\D/g, '');
+    
+    // Garantir que o telefone tenha o formato correto
+    if (cleanPhone.length === 11 && cleanPhone.startsWith('0')) {
+        cleanPhone = cleanPhone.substring(1); // Remove o 0 inicial se houver
+    }
+    if (cleanPhone.length === 10) {
+        cleanPhone = cleanPhone.substring(0, 2) + '9' + cleanPhone.substring(2); // Adiciona o 9 para celulares
+    }
+    
+    const encodedMessage = encodeURIComponent(message);
+    const whatsappUrl = `https://wa.me/55${cleanPhone}?text=${encodedMessage}`;
+    window.open(whatsappUrl, '_blank');
+    showSuccessMessage('Abrindo WhatsApp com confirmação de pagamento...');
+    return true;
+}
+
 async function showPaymentMessageModal(loanId, paymentInfo) {
     try {
         // Buscar dados do empréstimo e cliente
@@ -7401,6 +7547,23 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
 
         if (loanError) throw loanError;
 
+        // Verificar se o cliente tem telefone
+        if (!loan.clients.phone) {
+            showErrorMessage('Cliente não possui telefone cadastrado. Não é possível enviar mensagem via WhatsApp.');
+            return;
+        }
+
+        // Calcular valor restante do empréstimo
+        const remainingAmount = await calculateLoanRemainingAmount(loanId);
+        
+        // Gerar mensagem detalhada automaticamente
+        const message = generateDetailedPaymentMessage(
+            loan.clients.name,
+            paymentInfo,
+            loan,
+            remainingAmount
+        );
+        
         // Calcular próxima data de pagamento
         let nextPaymentDate = '';
         if (paymentInfo.newDueDate) {
@@ -7417,36 +7580,27 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
 
         // Atualizar o modal com as informações
         document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
-
-        // Armazenar dados para uso nas mensagens
+        
+        // Preencher a mensagem no textarea
+        const messageTextArea = document.getElementById('paymentMessageText');
+        messageTextArea.value = message;
+        
+        // Armazenar dados para uso nos botões
         window.currentPaymentMessageData = {
             clientName: loan.clients.name,
             clientPhone: loan.clients.phone,
             nextPaymentDate: nextPaymentDate,
             loanStatus: loan.status,
-            paymentInfo: paymentInfo
+            paymentInfo: paymentInfo,
+            message: message
         };
-
-        // Determinar tipo de mensagem automaticamente e pré-selecionar
-        let suggestedMessageType = 'lembrete'; // padrão
         
-        if (paymentInfo.isFullyPaid || loan.status === 'paid') {
-            suggestedMessageType = 'quitacao';
-        } else if (paymentInfo.isRenewal || paymentInfo.recalcInfo?.isInterestOnlyRenewal) {
-            suggestedMessageType = 'renovacao';
-        }
+        // Habilitar botões
+        document.getElementById('copyPaymentMessage').disabled = false;
+        document.getElementById('sendPaymentMessage').disabled = false;
 
         // Mostrar o modal
         showModal(document.getElementById('paymentMessageModal'));
-
-        // Pré-selecionar o tipo de mensagem sugerido
-        setTimeout(() => {
-            const radioButton = document.querySelector(`input[name="messageType"][value="${suggestedMessageType}"]`);
-            if (radioButton) {
-                radioButton.checked = true;
-                radioButton.dispatchEvent(new Event('change'));
-            }
-        }, 100);
 
         // Configurar event listeners se ainda não foram configurados
         setupPaymentMessageEventListeners();
@@ -10888,7 +11042,7 @@ document.getElementById('installmentPaymentForm').addEventListener('submit', asy
 
         closeInstallmentPaymentModal();
         
-        // Buscar dados do cliente para o modal de mensagens
+        // Buscar dados do cliente para mostrar modal de mensagem
         const { data: installmentData, error: installmentError } = await supabase
             .from('installments')
             .select(`
@@ -10899,53 +11053,103 @@ document.getElementById('installmentPaymentForm').addEventListener('submit', asy
             .single();
 
         if (!installmentError && installmentData) {
-            // Calcular próxima data de pagamento (próxima parcela)
-            const { data: nextPayment, error: nextError } = await supabase
-                .from('installment_payments')
-                .select('due_date')
-                .eq('installment_id', currentInstallmentId)
-                .eq('status', 'pending')
-                .order('due_date', { ascending: true })
-                .limit(1)
-                .single();
-
-            let nextPaymentDate = '';
-            if (!nextError && nextPayment) {
-                nextPaymentDate = formatDate(nextPayment.due_date);
+            // Verificar se o cliente tem telefone
+            if (!installmentData.clients.phone) {
+                showNotification('Pagamento registrado! Cliente não possui telefone cadastrado.', 'success');
             } else {
-                // Se não há próxima parcela, o parcelamento foi quitado
-                nextPaymentDate = 'Parcelamento quitado';
-            }
+                // Calcular próxima data de pagamento (próxima parcela)
+                const { data: nextPayment, error: nextError } = await supabase
+                    .from('installment_payments')
+                    .select('due_date, amount')
+                    .eq('installment_id', currentInstallmentId)
+                    .eq('status', 'pending')
+                    .order('due_date', { ascending: true })
+                    .limit(1)
+                    .single();
 
-            // Preparar informações do pagamento para o modal
-            const paymentInfo = {
-                amount: paidAmount,
-                type: paymentMethod,
-                date: paidDate,
-                isFullyPaid: paymentStatus === 'paid' && !nextPayment,
-                isInstallment: true
-            };
-
-            // Configurar dados para o modal
-            window.currentPaymentMessageData = {
-                clientName: installmentData.clients.name,
-                clientPhone: installmentData.clients.phone,
-                nextPaymentDate: nextPaymentDate,
-                paymentInfo: paymentInfo
-            };
-
-            // Mostrar modal de mensagens
-            showModal(document.getElementById('paymentMessageModal'));
-
-            // Pré-selecionar tipo de mensagem
-            setTimeout(() => {
-                const messageType = paymentInfo.isFullyPaid ? 'quitacao' : 'lembrete';
-                const radioButton = document.querySelector(`input[name="messageType"][value="${messageType}"]`);
-                if (radioButton) {
-                    radioButton.checked = true;
-                    radioButton.dispatchEvent(new Event('change'));
+                let nextPaymentDate = '';
+                let remainingAmount = 0;
+                let isFullyPaid = false;
+                
+                if (!nextError && nextPayment) {
+                    nextPaymentDate = formatDate(nextPayment.due_date);
+                    // Calcular total restante (somar todas as parcelas pendentes)
+                    const { data: allPending, error: pendingError } = await supabase
+                        .from('installment_payments')
+                        .select('amount')
+                        .eq('installment_id', currentInstallmentId)
+                        .eq('status', 'pending');
+                    
+                    if (!pendingError && allPending) {
+                        remainingAmount = allPending.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+                    }
+                } else {
+                    // Se não há próxima parcela, o parcelamento foi quitado
+                    nextPaymentDate = 'Parcelamento quitado';
+                    remainingAmount = 0;
+                    isFullyPaid = true;
                 }
-            }, 100);
+
+                // Gerar mensagem para parcelamento
+                let message = '';
+                
+                if (isFullyPaid) {
+                    message = `🎉 *Parabéns, ${installmentData.clients.name}!*
+
+Seu parcelamento foi *QUITADO COMPLETAMENTE*! 
+
+💰 *Último pagamento:* R$ ${paidAmount.toFixed(2)}
+
+✅ Agradecemos pela confiança em nossos serviços
+✅ Seu nome está limpo e livre de pendências  
+✅ Estamos sempre à disposição para futuras necessidades
+
+Muito obrigado pela parceria e pontualidade! 🤝
+
+_Equipe Nexus Financeira_`;
+                } else {
+                    message = `💙 Obrigado pelo pagamento, *${installmentData.clients.name}*!
+
+✅ Pagamento da parcela registrado com sucesso!
+
+💳 *Valor pago:* R$ ${paidAmount.toFixed(2)}
+📋 *Tipo:* Pagamento de Parcela
+
+📊 *Valor restante do parcelamento:* R$ ${remainingAmount.toFixed(2)}
+📅 *Próximo vencimento:* ${nextPaymentDate}
+
+Agradecemos pela confiança e pontualidade. Estamos sempre à disposição para esclarecer dúvidas.
+
+Tenha um ótimo dia! 😊
+
+_Equipe Nexus Financeira_`;
+                }
+
+                // Atualizar o modal com as informações
+                document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
+                
+                // Preencher a mensagem no textarea
+                const messageTextArea = document.getElementById('paymentMessageText');
+                messageTextArea.value = message;
+                
+                // Armazenar dados para uso nos botões
+                window.currentPaymentMessageData = {
+                    clientName: installmentData.clients.name,
+                    clientPhone: installmentData.clients.phone,
+                    nextPaymentDate: nextPaymentDate,
+                    message: message
+                };
+                
+                // Habilitar botões
+                document.getElementById('copyPaymentMessage').disabled = false;
+                document.getElementById('sendPaymentMessage').disabled = false;
+
+                // Mostrar o modal
+                showModal(document.getElementById('paymentMessageModal'));
+
+                // Configurar event listeners se ainda não foram configurados
+                setupPaymentMessageEventListeners();
+            }
         } else {
             showNotification('Pagamento registrado com sucesso!', 'success');
         }
