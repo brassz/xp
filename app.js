@@ -7415,8 +7415,99 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
             nextPaymentDate = formatDate(nextDate.toISOString().split('T')[0]);
         }
 
+        // Calcular detalhes do pagamento
+        const originalAmount = parseFloat(loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const totalInterest = originalAmount * (interestRate / 100);
+        const totalWithInterest = originalAmount + totalInterest;
+        
+        // Calcular valor restante do empréstimo
+        const remainingAmount = await calculateLoanRemainingAmount(loanId);
+        
+        // Determinar tipo de pagamento e valores de capital e juros
+        let paymentType = 'Pagamento Parcial';
+        let paidCapital = 0;
+        let paidInterest = 0;
+        
+        if (paymentInfo.recalcInfo) {
+            const recalc = paymentInfo.recalcInfo;
+            
+            if (recalc.isFullyPaid) {
+                paymentType = 'Quitação Total (Capital + Juros)';
+                paidCapital = recalc.paidCapital || 0;
+                paidInterest = recalc.paidInterest || 0;
+            } else if (recalc.isInterestOnlyRenewal) {
+                paymentType = 'Renovação - Apenas Juros';
+                paidCapital = 0;
+                paidInterest = paymentInfo.amount || 0;
+            } else if (recalc.isEarlyPaymentInterestRenewal) {
+                paymentType = 'Renovação - Juros (Pagamento Antecipado)';
+                paidCapital = 0;
+                paidInterest = recalc.paidInterest || paymentInfo.amount || 0;
+            } else if (recalc.isCapitalReduction || recalc.isEarlyPaymentCapitalReduction) {
+                paymentType = 'Capital + Juros (Redução de Capital)';
+                paidCapital = recalc.paidCapital || 0;
+                paidInterest = recalc.paidInterest || 0;
+            } else if (recalc.isPartialInterestPayment) {
+                paymentType = 'Pagamento Parcial de Juros';
+                paidCapital = 0;
+                paidInterest = paymentInfo.amount || 0;
+            } else {
+                // Pagamento parcial genérico - estimar divisão
+                const paymentAmount = paymentInfo.amount || 0;
+                if (paymentAmount >= totalInterest) {
+                    paidInterest = totalInterest;
+                    paidCapital = paymentAmount - totalInterest;
+                    paymentType = 'Capital + Juros';
+                } else {
+                    paidInterest = paymentAmount;
+                    paidCapital = 0;
+                    paymentType = 'Pagamento Parcial de Juros';
+                }
+            }
+        } else {
+            // Caso não tenha recalcInfo, fazer estimativa
+            const paymentAmount = paymentInfo.amount || 0;
+            if (loan.status === 'paid') {
+                paymentType = 'Quitação Total (Capital + Juros)';
+                paidCapital = originalAmount;
+                paidInterest = totalInterest;
+            } else if (paymentAmount >= totalInterest) {
+                paidInterest = totalInterest;
+                paidCapital = paymentAmount - totalInterest;
+                paymentType = 'Capital + Juros';
+            } else {
+                paidInterest = paymentAmount;
+                paidCapital = 0;
+                paymentType = 'Pagamento Parcial de Juros';
+            }
+        }
+
         // Atualizar o modal com as informações
         document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
+        document.getElementById('paymentDetailAmount').textContent = `R$ ${(paymentInfo.amount || 0).toFixed(2).replace('.', ',')}`;
+        document.getElementById('paymentDetailType').textContent = paymentType;
+        document.getElementById('paymentDetailCapital').textContent = `R$ ${paidCapital.toFixed(2).replace('.', ',')}`;
+        document.getElementById('paymentDetailInterest').textContent = `R$ ${paidInterest.toFixed(2).replace('.', ',')}`;
+        document.getElementById('paymentDetailNewAmount').textContent = `R$ ${remainingAmount.toFixed(2).replace('.', ',')}`;
+        
+        // Mostrar/ocultar linhas de capital e juros conforme necessário
+        const capitalRow = document.getElementById('paymentDetailCapitalRow');
+        const interestRow = document.getElementById('paymentDetailInterestRow');
+        
+        if (paidCapital > 0 && paidInterest > 0) {
+            capitalRow.style.display = 'flex';
+            interestRow.style.display = 'flex';
+        } else if (paidCapital > 0) {
+            capitalRow.style.display = 'flex';
+            interestRow.style.display = 'none';
+        } else if (paidInterest > 0) {
+            capitalRow.style.display = 'none';
+            interestRow.style.display = 'flex';
+        } else {
+            capitalRow.style.display = 'none';
+            interestRow.style.display = 'none';
+        }
 
         // Armazenar dados para uso nas mensagens
         window.currentPaymentMessageData = {
@@ -7424,7 +7515,12 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
             clientPhone: loan.clients.phone,
             nextPaymentDate: nextPaymentDate,
             loanStatus: loan.status,
-            paymentInfo: paymentInfo
+            paymentInfo: paymentInfo,
+            paymentAmount: paymentInfo.amount || 0,
+            paymentType: paymentType,
+            paidCapital: paidCapital,
+            paidInterest: paidInterest,
+            remainingAmount: remainingAmount
         };
 
         // Determinar tipo de mensagem automaticamente e pré-selecionar
@@ -7463,9 +7559,18 @@ const messageTemplates = {
         const isInstallment = data.paymentInfo?.isInstallment;
         const productType = isInstallment ? 'parcelamento' : 'empréstimo';
         
+        let paymentDetails = `💰 *Valor pago:* R$ ${(data.paymentAmount || 0).toFixed(2).replace('.', ',')}`;
+        
+        if (data.paidCapital > 0 && data.paidInterest > 0) {
+            paymentDetails += `\n   • Capital: R$ ${data.paidCapital.toFixed(2).replace('.', ',')}`;
+            paymentDetails += `\n   • Juros: R$ ${data.paidInterest.toFixed(2).replace('.', ',')}`;
+        }
+        
         return `🎉 *Parabéns, ${data.clientName}!*
 
 Seu ${productType} foi *QUITADO COMPLETAMENTE*! 
+
+${paymentDetails}
 
 ✅ Agradecemos pela confiança em nossos serviços
 ✅ Seu nome está limpo e livre de pendências  
@@ -7476,17 +7581,35 @@ Muito obrigado pela parceria e pontualidade! 🤝
 _Equipe Nexus Financeira_`;
     },
 
-    renovacao: (data) => `💙 Obrigado pelo pagamento, *${data.clientName}*!
+    renovacao: (data) => {
+        let paymentDetails = `💰 *Valor pago:* R$ ${(data.paymentAmount || 0).toFixed(2).replace('.', ',')}`;
+        
+        if (data.paymentType) {
+            paymentDetails += `\n📝 *Tipo:* ${data.paymentType}`;
+        }
+        
+        if (data.paidInterest > 0 && data.paidCapital === 0) {
+            paymentDetails += `\n   • Juros pagos: R$ ${data.paidInterest.toFixed(2).replace('.', ',')}`;
+        } else if (data.paidCapital > 0 && data.paidInterest > 0) {
+            paymentDetails += `\n   • Capital: R$ ${data.paidCapital.toFixed(2).replace('.', ',')}`;
+            paymentDetails += `\n   • Juros: R$ ${data.paidInterest.toFixed(2).replace('.', ',')}`;
+        }
+        
+        return `💙 Obrigado pelo pagamento, *${data.clientName}*!
 
 Seu pagamento foi registrado com sucesso! 
 
+${paymentDetails}
+
+💵 *Novo valor do empréstimo:* R$ ${(data.remainingAmount || 0).toFixed(2).replace('.', ',')}
 📅 *Próxima data de pagamento:* ${data.nextPaymentDate}
 
 Agradecemos pela confiança e pontualidade. Estamos sempre à disposição para esclarecer dúvidas.
 
 Tenha um ótimo dia! 😊
 
-_Equipe Nexus Financeira_`,
+_Equipe Nexus Financeira_`;
+    },
 
     lembrete: (data) => {
         const isInstallment = data.paymentInfo?.isInstallment;
@@ -7498,9 +7621,31 @@ _Equipe Nexus Financeira_`,
             nextDateText = `📅 *Lembre-se da próxima data:* ${data.nextPaymentDate}`;
         }
         
+        let paymentDetails = `💰 *Valor pago:* R$ ${(data.paymentAmount || 0).toFixed(2).replace('.', ',')}`;
+        
+        if (data.paymentType) {
+            paymentDetails += `\n📝 *Tipo:* ${data.paymentType}`;
+        }
+        
+        if (data.paidCapital > 0 && data.paidInterest > 0) {
+            paymentDetails += `\n   • Capital: R$ ${data.paidCapital.toFixed(2).replace('.', ',')}`;
+            paymentDetails += `\n   • Juros: R$ ${data.paidInterest.toFixed(2).replace('.', ',')}`;
+        } else if (data.paidCapital > 0) {
+            paymentDetails += `\n   • Capital pago: R$ ${data.paidCapital.toFixed(2).replace('.', ',')}`;
+        } else if (data.paidInterest > 0) {
+            paymentDetails += `\n   • Juros pagos: R$ ${data.paidInterest.toFixed(2).replace('.', ',')}`;
+        }
+        
+        let remainingText = '';
+        if (data.remainingAmount > 0 && data.nextPaymentDate !== 'Parcelamento quitado') {
+            remainingText = `\n💵 *Novo valor do empréstimo:* R$ ${data.remainingAmount.toFixed(2).replace('.', ',')}`;
+        }
+        
         return `💙 Obrigado pelo pagamento, *${data.clientName}*!
 
 Recebemos seu pagamento com sucesso! 
+
+${paymentDetails}${remainingText}
 
 ${nextDateText}
 
@@ -10925,13 +11070,45 @@ document.getElementById('installmentPaymentForm').addEventListener('submit', asy
                 isFullyPaid: paymentStatus === 'paid' && !nextPayment,
                 isInstallment: true
             };
+            
+            // Calcular valor restante do parcelamento
+            const { data: allPayments, error: paymentsError } = await supabase
+                .from('installment_payments')
+                .select('amount, paid_amount, status')
+                .eq('installment_id', currentInstallmentId);
+            
+            let remainingAmount = 0;
+            if (!paymentsError && allPayments) {
+                // Calcular total restante somando parcelas pendentes
+                remainingAmount = allPayments
+                    .filter(p => p.status === 'pending' || p.status === 'overdue' || p.status === 'partial')
+                    .reduce((sum, p) => {
+                        const paid = p.paid_amount || 0;
+                        return sum + (p.amount - paid);
+                    }, 0);
+            }
+            
+            // Atualizar elementos do modal com os detalhes do pagamento
+            document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
+            document.getElementById('paymentDetailAmount').textContent = `R$ ${paidAmount.toFixed(2).replace('.', ',')}`;
+            document.getElementById('paymentDetailType').textContent = 'Pagamento de Parcela';
+            document.getElementById('paymentDetailNewAmount').textContent = `R$ ${remainingAmount.toFixed(2).replace('.', ',')}`;
+            
+            // Ocultar linhas de capital e juros para parcelamentos
+            document.getElementById('paymentDetailCapitalRow').style.display = 'none';
+            document.getElementById('paymentDetailInterestRow').style.display = 'none';
 
             // Configurar dados para o modal
             window.currentPaymentMessageData = {
                 clientName: installmentData.clients.name,
                 clientPhone: installmentData.clients.phone,
                 nextPaymentDate: nextPaymentDate,
-                paymentInfo: paymentInfo
+                paymentInfo: paymentInfo,
+                paymentAmount: paidAmount,
+                paymentType: 'Pagamento de Parcela',
+                paidCapital: 0,
+                paidInterest: 0,
+                remainingAmount: remainingAmount
             };
 
             // Mostrar modal de mensagens
