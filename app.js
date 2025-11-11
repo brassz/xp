@@ -560,7 +560,7 @@ function setupEventListeners() {
     // Formulários
     newClientForm.addEventListener('submit', handleNewClient);
     newLoanForm.addEventListener('submit', handleNewLoan);
-    paymentForm.addEventListener('submit', handlePayment);
+    // paymentForm.addEventListener('submit', handlePayment); // REMOVIDO: Agora usa apenas RENOVAR 30+
     document.getElementById('editClientForm').addEventListener('submit', handleEditClient);
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
     newExpenseForm.addEventListener('submit', handleNewExpense);
@@ -639,8 +639,8 @@ function setupEventListeners() {
     document.getElementById('editLoanAmount').addEventListener('input', updateEditLoanSummary);
     document.getElementById('editLoanInterest').addEventListener('input', updateEditLoanSummary);
     
-    // Validação do valor de pagamento
-    document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
+    // Validação do valor de pagamento - REMOVIDO: Agora usa apenas RENOVAR 30+
+    // document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
     
 
 }
@@ -2217,6 +2217,8 @@ async function handleNewLoan(e) {
     }
 }
 
+// FUNÇÃO ANTIGA REMOVIDA: Substituída por handleNewRenewalPayment com opções
+/*
 async function handleLoanRenewal() {
     try {
         const loanId = document.getElementById('paymentForm').dataset.loanId;
@@ -2311,6 +2313,7 @@ async function handleLoanRenewal() {
         alert('Erro ao renovar empréstimo: ' + error.message);
     }
 }
+*/
 
 // Função auxiliar para converter valor monetário brasileiro para número
 function parseMonetaryValue(text) {
@@ -2482,6 +2485,9 @@ async function handleNewRenewalPayment(paymentOption) {
     }
 }
 
+// FUNÇÃO REMOVIDA: Agora usa apenas RENOVAR 30+
+// Esta função foi substituída pela nova lógica de renovação com opções
+/*
 async function handlePayment(e) {
     e.preventDefault();
     
@@ -2824,6 +2830,7 @@ async function handlePayment(e) {
         alert('Erro ao registrar pagamento: ' + error.message);
     }
 }
+*/
 
 async function handleEditClient(e) {
     e.preventDefault();
@@ -3063,6 +3070,9 @@ function updateLoanSummary() {
     document.getElementById('summaryTotal').textContent = `R$ ${total.toFixed(2)}`;
 }
 
+// FUNÇÃO REMOVIDA: Agora usa apenas RENOVAR 30+
+// Esta função foi substituída pela nova lógica de renovação com opções
+/*
 function validatePaymentAmount() {
     const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
     const feedbackDiv = document.getElementById('paymentValidationFeedback');
@@ -3187,6 +3197,7 @@ function validatePaymentAmount() {
     feedbackDiv.textContent = feedbackText;
     feedbackDiv.className = `mt-2 text-sm ${feedbackColor}`;
 }
+*/
 
 async function showPaymentModal(loanId) {
     const loan = loans.find(l => l.id === loanId);
