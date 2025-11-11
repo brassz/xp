@@ -6399,7 +6399,10 @@ function getPaymentTypeText(type) {
         case 'principal': return 'Apenas Principal';
         case 'adjustment': return 'Ajuste/Recálculo';
         case 'renewal': return '🔄 Renovação';
-        case 'interest_renewal': return '🔄 Renovação (Juros)';
+        case 'interest_renewal': return '🔄 Renovação +30 Dias (Somente Juros)';
+        case 'capital_interest_renewal': return '💰 Renovação +30 Dias (Capital + Juros)';
+        case 'capital_renewal': return '🏦 Renovação +30 Dias (Somente Capital)';
+        case 'loan_renewal': return '📅 Renovação de Prazo';
         case 'capital_payment': return '💰 Pagamento Capital';
         case 'partial_interest': return '⚠️ Juros Parcial';
         case 'early_payment_partial_interest': return '⚡ Pagamento Antecipado (Juros Parcial)';
