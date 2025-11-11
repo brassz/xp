@@ -7564,12 +7564,50 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
             remainingAmount
         );
         
-        // Abrir WhatsApp automaticamente
-        openWhatsAppWithMessage(loan.clients.phone, message);
+        // Calcular próxima data de pagamento
+        let nextPaymentDate = '';
+        if (paymentInfo.newDueDate) {
+            nextPaymentDate = formatDate(paymentInfo.newDueDate);
+        } else if (loan.due_date) {
+            nextPaymentDate = formatDate(loan.due_date);
+        } else {
+            // Se não há data específica, calcular 30 dias a partir de hoje
+            const today = new Date();
+            const nextDate = new Date(today);
+            nextDate.setDate(nextDate.getDate() + 30);
+            nextPaymentDate = formatDate(nextDate.toISOString().split('T')[0]);
+        }
+
+        // Atualizar o modal com as informações
+        document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
+        
+        // Preencher a mensagem no textarea
+        const messageTextArea = document.getElementById('paymentMessageText');
+        messageTextArea.value = message;
+        
+        // Armazenar dados para uso nos botões
+        window.currentPaymentMessageData = {
+            clientName: loan.clients.name,
+            clientPhone: loan.clients.phone,
+            nextPaymentDate: nextPaymentDate,
+            loanStatus: loan.status,
+            paymentInfo: paymentInfo,
+            message: message
+        };
+        
+        // Habilitar botões
+        document.getElementById('copyPaymentMessage').disabled = false;
+        document.getElementById('sendPaymentMessage').disabled = false;
+
+        // Mostrar o modal
+        showModal(document.getElementById('paymentMessageModal'));
+
+        // Configurar event listeners se ainda não foram configurados
+        setupPaymentMessageEventListeners();
 
     } catch (error) {
-        console.error('Erro ao enviar mensagem de pagamento:', error);
-        alert('Erro ao enviar mensagem: ' + error.message);
+        console.error('Erro ao mostrar modal de mensagem:', error);
+        alert('Erro ao carregar dados para mensagem: ' + error.message);
     }
 }
 
@@ -11004,7 +11042,7 @@ document.getElementById('installmentPaymentForm').addEventListener('submit', asy
 
         closeInstallmentPaymentModal();
         
-        // Buscar dados do cliente para enviar mensagem via WhatsApp
+        // Buscar dados do cliente para mostrar modal de mensagem
         const { data: installmentData, error: installmentError } = await supabase
             .from('installments')
             .select(`
@@ -11087,8 +11125,30 @@ Tenha um ótimo dia! 😊
 _Equipe Nexus Financeira_`;
                 }
 
-                // Abrir WhatsApp automaticamente
-                openWhatsAppWithMessage(installmentData.clients.phone, message);
+                // Atualizar o modal com as informações
+                document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
+                
+                // Preencher a mensagem no textarea
+                const messageTextArea = document.getElementById('paymentMessageText');
+                messageTextArea.value = message;
+                
+                // Armazenar dados para uso nos botões
+                window.currentPaymentMessageData = {
+                    clientName: installmentData.clients.name,
+                    clientPhone: installmentData.clients.phone,
+                    nextPaymentDate: nextPaymentDate,
+                    message: message
+                };
+                
+                // Habilitar botões
+                document.getElementById('copyPaymentMessage').disabled = false;
+                document.getElementById('sendPaymentMessage').disabled = false;
+
+                // Mostrar o modal
+                showModal(document.getElementById('paymentMessageModal'));
+
+                // Configurar event listeners se ainda não foram configurados
+                setupPaymentMessageEventListeners();
             }
         } else {
             showNotification('Pagamento registrado com sucesso!', 'success');

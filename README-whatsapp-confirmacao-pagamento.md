@@ -2,7 +2,7 @@
 
 ## 📱 Descrição
 
-Implementação de redirecionamento automático para o WhatsApp após o registro de pagamentos, enviando automaticamente ao cliente uma mensagem detalhada com:
+Implementação de modal de confirmação de pagamento que permite enviar mensagem via WhatsApp ao cliente após o registro de pagamentos, com informações detalhadas:
 - Valor pago
 - Tipo de pagamento (capital+juros, somente juros, somente capital)
 - Novo saldo do empréstimo/parcelamento
@@ -12,10 +12,10 @@ Implementação de redirecionamento automático para o WhatsApp após o registro
 
 ### 1. **Pagamentos de Empréstimos (Renovações)**
 
-Ao registrar um pagamento de renovação de empréstimo (via botão "RENOVAR 30+"), o sistema automaticamente:
+Ao registrar um pagamento de renovação de empréstimo (via botão "RENOVAR 30+"), o sistema:
 
-- ✅ Abre uma nova janela do WhatsApp Web/App
-- ✅ Preenche automaticamente a mensagem com informações detalhadas
+- ✅ Gera automaticamente uma mensagem detalhada
+- ✅ Abre um modal perguntando se deseja enviar a mensagem
 - ✅ Identifica o tipo de pagamento:
   - **💰 Capital + Juros**: Quando o cliente paga capital e juros
   - **🔄 Somente Juros**: Quando o cliente renova pagando apenas os juros
@@ -23,16 +23,19 @@ Ao registrar um pagamento de renovação de empréstimo (via botão "RENOVAR 30+
 - ✅ Mostra o novo saldo restante do empréstimo
 - ✅ Informa a próxima data de vencimento
 - ✅ Caso o empréstimo seja quitado, envia mensagem de parabéns
+- ✅ Permite copiar a mensagem ou enviar via WhatsApp
 
 ### 2. **Pagamentos de Parcelamentos**
 
 Ao registrar um pagamento de parcela, o sistema:
 
-- ✅ Abre automaticamente o WhatsApp
-- ✅ Envia mensagem personalizada com o valor da parcela paga
+- ✅ Gera mensagem personalizada automaticamente
+- ✅ Abre modal de confirmação
+- ✅ Mostra o valor da parcela paga
 - ✅ Mostra o saldo restante do parcelamento
 - ✅ Informa a próxima data de vencimento
 - ✅ Caso seja a última parcela, envia mensagem de quitação
+- ✅ Permite copiar ou enviar via WhatsApp
 
 ## 🔧 Implementação Técnica
 
@@ -57,13 +60,13 @@ Abre o WhatsApp Web/App automaticamente com a mensagem pré-preenchida
 ### Funções Modificadas
 
 #### 1. `showPaymentMessageModal(loanId, paymentInfo)`
-**Antes:** Mostrava um modal para o usuário selecionar tipo de mensagem e clicar em enviar
-
-**Agora:** 
-- Gera mensagem automaticamente
-- Abre WhatsApp sem interação do usuário
-- Verifica se o cliente tem telefone cadastrado
-- Calcula automaticamente o saldo restante
+**Modificada para:** 
+- Gerar mensagem automaticamente baseada no tipo de pagamento
+- Preencher o modal com a mensagem gerada
+- Mostrar modal para confirmação do usuário
+- Habilitar botões de copiar e enviar
+- Verificar se o cliente tem telefone cadastrado
+- Calcular automaticamente o saldo restante
 
 #### 2. `handleNewRenewalPayment(paymentOption)`
 Adicionado ao final da função:
@@ -74,7 +77,28 @@ Adicionado ao final da função:
 Modificado para:
 - Gerar mensagem específica para parcelamentos
 - Calcular saldo restante automaticamente
-- Abrir WhatsApp automaticamente após registro
+- Mostrar modal de confirmação com a mensagem
+- Permitir copiar ou enviar via WhatsApp
+
+## 🖥️ Modal de Confirmação
+
+Após registrar um pagamento, o sistema apresenta um modal com:
+
+### Elementos do Modal:
+- ✅ **Confirmação visual** de pagamento registrado
+- 📅 **Próxima data de vencimento** destacada
+- 💬 **Mensagem gerada automaticamente** no textarea (não editável)
+- 🔘 **Três opções de ação:**
+  1. 📋 **Copiar Mensagem** - Copia para área de transferência
+  2. 💬 **Enviar WhatsApp** - Abre WhatsApp Web/App com mensagem pronta
+  3. ❌ **Fechar** - Fecha o modal sem enviar
+
+### Comportamento:
+- Modal aparece **automaticamente** após confirmação do pagamento
+- Mensagem é **pré-gerada** com todas as informações
+- Botões ficam **habilitados** assim que o modal abre
+- Cliente **não precisa** ter telefone para registrar pagamento, mas precisa para enviar via WhatsApp
+- Se cliente não tiver telefone, mostra notificação informativa
 
 ## 📋 Exemplo de Mensagens
 
@@ -153,11 +177,13 @@ O sistema valida:
 
 ## 🎯 Benefícios
 
-1. **Agilidade**: Eliminação de etapas manuais
-2. **Padronização**: Mensagens consistentes e profissionais
-3. **Transparência**: Cliente recebe informações completas imediatamente
-4. **Redução de Erros**: Cálculos automáticos do saldo restante
-5. **Melhor Experiência**: Cliente informado em tempo real
+1. **Controle**: Usuário decide se quer enviar ou não a mensagem
+2. **Agilidade**: Mensagem gerada automaticamente, pronta para envio
+3. **Padronização**: Mensagens consistentes e profissionais
+4. **Transparência**: Cliente recebe informações completas e detalhadas
+5. **Redução de Erros**: Cálculos automáticos do saldo restante
+6. **Flexibilidade**: Pode copiar a mensagem ou enviar diretamente pelo WhatsApp
+7. **Melhor Experiência**: Cliente informado com todos os detalhes do pagamento
 
 ## 🔄 Fluxo de Uso
 
@@ -170,8 +196,11 @@ O sistema valida:
    - Somente Juros
    - Somente Capital
 4. Confirmar pagamento
-5. **✨ WhatsApp abre automaticamente com a mensagem pronta**
-6. Enviar mensagem ao cliente
+5. **✨ Modal abre com mensagem gerada automaticamente**
+6. Usuário pode:
+   - 📋 **Copiar** a mensagem para área de transferência
+   - 💬 **Enviar via WhatsApp** (abre WhatsApp com mensagem pronta)
+   - ❌ **Fechar** o modal sem enviar
 
 ### Para Parcelamentos
 
@@ -179,8 +208,11 @@ O sistema valida:
 2. Clicar em "Registrar Pagamento" na parcela
 3. Preencher valor e data
 4. Confirmar pagamento
-5. **✨ WhatsApp abre automaticamente com a mensagem pronta**
-6. Enviar mensagem ao cliente
+5. **✨ Modal abre com mensagem da parcela gerada automaticamente**
+6. Usuário pode:
+   - 📋 **Copiar** a mensagem
+   - 💬 **Enviar via WhatsApp**
+   - ❌ **Fechar** sem enviar
 
 ## 📝 Notas Técnicas
 
@@ -189,6 +221,9 @@ O sistema valida:
 - Telefone é formatado removendo todos os caracteres não numéricos
 - Sistema detecta automaticamente o tipo de pagamento baseado no `payment_type`
 - Cálculo do saldo restante usa a função existente `calculateLoanRemainingAmount()`
+- Modal não usa mais os radio buttons de seleção de tipo - mensagem é gerada automaticamente
+- Mensagem no textarea é readonly para garantir consistência
+- Event listeners são configurados apenas uma vez para evitar duplicação
 
 ## 🚀 Implementado em
 
@@ -197,6 +232,16 @@ O sistema valida:
 ## ✅ Status
 
 **IMPLEMENTADO E FUNCIONAL**
+
+### Versão Atual (v2.0)
+- Modal de confirmação com mensagem gerada automaticamente
+- Usuário decide se quer enviar ou não
+- Opção de copiar mensagem para área de transferência
+- Redirecionamento para WhatsApp sob demanda
+
+### Changelog
+- **v2.0** (11/11/2025): Alterado para usar modal de confirmação ao invés de abrir WhatsApp automaticamente
+- **v1.0** (11/11/2025): Implementação inicial com abertura automática do WhatsApp
 
 Data: 11/11/2025
 Branch: cursor/send-payment-confirmation-via-whatsapp-1036
