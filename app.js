@@ -5170,25 +5170,34 @@ function showWhatsAppSummaryModal(loanId) {
 
 // Função para enviar resumo do empréstimo via WhatsApp (para novos empréstimos)
 async function sendLoanSummaryWhatsApp(loanId) {
-    const loan = loans.find(l => l.id === loanId);
-    if (!loan) {
-        showErrorMessage('Empréstimo não encontrado!');
-        return;
-    }
-
-    const client = loan.clients;
-    if (!client) {
-        showErrorMessage('Dados do cliente não encontrados!');
-        return;
-    }
-
-    // Verificar se o cliente tem telefone
-    if (!client.phone) {
-        showErrorMessage('Cliente não possui telefone cadastrado!');
-        return;
-    }
-
     try {
+        // Buscar dados atualizados do empréstimo diretamente do banco
+        const { data: loanData, error: loanError } = await supabase
+            .from('loans')
+            .select('*, clients(*)')
+            .eq('id', loanId)
+            .single();
+
+        if (loanError) throw loanError;
+        
+        const loan = loanData;
+        if (!loan) {
+            showErrorMessage('Empréstimo não encontrado!');
+            return;
+        }
+
+        const client = loan.clients;
+        if (!client) {
+            showErrorMessage('Dados do cliente não encontrados!');
+            return;
+        }
+
+        // Verificar se o cliente tem telefone
+        if (!client.phone) {
+            showErrorMessage('Cliente não possui telefone cadastrado!');
+            return;
+        }
+
         // Calcular valores do empréstimo
         const principalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
@@ -5495,25 +5504,34 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Função para enviar mensagem de cobrança via WhatsApp com chave PIX selecionada
 async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey, accountHolder) {
-    const loan = loans.find(l => l.id === loanId);
-    if (!loan) {
-        showErrorMessage('Empréstimo não encontrado!');
-        return;
-    }
-
-    const client = loan.clients;
-    if (!client) {
-        showErrorMessage('Dados do cliente não encontrados!');
-        return;
-    }
-
-    // Verificar se o cliente tem telefone
-    if (!client.phone) {
-        showErrorMessage('Cliente não possui telefone cadastrado!');
-        return;
-    }
-
     try {
+        // Buscar dados atualizados do empréstimo diretamente do banco
+        const { data: loanData, error: loanError } = await supabase
+            .from('loans')
+            .select('*, clients(*)')
+            .eq('id', loanId)
+            .single();
+
+        if (loanError) throw loanError;
+        
+        const loan = loanData;
+        if (!loan) {
+            showErrorMessage('Empréstimo não encontrado!');
+            return;
+        }
+
+        const client = loan.clients;
+        if (!client) {
+            showErrorMessage('Dados do cliente não encontrados!');
+            return;
+        }
+
+        // Verificar se o cliente tem telefone
+        if (!client.phone) {
+            showErrorMessage('Cliente não possui telefone cadastrado!');
+            return;
+        }
+
         // Calcular valores atuais do empréstimo
         const principalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
@@ -6051,25 +6069,34 @@ async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId,
 
 // Função para enviar mensagem de cobrança via WhatsApp
 async function sendWhatsAppMessage(loanId) {
-    const loan = loans.find(l => l.id === loanId);
-    if (!loan) {
-        showErrorMessage('Empréstimo não encontrado!');
-        return;
-    }
-
-    const client = loan.clients;
-    if (!client) {
-        showErrorMessage('Dados do cliente não encontrados!');
-        return;
-    }
-
-    // Verificar se o cliente tem telefone
-    if (!client.phone) {
-        showErrorMessage('Cliente não possui telefone cadastrado!');
-        return;
-    }
-
     try {
+        // Buscar dados atualizados do empréstimo diretamente do banco
+        const { data: loanData, error: loanError } = await supabase
+            .from('loans')
+            .select('*, clients(*)')
+            .eq('id', loanId)
+            .single();
+
+        if (loanError) throw loanError;
+        
+        const loan = loanData;
+        if (!loan) {
+            showErrorMessage('Empréstimo não encontrado!');
+            return;
+        }
+
+        const client = loan.clients;
+        if (!client) {
+            showErrorMessage('Dados do cliente não encontrados!');
+            return;
+        }
+
+        // Verificar se o cliente tem telefone
+        if (!client.phone) {
+            showErrorMessage('Cliente não possui telefone cadastrado!');
+            return;
+        }
+
         // Calcular valores atuais do empréstimo
         const principalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
