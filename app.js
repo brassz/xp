@@ -2476,8 +2476,24 @@ async function handleNewRenewalPayment(paymentOption) {
         document.getElementById('paymentForm').reset();
         await loadLoans();
         
-        // Mostrar mensagem de sucesso
-        alert(`✅ Empréstimo renovado com sucesso!\n\n${paymentDescription}\nValor: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDate(newDueDateStr)}\n(+30 dias)`);
+        // Preparar informações do pagamento para o modal de mensagens
+        const paymentInfo = {
+            amount: paymentAmount,
+            type: finalPaymentType,
+            date: paymentDate,
+            newDueDate: newDueDateStr,
+            isFullyPaid: false,
+            isRenewal: true,
+            paymentDescription: paymentDescription,
+            recalcInfo: {
+                isInterestOnlyRenewal: paymentOption === 'somente_juros',
+                isCapitalAndInterest: paymentOption === 'capital_juros',
+                isCapitalOnly: paymentOption === 'somente_capital'
+            }
+        };
+        
+        // Mostrar modal de mensagens ao cliente
+        await showPaymentMessageModal(loanId, paymentInfo);
         
     } catch (error) {
         console.error('Erro ao renovar empréstimo:', error);
@@ -7437,6 +7453,15 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
 
         if (loanError) throw loanError;
 
+        // Calcular valor restante do empréstimo
+        const remainingAmount = await calculateLoanRemainingAmount(loanId);
+        
+        // Calcular valores do empréstimo
+        const originalCapital = parseFloat(loan.original_amount || loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        const originalInterest = originalCapital * (interestRate / 100);
+        const totalAmount = originalCapital + originalInterest;
+
         // Calcular próxima data de pagamento
         let nextPaymentDate = '';
         if (paymentInfo.newDueDate) {
@@ -7451,6 +7476,18 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
             nextPaymentDate = formatDate(nextDate.toISOString().split('T')[0]);
         }
 
+        // Determinar tipo de pagamento
+        let paymentTypeDescription = '';
+        if (paymentInfo.recalcInfo) {
+            if (paymentInfo.recalcInfo.isInterestOnlyRenewal) {
+                paymentTypeDescription = 'Somente Juros';
+            } else if (paymentInfo.recalcInfo.isCapitalAndInterest) {
+                paymentTypeDescription = 'Capital + Juros';
+            } else if (paymentInfo.recalcInfo.isCapitalOnly) {
+                paymentTypeDescription = 'Somente Capital';
+            }
+        }
+
         // Atualizar o modal com as informações
         document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
 
@@ -7460,13 +7497,17 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
             clientPhone: loan.clients.phone,
             nextPaymentDate: nextPaymentDate,
             loanStatus: loan.status,
-            paymentInfo: paymentInfo
+            paymentInfo: paymentInfo,
+            paymentAmount: paymentInfo.amount,
+            remainingAmount: remainingAmount,
+            paymentTypeDescription: paymentTypeDescription,
+            totalLoanAmount: totalAmount
         };
 
         // Determinar tipo de mensagem automaticamente e pré-selecionar
         let suggestedMessageType = 'lembrete'; // padrão
         
-        if (paymentInfo.isFullyPaid || loan.status === 'paid') {
+        if (paymentInfo.isFullyPaid || loan.status === 'paid' || remainingAmount <= 0) {
             suggestedMessageType = 'quitacao';
         } else if (paymentInfo.isRenewal || paymentInfo.recalcInfo?.isInterestOnlyRenewal) {
             suggestedMessageType = 'renovacao';
@@ -7499,9 +7540,14 @@ const messageTemplates = {
         const isInstallment = data.paymentInfo?.isInstallment;
         const productType = isInstallment ? 'parcelamento' : 'empréstimo';
         
+        let paymentDetails = '';
+        if (!isInstallment && data.paymentAmount) {
+            paymentDetails = `\n💰 *Valor do último pagamento:* R$ ${data.paymentAmount.toFixed(2).replace('.', ',')}`;
+        }
+        
         return `🎉 *Parabéns, ${data.clientName}!*
 
-Seu ${productType} foi *QUITADO COMPLETAMENTE*! 
+Seu ${productType} foi *QUITADO COMPLETAMENTE*! ${paymentDetails}
 
 ✅ Agradecemos pela confiança em nossos serviços
 ✅ Seu nome está limpo e livre de pendências  
@@ -7512,31 +7558,63 @@ Muito obrigado pela parceria e pontualidade! 🤝
 _Equipe Nexus Financeira_`;
     },
 
-    renovacao: (data) => `💙 Obrigado pelo pagamento, *${data.clientName}*!
+    renovacao: (data) => {
+        const isInstallment = data.paymentInfo?.isInstallment;
+        let paymentDetails = '';
+        
+        if (!isInstallment && data.paymentAmount) {
+            paymentDetails = `\n💰 *DETALHES DO PAGAMENTO:*`;
+            paymentDetails += `\n💵 Valor pago: R$ ${data.paymentAmount.toFixed(2).replace('.', ',')}`;
+            
+            if (data.paymentTypeDescription) {
+                paymentDetails += `\n📋 Tipo de pagamento: ${data.paymentTypeDescription}`;
+            }
+            
+            if (data.remainingAmount !== undefined) {
+                paymentDetails += `\n💎 Saldo restante: R$ ${data.remainingAmount.toFixed(2).replace('.', ',')}`;
+            }
+        }
+        
+        return `✅ *Pagamento recebido, ${data.clientName}!*
 
-Seu pagamento foi registrado com sucesso! 
+Seu pagamento foi registrado com sucesso!${paymentDetails}
 
-📅 *Próxima data de pagamento:* ${data.nextPaymentDate}
+📅 *Próximo vencimento:* ${data.nextPaymentDate}
 
 Agradecemos pela confiança e pontualidade. Estamos sempre à disposição para esclarecer dúvidas.
 
 Tenha um ótimo dia! 😊
 
-_Equipe Nexus Financeira_`,
+_Equipe Nexus Financeira_`;
+    },
 
     lembrete: (data) => {
         const isInstallment = data.paymentInfo?.isInstallment;
         let nextDateText = '';
+        let paymentDetails = '';
         
         if (data.nextPaymentDate === 'Parcelamento quitado') {
             nextDateText = `🎉 *Parabéns! Seu parcelamento foi quitado completamente!*`;
         } else {
-            nextDateText = `📅 *Lembre-se da próxima data:* ${data.nextPaymentDate}`;
+            nextDateText = `📅 *Próximo vencimento:* ${data.nextPaymentDate}`;
         }
         
-        return `💙 Obrigado pelo pagamento, *${data.clientName}*!
+        if (!isInstallment && data.paymentAmount) {
+            paymentDetails = `\n💰 *DETALHES DO PAGAMENTO:*`;
+            paymentDetails += `\n💵 Valor pago: R$ ${data.paymentAmount.toFixed(2).replace('.', ',')}`;
+            
+            if (data.paymentTypeDescription) {
+                paymentDetails += `\n📋 Tipo de pagamento: ${data.paymentTypeDescription}`;
+            }
+            
+            if (data.remainingAmount !== undefined) {
+                paymentDetails += `\n💎 Saldo restante: R$ ${data.remainingAmount.toFixed(2).replace('.', ',')}`;
+            }
+        }
+        
+        return `✅ *Pagamento recebido, ${data.clientName}!*
 
-Recebemos seu pagamento com sucesso! 
+Recebemos seu pagamento com sucesso!${paymentDetails}
 
 ${nextDateText}
 
