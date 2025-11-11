@@ -11070,13 +11070,45 @@ document.getElementById('installmentPaymentForm').addEventListener('submit', asy
                 isFullyPaid: paymentStatus === 'paid' && !nextPayment,
                 isInstallment: true
             };
+            
+            // Calcular valor restante do parcelamento
+            const { data: allPayments, error: paymentsError } = await supabase
+                .from('installment_payments')
+                .select('amount, paid_amount, status')
+                .eq('installment_id', currentInstallmentId);
+            
+            let remainingAmount = 0;
+            if (!paymentsError && allPayments) {
+                // Calcular total restante somando parcelas pendentes
+                remainingAmount = allPayments
+                    .filter(p => p.status === 'pending' || p.status === 'overdue' || p.status === 'partial')
+                    .reduce((sum, p) => {
+                        const paid = p.paid_amount || 0;
+                        return sum + (p.amount - paid);
+                    }, 0);
+            }
+            
+            // Atualizar elementos do modal com os detalhes do pagamento
+            document.getElementById('nextPaymentDate').textContent = nextPaymentDate;
+            document.getElementById('paymentDetailAmount').textContent = `R$ ${paidAmount.toFixed(2).replace('.', ',')}`;
+            document.getElementById('paymentDetailType').textContent = 'Pagamento de Parcela';
+            document.getElementById('paymentDetailNewAmount').textContent = `R$ ${remainingAmount.toFixed(2).replace('.', ',')}`;
+            
+            // Ocultar linhas de capital e juros para parcelamentos
+            document.getElementById('paymentDetailCapitalRow').style.display = 'none';
+            document.getElementById('paymentDetailInterestRow').style.display = 'none';
 
             // Configurar dados para o modal
             window.currentPaymentMessageData = {
                 clientName: installmentData.clients.name,
                 clientPhone: installmentData.clients.phone,
                 nextPaymentDate: nextPaymentDate,
-                paymentInfo: paymentInfo
+                paymentInfo: paymentInfo,
+                paymentAmount: paidAmount,
+                paymentType: 'Pagamento de Parcela',
+                paidCapital: 0,
+                paidInterest: 0,
+                remainingAmount: remainingAmount
             };
 
             // Mostrar modal de mensagens
