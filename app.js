@@ -206,6 +206,7 @@ const addCapitalClientModal = document.getElementById('addCapitalClientModal');
 const guarantorModal = document.getElementById('guarantorModal');
 const emergencyContactModal = document.getElementById('emergencyContactModal');
 const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
+const renewalOptionsModal = document.getElementById('renewalOptionsModal');
 
 
 // Botões
@@ -432,8 +433,15 @@ function setupEventListeners() {
     document.getElementById('cancelGuarantorBtn').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('cancelEmergencyContactBtn').addEventListener('click', () => hideModal(emergencyContactModal));
     
-    // Botão de renovar empréstimo por +30 dias
-    document.getElementById('renewLoanBtn').addEventListener('click', () => handleLoanRenewal());
+    // Botão de abrir modal de renovação
+    document.getElementById('openRenewalModalBtn').addEventListener('click', () => openRenewalOptionsModal());
+    
+    // Event listeners para o modal de opções de renovação
+    document.getElementById('closeRenewalOptionsModal').addEventListener('click', () => hideModal(renewalOptionsModal));
+    document.getElementById('cancelRenewalBtn').addEventListener('click', () => hideModal(renewalOptionsModal));
+    document.getElementById('renewalCapitalJuros').addEventListener('click', () => handleNewRenewalPayment('capital_juros'));
+    document.getElementById('renewalSomenteJuros').addEventListener('click', () => handleNewRenewalPayment('somente_juros'));
+    document.getElementById('renewalSomenteCapital').addEventListener('click', () => handleNewRenewalPayment('somente_capital'));
     
     // Capital Raising cancel buttons
     if (document.getElementById('cancelCapitalRaising')) {
@@ -552,7 +560,7 @@ function setupEventListeners() {
     // Formulários
     newClientForm.addEventListener('submit', handleNewClient);
     newLoanForm.addEventListener('submit', handleNewLoan);
-    paymentForm.addEventListener('submit', handlePayment);
+    // paymentForm.addEventListener('submit', handlePayment); // REMOVIDO: Agora usa apenas RENOVAR 30+
     document.getElementById('editClientForm').addEventListener('submit', handleEditClient);
     document.getElementById('editLoanForm').addEventListener('submit', handleEditLoan);
     newExpenseForm.addEventListener('submit', handleNewExpense);
@@ -631,8 +639,8 @@ function setupEventListeners() {
     document.getElementById('editLoanAmount').addEventListener('input', updateEditLoanSummary);
     document.getElementById('editLoanInterest').addEventListener('input', updateEditLoanSummary);
     
-    // Validação do valor de pagamento
-    document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
+    // Validação do valor de pagamento - REMOVIDO: Agora usa apenas RENOVAR 30+
+    // document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
     
 
 }
@@ -2209,6 +2217,8 @@ async function handleNewLoan(e) {
     }
 }
 
+// FUNÇÃO ANTIGA REMOVIDA: Substituída por handleNewRenewalPayment com opções
+/*
 async function handleLoanRenewal() {
     try {
         const loanId = document.getElementById('paymentForm').dataset.loanId;
@@ -2303,6 +2313,7 @@ async function handleLoanRenewal() {
         alert('Erro ao renovar empréstimo: ' + error.message);
     }
 }
+*/
 
 // Função auxiliar para converter valor monetário brasileiro para número
 function parseMonetaryValue(text) {
@@ -2325,6 +2336,158 @@ function formatDateToAdd30Days(dateStr) {
     return formatDate(date.toISOString().split('T')[0]);
 }
 
+// Função para abrir modal de opções de renovação
+async function openRenewalOptionsModal() {
+    try {
+        const loanId = document.getElementById('paymentForm').dataset.loanId;
+        const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+        
+        // Validar se há um valor de pagamento
+        if (!paymentAmount || paymentAmount <= 0) {
+            alert('Por favor, insira um valor de pagamento válido antes de renovar.');
+            return;
+        }
+        
+        // Obter o empréstimo atual
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            alert('Empréstimo não encontrado.');
+            return;
+        }
+        
+        // Preencher informações no modal
+        document.getElementById('renewalClientName').textContent = loan.clients?.name || 'Cliente não encontrado';
+        document.getElementById('renewalPaymentAmount').textContent = `R$ ${paymentAmount.toFixed(2)}`;
+        
+        // Calcular nova data de vencimento (atual + 30 dias)
+        const currentDueDate = new Date(loan.due_date);
+        const newDueDate = new Date(currentDueDate);
+        newDueDate.setDate(newDueDate.getDate() + 30);
+        document.getElementById('renewalNewDueDate').textContent = formatDate(newDueDate.toISOString().split('T')[0]);
+        
+        // Mostrar modal
+        showModal(renewalOptionsModal);
+    } catch (error) {
+        console.error('Erro ao abrir modal de renovação:', error);
+        alert('Erro ao abrir modal de renovação: ' + error.message);
+    }
+}
+
+// Função para lidar com renovação com pagamento
+async function handleNewRenewalPayment(paymentOption) {
+    try {
+        const loanId = document.getElementById('paymentForm').dataset.loanId;
+        const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+        const paymentDate = document.getElementById('paymentDate').value;
+        const paymentType = document.getElementById('paymentType').value;
+        const paymentNotes = document.getElementById('paymentNotes').value;
+        
+        // Obter o empréstimo atual
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            alert('Empréstimo não encontrado.');
+            return;
+        }
+        
+        // Obter valores do modal para cálculos
+        const capitalText = document.getElementById('paymentCapitalAmount').textContent;
+        const interestText = document.getElementById('paymentInterestAmount').textContent;
+        const capitalAmount = parseMonetaryValue(capitalText);
+        const interestAmount = parseMonetaryValue(interestText);
+        
+        // Determinar tipo de pagamento e notas baseado na opção selecionada
+        let finalPaymentType = '';
+        let paymentDescription = '';
+        
+        switch(paymentOption) {
+            case 'capital_juros':
+                finalPaymentType = 'capital_interest_renewal';
+                paymentDescription = 'RENOVAÇÃO +30 DIAS - Capital + Juros';
+                break;
+            case 'somente_juros':
+                finalPaymentType = 'interest_renewal';
+                paymentDescription = 'RENOVAÇÃO +30 DIAS - Somente Juros';
+                break;
+            case 'somente_capital':
+                finalPaymentType = 'capital_renewal';
+                paymentDescription = 'RENOVAÇÃO +30 DIAS - Somente Capital';
+                break;
+        }
+        
+        // Confirmar com o usuário
+        const confirmMsg = `Confirmar renovação do empréstimo por +30 dias?\n\nTipo: ${paymentDescription}\nValor do pagamento: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDateToAdd30Days(loan.due_date)}`;
+        if (!confirm(confirmMsg)) {
+            return;
+        }
+        
+        // Registrar o pagamento
+        const paymentMethodNote = `Método: ${paymentType}`;
+        const combinedNotes = paymentNotes 
+            ? `${paymentDescription} | ${paymentNotes} | ${paymentMethodNote}`
+            : `${paymentDescription} | ${paymentMethodNote}`;
+        
+        const { data: paymentData, error: paymentError } = await supabase
+            .from('payments')
+            .insert({
+                loan_id: loanId,
+                amount: paymentAmount,
+                payment_date: paymentDate,
+                payment_type: finalPaymentType,
+                notes: combinedNotes,
+                fine_amount: 0
+            })
+            .select();
+        
+        if (paymentError) throw paymentError;
+        
+        // Calcular nova data de vencimento (atual + 30 dias)
+        const currentDueDate = new Date(loan.due_date);
+        const newDueDate = new Date(currentDueDate);
+        newDueDate.setDate(newDueDate.getDate() + 30);
+        const newDueDateStr = newDueDate.toISOString().split('T')[0];
+        
+        // Atualizar o empréstimo com a nova data de vencimento
+        const { error: loanError } = await supabase
+            .from('loans')
+            .update({
+                due_date: newDueDateStr,
+                status: 'active'
+            })
+            .eq('id', loanId);
+        
+        if (loanError) throw loanError;
+        
+        // Registrar a renovação nos pagamentos
+        const renewalNote = `EMPRÉSTIMO RENOVADO: Data de vencimento estendida em +30 dias. Nova data: ${formatDate(newDueDateStr)}. ${paymentDescription}: R$ ${paymentAmount.toFixed(2)}`;
+        await supabase
+            .from('payments')
+            .insert({
+                loan_id: loanId,
+                amount: 0,
+                payment_date: paymentDate,
+                payment_type: 'loan_renewal',
+                notes: renewalNote,
+                fine_amount: 0
+            });
+        
+        // Fechar modais e atualizar interface
+        hideModal(renewalOptionsModal);
+        hideModal(paymentModal);
+        document.getElementById('paymentForm').reset();
+        await loadLoans();
+        
+        // Mostrar mensagem de sucesso
+        alert(`✅ Empréstimo renovado com sucesso!\n\n${paymentDescription}\nValor: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDate(newDueDateStr)}\n(+30 dias)`);
+        
+    } catch (error) {
+        console.error('Erro ao renovar empréstimo:', error);
+        alert('Erro ao renovar empréstimo: ' + error.message);
+    }
+}
+
+// FUNÇÃO REMOVIDA: Agora usa apenas RENOVAR 30+
+// Esta função foi substituída pela nova lógica de renovação com opções
+/*
 async function handlePayment(e) {
     e.preventDefault();
     
@@ -2667,6 +2830,7 @@ async function handlePayment(e) {
         alert('Erro ao registrar pagamento: ' + error.message);
     }
 }
+*/
 
 async function handleEditClient(e) {
     e.preventDefault();
@@ -2906,6 +3070,9 @@ function updateLoanSummary() {
     document.getElementById('summaryTotal').textContent = `R$ ${total.toFixed(2)}`;
 }
 
+// FUNÇÃO REMOVIDA: Agora usa apenas RENOVAR 30+
+// Esta função foi substituída pela nova lógica de renovação com opções
+/*
 function validatePaymentAmount() {
     const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
     const feedbackDiv = document.getElementById('paymentValidationFeedback');
@@ -2950,25 +3117,6 @@ function validatePaymentAmount() {
     let feedbackColor = '';
     
     feedbackDiv.classList.remove('hidden');
-    
-    // Verificar se o valor é exatamente igual aos juros para ativar botão de renovação
-    const renewBtn = document.getElementById('renewLoanBtn');
-    const renewHint = document.getElementById('renewLoanHint');
-    const isInterestOnlyPayment = Math.abs(paymentAmount - currentInterestAmount) <= 0.01;
-    
-    if (isInterestOnlyPayment && currentInterestAmount > 0) {
-        renewBtn.disabled = false;
-        renewHint.classList.remove('hidden');
-        renewHint.textContent = '✅ Botão de renovação ativado!';
-        renewHint.classList.remove('text-gray-400');
-        renewHint.classList.add('text-green-400');
-    } else {
-        renewBtn.disabled = true;
-        renewHint.classList.remove('hidden');
-        renewHint.textContent = 'Pague apenas os juros para ativar';
-        renewHint.classList.remove('text-green-400');
-        renewHint.classList.add('text-gray-400');
-    }
     
     if (paymentAmount < minimumAmount) {
         feedbackText = `⚠️ Valor abaixo do mínimo (R$ ${minimumAmount.toFixed(2)}). Pagamento não permitido.`;
@@ -3049,6 +3197,7 @@ function validatePaymentAmount() {
     feedbackDiv.textContent = feedbackText;
     feedbackDiv.className = `mt-2 text-sm ${feedbackColor}`;
 }
+*/
 
 async function showPaymentModal(loanId) {
     const loan = loans.find(l => l.id === loanId);
@@ -3077,12 +3226,6 @@ async function showPaymentModal(loanId) {
     const feedbackDiv = document.getElementById('paymentValidationFeedback');
     feedbackDiv.className = 'mt-2 text-sm hidden';
     document.getElementById('paymentAmount').classList.remove('border-red-500', 'border-yellow-500', 'border-blue-500', 'border-green-500', 'border-purple-500');
-    
-    // Resetar botão de renovação
-    const renewBtn = document.getElementById('renewLoanBtn');
-    const renewHint = document.getElementById('renewLoanHint');
-    renewBtn.disabled = true;
-    renewHint.classList.add('hidden');
     
     // Armazenar ID do empréstimo
     document.getElementById('paymentForm').dataset.loanId = loanId;
@@ -6256,7 +6399,10 @@ function getPaymentTypeText(type) {
         case 'principal': return 'Apenas Principal';
         case 'adjustment': return 'Ajuste/Recálculo';
         case 'renewal': return '🔄 Renovação';
-        case 'interest_renewal': return '🔄 Renovação (Juros)';
+        case 'interest_renewal': return '🔄 Renovação +30 Dias (Somente Juros)';
+        case 'capital_interest_renewal': return '💰 Renovação +30 Dias (Capital + Juros)';
+        case 'capital_renewal': return '🏦 Renovação +30 Dias (Somente Capital)';
+        case 'loan_renewal': return '📅 Renovação de Prazo';
         case 'capital_payment': return '💰 Pagamento Capital';
         case 'partial_interest': return '⚠️ Juros Parcial';
         case 'early_payment_partial_interest': return '⚡ Pagamento Antecipado (Juros Parcial)';

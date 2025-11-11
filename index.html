@@ -339,6 +339,36 @@
                 padding: 0.75rem !important;
             }
         }
+
+        /* Renewal Option Buttons Styles */
+        .renewal-option-btn {
+            cursor: pointer;
+            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
+        }
+
+        .renewal-option-btn:hover {
+            box-shadow: 0 8px 30px rgba(0, 0, 0, 0.5);
+        }
+
+        .renewal-option-btn:active {
+            transform: scale(0.98);
+        }
+
+        /* Animation for modal */
+        @keyframes modalFadeIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1);
+            }
+        }
+
+        #renewalOptionsModal .modal-content {
+            animation: modalFadeIn 0.3s ease-out;
+        }
     </style>
 </head>
 <body class="antialiased">
@@ -2397,24 +2427,112 @@
                     
                     <!-- Botões de Ação -->
                     <div class="border-t border-gray-600 pt-4 mt-6">
-                        <div class="flex justify-between items-center">
-                            <div>
-                                <button type="button" id="renewLoanBtn" class="px-6 py-3 bg-purple-600 text-white rounded-lg hover:bg-purple-700 transition-colors font-medium disabled:opacity-50 disabled:cursor-not-allowed disabled:hover:bg-purple-600" disabled>
-                                    🔄 Renovar por +30 dias
-                                </button>
-                                <p id="renewLoanHint" class="text-xs text-gray-400 mt-1 hidden">Pague apenas os juros para ativar</p>
-                            </div>
-                            <div class="flex space-x-3">
-                                <button type="button" id="cancelPaymentBtn" class="px-6 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-medium">
-                                    Cancelar
-                                </button>
-                                <button type="submit" class="btn-primary px-8 py-3 rounded-lg font-semibold text-white shadow-lg hover:shadow-xl transition-all">
-                                    💰 Registrar Pagamento
-                                </button>
-                            </div>
+                        <div class="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3">
+                            <button type="button" id="cancelPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-medium">
+                                Cancelar
+                            </button>
+                            <button type="button" id="openRenewalModalBtn" class="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-500 hover:to-pink-500 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center justify-center">
+                                <span class="text-lg mr-2">🔄</span>
+                                RENOVAR 30+
+                            </button>
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Renewal Options Modal -->
+    <div id="renewalOptionsModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-bold text-white flex items-center">
+                        <span class="text-3xl mr-3">🔄</span>
+                        RENOVAR 30+
+                    </h3>
+                    <button id="closeRenewalOptionsModal" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <p class="text-gray-300 text-sm mb-4">Escolha o tipo de pagamento para renovar o empréstimo por mais 30 dias:</p>
+                    
+                    <!-- Client Info -->
+                    <div class="bg-gray-800 p-4 rounded-lg mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-400 text-sm">Cliente:</span>
+                            <span class="text-white font-semibold" id="renewalClientName">-</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-400 text-sm">Valor do Pagamento:</span>
+                            <span class="text-green-400 font-bold text-lg" id="renewalPaymentAmount">R$ 0,00</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400 text-sm">Nova Data de Vencimento:</span>
+                            <span class="text-blue-400 font-semibold" id="renewalNewDueDate">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-3 mb-6">
+                    <!-- Capital + Juros -->
+                    <button type="button" id="renewalCapitalJuros" class="renewal-option-btn w-full p-4 rounded-xl border-2 border-blue-500 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white transition-all duration-300 transform hover:scale-105 hover:shadow-2xl">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <span class="text-2xl mr-3">💰</span>
+                                <div class="text-left">
+                                    <div class="font-bold text-lg">Capital + Juros</div>
+                                    <div class="text-xs text-blue-100 opacity-90">Pagamento completo (principal + juros)</div>
+                                </div>
+                            </div>
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </button>
+                    
+                    <!-- Somente Juros -->
+                    <button type="button" id="renewalSomenteJuros" class="renewal-option-btn w-full p-4 rounded-xl border-2 border-purple-500 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white transition-all duration-300 transform hover:scale-105 hover:shadow-2xl">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <span class="text-2xl mr-3">📊</span>
+                                <div class="text-left">
+                                    <div class="font-bold text-lg">Somente Juros</div>
+                                    <div class="text-xs text-purple-100 opacity-90">Pagamento apenas dos juros</div>
+                                </div>
+                            </div>
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </button>
+                    
+                    <!-- Somente Capital -->
+                    <button type="button" id="renewalSomenteCapital" class="renewal-option-btn w-full p-4 rounded-xl border-2 border-green-500 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white transition-all duration-300 transform hover:scale-105 hover:shadow-2xl">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <span class="text-2xl mr-3">🏦</span>
+                                <div class="text-left">
+                                    <div class="font-bold text-lg">Somente Capital</div>
+                                    <div class="text-xs text-green-100 opacity-90">Pagamento apenas do principal</div>
+                                </div>
+                            </div>
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </button>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button type="button" id="cancelRenewalBtn" class="px-6 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-medium">
+                        Cancelar
+                    </button>
+                </div>
             </div>
         </div>
     </div>
