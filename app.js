@@ -2645,22 +2645,10 @@ async function handlePayment(e) {
             // atualizar status para 'active' e estender data de vencimento para 30 dias
             const currentLoanStatus = getLoanStatus(loan.due_date, loan.status);
             if (currentLoanStatus === 'overdue') {
-                // Para empréstimos vencidos, verificar se o pagamento quita completamente o empréstimo
-                const originalAmount = parseFloat(loan.amount);
-                const interestAmount = originalAmount * (parseFloat(loan.interest_rate) / 100);
-                const totalWithInterest = originalAmount + interestAmount;
+                // Calcular valor restante considerando o pagamento que acabou de ser feito
+                const remainingAmountAfterPayment = await calculateLoanRemainingAmount(loanId);
                 
-                // Calcular total já pago (incluindo este pagamento)
-                const { data: allPayments, error: paymentsError } = await supabase
-                    .from('payments')
-                    .select('amount')
-                    .eq('loan_id', loanId);
-                
-                if (paymentsError) throw paymentsError;
-                
-                const totalPaid = (allPayments || []).reduce((sum, p) => sum + parseFloat(p.amount), 0) + paymentAmount;
-                
-                if (totalPaid >= totalWithInterest) {
+                if (remainingAmountAfterPayment <= 0) {
                     // Empréstimo quitado completamente
                     updateData.status = 'paid';
                 } else {
@@ -2683,7 +2671,7 @@ async function handlePayment(e) {
                     }
                     
                     // Registrar nota sobre a reativação do empréstimo
-                    const reactivationNote = `EMPRÉSTIMO REATIVADO: Status alterado de 'vencido' para 'ativo'. Nova data de vencimento: ${updateData.due_date} ${changeDueDate && newDueDate ? '(definida manualmente)' : `(30 dias a partir do pagamento de ${paymentDate})`}. Valor restante: R$ ${(totalWithInterest - totalPaid).toFixed(2)}`;
+                    const reactivationNote = `EMPRÉSTIMO REATIVADO: Status alterado de 'vencido' para 'ativo'. Nova data de vencimento: ${updateData.due_date} ${changeDueDate && newDueDate ? '(definida manualmente)' : `(30 dias a partir do pagamento de ${paymentDate})`}. Valor restante: R$ ${remainingAmountAfterPayment.toFixed(2)}`;
                     
                     const { error: reactivationNoteError } = await supabase
                         .from('payments')
@@ -6367,25 +6355,51 @@ function updatePaymentHistorySummary(loanId, payments) {
     if (!loan) return;
     
     const originalAmount = parseFloat(loan.original_amount || loan.amount);
-    const originalInterest = originalAmount * (parseFloat(loan.interest_rate) / 100);
+    const interestRate = parseFloat(loan.interest_rate);
+    const originalInterest = originalAmount * (interestRate / 100);
     const originalTotal = originalAmount + originalInterest;
     const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
     
-    // Calcular valor restante baseado no valor original
+    // Calcular valor restante considerando tipos de pagamento
     let remainingAmount;
-    if (totalPaid >= originalTotal) {
-        remainingAmount = 0;
-    } else {
-        // Calcular quanto foi pago de capital
-        const capitalPaid = Math.max(0, totalPaid - originalInterest);
-        const remainingCapital = Math.max(0, originalAmount - capitalPaid);
-        const remainingInterest = remainingCapital * (parseFloat(loan.interest_rate) / 100);
-        remainingAmount = remainingCapital + remainingInterest;
+    
+    // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
+    const interestOnlyTypes = ['renewal', 'interest_renewal', 'early_payment_partial_interest', 
+                              'early_payment_interest_renewal', 'partial_interest'];
+    
+    // Calcular capital pago acumulado
+    let capitalPaid = 0;
+    let currentCapital = originalAmount;
+    
+    // Processar cada pagamento em ordem
+    for (const payment of payments) {
+        const paymentAmount = parseFloat(payment.amount);
+        const paymentType = payment.payment_type;
+        
+        // Se for pagamento apenas de juros, não reduz capital
+        if (interestOnlyTypes.includes(paymentType)) {
+            continue;
+        }
+        
+        // Para outros tipos de pagamento, calcular quanto foi de capital
+        const currentInterest = currentCapital * (interestRate / 100);
+        
+        if (paymentAmount > currentInterest) {
+            // Pagou mais que os juros, a diferença reduziu o capital
+            const capitalReduction = paymentAmount - currentInterest;
+            capitalPaid += capitalReduction;
+            currentCapital = Math.max(0, currentCapital - capitalReduction);
+        }
     }
+    
+    // Calcular capital e juros restantes
+    const remainingCapital = Math.max(0, originalAmount - capitalPaid);
+    const remainingInterest = remainingCapital * (interestRate / 100);
+    remainingAmount = remainingCapital + remainingInterest;
     
     document.getElementById('paymentHistoryTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
     document.getElementById('paymentHistoryRemainingAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
-    document.getElementById('paymentHistoryTotalWithInterest').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
+    document.getElementById('paymentHistoryTotalWithInterest').textContent = `R$ ${originalTotal.toFixed(2)}`;
 }
 
 function getPaymentTypeText(type) {
@@ -6703,8 +6717,6 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
             let remaining;
             if (totalPaid === 0) {
                 remaining = originalTotal;
-            } else if (totalPaid >= originalTotal) {
-                remaining = 0;
             } else {
                 // Calcular quanto foi pago de capital
                 // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
@@ -6805,9 +6817,6 @@ async function calculateLoanRemainingAmount(loanId) {
         if (totalPaid === 0) {
             // Nenhum pagamento feito
             remainingAmount = originalTotal;
-        } else if (totalPaid >= originalTotal) {
-            // Empréstimo quitado
-            remainingAmount = 0;
         } else {
             // Calcular quanto foi pago de capital
             // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
