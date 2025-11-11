@@ -3223,10 +3223,37 @@
                                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path>
                             </svg>
                         </div>
-                        <div>
+                        <div class="flex-1">
                             <h4 class="text-lg font-semibold text-green-300">Obrigado pelo seu pagamento!</h4>
                             <p class="text-green-200 text-sm">Sua próxima data de pagamento é:</p>
                             <p class="text-white text-xl font-bold" id="nextPaymentDate">--/--/----</p>
+                        </div>
+                    </div>
+                    
+                    <!-- Detalhes do Pagamento -->
+                    <div class="border-t border-green-600 pt-4 mt-4">
+                        <h5 class="text-sm font-semibold text-green-300 mb-3">📋 Detalhes do Pagamento:</h5>
+                        <div class="space-y-2">
+                            <div class="flex justify-between">
+                                <span class="text-green-200 text-sm">Valor pago:</span>
+                                <span class="text-white font-semibold" id="paymentDetailAmount">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between">
+                                <span class="text-green-200 text-sm">Tipo de pagamento:</span>
+                                <span class="text-white font-semibold" id="paymentDetailType">-</span>
+                            </div>
+                            <div class="flex justify-between" id="paymentDetailCapitalRow">
+                                <span class="text-green-200 text-sm">Valor pago em capital:</span>
+                                <span class="text-white font-semibold" id="paymentDetailCapital">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between" id="paymentDetailInterestRow">
+                                <span class="text-green-200 text-sm">Valor pago em juros:</span>
+                                <span class="text-white font-semibold" id="paymentDetailInterest">R$ 0,00</span>
+                            </div>
+                            <div class="flex justify-between border-t border-green-700 pt-2 mt-2">
+                                <span class="text-green-200 text-sm font-semibold">Novo valor do empréstimo:</span>
+                                <span class="text-white font-bold text-lg" id="paymentDetailNewAmount">R$ 0,00</span>
+                            </div>
                         </div>
                     </div>
                 </div>
