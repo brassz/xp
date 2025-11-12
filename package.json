@@ -1,0 +1,18 @@
+{
+  "name": "nexus-gestao-financeira",
+  "version": "1.0.0",
+  "description": "Sistema de Gestão Financeira Nexus com integração WhatsApp",
+  "main": "whatsapp-server.js",
+  "scripts": {
+    "start-whatsapp": "node whatsapp-server.js"
+  },
+  "dependencies": {
+    "whatsapp-web.js": "^1.23.0",
+    "qrcode": "^1.5.3",
+    "express": "^4.18.2",
+    "cors": "^2.8.5",
+    "socket.io": "^4.6.1"
+  },
+  "author": "",
+  "license": "ISC"
+}
