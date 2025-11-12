@@ -4,15 +4,22 @@
   "description": "Sistema de Gestão Financeira Nexus com integração WhatsApp",
   "main": "whatsapp-server.js",
   "scripts": {
+    "start": "node start-all.js",
     "start-whatsapp": "node whatsapp-server.js",
+    "start-whatsapp-bg": "node start-whatsapp-background.js",
+    "stop-whatsapp": "node stop-whatsapp.js",
+    "restart-whatsapp": "npm run stop-whatsapp && npm run start-whatsapp-bg",
+    "status-whatsapp": "node status-whatsapp.js",
+    "logs-whatsapp": "tail -f whatsapp-server.log",
     "test-whatsapp": "node test-whatsapp-server.js"
   },
   "dependencies": {
-    "whatsapp-web.js": "^1.23.0",
-    "qrcode": "^1.5.3",
-    "express": "^4.18.2",
     "cors": "^2.8.5",
-    "socket.io": "^4.6.1"
+    "express": "^4.18.2",
+    "node-fetch": "^2.6.9",
+    "qrcode": "^1.5.3",
+    "socket.io": "^4.6.1",
+    "whatsapp-web.js": "^1.23.0"
   },
   "author": "",
   "license": "ISC"

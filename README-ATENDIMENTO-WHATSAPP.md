@@ -23,19 +23,33 @@ Isso instalará:
 
 ### 2. Iniciar o Servidor WhatsApp
 
-Em um terminal separado, execute:
+**Opção A - Início Automático em Background (RECOMENDADO):**
+
+```bash
+npm run start-whatsapp-bg
+```
+
+O servidor iniciará em background e continuará rodando. Você pode fechar o terminal!
+
+**Opção B - Início Normal (Terminal fica aberto):**
 
 ```bash
 npm run start-whatsapp
 ```
 
-Ou:
+**Opção C - Iniciar tudo junto:**
 
 ```bash
-node whatsapp-server.js
+npm start
 ```
 
-O servidor iniciará na porta 3001.
+📝 **Comandos úteis:**
+- `npm run status-whatsapp` - Ver status
+- `npm run logs-whatsapp` - Ver logs em tempo real
+- `npm run stop-whatsapp` - Parar servidor
+- `npm run restart-whatsapp` - Reiniciar
+
+O servidor rodará na porta 3001.
 
 ### 3. Acessar o Sistema
 
