@@ -15046,3 +15046,604 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
         }
     });
 }
+
+// ===================================
+// WHATSAPP INTEGRATION
+// ===================================
+
+const WHATSAPP_SERVER_URL = 'http://localhost:3001';
+let whatsappSocket = null;
+let currentChatId = null;
+let isWhatsAppConnected = false;
+
+// Inicializar WhatsApp quando a aba for carregada
+function initializeWhatsApp() {
+    console.log('🚀 Inicializando WhatsApp Integration...');
+    
+    // Verificar status do servidor
+    checkServerStatus();
+    
+    // Conectar ao Socket.IO
+    connectWhatsAppSocket();
+    
+    // Event listeners
+    const connectBtn = document.getElementById('connectWhatsAppBtn');
+    const disconnectBtn = document.getElementById('disconnectBtn');
+    const sendMessageBtn = document.getElementById('sendMessageBtn');
+    const messageInput = document.getElementById('messageInput');
+    const searchChatsInput = document.getElementById('searchChats');
+    
+    console.log('🔍 Buscando elementos:', {
+        connectBtn: !!connectBtn,
+        disconnectBtn: !!disconnectBtn,
+        sendMessageBtn: !!sendMessageBtn,
+        messageInput: !!messageInput,
+        searchChatsInput: !!searchChatsInput
+    });
+    
+    if (connectBtn) {
+        console.log('✅ Botão Conectar encontrado, adicionando event listener');
+        connectBtn.addEventListener('click', (e) => {
+            console.log('🖱️ Botão Conectar clicado!');
+            e.preventDefault();
+            handleConnectWhatsApp();
+        });
+    } else {
+        console.error('❌ Botão Conectar NÃO encontrado!');
+    }
+    
+    if (disconnectBtn) {
+        disconnectBtn.addEventListener('click', handleDisconnectWhatsApp);
+    }
+    
+    if (sendMessageBtn) {
+        sendMessageBtn.addEventListener('click', sendMessage);
+    }
+    
+    if (messageInput) {
+        messageInput.addEventListener('keypress', (e) => {
+            if (e.key === 'Enter') {
+                sendMessage();
+            }
+        });
+    }
+    
+    if (searchChatsInput) {
+        searchChatsInput.addEventListener('input', filterChats);
+    }
+    
+    console.log('✅ Inicialização do WhatsApp concluída');
+}
+
+// Verificar status do servidor WhatsApp
+async function checkServerStatus() {
+    try {
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/status`);
+        const data = await response.json();
+        
+        updateServerStatus(true);
+        
+        if (data.ready) {
+            updateWhatsAppStatus('connected');
+            loadChats();
+        } else if (data.hasQR && data.qrCode) {
+            displayQRCode(data.qrCode);
+            updateWhatsAppStatus('qr');
+        } else if (data.hasQR) {
+            updateWhatsAppStatus('qr');
+        }
+    } catch (error) {
+        console.error('Erro ao verificar status do servidor:', error);
+        updateServerStatus(false);
+    }
+}
+
+// Conectar ao Socket.IO
+function connectWhatsAppSocket() {
+    if (whatsappSocket) {
+        return;
+    }
+    
+    try {
+        whatsappSocket = io(WHATSAPP_SERVER_URL);
+        
+        whatsappSocket.on('connect', () => {
+            console.log('Conectado ao servidor WhatsApp via Socket.IO');
+            updateServerStatus(true);
+        });
+        
+        whatsappSocket.on('disconnect', () => {
+            console.log('Desconectado do servidor WhatsApp');
+            updateServerStatus(false);
+        });
+        
+        whatsappSocket.on('qr', (data) => {
+            console.log('QR Code recebido');
+            displayQRCode(data.qr);
+            updateWhatsAppStatus('qr');
+        });
+        
+        whatsappSocket.on('ready', () => {
+            console.log('WhatsApp pronto!');
+            updateWhatsAppStatus('connected');
+            loadChats();
+        });
+        
+        whatsappSocket.on('authenticated', () => {
+            console.log('WhatsApp autenticado');
+        });
+        
+        whatsappSocket.on('auth_failure', (data) => {
+            console.error('Falha na autenticação:', data.error);
+            alert('Falha ao autenticar WhatsApp. Tente novamente.');
+            updateWhatsAppStatus('disconnected');
+        });
+        
+        whatsappSocket.on('disconnected', (data) => {
+            console.log('WhatsApp desconectado:', data.reason);
+            updateWhatsAppStatus('disconnected');
+            isWhatsAppConnected = false;
+        });
+        
+        whatsappSocket.on('message', (message) => {
+            console.log('Nova mensagem recebida:', message);
+            handleIncomingMessage(message);
+        });
+        
+    } catch (error) {
+        console.error('Erro ao conectar Socket.IO:', error);
+    }
+}
+
+// Atualizar status do servidor
+function updateServerStatus(online) {
+    const indicator = document.getElementById('serverIndicator');
+    const status = document.getElementById('serverStatus');
+    
+    if (indicator && status) {
+        if (online) {
+            indicator.className = 'w-2 h-2 rounded-full bg-green-500';
+            status.textContent = 'Online';
+            status.className = 'text-xs text-green-400';
+        } else {
+            indicator.className = 'w-2 h-2 rounded-full bg-red-500';
+            status.textContent = 'Offline';
+            status.className = 'text-xs text-red-400';
+        }
+    }
+}
+
+// Atualizar status do WhatsApp
+function updateWhatsAppStatus(status) {
+    const indicator = document.getElementById('statusIndicator');
+    const statusText = document.getElementById('statusText');
+    const qrContainer = document.getElementById('qrCodeContainer');
+    const connectedInfo = document.getElementById('connectedInfo');
+    const connectContainer = document.getElementById('connectContainer');
+    
+    if (status === 'connected') {
+        isWhatsAppConnected = true;
+        if (indicator) indicator.className = 'w-3 h-3 rounded-full bg-green-500';
+        if (statusText) statusText.textContent = 'Conectado';
+        if (qrContainer) qrContainer.classList.add('hidden');
+        if (connectedInfo) connectedInfo.classList.remove('hidden');
+        if (connectContainer) connectContainer.classList.add('hidden');
+    } else if (status === 'qr') {
+        isWhatsAppConnected = false;
+        if (indicator) indicator.className = 'w-3 h-3 rounded-full bg-yellow-500';
+        if (statusText) statusText.textContent = 'Aguardando QR Code';
+        if (qrContainer) qrContainer.classList.remove('hidden');
+        if (connectedInfo) connectedInfo.classList.add('hidden');
+        if (connectContainer) connectContainer.classList.add('hidden');
+    } else {
+        isWhatsAppConnected = false;
+        if (indicator) indicator.className = 'w-3 h-3 rounded-full bg-gray-500';
+        if (statusText) statusText.textContent = 'Desconectado';
+        if (qrContainer) qrContainer.classList.add('hidden');
+        if (connectedInfo) connectedInfo.classList.add('hidden');
+        if (connectContainer) connectContainer.classList.remove('hidden');
+    }
+}
+
+// Exibir QR Code
+function displayQRCode(qrDataUrl) {
+    const qrImage = document.getElementById('qrCodeImage');
+    if (qrImage) {
+        qrImage.src = qrDataUrl;
+    }
+}
+
+// Conectar WhatsApp
+async function handleConnectWhatsApp() {
+    console.log('🔌 handleConnectWhatsApp chamada!');
+    
+    try {
+        // Mostrar status de carregamento
+        const connectBtn = document.getElementById('connectWhatsAppBtn');
+        console.log('🔍 Botão encontrado:', !!connectBtn);
+        
+        if (connectBtn) {
+            connectBtn.textContent = 'Conectando...';
+            connectBtn.disabled = true;
+            console.log('⏳ Botão atualizado para "Conectando..."');
+        }
+        
+        // Verificar se o servidor está rodando
+        console.log(`📡 Fazendo requisição para: ${WHATSAPP_SERVER_URL}/status`);
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/status`);
+        
+        console.log('📥 Resposta recebida:', response.status, response.ok);
+        
+        if (!response.ok) {
+            throw new Error('Servidor não está respondendo');
+        }
+        
+        const data = await response.json();
+        console.log('📊 Dados recebidos:', data);
+        
+        if (data.ready) {
+            // Já está conectado
+            console.log('✅ WhatsApp já está conectado');
+            updateWhatsAppStatus('connected');
+            loadChats();
+        } else if (data.hasQR && data.qrCode) {
+            // Tem QR disponível, mostrar
+            console.log('📱 QR Code disponível, exibindo...');
+            displayQRCode(data.qrCode);
+            updateWhatsAppStatus('qr');
+        } else {
+            // Aguardando QR ser gerado
+            console.log('⏳ Aguardando QR Code ser gerado...');
+            updateWhatsAppStatus('qr');
+            // Verificar novamente após 2 segundos
+            setTimeout(() => {
+                console.log('🔄 Verificando status novamente...');
+                checkServerStatus();
+            }, 2000);
+        }
+        
+        // Resetar botão
+        if (connectBtn) {
+            connectBtn.textContent = 'Conectar WhatsApp';
+            connectBtn.disabled = false;
+            console.log('✅ Botão resetado');
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao conectar WhatsApp:', error);
+        console.error('Stack trace:', error.stack);
+        alert('Erro ao conectar WhatsApp. Verifique se o servidor está rodando na porta 3001.\n\nComando: npm run start-whatsapp\n\nErro: ' + error.message);
+        
+        // Resetar botão
+        const connectBtn = document.getElementById('connectWhatsAppBtn');
+        if (connectBtn) {
+            connectBtn.textContent = 'Conectar WhatsApp';
+            connectBtn.disabled = false;
+        }
+        
+        updateWhatsAppStatus('disconnected');
+    }
+}
+
+// Desconectar WhatsApp
+async function handleDisconnectWhatsApp() {
+    try {
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/logout`, {
+            method: 'POST'
+        });
+        
+        if (response.ok) {
+            updateWhatsAppStatus('disconnected');
+            clearChatsList();
+            clearMessagesArea();
+        }
+    } catch (error) {
+        console.error('Erro ao desconectar WhatsApp:', error);
+        alert('Erro ao desconectar WhatsApp.');
+    }
+}
+
+// Carregar conversas
+async function loadChats() {
+    try {
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/chats`);
+        const data = await response.json();
+        
+        if (data.chats) {
+            displayChats(data.chats);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar conversas:', error);
+    }
+}
+
+// Exibir conversas
+function displayChats(chats) {
+    const chatsList = document.getElementById('chatsList');
+    
+    if (!chatsList) return;
+    
+    if (chats.length === 0) {
+        chatsList.innerHTML = `
+            <div class="p-8 text-center text-gray-500 text-sm">
+                <p>Nenhuma conversa encontrada</p>
+            </div>
+        `;
+        return;
+    }
+    
+    chatsList.innerHTML = chats.map(chat => {
+        const lastMessageText = chat.lastMessage ? chat.lastMessage.body : 'Sem mensagens';
+        const lastMessageTime = chat.lastMessage ? formatTimestamp(chat.lastMessage.timestamp) : '';
+        const unreadBadge = chat.unreadCount > 0 ? 
+            `<span class="bg-green-500 text-white text-xs rounded-full px-2 py-1">${chat.unreadCount}</span>` : '';
+        
+        return `
+            <div class="chat-item p-4 hover:bg-gray-700 cursor-pointer transition-colors" 
+                 data-chat-id="${chat.id}" 
+                 onclick="selectChat('${chat.id}', '${chat.name.replace(/'/g, "\\'")}')">
+                <div class="flex items-center space-x-3">
+                    <div class="w-12 h-12 bg-gradient-to-br from-green-500 to-green-600 rounded-full flex items-center justify-center flex-shrink-0">
+                        <span class="text-white font-semibold">${chat.name.charAt(0).toUpperCase()}</span>
+                    </div>
+                    <div class="flex-1 min-w-0">
+                        <div class="flex items-center justify-between mb-1">
+                            <h4 class="text-white font-semibold truncate">${chat.name}</h4>
+                            ${unreadBadge}
+                        </div>
+                        <p class="text-xs text-gray-400 truncate">${lastMessageText}</p>
+                        <p class="text-xs text-gray-500 mt-1">${lastMessageTime}</p>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+}
+
+// Selecionar conversa
+async function selectChat(chatId, chatName) {
+    currentChatId = chatId;
+    
+    // Atualizar header do chat
+    const chatHeader = document.getElementById('chatHeader');
+    const chatNameElement = document.getElementById('chatName');
+    const chatInitial = document.getElementById('chatInitial');
+    const chatPhone = document.getElementById('chatPhone');
+    const messageInputContainer = document.getElementById('messageInputContainer');
+    
+    if (chatHeader) chatHeader.classList.remove('hidden');
+    if (chatNameElement) chatNameElement.textContent = chatName;
+    if (chatInitial) chatInitial.textContent = chatName.charAt(0).toUpperCase();
+    if (chatPhone) chatPhone.textContent = chatId;
+    if (messageInputContainer) messageInputContainer.classList.remove('hidden');
+    
+    // Carregar mensagens
+    await loadMessages(chatId);
+    
+    // Destacar conversa selecionada
+    document.querySelectorAll('.chat-item').forEach(item => {
+        item.classList.remove('bg-gray-700');
+    });
+    document.querySelector(`[data-chat-id="${chatId}"]`)?.classList.add('bg-gray-700');
+}
+
+// Carregar mensagens
+async function loadMessages(chatId) {
+    try {
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/messages/${encodeURIComponent(chatId)}`);
+        const data = await response.json();
+        
+        if (data.messages) {
+            displayMessages(data.messages);
+        }
+    } catch (error) {
+        console.error('Erro ao carregar mensagens:', error);
+    }
+}
+
+// Exibir mensagens
+function displayMessages(messages) {
+    const messagesArea = document.getElementById('messagesArea');
+    
+    if (!messagesArea) return;
+    
+    if (messages.length === 0) {
+        messagesArea.innerHTML = `
+            <div class="h-full flex items-center justify-center text-gray-500 text-sm">
+                <p>Nenhuma mensagem</p>
+            </div>
+        `;
+        return;
+    }
+    
+    messagesArea.innerHTML = messages.map(msg => {
+        const isFromMe = msg.fromMe;
+        const alignment = isFromMe ? 'justify-end' : 'justify-start';
+        const bgColor = isFromMe ? 'bg-blue-600' : 'bg-gray-700';
+        const time = formatTimestamp(msg.timestamp);
+        
+        return `
+            <div class="flex ${alignment} mb-4">
+                <div class="${bgColor} rounded-lg px-4 py-2 max-w-[70%]">
+                    <p class="text-white text-sm">${escapeHtml(msg.body)}</p>
+                    <p class="text-xs text-gray-300 mt-1">${time}</p>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    // Scroll para o final
+    messagesArea.scrollTop = messagesArea.scrollHeight;
+}
+
+// Enviar mensagem
+async function sendMessage() {
+    if (!currentChatId) {
+        alert('Selecione uma conversa primeiro');
+        return;
+    }
+    
+    const messageInput = document.getElementById('messageInput');
+    const message = messageInput.value.trim();
+    
+    if (!message) return;
+    
+    try {
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/send-message`, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+                chatId: currentChatId,
+                message: message
+            })
+        });
+        
+        if (response.ok) {
+            messageInput.value = '';
+            
+            // Adicionar mensagem à área de chat
+            const messagesArea = document.getElementById('messagesArea');
+            const time = new Date().toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+            
+            const messageHtml = `
+                <div class="flex justify-end mb-4">
+                    <div class="bg-blue-600 rounded-lg px-4 py-2 max-w-[70%]">
+                        <p class="text-white text-sm">${escapeHtml(message)}</p>
+                        <p class="text-xs text-gray-300 mt-1">${time}</p>
+                    </div>
+                </div>
+            `;
+            
+            messagesArea.insertAdjacentHTML('beforeend', messageHtml);
+            messagesArea.scrollTop = messagesArea.scrollHeight;
+        }
+    } catch (error) {
+        console.error('Erro ao enviar mensagem:', error);
+        alert('Erro ao enviar mensagem');
+    }
+}
+
+// Tratar mensagem recebida
+function handleIncomingMessage(message) {
+    // Se a mensagem é do chat atual, adicionar à área de mensagens
+    if (currentChatId === message.from) {
+        const messagesArea = document.getElementById('messagesArea');
+        const time = formatTimestamp(message.timestamp);
+        
+        const messageHtml = `
+            <div class="flex justify-start mb-4">
+                <div class="bg-gray-700 rounded-lg px-4 py-2 max-w-[70%]">
+                    <p class="text-white text-sm">${escapeHtml(message.body)}</p>
+                    <p class="text-xs text-gray-300 mt-1">${time}</p>
+                </div>
+            </div>
+        `;
+        
+        messagesArea.insertAdjacentHTML('beforeend', messageHtml);
+        messagesArea.scrollTop = messagesArea.scrollHeight;
+    }
+    
+    // Recarregar lista de conversas para atualizar preview
+    loadChats();
+}
+
+// Filtrar conversas
+function filterChats() {
+    const searchInput = document.getElementById('searchChats');
+    const searchTerm = searchInput.value.toLowerCase();
+    const chatItems = document.querySelectorAll('.chat-item');
+    
+    chatItems.forEach(item => {
+        const chatName = item.querySelector('h4').textContent.toLowerCase();
+        if (chatName.includes(searchTerm)) {
+            item.style.display = 'block';
+        } else {
+            item.style.display = 'none';
+        }
+    });
+}
+
+// Limpar lista de conversas
+function clearChatsList() {
+    const chatsList = document.getElementById('chatsList');
+    if (chatsList) {
+        chatsList.innerHTML = `
+            <div class="p-8 text-center text-gray-500 text-sm">
+                <p>Conecte o WhatsApp para ver suas conversas</p>
+            </div>
+        `;
+    }
+}
+
+// Limpar área de mensagens
+function clearMessagesArea() {
+    const messagesArea = document.getElementById('messagesArea');
+    const chatHeader = document.getElementById('chatHeader');
+    const messageInputContainer = document.getElementById('messageInputContainer');
+    
+    if (messagesArea) {
+        messagesArea.innerHTML = `
+            <div class="h-full flex items-center justify-center text-gray-500 text-sm">
+                <div class="text-center">
+                    <p>Selecione uma conversa para começar</p>
+                </div>
+            </div>
+        `;
+    }
+    
+    if (chatHeader) chatHeader.classList.add('hidden');
+    if (messageInputContainer) messageInputContainer.classList.add('hidden');
+    
+    currentChatId = null;
+}
+
+// Formatar timestamp
+function formatTimestamp(timestamp) {
+    const date = new Date(timestamp * 1000);
+    const now = new Date();
+    const isToday = date.toDateString() === now.toDateString();
+    
+    if (isToday) {
+        return date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
+    } else {
+        return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit' });
+    }
+}
+
+// Escapar HTML
+function escapeHtml(text) {
+    const div = document.createElement('div');
+    div.textContent = text;
+    return div.innerHTML;
+}
+
+// Adicionar ao evento de mudança de aba
+const originalShowSection = window.showSection || function() {};
+window.showSection = function(sectionId) {
+    console.log('📂 Mudando para aba:', sectionId);
+    
+    if (typeof originalShowSection === 'function') {
+        originalShowSection(sectionId);
+    }
+    
+    // Se for a aba de atendimento, inicializar WhatsApp
+    if (sectionId === 'atendimento') {
+        console.log('📱 Aba de Atendimento aberta');
+        if (!whatsappSocket) {
+            console.log('🆕 Primeira vez na aba, inicializando...');
+            initializeWhatsApp();
+        } else {
+            console.log('✅ WhatsApp já inicializado');
+        }
+    }
+};
+
+// Debug: Log quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🌐 DOM Carregado');
+    console.log('🔍 Verificando elementos da aba Atendimento:');
+    console.log('  - connectWhatsAppBtn:', !!document.getElementById('connectWhatsAppBtn'));
+    console.log('  - atendimento section:', !!document.getElementById('atendimento'));
+});
