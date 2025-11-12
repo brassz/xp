@@ -15107,6 +15107,9 @@ async function checkServerStatus() {
         if (data.ready) {
             updateWhatsAppStatus('connected');
             loadChats();
+        } else if (data.hasQR && data.qrCode) {
+            displayQRCode(data.qrCode);
+            updateWhatsAppStatus('qr');
         } else if (data.hasQR) {
             updateWhatsAppStatus('qr');
         }
@@ -15234,11 +15237,55 @@ function displayQRCode(qrDataUrl) {
 // Conectar WhatsApp
 async function handleConnectWhatsApp() {
     try {
-        updateWhatsAppStatus('qr');
-        checkServerStatus();
+        // Mostrar status de carregamento
+        const connectBtn = document.getElementById('connectWhatsAppBtn');
+        if (connectBtn) {
+            connectBtn.textContent = 'Conectando...';
+            connectBtn.disabled = true;
+        }
+        
+        // Verificar se o servidor está rodando
+        const response = await fetch(`${WHATSAPP_SERVER_URL}/status`);
+        
+        if (!response.ok) {
+            throw new Error('Servidor não está respondendo');
+        }
+        
+        const data = await response.json();
+        
+        if (data.ready) {
+            // Já está conectado
+            updateWhatsAppStatus('connected');
+            loadChats();
+        } else if (data.hasQR && data.qrCode) {
+            // Tem QR disponível, mostrar
+            displayQRCode(data.qrCode);
+            updateWhatsAppStatus('qr');
+        } else {
+            // Aguardando QR ser gerado
+            updateWhatsAppStatus('qr');
+            // Verificar novamente após 2 segundos
+            setTimeout(() => checkServerStatus(), 2000);
+        }
+        
+        // Resetar botão
+        if (connectBtn) {
+            connectBtn.textContent = 'Conectar WhatsApp';
+            connectBtn.disabled = false;
+        }
+        
     } catch (error) {
         console.error('Erro ao conectar WhatsApp:', error);
-        alert('Erro ao conectar WhatsApp. Verifique se o servidor está rodando.');
+        alert('Erro ao conectar WhatsApp. Verifique se o servidor está rodando na porta 3001.\n\nComando: npm run start-whatsapp');
+        
+        // Resetar botão
+        const connectBtn = document.getElementById('connectWhatsAppBtn');
+        if (connectBtn) {
+            connectBtn.textContent = 'Conectar WhatsApp';
+            connectBtn.disabled = false;
+        }
+        
+        updateWhatsAppStatus('disconnected');
     }
 }
 

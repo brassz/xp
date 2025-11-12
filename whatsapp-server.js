@@ -20,6 +20,7 @@ app.use(express.json());
 let whatsappClient = null;
 let isReady = false;
 let qrCodeData = null;
+let qrCodeImage = null;
 
 // Inicializa o cliente WhatsApp
 const initializeWhatsApp = () => {
@@ -44,47 +45,55 @@ const initializeWhatsApp = () => {
 
     // QR Code gerado
     whatsappClient.on('qr', async (qr) => {
-        console.log('QR Code recebido');
+        console.log('\n📱 QR Code gerado!');
+        console.log('   ✅ QR Code está disponível para escaneamento');
+        console.log('   ℹ️  Abra a aba Atendimento e clique em "Conectar WhatsApp"\n');
         qrCodeData = qr;
         try {
-            const qrImage = await QRCode.toDataURL(qr);
-            io.emit('qr', { qr: qrImage });
+            qrCodeImage = await QRCode.toDataURL(qr);
+            console.log('   ✅ QR Code convertido para imagem Base64');
+            io.emit('qr', { qr: qrCodeImage });
         } catch (err) {
-            console.error('Erro ao gerar QR Code:', err);
+            console.error('❌ Erro ao gerar QR Code:', err);
         }
     });
 
     // Cliente pronto
     whatsappClient.on('ready', () => {
-        console.log('WhatsApp conectado com sucesso!');
+        console.log('\n🎉 WhatsApp conectado com sucesso!');
+        console.log('   ✅ Pronto para enviar e receber mensagens\n');
         isReady = true;
         qrCodeData = null;
+        qrCodeImage = null;
         io.emit('ready', { status: 'connected' });
     });
 
     // Cliente autenticado
     whatsappClient.on('authenticated', () => {
-        console.log('WhatsApp autenticado!');
+        console.log('\n✅ WhatsApp autenticado!');
+        console.log('   ⏳ Carregando conversas...\n');
         io.emit('authenticated', { status: 'authenticated' });
     });
 
     // Falha na autenticação
     whatsappClient.on('auth_failure', (msg) => {
-        console.error('Falha na autenticação:', msg);
+        console.error('\n❌ Falha na autenticação:', msg);
+        console.error('   💡 Tente deletar a pasta .wwebjs_auth e reconectar\n');
         isReady = false;
         io.emit('auth_failure', { error: msg });
     });
 
     // Desconectado
     whatsappClient.on('disconnected', (reason) => {
-        console.log('WhatsApp desconectado:', reason);
+        console.log('\n⚠️  WhatsApp desconectado:', reason);
+        console.log('   💡 Reinicie o servidor para reconectar\n');
         isReady = false;
         io.emit('disconnected', { reason });
     });
 
     // Mensagem recebida
     whatsappClient.on('message', async (message) => {
-        console.log('Mensagem recebida:', message.from, message.body);
+        console.log(`📨 Nova mensagem de ${message.from}`);
         
         const contact = await message.getContact();
         const chat = await message.getChat();
@@ -107,7 +116,8 @@ const initializeWhatsApp = () => {
 app.get('/status', (req, res) => {
     res.json({
         ready: isReady,
-        hasQR: qrCodeData !== null
+        hasQR: qrCodeData !== null,
+        qrCode: qrCodeImage
     });
 });
 
@@ -212,19 +222,35 @@ app.post('/logout', async (req, res) => {
 
 // Socket.IO para eventos em tempo real
 io.on('connection', (socket) => {
-    console.log('Cliente conectado ao Socket.IO');
+    console.log('🔌 Frontend conectado via Socket.IO');
     
     // Envia o status atual quando o cliente conecta
     socket.emit('status', { ready: isReady, hasQR: qrCodeData !== null });
     
+    // Se já tiver QR Code, enviar novamente
+    if (qrCodeImage) {
+        console.log('   📤 Enviando QR Code existente para o frontend');
+        socket.emit('qr', { qr: qrCodeImage });
+    }
+    
     socket.on('disconnect', () => {
-        console.log('Cliente desconectado do Socket.IO');
+        console.log('🔌 Frontend desconectado do Socket.IO');
     });
 });
 
 const PORT = process.env.PORT || 3001;
 
 server.listen(PORT, () => {
-    console.log(`Servidor WhatsApp rodando na porta ${PORT}`);
+    console.log('\n========================================');
+    console.log('🚀 Servidor WhatsApp iniciado!');
+    console.log(`📡 Rodando na porta ${PORT}`);
+    console.log('========================================\n');
+    console.log('📋 Próximos passos:');
+    console.log('   1. Abra o sistema Nexus no navegador');
+    console.log('   2. Vá na aba "Atendimento"');
+    console.log('   3. Clique em "Conectar WhatsApp"');
+    console.log('   4. Escaneie o QR Code que aparecer\n');
+    console.log('⏳ Inicializando WhatsApp Web...\n');
+    
     initializeWhatsApp();
 });

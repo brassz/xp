@@ -106,14 +106,44 @@ WhatsApp Web → whatsapp-web.js → Express Server → Socket.IO → Frontend
 
 ## 🐛 Solução de Problemas
 
-### Servidor não inicia
-- Verifique se a porta 3001 está livre
-- Certifique-se de que todas as dependências foram instaladas
+### ❌ QR Code não aparece ao clicar em "Conectar WhatsApp"
 
-### QR Code não aparece
-- Verifique se o servidor está rodando (`npm run start-whatsapp`)
-- Verifique o console do navegador para erros
-- Certifique-se de que não há firewall bloqueando a porta 3001
+**Possíveis causas:**
+
+1. **Servidor não está rodando**
+   ```bash
+   # Em um terminal separado, execute:
+   npm run start-whatsapp
+   ```
+
+2. **Testar se o servidor está respondendo**
+   ```bash
+   npm run test-whatsapp
+   ```
+
+3. **Verificar logs do servidor**
+   - Olhe o terminal onde está rodando o servidor
+   - Deve aparecer "QR Code recebido" quando o QR for gerado
+   - Se não aparecer, reinicie o servidor
+
+4. **Limpar sessão anterior**
+   ```bash
+   # Parar o servidor e deletar a pasta de autenticação
+   rm -rf .wwebjs_auth .wwebjs_cache
+   # Depois reiniciar o servidor
+   npm run start-whatsapp
+   ```
+
+5. **Verificar console do navegador**
+   - Abra o DevTools (F12)
+   - Vá em Console
+   - Procure por erros em vermelho
+   - Se houver erro de CORS ou conexão, o servidor não está rodando
+
+### Servidor não inicia
+- Verifique se a porta 3001 está livre: `lsof -i :3001` (Mac/Linux) ou `netstat -ano | findstr :3001` (Windows)
+- Certifique-se de que todas as dependências foram instaladas: `npm install`
+- Tente instalar novamente o puppeteer: `npm install puppeteer --force`
 
 ### Mensagens não chegam em tempo real
 - Verifique a conexão Socket.IO no console do navegador
@@ -124,6 +154,11 @@ WhatsApp Web → whatsapp-web.js → Express Server → Socket.IO → Frontend
 - Certifique-se de que o celular está conectado à internet
 - Não feche o WhatsApp no celular
 - Considere aumentar o timeout no servidor
+
+### Erro "429 Too Many Requests"
+- O WhatsApp detectou muitas requisições
+- Aguarde alguns minutos antes de tentar novamente
+- Use a API com moderação
 
 ## 📝 Notas Importantes
 

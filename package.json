@@ -4,7 +4,8 @@
   "description": "Sistema de Gestão Financeira Nexus com integração WhatsApp",
   "main": "whatsapp-server.js",
   "scripts": {
-    "start-whatsapp": "node whatsapp-server.js"
+    "start-whatsapp": "node whatsapp-server.js",
+    "test-whatsapp": "node test-whatsapp-server.js"
   },
   "dependencies": {
     "whatsapp-web.js": "^1.23.0",
