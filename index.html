@@ -2107,9 +2107,12 @@
                                 
                                 <!-- Connect Button -->
                                 <div id="connectContainer">
-                                    <button id="connectWhatsAppBtn" class="w-full btn-primary text-white font-semibold py-2 px-4 rounded-lg">
+                                    <button id="connectWhatsAppBtn" class="w-full btn-primary text-white font-semibold py-2 px-4 rounded-lg" onclick="console.log('Botão clicado via onclick!'); if(typeof handleConnectWhatsApp === 'function') handleConnectWhatsApp(); else alert('Função handleConnectWhatsApp não encontrada!');">
                                         Conectar WhatsApp
                                     </button>
+                                    <p class="text-xs text-gray-500 mt-2 text-center">
+                                        Clique para conectar seu WhatsApp
+                                    </p>
                                 </div>
                                 
                                 <!-- Server Status -->

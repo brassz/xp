@@ -15058,6 +15058,8 @@ let isWhatsAppConnected = false;
 
 // Inicializar WhatsApp quando a aba for carregada
 function initializeWhatsApp() {
+    console.log('🚀 Inicializando WhatsApp Integration...');
+    
     // Verificar status do servidor
     checkServerStatus();
     
@@ -15071,8 +15073,23 @@ function initializeWhatsApp() {
     const messageInput = document.getElementById('messageInput');
     const searchChatsInput = document.getElementById('searchChats');
     
+    console.log('🔍 Buscando elementos:', {
+        connectBtn: !!connectBtn,
+        disconnectBtn: !!disconnectBtn,
+        sendMessageBtn: !!sendMessageBtn,
+        messageInput: !!messageInput,
+        searchChatsInput: !!searchChatsInput
+    });
+    
     if (connectBtn) {
-        connectBtn.addEventListener('click', handleConnectWhatsApp);
+        console.log('✅ Botão Conectar encontrado, adicionando event listener');
+        connectBtn.addEventListener('click', (e) => {
+            console.log('🖱️ Botão Conectar clicado!');
+            e.preventDefault();
+            handleConnectWhatsApp();
+        });
+    } else {
+        console.error('❌ Botão Conectar NÃO encontrado!');
     }
     
     if (disconnectBtn) {
@@ -15094,6 +15111,8 @@ function initializeWhatsApp() {
     if (searchChatsInput) {
         searchChatsInput.addEventListener('input', filterChats);
     }
+    
+    console.log('✅ Inicialização do WhatsApp concluída');
 }
 
 // Verificar status do servidor WhatsApp
@@ -15236,47 +15255,64 @@ function displayQRCode(qrDataUrl) {
 
 // Conectar WhatsApp
 async function handleConnectWhatsApp() {
+    console.log('🔌 handleConnectWhatsApp chamada!');
+    
     try {
         // Mostrar status de carregamento
         const connectBtn = document.getElementById('connectWhatsAppBtn');
+        console.log('🔍 Botão encontrado:', !!connectBtn);
+        
         if (connectBtn) {
             connectBtn.textContent = 'Conectando...';
             connectBtn.disabled = true;
+            console.log('⏳ Botão atualizado para "Conectando..."');
         }
         
         // Verificar se o servidor está rodando
+        console.log(`📡 Fazendo requisição para: ${WHATSAPP_SERVER_URL}/status`);
         const response = await fetch(`${WHATSAPP_SERVER_URL}/status`);
+        
+        console.log('📥 Resposta recebida:', response.status, response.ok);
         
         if (!response.ok) {
             throw new Error('Servidor não está respondendo');
         }
         
         const data = await response.json();
+        console.log('📊 Dados recebidos:', data);
         
         if (data.ready) {
             // Já está conectado
+            console.log('✅ WhatsApp já está conectado');
             updateWhatsAppStatus('connected');
             loadChats();
         } else if (data.hasQR && data.qrCode) {
             // Tem QR disponível, mostrar
+            console.log('📱 QR Code disponível, exibindo...');
             displayQRCode(data.qrCode);
             updateWhatsAppStatus('qr');
         } else {
             // Aguardando QR ser gerado
+            console.log('⏳ Aguardando QR Code ser gerado...');
             updateWhatsAppStatus('qr');
             // Verificar novamente após 2 segundos
-            setTimeout(() => checkServerStatus(), 2000);
+            setTimeout(() => {
+                console.log('🔄 Verificando status novamente...');
+                checkServerStatus();
+            }, 2000);
         }
         
         // Resetar botão
         if (connectBtn) {
             connectBtn.textContent = 'Conectar WhatsApp';
             connectBtn.disabled = false;
+            console.log('✅ Botão resetado');
         }
         
     } catch (error) {
-        console.error('Erro ao conectar WhatsApp:', error);
-        alert('Erro ao conectar WhatsApp. Verifique se o servidor está rodando na porta 3001.\n\nComando: npm run start-whatsapp');
+        console.error('❌ Erro ao conectar WhatsApp:', error);
+        console.error('Stack trace:', error.stack);
+        alert('Erro ao conectar WhatsApp. Verifique se o servidor está rodando na porta 3001.\n\nComando: npm run start-whatsapp\n\nErro: ' + error.message);
         
         // Resetar botão
         const connectBtn = document.getElementById('connectWhatsAppBtn');
@@ -15586,12 +15622,28 @@ function escapeHtml(text) {
 // Adicionar ao evento de mudança de aba
 const originalShowSection = window.showSection || function() {};
 window.showSection = function(sectionId) {
+    console.log('📂 Mudando para aba:', sectionId);
+    
     if (typeof originalShowSection === 'function') {
         originalShowSection(sectionId);
     }
     
     // Se for a aba de atendimento, inicializar WhatsApp
-    if (sectionId === 'atendimento' && !whatsappSocket) {
-        initializeWhatsApp();
+    if (sectionId === 'atendimento') {
+        console.log('📱 Aba de Atendimento aberta');
+        if (!whatsappSocket) {
+            console.log('🆕 Primeira vez na aba, inicializando...');
+            initializeWhatsApp();
+        } else {
+            console.log('✅ WhatsApp já inicializado');
+        }
     }
 };
+
+// Debug: Log quando o DOM estiver pronto
+document.addEventListener('DOMContentLoaded', () => {
+    console.log('🌐 DOM Carregado');
+    console.log('🔍 Verificando elementos da aba Atendimento:');
+    console.log('  - connectWhatsAppBtn:', !!document.getElementById('connectWhatsAppBtn'));
+    console.log('  - atendimento section:', !!document.getElementById('atendimento'));
+});
