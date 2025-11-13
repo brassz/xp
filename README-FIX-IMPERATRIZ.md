@@ -1,20 +1,24 @@
-# 🔥 FIX COMPLETO - IMPERATRIZ CRED
+# 🔥 FIX COMPLETO v3.0 - IMPERATRIZ CRED
 
 ## 🎯 Problemas
 
 Na empresa **IMPERATRIZ CRED**:
 - ❌ Erro ao criar empréstimo: `Could not find the 'original_amount' column`
 - ❌ Erro ao renovar empréstimo: `Could not find the 'fine_amount' column`
+- ❌ Erro ao renovar empréstimo: `violates check constraint "payments_payment_type_check"` 🆕
 - ❌ Valor restante fica zerado (R$ 0,00)
 
 ## ⚡ Solução Rápida
 
 ### Abra o arquivo certo para você:
 
-**✨ SOLUÇÃO COMPLETA (2 minutos):**
-📄 `EXECUTAR-AGORA-IMPERATRIZ-V2.md` ← RECOMENDADO! 🆕
+**✨ SOLUÇÃO COMPLETA v3.0 (2 minutos):**
+📄 `EXECUTAR-AGORA-IMPERATRIZ-V3.md` ← RECOMENDADO! 🆕
 
-**Solução antiga (só original_amount):**
+**Solução v2.0 (sem constraint fix):**
+📄 `EXECUTAR-AGORA-IMPERATRIZ-V2.md`
+
+**Solução v1.0 (só original_amount):**
 📄 `EXECUTAR-AGORA-IMPERATRIZ.md`
 
 **Quero entender tudo (5 minutos):**
@@ -38,8 +42,11 @@ ALTER TABLE loans ADD COLUMN IF NOT EXISTS original_amount DECIMAL(10,2);
 UPDATE loans SET original_amount = amount WHERE original_amount IS NULL;
 ALTER TABLE loans ALTER COLUMN original_amount SET NOT NULL;
 
--- Corrigir payments (NOVO!)
+-- Corrigir payments
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS fine_amount DECIMAL(10,2) DEFAULT 0.00 CHECK (fine_amount >= 0);
+
+-- Remover constraint (NOVO!)
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_type_check;
 ```
 
 2. Recarregue o Schema Cache:
@@ -47,18 +54,21 @@ ALTER TABLE payments ADD COLUMN IF NOT EXISTS fine_amount DECIMAL(10,2) DEFAULT 
 
 3. Aguarde 30 segundos
 
-4. ✅ Pronto! Teste criar E renovar empréstimos
+4. ✅ Pronto! Teste criar, renovar e registrar pagamentos!
 
 ## 📊 Arquivos Disponíveis
 
 ### Para IMPERATRIZ CRED (específico):
-- ✅ `EXECUTAR-AGORA-IMPERATRIZ-V2.md` - **INSTRUÇÕES COMPLETAS** 🆕
-- ✅ `FIX-COMPLETO-IMPERATRIZ.sql` - **SCRIPT COMPLETO** 🆕
-- ✅ `EXECUTAR-AGORA-IMPERATRIZ.md` - Fix original_amount apenas
-- ✅ `INSTRUCOES-FIX-IMPERATRIZ-URGENTE.md` - Guia detalhado
-- ✅ `RESUMO-FIX-IMPERATRIZ.md` - Resumo executivo
-- ✅ `FIX-RAPIDO-IMPERATRIZ.sql` - Script minimalista
-- ✅ `fix-imperatriz-original-amount.sql` - Script original_amount
+- ✅ `EXECUTAR-AGORA-IMPERATRIZ-V3.md` - **INSTRUÇÕES v3.0** 🆕🔥
+- ✅ `FIX-COMPLETO-IMPERATRIZ.sql` - **SCRIPT COMPLETO v3.0** 🆕🔥
+- ✅ `COPIE-E-COLE-IMPERATRIZ.sql` - **Script pronto v3.0** 🆕🔥
+- ✅ `CHANGELOG-FIX-IMPERATRIZ.md` - Histórico de versões
+- ✅ `EXECUTAR-AGORA-IMPERATRIZ-V2.md` - Instruções v2.0 (legado)
+- ✅ `EXECUTAR-AGORA-IMPERATRIZ.md` - Instruções v1.0 (legado)
+- ✅ `INSTRUCOES-FIX-IMPERATRIZ-URGENTE.md` - Guia detalhado v1.0
+- ✅ `RESUMO-FIX-IMPERATRIZ.md` - Resumo v1.0
+- ✅ `FIX-RAPIDO-IMPERATRIZ.sql` - Script v1.0
+- ✅ `fix-imperatriz-original-amount.sql` - Script v1.0
 
 ### Para outras empresas (genérico):
 - ✅ `fix-schema-cache-original-amount.sql` - Script universal

@@ -4,7 +4,8 @@
 
 1. `Could not find the 'original_amount' column of 'loans' in the schema cache`
 2. `Could not find the 'fine_amount' column of 'payments' in the schema cache`
-3. Valor restante zerado ao criar empréstimos
+3. `new row for relation "payments" violates check constraint "payments_payment_type_check"` 🆕
+4. Valor restante zerado ao criar empréstimos
 
 ## ✅ Solução em 3 Passos (2 minutos)
 
@@ -63,6 +64,9 @@ Copie TODO o conteúdo (Ctrl+A, Ctrl+C)
 
 ### Erro: "column already exists"
 ✅ Ótimo! A coluna já foi adicionada. Só recarregue o cache (Passo 3)
+
+### Erro: "constraint does not exist"
+✅ Perfeito! A constraint já foi removida. Continue normalmente
 
 ### Erro persiste após recarregar cache
 1. Execute também:

@@ -15,9 +15,13 @@ CREATE INDEX IF NOT EXISTS idx_loans_original_amount ON loans(original_amount);
 ALTER TABLE payments ADD COLUMN IF NOT EXISTS fine_amount DECIMAL(10,2) DEFAULT 0.00 CHECK (fine_amount >= 0);
 CREATE INDEX IF NOT EXISTS idx_payments_fine_amount ON payments(fine_amount) WHERE fine_amount > 0;
 
+-- Remover constraint restritiva de payment_type (NOVO!)
+ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_type_check;
+
 -- Adicionar comentários
 COMMENT ON COLUMN loans.original_amount IS 'Valor original do empréstimo (NUNCA alterado)';
 COMMENT ON COLUMN payments.fine_amount IS 'Valor da multa (opcional)';
+COMMENT ON COLUMN payments.payment_type IS 'Tipo de operação: interest_renewal, capital_payment, etc.';
 
 -- =====================================================
 -- ✅ CONCLUÍDO!
