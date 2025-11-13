@@ -6,7 +6,8 @@
 ❌ PROBLEMAS:
    1. Erro ao criar empréstimo (original_amount)
    2. Erro ao renovar empréstimo (fine_amount)
-   3. Valor restante zerado
+   3. Erro ao renovar empréstimo (payment_type constraint) 🆕
+   4. Valor restante zerado
 
 ✅ SOLUÇÃO RÁPIDA (2 minutos):
 
@@ -56,11 +57,12 @@
 
 ═══════════════════════════════════════════════════════════════
 
-⚡ VERSÃO ATUAL: 2.0 (Completa)
+⚡ VERSÃO ATUAL: 3.0 (Definitiva) 🔥
 
-✅ Corrige: original_amount + fine_amount
+✅ Corrige: original_amount + fine_amount + payment_type
 ✅ Tempo: 2-3 minutos
 ✅ Resultado: Sistema 100% funcional
+✅ Todos os tipos de pagamento funcionam!
 
 ═══════════════════════════════════════════════════════════════
 
