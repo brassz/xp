@@ -15104,15 +15104,24 @@ async function exportCompleteBackup() {
         ];
         console.log(`✓ ${allLoans.length} empréstimos exportados`);
 
-        // 3. Exportar Parcelamentos
+        // 3. Exportar Parcelamentos (parcelas individuais)
         console.log('Exportando parcelamentos...');
-        const { data: installments, error: installmentsError } = await supabase
+        
+        // Primeiro buscar os planos de parcelamento para ter o client_id
+        const { data: installmentPlans, error: plansError } = await supabase
             .from('installments')
+            .select('*');
+        
+        if (plansError) throw plansError;
+        
+        // Depois buscar as parcelas individuais
+        const { data: installmentPayments, error: installmentsError } = await supabase
+            .from('installment_payments')
             .select('*')
             .order('due_date', { ascending: false });
         
         if (installmentsError) throw installmentsError;
-        console.log(`✓ ${installments?.length || 0} parcelamentos exportados`);
+        console.log(`✓ ${installmentPayments?.length || 0} parcelas exportadas`);
 
         // 4. Exportar TODOS os Pagamentos
         console.log('Exportando todos os pagamentos...');
@@ -15252,22 +15261,31 @@ async function exportCompleteBackup() {
         yPosition = 20;
         addTitle('PARCELAMENTOS');
         
-        if (installments && installments.length > 0) {
-            const installmentsData = installments.map(inst => {
-                const loan = allLoans.find(l => l.id === inst.loan_id);
-                const clientName = loan ? clients?.find(c => c.id === loan.client_id)?.name || '-' : '-';
+        if (installmentPayments && installmentPayments.length > 0) {
+            const installmentsData = installmentPayments.map(inst => {
+                // Buscar o plano de parcelamento
+                const plan = installmentPlans?.find(p => p.id === inst.installment_id);
+                let clientName = '-';
+                
+                if (plan) {
+                    // Encontrou o plano, buscar o cliente
+                    clientName = clients?.find(c => c.id === plan.client_id)?.name || 'Cliente não encontrado';
+                } else {
+                    clientName = 'Cliente não identificado';
+                }
+                
                 return [
                     clientName,
-                    `${inst.installment_number || 0}/${loan?.installments || 0}`,
+                    inst.installment_number || '-',
                     formatCurrency(inst.amount),
                     formatDate(inst.due_date),
-                    inst.paid ? 'Pago' : 'Pendente',
-                    inst.paid ? formatDate(inst.payment_date) : '-'
+                    inst.status === 'paid' ? 'Pago' : inst.status === 'overdue' ? 'Vencido' : 'Pendente',
+                    inst.paid_date ? formatDate(inst.paid_date) : '-'
                 ];
             });
             
             doc.autoTable({
-                head: [['Cliente', 'Parcela', 'Valor', 'Vencimento', 'Status', 'Data Pagamento']],
+                head: [['Cliente', 'Parcela Nº', 'Valor', 'Vencimento', 'Status', 'Data Pagamento']],
                 body: installmentsData,
                 startY: yPosition,
                 styles: { fontSize: 8, cellPadding: 2 },
@@ -15356,9 +15374,9 @@ async function exportCompleteBackup() {
         
         const totalClients = clients?.length || 0;
         const totalLoans = allLoans.length;
-        const totalInstallments = installments?.length || 0;
-        const totalInstallmentsPaid = installments?.filter(i => i.paid).length || 0;
-        const totalInstallmentsPending = installments?.filter(i => !i.paid).length || 0;
+        const totalInstallments = installmentPayments?.length || 0;
+        const totalInstallmentsPaid = installmentPayments?.filter(i => i.status === 'paid').length || 0;
+        const totalInstallmentsPending = installmentPayments?.filter(i => i.status !== 'paid').length || 0;
         const totalPayments = payments?.length || 0;
         const totalExpenses = expenses?.length || 0;
         
