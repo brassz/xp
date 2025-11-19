@@ -6355,7 +6355,7 @@ async function loadPaymentHistory(loanId) {
         if (data.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-400">
                         Nenhum pagamento registrado para este empréstimo.
                     </td>
                 </tr>
@@ -6368,6 +6368,7 @@ async function loadPaymentHistory(loanId) {
         data.forEach(payment => {
             const paymentDate = new Date(payment.payment_date);
             const paymentAmount = parseFloat(payment.amount);
+            const fineAmount = parseFloat(payment.fine_amount) || 0;
             const paymentType = getPaymentTypeText(payment.payment_type);
             const paymentNotes = payment.notes || 'Sem notas';
             
@@ -6375,6 +6376,9 @@ async function loadPaymentHistory(loanId) {
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(payment.payment_date)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${paymentAmount.toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm ${fineAmount > 0 ? 'text-red-400 font-semibold' : 'text-gray-500'}">
+                        ${fineAmount > 0 ? 'R$ ' + fineAmount.toFixed(2) : '-'}
+                    </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentType}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paymentNotes}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
@@ -8562,7 +8566,7 @@ async function loadPaidLoanPaymentHistory(originalLoanId, paidLoan) {
         if (allPayments.length === 0) {
             tbody.innerHTML = `
                 <tr>
-                    <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                    <td colspan="6" class="px-6 py-8 text-center text-gray-400">
                         Nenhum pagamento registrado para este empréstimo.
                     </td>
                 </tr>
@@ -8574,6 +8578,7 @@ async function loadPaidLoanPaymentHistory(originalLoanId, paidLoan) {
         // Renderizar pagamentos
         allPayments.forEach(payment => {
             const paymentAmount = parseFloat(payment.amount);
+            const fineAmount = parseFloat(payment.fine_amount) || 0;
             const paymentType = payment.is_final_payment ? 'Quitação Final' : getPaymentTypeText(payment.payment_type);
             const paymentNotes = payment.notes || 'Sem notas';
             const rowClass = payment.is_final_payment ? 'bg-green-900 bg-opacity-30' : '';
@@ -8585,6 +8590,9 @@ async function loadPaidLoanPaymentHistory(originalLoanId, paidLoan) {
                     <td class="px-6 py-4 whitespace-nowrap text-sm ${amountClass}">
                         R$ ${paymentAmount.toFixed(2)}
                         ${payment.is_final_payment ? '<div class="text-xs text-green-300">Quitação</div>' : ''}
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm ${fineAmount > 0 ? 'text-red-400 font-semibold' : 'text-gray-500'}">
+                        ${fineAmount > 0 ? 'R$ ' + fineAmount.toFixed(2) : '-'}
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                         ${paymentType}
@@ -8606,7 +8614,7 @@ async function loadPaidLoanPaymentHistory(originalLoanId, paidLoan) {
         const tbody = document.getElementById('paymentHistoryTableBody');
         tbody.innerHTML = `
             <tr>
-                <td colspan="5" class="px-6 py-8 text-center text-red-400">
+                <td colspan="6" class="px-6 py-8 text-center text-red-400">
                     Erro ao carregar histórico de pagamentos
                 </td>
             </tr>

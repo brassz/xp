@@ -28,6 +28,7 @@ Foi implementado um campo opcional de **MULTA** na aba de empréstimos para regi
 #### Tabelas de Visualização
 - **Tabela de Pagamentos Semanais:** Nova coluna "Multa"
 - **Tabela de Histórico de Pagamentos:** Nova coluna "Multa"
+- **Modal de Histórico de Pagamentos:** Nova coluna "Multa" (exibe valores em vermelho quando > 0)
 - **Dashboard:** Novo card "Total Multas" no resumo semanal
 
 ### 3. Funcionalidades JavaScript
@@ -40,6 +41,8 @@ Foi implementado um campo opcional de **MULTA** na aba de empréstimos para regi
 #### Visualização de Dados
 - `renderWeeklyPaymentsTable()`: Exibe valor da multa em vermelho quando > 0
 - `renderHistoryPaymentsTable()`: Inclui coluna de multa no histórico
+- `loadPaymentHistory()`: Exibe coluna de multa no modal de histórico de pagamentos
+- `loadPaidLoanPaymentHistory()`: Exibe coluna de multa para empréstimos quitados
 - `updateWeeklyPaymentsSummary()`: Calcula e exibe total de multas
 
 #### Edição de Pagamentos
