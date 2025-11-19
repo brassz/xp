@@ -15104,7 +15104,17 @@ async function exportCompleteBackup() {
         ];
         console.log(`✓ ${allLoans.length} empréstimos exportados`);
 
-        // 3. Exportar TODOS os Pagamentos
+        // 3. Exportar Parcelamentos
+        console.log('Exportando parcelamentos...');
+        const { data: installments, error: installmentsError } = await supabase
+            .from('installments')
+            .select('*')
+            .order('due_date', { ascending: false });
+        
+        if (installmentsError) throw installmentsError;
+        console.log(`✓ ${installments?.length || 0} parcelamentos exportados`);
+
+        // 4. Exportar TODOS os Pagamentos
         console.log('Exportando todos os pagamentos...');
         const { data: payments, error: paymentsError } = await supabase
             .from('payments')
@@ -15114,7 +15124,7 @@ async function exportCompleteBackup() {
         if (paymentsError) throw paymentsError;
         console.log(`✓ ${payments?.length || 0} pagamentos exportados`);
 
-        // 4. Exportar Despesas
+        // 5. Exportar Despesas
         console.log('Exportando despesas...');
         const { data: expenses, error: expensesError } = await supabase
             .from('expenses')
@@ -15233,7 +15243,42 @@ async function exportCompleteBackup() {
             doc.text('Nenhum empréstimo registrado.', 15, yPosition);
         }
 
-        // ========== SEÇÃO 3: PAGAMENTOS ==========
+        // ========== SEÇÃO 3: PARCELAMENTOS ==========
+        doc.addPage();
+        yPosition = 20;
+        addTitle('PARCELAMENTOS');
+        
+        if (installments && installments.length > 0) {
+            const installmentsData = installments.map(inst => {
+                const loan = allLoans.find(l => l.id === inst.loan_id);
+                const clientName = loan ? clients?.find(c => c.id === loan.client_id)?.name || '-' : '-';
+                return [
+                    clientName,
+                    `${inst.installment_number || 0}/${loan?.installments || 0}`,
+                    formatCurrency(inst.amount),
+                    formatDate(inst.due_date),
+                    inst.paid ? 'Pago' : 'Pendente',
+                    inst.paid ? formatDate(inst.payment_date) : '-'
+                ];
+            });
+            
+            doc.autoTable({
+                head: [['Cliente', 'Parcela', 'Valor', 'Vencimento', 'Status', 'Data Pagamento']],
+                body: installmentsData,
+                startY: yPosition,
+                styles: { fontSize: 8, cellPadding: 2 },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 15, right: 15 }
+            });
+            yPosition = doc.lastAutoTable.finalY + 15;
+        } else {
+            doc.setFontSize(10);
+            doc.setTextColor(150, 150, 150);
+            doc.text('Nenhum parcelamento registrado.', 15, yPosition);
+        }
+
+        // ========== SEÇÃO 4: PAGAMENTOS ==========
         doc.addPage();
         yPosition = 20;
         addTitle('TODOS OS PAGAMENTOS REALIZADOS');
@@ -15267,7 +15312,7 @@ async function exportCompleteBackup() {
             doc.text('Nenhum pagamento registrado.', 15, yPosition);
         }
 
-        // ========== SEÇÃO 4: DESPESAS ==========
+        // ========== SEÇÃO 5: DESPESAS ==========
         doc.addPage();
         yPosition = 20;
         addTitle('DESPESAS REGISTRADAS');
@@ -15307,6 +15352,9 @@ async function exportCompleteBackup() {
         
         const totalClients = clients?.length || 0;
         const totalLoans = allLoans.length;
+        const totalInstallments = installments?.length || 0;
+        const totalInstallmentsPaid = installments?.filter(i => i.paid).length || 0;
+        const totalInstallmentsPending = installments?.filter(i => !i.paid).length || 0;
         const totalPayments = payments?.length || 0;
         const totalExpenses = expenses?.length || 0;
         
@@ -15321,6 +15369,12 @@ async function exportCompleteBackup() {
         doc.text(`  - Ativos: ${loansActive?.length || 0}`, 20, yPosition);
         yPosition += 7;
         doc.text(`  - Quitados: ${loansPaid?.length || 0}`, 20, yPosition);
+        yPosition += 10;
+        doc.text(`Total de Parcelamentos: ${totalInstallments}`, 15, yPosition);
+        yPosition += 8;
+        doc.text(`  - Pagos: ${totalInstallmentsPaid}`, 20, yPosition);
+        yPosition += 7;
+        doc.text(`  - Pendentes: ${totalInstallmentsPending}`, 20, yPosition);
         yPosition += 10;
         doc.text(`Total de Pagamentos: ${totalPayments}`, 15, yPosition);
         yPosition += 8;
@@ -15353,6 +15407,7 @@ async function exportCompleteBackup() {
               `Total de registros exportados:\n` +
               `- Clientes: ${totalClients}\n` +
               `- Empréstimos: ${totalLoans}\n` +
+              `- Parcelamentos: ${totalInstallments}\n` +
               `- Pagamentos: ${totalPayments}\n` +
               `- Despesas: ${totalExpenses}`);
 
