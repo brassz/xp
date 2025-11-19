@@ -15055,7 +15055,7 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
     });
 }
 
-// Função para exportar backup completo do sistema
+// Função para exportar backup completo do sistema em PDF
 async function exportCompleteBackup() {
     try {
         // Mostrar loading
@@ -15067,205 +15067,310 @@ async function exportCompleteBackup() {
                 <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle>
                 <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
             </svg>
-            <span>Exportando...</span>
+            <span>Gerando PDF...</span>
         `;
 
-        console.log('Iniciando backup completo do sistema...');
-
-        const backupData = {
-            metadata: {
-                exportDate: new Date().toISOString(),
-                companyName: getCurrentCompanyConfig().name,
-                version: '1.0'
-            },
-            data: {}
-        };
+        console.log('Iniciando backup completo do sistema em PDF...');
 
         // 1. Exportar Clientes
         console.log('Exportando clientes...');
         const { data: clients, error: clientsError } = await supabase
             .from('clients')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('name', { ascending: true });
         
-        if (clientsError) {
-            console.error('Erro ao exportar clientes:', clientsError);
-        } else {
-            backupData.data.clients = clients || [];
-            console.log(`✓ ${clients?.length || 0} clientes exportados`);
-        }
+        if (clientsError) throw clientsError;
+        console.log(`✓ ${clients?.length || 0} clientes exportados`);
 
-        // 2. Exportar Empréstimos Ativos
-        console.log('Exportando empréstimos ativos...');
-        const { data: loans, error: loansError } = await supabase
+        // 2. Exportar TODOS os Empréstimos (ativos, quitados e cancelados)
+        console.log('Exportando todos os empréstimos...');
+        const { data: loansActive, error: loansError } = await supabase
             .from('loans')
             .select('*')
             .order('created_at', { ascending: false });
         
-        if (loansError) {
-            console.error('Erro ao exportar empréstimos:', loansError);
-        } else {
-            backupData.data.loans = loans || [];
-            console.log(`✓ ${loans?.length || 0} empréstimos ativos exportados`);
-        }
-
-        // 3. Exportar Empréstimos Quitados
-        console.log('Exportando empréstimos quitados...');
-        const { data: paidLoans, error: paidLoansError } = await supabase
+        const { data: loansPaid, error: paidLoansError } = await supabase
             .from('paid_loans')
             .select('*')
             .order('created_at', { ascending: false });
         
-        if (paidLoansError) {
-            console.error('Erro ao exportar empréstimos quitados:', paidLoansError);
-        } else {
-            backupData.data.paid_loans = paidLoans || [];
-            console.log(`✓ ${paidLoans?.length || 0} empréstimos quitados exportados`);
-        }
-
-        // 4. Exportar Empréstimos Cancelados
-        console.log('Exportando empréstimos cancelados...');
-        const { data: cancelledLoans, error: cancelledLoansError } = await supabase
+        const { data: loansCancelled, error: cancelledLoansError } = await supabase
             .from('cancelled_loans')
             .select('*')
             .order('created_at', { ascending: false });
         
-        if (cancelledLoansError) {
-            console.error('Erro ao exportar empréstimos cancelados:', cancelledLoansError);
-        } else {
-            backupData.data.cancelled_loans = cancelledLoans || [];
-            console.log(`✓ ${cancelledLoans?.length || 0} empréstimos cancelados exportados`);
+        if (loansError || paidLoansError || cancelledLoansError) {
+            throw new Error('Erro ao exportar empréstimos');
         }
-
-        // 5. Exportar Parcelamentos (Installments)
-        console.log('Exportando parcelamentos...');
-        const { data: installments, error: installmentsError } = await supabase
-            .from('installments')
-            .select('*')
-            .order('created_at', { ascending: false });
         
-        if (installmentsError) {
-            console.error('Erro ao exportar parcelamentos:', installmentsError);
-        } else {
-            backupData.data.installments = installments || [];
-            console.log(`✓ ${installments?.length || 0} parcelamentos exportados`);
-        }
+        const allLoans = [
+            ...(loansActive || []).map(l => ({ ...l, status: 'Ativo' })),
+            ...(loansPaid || []).map(l => ({ ...l, status: 'Quitado' })),
+            ...(loansCancelled || []).map(l => ({ ...l, status: 'Cancelado' }))
+        ];
+        console.log(`✓ ${allLoans.length} empréstimos exportados`);
 
-        // 6. Exportar Pagamentos
-        console.log('Exportando pagamentos...');
+        // 3. Exportar TODOS os Pagamentos
+        console.log('Exportando todos os pagamentos...');
         const { data: payments, error: paymentsError } = await supabase
             .from('payments')
             .select('*')
             .order('created_at', { ascending: false });
         
-        if (paymentsError) {
-            console.error('Erro ao exportar pagamentos:', paymentsError);
-        } else {
-            backupData.data.payments = payments || [];
-            console.log(`✓ ${payments?.length || 0} pagamentos exportados`);
-        }
+        if (paymentsError) throw paymentsError;
+        console.log(`✓ ${payments?.length || 0} pagamentos exportados`);
 
-        // 7. Exportar Despesas
+        // 4. Exportar Despesas
         console.log('Exportando despesas...');
         const { data: expenses, error: expensesError } = await supabase
             .from('expenses')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('date', { ascending: false });
         
-        if (expensesError) {
-            console.error('Erro ao exportar despesas:', expensesError);
+        if (expensesError) throw expensesError;
+        console.log(`✓ ${expenses?.length || 0} despesas exportadas`);
+
+        // Criar PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF('landscape', 'mm', 'a4');
+        
+        // Configurações
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        let yPosition = 20;
+        
+        // Função auxiliar para adicionar título
+        const addTitle = (text) => {
+            doc.setFontSize(16);
+            doc.setTextColor(30, 64, 175);
+            doc.text(text, 15, yPosition);
+            yPosition += 10;
+        };
+        
+        // Função auxiliar para formatar data
+        const formatDate = (dateString) => {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('pt-BR');
+        };
+        
+        // Função auxiliar para formatar valor
+        const formatCurrency = (value) => {
+            if (!value && value !== 0) return 'R$ 0,00';
+            return new Intl.NumberFormat('pt-BR', { 
+                style: 'currency', 
+                currency: 'BRL' 
+            }).format(value);
+        };
+
+        // Header
+        doc.setFontSize(22);
+        doc.setTextColor(30, 64, 175);
+        doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, 15, { align: 'center' });
+        
+        doc.setFontSize(12);
+        doc.setTextColor(100, 100, 100);
+        doc.text(getCurrentCompanyConfig().name, pageWidth / 2, 22, { align: 'center' });
+        doc.text(`Data: ${formatDate(new Date().toISOString())}`, pageWidth / 2, 28, { align: 'center' });
+        
+        yPosition = 35;
+
+        // ========== SEÇÃO 1: CLIENTES ==========
+        doc.addPage();
+        yPosition = 20;
+        addTitle('CLIENTES CADASTRADOS');
+        
+        if (clients && clients.length > 0) {
+            const clientsData = clients.map(client => [
+                client.name || '-',
+                client.cpf || '-',
+                client.phone || '-',
+                client.address || '-',
+                client.email || '-'
+            ]);
+            
+            doc.autoTable({
+                head: [['Nome', 'CPF', 'Telefone', 'Endereço', 'Email']],
+                body: clientsData,
+                startY: yPosition,
+                styles: { fontSize: 8, cellPadding: 2 },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 15, right: 15 }
+            });
+            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
-            backupData.data.expenses = expenses || [];
-            console.log(`✓ ${expenses?.length || 0} despesas exportadas`);
+            doc.setFontSize(10);
+            doc.setTextColor(150, 150, 150);
+            doc.text('Nenhum cliente cadastrado.', 15, yPosition);
         }
 
-        // 8. Exportar Levantamento de Capital
-        console.log('Exportando levantamento de capital...');
-        const { data: capitalRaising, error: capitalRaisingError } = await supabase
-            .from('capital_raising')
-            .select('*')
-            .order('created_at', { ascending: false });
+        // ========== SEÇÃO 2: EMPRÉSTIMOS ==========
+        doc.addPage();
+        yPosition = 20;
+        addTitle('TODOS OS EMPRÉSTIMOS');
         
-        if (capitalRaisingError) {
-            console.error('Erro ao exportar levantamento de capital:', capitalRaisingError);
+        if (allLoans && allLoans.length > 0) {
+            const loansData = allLoans.map(loan => {
+                const clientName = clients?.find(c => c.id === loan.client_id)?.name || 'Cliente não encontrado';
+                return [
+                    clientName,
+                    formatCurrency(loan.amount),
+                    formatCurrency(loan.total_with_interest),
+                    `${loan.installments || 0}x`,
+                    formatDate(loan.first_due_date || loan.loan_date),
+                    loan.status || '-'
+                ];
+            });
+            
+            doc.autoTable({
+                head: [['Cliente', 'Valor', 'Total c/ Juros', 'Parcelas', 'Data', 'Status']],
+                body: loansData,
+                startY: yPosition,
+                styles: { fontSize: 8, cellPadding: 2 },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 15, right: 15 }
+            });
+            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
-            backupData.data.capital_raising = capitalRaising || [];
-            console.log(`✓ ${capitalRaising?.length || 0} registros de capital exportados`);
+            doc.setFontSize(10);
+            doc.setTextColor(150, 150, 150);
+            doc.text('Nenhum empréstimo registrado.', 15, yPosition);
         }
 
-        // 9. Exportar Avalistas
-        console.log('Exportando avalistas...');
-        const { data: guarantors, error: guarantorsError } = await supabase
-            .from('guarantors')
-            .select('*')
-            .order('created_at', { ascending: false });
+        // ========== SEÇÃO 3: PAGAMENTOS ==========
+        doc.addPage();
+        yPosition = 20;
+        addTitle('TODOS OS PAGAMENTOS REALIZADOS');
         
-        if (guarantorsError) {
-            console.error('Erro ao exportar avalistas:', guarantorsError);
+        if (payments && payments.length > 0) {
+            const paymentsData = payments.map(payment => {
+                const loan = allLoans.find(l => l.id === payment.loan_id);
+                const clientName = loan ? clients?.find(c => c.id === loan.client_id)?.name || '-' : '-';
+                return [
+                    clientName,
+                    formatCurrency(payment.amount),
+                    payment.payment_type || '-',
+                    formatDate(payment.created_at),
+                    payment.notes || '-'
+                ];
+            });
+            
+            doc.autoTable({
+                head: [['Cliente', 'Valor', 'Tipo', 'Data', 'Observações']],
+                body: paymentsData,
+                startY: yPosition,
+                styles: { fontSize: 8, cellPadding: 2 },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 15, right: 15 }
+            });
+            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
-            backupData.data.guarantors = guarantors || [];
-            console.log(`✓ ${guarantors?.length || 0} avalistas exportados`);
+            doc.setFontSize(10);
+            doc.setTextColor(150, 150, 150);
+            doc.text('Nenhum pagamento registrado.', 15, yPosition);
         }
 
-        // 10. Exportar Contatos de Emergência
-        console.log('Exportando contatos de emergência...');
-        const { data: emergencyContacts, error: emergencyContactsError } = await supabase
-            .from('emergency_contacts')
-            .select('*')
-            .order('created_at', { ascending: false });
+        // ========== SEÇÃO 4: DESPESAS ==========
+        doc.addPage();
+        yPosition = 20;
+        addTitle('DESPESAS REGISTRADAS');
         
-        if (emergencyContactsError) {
-            console.error('Erro ao exportar contatos de emergência:', emergencyContactsError);
+        if (expenses && expenses.length > 0) {
+            const expensesData = expenses.map(expense => [
+                expense.description || '-',
+                formatCurrency(expense.amount),
+                expense.category || '-',
+                formatDate(expense.date),
+                expense.notes || '-'
+            ]);
+            
+            doc.autoTable({
+                head: [['Descrição', 'Valor', 'Categoria', 'Data', 'Observações']],
+                body: expensesData,
+                startY: yPosition,
+                styles: { fontSize: 8, cellPadding: 2 },
+                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 15, right: 15 }
+            });
+            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
-            backupData.data.emergency_contacts = emergencyContacts || [];
-            console.log(`✓ ${emergencyContacts?.length || 0} contatos de emergência exportados`);
+            doc.setFontSize(10);
+            doc.setTextColor(150, 150, 150);
+            doc.text('Nenhuma despesa registrada.', 15, yPosition);
         }
 
-        // Criar arquivo JSON e fazer download
-        const jsonString = JSON.stringify(backupData, null, 2);
-        const blob = new Blob([jsonString], { type: 'application/json' });
-        const url = window.URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url;
+        // ========== RESUMO FINAL ==========
+        doc.addPage();
+        yPosition = 20;
+        addTitle('RESUMO DO BACKUP');
         
-        // Nome do arquivo com data e hora
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        
+        const totalClients = clients?.length || 0;
+        const totalLoans = allLoans.length;
+        const totalPayments = payments?.length || 0;
+        const totalExpenses = expenses?.length || 0;
+        
+        const totalLoanAmount = allLoans.reduce((sum, loan) => sum + (loan.amount || 0), 0);
+        const totalPaymentsAmount = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+        const totalExpensesAmount = expenses?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0;
+        
+        doc.text(`Total de Clientes: ${totalClients}`, 15, yPosition);
+        yPosition += 8;
+        doc.text(`Total de Empréstimos: ${totalLoans}`, 15, yPosition);
+        yPosition += 8;
+        doc.text(`  - Ativos: ${loansActive?.length || 0}`, 20, yPosition);
+        yPosition += 7;
+        doc.text(`  - Quitados: ${loansPaid?.length || 0}`, 20, yPosition);
+        yPosition += 7;
+        doc.text(`  - Cancelados: ${loansCancelled?.length || 0}`, 20, yPosition);
+        yPosition += 10;
+        doc.text(`Total de Pagamentos: ${totalPayments}`, 15, yPosition);
+        yPosition += 8;
+        doc.text(`Total de Despesas: ${totalExpenses}`, 15, yPosition);
+        yPosition += 12;
+        
+        doc.setTextColor(30, 64, 175);
+        doc.setFontSize(12);
+        doc.text('Valores Totais:', 15, yPosition);
+        yPosition += 10;
+        
+        doc.setFontSize(11);
+        doc.setTextColor(0, 0, 0);
+        doc.text(`Valor Total Emprestado: ${formatCurrency(totalLoanAmount)}`, 15, yPosition);
+        yPosition += 8;
+        doc.text(`Valor Total em Pagamentos: ${formatCurrency(totalPaymentsAmount)}`, 15, yPosition);
+        yPosition += 8;
+        doc.text(`Valor Total em Despesas: ${formatCurrency(totalExpensesAmount)}`, 15, yPosition);
+
+        // Salvar PDF
         const now = new Date();
         const dateStr = now.toISOString().split('T')[0];
         const timeStr = now.toTimeString().split(' ')[0].replace(/:/g, '-');
         const companySlug = getCurrentCompanyConfig().name.toLowerCase().replace(/\s+/g, '-').replace(/[()]/g, '');
-        a.download = `backup-${companySlug}-${dateStr}-${timeStr}.json`;
-        
-        document.body.appendChild(a);
-        a.click();
-        document.body.removeChild(a);
-        window.URL.revokeObjectURL(url);
+        doc.save(`backup-${companySlug}-${dateStr}-${timeStr}.pdf`);
 
-        // Mostrar mensagem de sucesso
-        console.log('✓ Backup completo realizado com sucesso!');
+        console.log('✓ Backup PDF gerado com sucesso!');
         
-        // Calcular estatísticas
-        const totalRecords = Object.values(backupData.data).reduce((sum, arr) => sum + (arr?.length || 0), 0);
-        
-        alert(`✓ Backup completo realizado com sucesso!\n\n` +
-              `Total de registros: ${totalRecords}\n` +
-              `- Clientes: ${backupData.data.clients?.length || 0}\n` +
-              `- Empréstimos Ativos: ${backupData.data.loans?.length || 0}\n` +
-              `- Empréstimos Quitados: ${backupData.data.paid_loans?.length || 0}\n` +
-              `- Empréstimos Cancelados: ${backupData.data.cancelled_loans?.length || 0}\n` +
-              `- Parcelamentos: ${backupData.data.installments?.length || 0}\n` +
-              `- Pagamentos: ${backupData.data.payments?.length || 0}\n` +
-              `- Despesas: ${backupData.data.expenses?.length || 0}\n` +
-              `- Levantamento de Capital: ${backupData.data.capital_raising?.length || 0}\n` +
-              `- Avalistas: ${backupData.data.guarantors?.length || 0}\n` +
-              `- Contatos de Emergência: ${backupData.data.emergency_contacts?.length || 0}`);
+        alert(`✓ Backup PDF gerado com sucesso!\n\n` +
+              `Total de registros exportados:\n` +
+              `- Clientes: ${totalClients}\n` +
+              `- Empréstimos: ${totalLoans}\n` +
+              `- Pagamentos: ${totalPayments}\n` +
+              `- Despesas: ${totalExpenses}`);
 
         // Restaurar botão
         button.disabled = false;
         button.innerHTML = originalContent;
 
     } catch (error) {
-        console.error('Erro ao realizar backup:', error);
-        alert('Erro ao realizar backup: ' + error.message);
+        console.error('Erro ao gerar backup PDF:', error);
+        alert('Erro ao gerar backup PDF: ' + error.message);
         
         // Restaurar botão em caso de erro
         const button = event.target.closest('button');
