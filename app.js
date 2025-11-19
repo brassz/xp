@@ -15145,26 +15145,37 @@ async function exportCompleteBackup() {
 
         // Criar PDF
         const { jsPDF } = window.jspdf;
-        const doc = new jsPDF('landscape', 'mm', 'a4');
+        const doc = new jsPDF('portrait', 'mm', 'a4');
         
         // Configurações
         const pageWidth = doc.internal.pageSize.getWidth();
         const pageHeight = doc.internal.pageSize.getHeight();
+        const margin = 15;
         let yPosition = 20;
         
-        // Função auxiliar para adicionar título
-        const addTitle = (text) => {
-            doc.setFontSize(16);
-            doc.setTextColor(30, 64, 175);
-            doc.text(text, 15, yPosition);
-            yPosition += 10;
+        // Função auxiliar para verificar quebra de página
+        const checkPageBreak = (requiredSpace = 15) => {
+            if (yPosition + requiredSpace > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+                return true;
+            }
+            return false;
         };
         
         // Função auxiliar para formatar data
         const formatDate = (dateString) => {
             if (!dateString) return '-';
             const date = new Date(dateString);
-            return date.toLocaleDateString('pt-BR');
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' });
+        };
+        
+        // Função auxiliar para formatar data e hora
+        const formatDateTime = (dateString) => {
+            if (!dateString) return '-';
+            const date = new Date(dateString);
+            return date.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' }) + 
+                   ', ' + date.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit' });
         };
         
         // Função auxiliar para formatar valor
@@ -15176,245 +15187,276 @@ async function exportCompleteBackup() {
             }).format(value);
         };
 
-        // Header
-        doc.setFontSize(22);
-        doc.setTextColor(30, 64, 175);
-        doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, 15, { align: 'center' });
+        // ========== PÁGINA 1: CAPA E ESTATÍSTICAS ==========
+        // Cabeçalho com fundo azul
+        doc.setFillColor(30, 64, 175);
+        doc.rect(0, 0, pageWidth, 60, 'F');
         
-        doc.setFontSize(12);
-        doc.setTextColor(100, 100, 100);
-        doc.text(getCurrentCompanyConfig().name, pageWidth / 2, 22, { align: 'center' });
-        doc.text(`Data: ${formatDate(new Date().toISOString())}`, pageWidth / 2, 28, { align: 'center' });
+        doc.setFontSize(24);
+        doc.setTextColor(255, 255, 255);
+        doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, 30, { align: 'center' });
         
-        yPosition = 35;
+        doc.setFontSize(11);
+        doc.text(`Gerado em: ${formatDateTime(new Date().toISOString())}`, pageWidth / 2, 45, { align: 'center' });
+        
+        yPosition = 80;
 
+        // Estatísticas Gerais
+        doc.setFillColor(245, 247, 250);
+        doc.rect(margin, yPosition - 8, pageWidth - 2 * margin, 8, 'F');
+        doc.setFontSize(14);
+        doc.setTextColor(30, 64, 175);
+        doc.setFont(undefined, 'bold');
+        doc.text('ESTATÍSTICAS GERAIS', margin + 3, yPosition - 2);
+        doc.setFont(undefined, 'normal');
+        yPosition += 10;
+        
+        // Calcular estatísticas
+        const totalClients = clients?.length || 0;
+        const totalLoans = allLoans.length;
+        const overdueLoans = loansActive?.filter(l => {
+            // Considerar vencido se passou da data de vencimento
+            return l.status === 'overdue' || l.overdue;
+        }).length || 0;
+        const totalInstallments = installmentPayments?.length || 0;
+        const totalPayments = payments?.length || 0;
+        const totalExpenses = expenses?.length || 0;
+        
+        // Buscar levantamentos de capital e avalistas
+        const { data: capitalRaising } = await supabase.from('capital_raising').select('*');
+        const { data: guarantors } = await supabase.from('guarantors').select('*');
+        const totalCapital = capitalRaising?.length || 0;
+        const totalGuarantors = guarantors?.length || 0;
+        
+        doc.setFontSize(10);
+        doc.setTextColor(0, 0, 0);
+        
+        const stats = [
+            `• Total de Clientes: ${totalClients}`,
+            `• Total de Empréstimos: ${totalLoans}`,
+            `• Empréstimos Vencidos: ${overdueLoans}`,
+            `• Total de Parcelamentos: ${totalInstallments}`,
+            `• Total de Pagamentos: ${totalPayments}`,
+            `• Total de Despesas: ${totalExpenses}`,
+            `• Levantamentos de Capital: ${totalCapital}`,
+            `• Avalistas Registrados: ${totalGuarantors}`
+        ];
+        
+        stats.forEach(stat => {
+            doc.text(stat, margin + 5, yPosition);
+            yPosition += 6;
+        });
+        
+        yPosition += 10;
+        
         // ========== SEÇÃO 1: CLIENTES ==========
-        doc.addPage();
-        yPosition = 20;
-        addTitle('CLIENTES CADASTRADOS');
+        doc.setFillColor(30, 64, 175);
+        doc.rect(margin, yPosition - 8, pageWidth - 2 * margin, 8, 'F');
+        doc.setFontSize(12);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont(undefined, 'bold');
+        doc.text(`CLIENTES (${totalClients})`, margin + 3, yPosition - 2);
+        doc.setFont(undefined, 'normal');
+        yPosition += 10;
         
         if (clients && clients.length > 0) {
-            const clientsData = clients.map(client => [
-                client.name || '-',
-                client.cpf || '-',
-                client.phone || '-',
-                client.address || '-',
-                client.email || '-'
-            ]);
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
             
-            doc.autoTable({
-                head: [['Nome', 'CPF', 'Telefone', 'Endereço', 'Email']],
-                body: clientsData,
-                startY: yPosition,
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                alternateRowStyles: { fillColor: [245, 247, 250] },
-                margin: { left: 15, right: 15 }
+            clients.forEach((client, index) => {
+                checkPageBreak(25);
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`${index + 1}. ${client.name || 'Nome não informado'}`, margin, yPosition);
+                doc.setFont(undefined, 'normal');
+                yPosition += 5;
+                
+                doc.text(`CPF: ${client.cpf || '-'} | Telefone: ${client.phone || '-'}`, margin + 5, yPosition);
+                yPosition += 5;
+                
+                doc.text(`Endereço: ${client.address || '-'}`, margin + 5, yPosition);
+                yPosition += 8;
             });
-            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
             doc.setFontSize(10);
             doc.setTextColor(150, 150, 150);
-            doc.text('Nenhum cliente cadastrado.', 15, yPosition);
+            doc.text('Nenhum cliente cadastrado.', margin, yPosition);
         }
+        
+        yPosition += 5;
 
         // ========== SEÇÃO 2: EMPRÉSTIMOS ==========
-        doc.addPage();
-        yPosition = 20;
-        addTitle('TODOS OS EMPRÉSTIMOS');
+        checkPageBreak(20);
+        doc.setFillColor(30, 64, 175);
+        doc.rect(margin, yPosition - 8, pageWidth - 2 * margin, 8, 'F');
+        doc.setFontSize(12);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont(undefined, 'bold');
+        doc.text(`EMPRÉSTIMOS (${totalLoans})`, margin + 3, yPosition - 2);
+        doc.setFont(undefined, 'normal');
+        yPosition += 10;
         
         if (allLoans && allLoans.length > 0) {
-            const loansData = allLoans.map(loan => {
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
+            
+            allLoans.forEach((loan, index) => {
+                checkPageBreak(30);
+                
                 const clientName = clients?.find(c => c.id === loan.client_id)?.name || 'Cliente não encontrado';
-                // Calcular total com juros se não existir
                 const totalWithInterest = loan.total_with_interest || 
                                          loan.total_amount || 
                                          (loan.amount * (1 + (loan.interest_rate || 0) / 100)) || 
                                          loan.amount;
-                return [
-                    clientName,
-                    formatCurrency(loan.amount),
-                    formatCurrency(totalWithInterest),
-                    formatDate(loan.first_due_date || loan.loan_date || loan.created_at),
-                    loan.status || '-'
-                ];
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`${index + 1}. ${clientName}`, margin, yPosition);
+                doc.setFont(undefined, 'normal');
+                yPosition += 5;
+                
+                doc.text(`Valor: ${formatCurrency(loan.amount)} | Total c/ Juros: ${formatCurrency(totalWithInterest)}`, margin + 5, yPosition);
+                yPosition += 5;
+                
+                doc.text(`Data: ${formatDate(loan.first_due_date || loan.loan_date || loan.created_at)} | Status: ${loan.status}`, margin + 5, yPosition);
+                yPosition += 8;
             });
-            
-            doc.autoTable({
-                head: [['Cliente', 'Valor Original', 'Total c/ Juros', 'Data', 'Status']],
-                body: loansData,
-                startY: yPosition,
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                alternateRowStyles: { fillColor: [245, 247, 250] },
-                margin: { left: 15, right: 15 }
-            });
-            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
             doc.setFontSize(10);
             doc.setTextColor(150, 150, 150);
-            doc.text('Nenhum empréstimo registrado.', 15, yPosition);
+            doc.text('Nenhum empréstimo registrado.', margin, yPosition);
+            yPosition += 10;
         }
 
         // ========== SEÇÃO 3: PARCELAMENTOS ==========
-        doc.addPage();
-        yPosition = 20;
-        addTitle('PARCELAMENTOS');
+        checkPageBreak(20);
+        doc.setFillColor(30, 64, 175);
+        doc.rect(margin, yPosition - 8, pageWidth - 2 * margin, 8, 'F');
+        doc.setFontSize(12);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont(undefined, 'bold');
+        doc.text(`PARCELAMENTOS (${totalInstallments})`, margin + 3, yPosition - 2);
+        doc.setFont(undefined, 'normal');
+        yPosition += 10;
         
         if (installmentPayments && installmentPayments.length > 0) {
-            const installmentsData = installmentPayments.map(inst => {
-                // Buscar o plano de parcelamento
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
+            
+            installmentPayments.forEach((inst, index) => {
+                checkPageBreak(25);
+                
                 const plan = installmentPlans?.find(p => p.id === inst.installment_id);
-                let clientName = '-';
+                let clientName = 'Cliente não identificado';
                 
                 if (plan) {
-                    // Encontrou o plano, buscar o cliente
                     clientName = clients?.find(c => c.id === plan.client_id)?.name || 'Cliente não encontrado';
-                } else {
-                    clientName = 'Cliente não identificado';
                 }
                 
-                return [
-                    clientName,
-                    inst.installment_number || '-',
-                    formatCurrency(inst.amount),
-                    formatDate(inst.due_date),
-                    inst.status === 'paid' ? 'Pago' : inst.status === 'overdue' ? 'Vencido' : 'Pendente',
-                    inst.paid_date ? formatDate(inst.paid_date) : '-'
-                ];
+                const statusText = inst.status === 'paid' ? 'Pago' : inst.status === 'overdue' ? 'Vencido' : 'Pendente';
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`${index + 1}. ${clientName} - Parcela ${inst.installment_number}`, margin, yPosition);
+                doc.setFont(undefined, 'normal');
+                yPosition += 5;
+                
+                doc.text(`Valor: ${formatCurrency(inst.amount)} | Vencimento: ${formatDate(inst.due_date)} | Status: ${statusText}`, margin + 5, yPosition);
+                yPosition += 5;
+                
+                if (inst.paid_date) {
+                    doc.text(`Data Pagamento: ${formatDate(inst.paid_date)}`, margin + 5, yPosition);
+                    yPosition += 5;
+                }
+                
+                yPosition += 3;
             });
-            
-            doc.autoTable({
-                head: [['Cliente', 'Parcela Nº', 'Valor', 'Vencimento', 'Status', 'Data Pagamento']],
-                body: installmentsData,
-                startY: yPosition,
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                alternateRowStyles: { fillColor: [245, 247, 250] },
-                margin: { left: 15, right: 15 }
-            });
-            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
             doc.setFontSize(10);
             doc.setTextColor(150, 150, 150);
-            doc.text('Nenhum parcelamento registrado.', 15, yPosition);
+            doc.text('Nenhum parcelamento registrado.', margin, yPosition);
+            yPosition += 10;
         }
 
         // ========== SEÇÃO 4: PAGAMENTOS ==========
-        doc.addPage();
-        yPosition = 20;
-        addTitle('TODOS OS PAGAMENTOS REALIZADOS');
+        checkPageBreak(20);
+        doc.setFillColor(30, 64, 175);
+        doc.rect(margin, yPosition - 8, pageWidth - 2 * margin, 8, 'F');
+        doc.setFontSize(12);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont(undefined, 'bold');
+        doc.text(`PAGAMENTOS (${totalPayments})`, margin + 3, yPosition - 2);
+        doc.setFont(undefined, 'normal');
+        yPosition += 10;
         
         if (payments && payments.length > 0) {
-            const paymentsData = payments.map(payment => {
-                const loan = allLoans.find(l => l.id === payment.loan_id);
-                const clientName = loan ? clients?.find(c => c.id === loan.client_id)?.name || '-' : '-';
-                return [
-                    clientName,
-                    formatCurrency(payment.amount),
-                    payment.payment_type || '-',
-                    formatDate(payment.created_at),
-                    payment.notes || '-'
-                ];
-            });
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
             
-            doc.autoTable({
-                head: [['Cliente', 'Valor', 'Tipo', 'Data', 'Observações']],
-                body: paymentsData,
-                startY: yPosition,
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                alternateRowStyles: { fillColor: [245, 247, 250] },
-                margin: { left: 15, right: 15 }
+            payments.forEach((payment, index) => {
+                checkPageBreak(25);
+                
+                const loan = allLoans.find(l => l.id === payment.loan_id);
+                const clientName = loan ? clients?.find(c => c.id === loan.client_id)?.name || 'Cliente não encontrado' : 'Empréstimo não encontrado';
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`${index + 1}. ${clientName}`, margin, yPosition);
+                doc.setFont(undefined, 'normal');
+                yPosition += 5;
+                
+                doc.text(`Valor: ${formatCurrency(payment.amount)} | Tipo: ${payment.payment_type || '-'} | Data: ${formatDate(payment.created_at)}`, margin + 5, yPosition);
+                yPosition += 5;
+                
+                if (payment.notes) {
+                    doc.text(`Obs: ${payment.notes}`, margin + 5, yPosition);
+                    yPosition += 5;
+                }
+                
+                yPosition += 3;
             });
-            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
             doc.setFontSize(10);
             doc.setTextColor(150, 150, 150);
-            doc.text('Nenhum pagamento registrado.', 15, yPosition);
+            doc.text('Nenhum pagamento registrado.', margin, yPosition);
+            yPosition += 10;
         }
 
         // ========== SEÇÃO 5: DESPESAS ==========
-        doc.addPage();
-        yPosition = 20;
-        addTitle('DESPESAS REGISTRADAS');
+        checkPageBreak(20);
+        doc.setFillColor(30, 64, 175);
+        doc.rect(margin, yPosition - 8, pageWidth - 2 * margin, 8, 'F');
+        doc.setFontSize(12);
+        doc.setTextColor(255, 255, 255);
+        doc.setFont(undefined, 'bold');
+        doc.text(`DESPESAS (${totalExpenses})`, margin + 3, yPosition - 2);
+        doc.setFont(undefined, 'normal');
+        yPosition += 10;
         
         if (expenses && expenses.length > 0) {
-            const expensesData = expenses.map(expense => [
-                expense.description || '-',
-                formatCurrency(expense.amount),
-                expense.category || '-',
-                formatDate(expense.date),
-                expense.notes || '-'
-            ]);
+            doc.setFontSize(9);
+            doc.setTextColor(0, 0, 0);
             
-            doc.autoTable({
-                head: [['Descrição', 'Valor', 'Categoria', 'Data', 'Observações']],
-                body: expensesData,
-                startY: yPosition,
-                styles: { fontSize: 8, cellPadding: 2 },
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                alternateRowStyles: { fillColor: [245, 247, 250] },
-                margin: { left: 15, right: 15 }
+            expenses.forEach((expense, index) => {
+                checkPageBreak(25);
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`${index + 1}. ${expense.description || 'Sem descrição'}`, margin, yPosition);
+                doc.setFont(undefined, 'normal');
+                yPosition += 5;
+                
+                doc.text(`Valor: ${formatCurrency(expense.amount)} | Categoria: ${expense.category || '-'} | Data: ${formatDate(expense.date)}`, margin + 5, yPosition);
+                yPosition += 5;
+                
+                if (expense.notes) {
+                    doc.text(`Obs: ${expense.notes}`, margin + 5, yPosition);
+                    yPosition += 5;
+                }
+                
+                yPosition += 3;
             });
-            yPosition = doc.lastAutoTable.finalY + 15;
         } else {
             doc.setFontSize(10);
             doc.setTextColor(150, 150, 150);
-            doc.text('Nenhuma despesa registrada.', 15, yPosition);
+            doc.text('Nenhuma despesa registrada.', margin, yPosition);
         }
-
-        // ========== RESUMO FINAL ==========
-        doc.addPage();
-        yPosition = 20;
-        addTitle('RESUMO DO BACKUP');
-        
-        doc.setFontSize(11);
-        doc.setTextColor(0, 0, 0);
-        
-        const totalClients = clients?.length || 0;
-        const totalLoans = allLoans.length;
-        const totalInstallments = installmentPayments?.length || 0;
-        const totalInstallmentsPaid = installmentPayments?.filter(i => i.status === 'paid').length || 0;
-        const totalInstallmentsPending = installmentPayments?.filter(i => i.status !== 'paid').length || 0;
-        const totalPayments = payments?.length || 0;
-        const totalExpenses = expenses?.length || 0;
-        
-        const totalLoanAmount = allLoans.reduce((sum, loan) => sum + (loan.amount || 0), 0);
-        const totalPaymentsAmount = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
-        const totalExpensesAmount = expenses?.reduce((sum, e) => sum + (e.amount || 0), 0) || 0;
-        
-        doc.text(`Total de Clientes: ${totalClients}`, 15, yPosition);
-        yPosition += 8;
-        doc.text(`Total de Empréstimos: ${totalLoans}`, 15, yPosition);
-        yPosition += 8;
-        doc.text(`  - Ativos: ${loansActive?.length || 0}`, 20, yPosition);
-        yPosition += 7;
-        doc.text(`  - Quitados: ${loansPaid?.length || 0}`, 20, yPosition);
-        yPosition += 10;
-        doc.text(`Total de Parcelamentos: ${totalInstallments}`, 15, yPosition);
-        yPosition += 8;
-        doc.text(`  - Pagos: ${totalInstallmentsPaid}`, 20, yPosition);
-        yPosition += 7;
-        doc.text(`  - Pendentes: ${totalInstallmentsPending}`, 20, yPosition);
-        yPosition += 10;
-        doc.text(`Total de Pagamentos: ${totalPayments}`, 15, yPosition);
-        yPosition += 8;
-        doc.text(`Total de Despesas: ${totalExpenses}`, 15, yPosition);
-        yPosition += 12;
-        
-        doc.setTextColor(30, 64, 175);
-        doc.setFontSize(12);
-        doc.text('Valores Totais:', 15, yPosition);
-        yPosition += 10;
-        
-        doc.setFontSize(11);
-        doc.setTextColor(0, 0, 0);
-        doc.text(`Valor Total Emprestado: ${formatCurrency(totalLoanAmount)}`, 15, yPosition);
-        yPosition += 8;
-        doc.text(`Valor Total em Pagamentos: ${formatCurrency(totalPaymentsAmount)}`, 15, yPosition);
-        yPosition += 8;
-        doc.text(`Valor Total em Despesas: ${formatCurrency(totalExpensesAmount)}`, 15, yPosition);
 
         // Salvar PDF
         const now = new Date();
@@ -15424,6 +15466,8 @@ async function exportCompleteBackup() {
         doc.save(`backup-${companySlug}-${dateStr}-${timeStr}.pdf`);
 
         console.log('✓ Backup PDF gerado com sucesso!');
+        
+        const totalInstallmentsPaid = installmentPayments?.filter(i => i.status === 'paid').length || 0;
         
         alert(`✓ Backup PDF gerado com sucesso!\n\n` +
               `Total de registros exportados:\n` +
