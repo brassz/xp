@@ -15082,8 +15082,8 @@ async function exportCompleteBackup() {
         if (clientsError) throw clientsError;
         console.log(`✓ ${clients?.length || 0} clientes exportados`);
 
-        // 2. Exportar TODOS os Empréstimos (ativos, quitados e cancelados)
-        console.log('Exportando todos os empréstimos...');
+        // 2. Exportar Empréstimos (ativos e quitados)
+        console.log('Exportando empréstimos...');
         const { data: loansActive, error: loansError } = await supabase
             .from('loans')
             .select('*')
@@ -15094,19 +15094,13 @@ async function exportCompleteBackup() {
             .select('*')
             .order('created_at', { ascending: false });
         
-        const { data: loansCancelled, error: cancelledLoansError } = await supabase
-            .from('cancelled_loans')
-            .select('*')
-            .order('created_at', { ascending: false });
-        
-        if (loansError || paidLoansError || cancelledLoansError) {
+        if (loansError || paidLoansError) {
             throw new Error('Erro ao exportar empréstimos');
         }
         
         const allLoans = [
             ...(loansActive || []).map(l => ({ ...l, status: 'Ativo' })),
-            ...(loansPaid || []).map(l => ({ ...l, status: 'Quitado' })),
-            ...(loansCancelled || []).map(l => ({ ...l, status: 'Cancelado' }))
+            ...(loansPaid || []).map(l => ({ ...l, status: 'Quitado' }))
         ];
         console.log(`✓ ${allLoans.length} empréstimos exportados`);
 
@@ -15327,8 +15321,6 @@ async function exportCompleteBackup() {
         doc.text(`  - Ativos: ${loansActive?.length || 0}`, 20, yPosition);
         yPosition += 7;
         doc.text(`  - Quitados: ${loansPaid?.length || 0}`, 20, yPosition);
-        yPosition += 7;
-        doc.text(`  - Cancelados: ${loansCancelled?.length || 0}`, 20, yPosition);
         yPosition += 10;
         doc.text(`Total de Pagamentos: ${totalPayments}`, 15, yPosition);
         yPosition += 8;
