@@ -15217,18 +15217,22 @@ async function exportCompleteBackup() {
         if (allLoans && allLoans.length > 0) {
             const loansData = allLoans.map(loan => {
                 const clientName = clients?.find(c => c.id === loan.client_id)?.name || 'Cliente não encontrado';
+                // Calcular total com juros se não existir
+                const totalWithInterest = loan.total_with_interest || 
+                                         loan.total_amount || 
+                                         (loan.amount * (1 + (loan.interest_rate || 0) / 100)) || 
+                                         loan.amount;
                 return [
                     clientName,
                     formatCurrency(loan.amount),
-                    formatCurrency(loan.total_with_interest),
-                    `${loan.installments || 0}x`,
-                    formatDate(loan.first_due_date || loan.loan_date),
+                    formatCurrency(totalWithInterest),
+                    formatDate(loan.first_due_date || loan.loan_date || loan.created_at),
                     loan.status || '-'
                 ];
             });
             
             doc.autoTable({
-                head: [['Cliente', 'Valor', 'Total c/ Juros', 'Parcelas', 'Data', 'Status']],
+                head: [['Cliente', 'Valor Original', 'Total c/ Juros', 'Data', 'Status']],
                 body: loansData,
                 startY: yPosition,
                 styles: { fontSize: 8, cellPadding: 2 },
