@@ -15054,3 +15054,728 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
         }
     });
 }
+
+// ========================================
+// Sistema de Backup Completo
+// ========================================
+
+document.addEventListener('DOMContentLoaded', function() {
+    const backupBtn = document.getElementById('backupBtn');
+    const backupModal = document.getElementById('backupModal');
+    const closeBackupModal = document.getElementById('closeBackupModal');
+    const cancelBackup = document.getElementById('cancelBackup');
+    const generateBackup = document.getElementById('generateBackup');
+    const backupSelectAll = document.getElementById('backupSelectAll');
+    const backupOptions = document.querySelectorAll('.backup-option');
+
+    // Abrir modal
+    if (backupBtn) {
+        backupBtn.addEventListener('click', () => {
+            backupModal.classList.remove('hidden');
+        });
+    }
+
+    // Fechar modal
+    function closeModal() {
+        backupModal.classList.add('hidden');
+    }
+
+    if (closeBackupModal) {
+        closeBackupModal.addEventListener('click', closeModal);
+    }
+
+    if (cancelBackup) {
+        cancelBackup.addEventListener('click', closeModal);
+    }
+
+    // Fechar ao clicar fora
+    backupModal?.addEventListener('click', (e) => {
+        if (e.target === backupModal) {
+            closeModal();
+        }
+    });
+
+    // Selecionar/Deselecionar tudo
+    if (backupSelectAll) {
+        backupSelectAll.addEventListener('change', (e) => {
+            backupOptions.forEach(option => {
+                option.checked = e.target.checked;
+            });
+        });
+    }
+
+    // Atualizar "Selecionar Tudo" quando as opções individuais mudam
+    backupOptions.forEach(option => {
+        option.addEventListener('change', () => {
+            const allChecked = Array.from(backupOptions).every(opt => opt.checked);
+            if (backupSelectAll) {
+                backupSelectAll.checked = allChecked;
+            }
+        });
+    });
+
+    // Gerar backup
+    if (generateBackup) {
+        generateBackup.addEventListener('click', async () => {
+            const selectedOptions = Array.from(backupOptions)
+                .filter(opt => opt.checked)
+                .map(opt => opt.getAttribute('data-type'));
+
+            if (selectedOptions.length === 0) {
+                alert('Por favor, selecione pelo menos uma opção para o backup.');
+                return;
+            }
+
+            // Mostrar loading
+            generateBackup.disabled = true;
+            generateBackup.innerHTML = `
+                <svg class="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    <circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle>
+                    <path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Gerando...
+            `;
+
+            try {
+                await generateBackupPDF(selectedOptions);
+                closeModal();
+            } catch (error) {
+                console.error('Erro ao gerar backup:', error);
+                alert('Erro ao gerar backup. Por favor, tente novamente.');
+            } finally {
+                // Restaurar botão
+                generateBackup.disabled = false;
+                generateBackup.innerHTML = `
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                    </svg>
+                    Gerar Backup PDF
+                `;
+            }
+        });
+    }
+});
+
+// Função para gerar o PDF de backup
+async function generateBackupPDF(selectedOptions) {
+    // Verificar se há uma empresa conectada
+    if (!currentCompany) {
+        alert('Erro: Nenhuma empresa conectada. Por favor, faça login novamente.');
+        console.error('Tentativa de backup sem empresa conectada');
+        return;
+    }
+
+    if (!supabase) {
+        alert('Erro: Conexão com banco de dados não encontrada. Por favor, recarregue a página.');
+        console.error('Tentativa de backup sem conexão Supabase');
+        return;
+    }
+
+    console.log('╔═══════════════════════════════════════════════╗');
+    console.log('║       INICIANDO BACKUP DO SISTEMA             ║');
+    console.log('╚═══════════════════════════════════════════════╝');
+    console.log('🏢 Empresa conectada:', currentCompany);
+    console.log('📋 Nome da empresa:', COMPANIES_CONFIG[currentCompany]?.name);
+    console.log('🗄️  URL do banco:', COMPANIES_CONFIG[currentCompany]?.supabase?.url);
+    console.log('📦 Seções selecionadas:', selectedOptions);
+    console.log('─────────────────────────────────────────────────');
+
+    const { jsPDF } = window.jspdf;
+    const doc = new jsPDF();
+    
+    let yPosition = 20;
+    const pageWidth = doc.internal.pageSize.getWidth();
+    const pageHeight = doc.internal.pageSize.getHeight();
+    const margin = 15;
+    const contentWidth = pageWidth - (margin * 2);
+
+    // Função para adicionar nova página se necessário
+    function checkPageBreak(neededSpace = 20) {
+        if (yPosition + neededSpace > pageHeight - margin) {
+            doc.addPage();
+            yPosition = 20;
+            return true;
+        }
+        return false;
+    }
+
+    // Cabeçalho do documento
+    doc.setFontSize(20);
+    doc.setTextColor(30, 64, 175); // Cor azul do tema
+    doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 10;
+    doc.setFontSize(12);
+    doc.setTextColor(100, 100, 100);
+    const companyName = COMPANIES_CONFIG[currentCompany]?.name || 'Sistema';
+    doc.text(companyName, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 5;
+    doc.setFontSize(10);
+    const today = new Date().toLocaleDateString('pt-BR', { 
+        year: 'numeric', 
+        month: 'long', 
+        day: 'numeric',
+        hour: '2-digit',
+        minute: '2-digit'
+    });
+    doc.text(`Gerado em: ${today}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 5;
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Banco de dados: ${currentCompany.toUpperCase()}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 10;
+
+    // Buscar e adicionar dados conforme selecionado
+    if (selectedOptions.includes('clients')) {
+        await addClientsToBackup(doc, checkPageBreak);
+    }
+
+    if (selectedOptions.includes('loans')) {
+        await addLoansToBackup(doc, checkPageBreak);
+    }
+
+    if (selectedOptions.includes('installments')) {
+        await addInstallmentsToBackup(doc, checkPageBreak);
+    }
+
+    if (selectedOptions.includes('payments')) {
+        await addPaymentsToBackup(doc, checkPageBreak);
+    }
+
+    if (selectedOptions.includes('expenses')) {
+        await addExpensesToBackup(doc, checkPageBreak);
+    }
+
+    // Salvar o PDF
+    const timestamp = new Date().toISOString().split('T')[0];
+    const fileName = `backup_${currentCompany}_${timestamp}.pdf`;
+    
+    console.log('─────────────────────────────────────────────────');
+    console.log('✅ Backup finalizado com sucesso!');
+    console.log('📄 Nome do arquivo:', fileName);
+    console.log('╚═══════════════════════════════════════════════╝');
+    
+    doc.save(fileName);
+}
+
+// Função auxiliar para adicionar título de seção
+function addSectionTitle(doc, title, checkPageBreak) {
+    checkPageBreak(25);
+    const pageWidth = doc.internal.pageSize.getWidth();
+    let yPos = doc.internal.pageSize.getHeight() - doc.lastAutoTable?.finalY || 20;
+    
+    if (doc.lastAutoTable) {
+        yPos = doc.lastAutoTable.finalY + 15;
+    }
+    
+    doc.setFontSize(16);
+    doc.setTextColor(30, 64, 175);
+    doc.text(title, 15, yPos);
+    doc.setDrawColor(59, 130, 246);
+    doc.setLineWidth(0.5);
+    doc.line(15, yPos + 2, pageWidth - 15, yPos + 2);
+    
+    return yPos + 10;
+}
+
+// Adicionar clientes ao backup
+async function addClientsToBackup(doc, checkPageBreak) {
+    try {
+        const { data: clients, error } = await supabase
+            .from('clients')
+            .select('*')
+            .order('name');
+
+        if (error) throw error;
+
+        const yPos = addSectionTitle(doc, 'CLIENTES', checkPageBreak);
+
+        if (clients && clients.length > 0) {
+            const tableData = clients.map(client => [
+                client.name || '-',
+                client.cpf || '-',
+                client.address || '-',
+                client.phone || '-'
+            ]);
+
+            doc.autoTable({
+                startY: yPos,
+                head: [['Nome', 'CPF', 'Endereço', 'Telefone']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { 
+                    fillColor: [30, 64, 175], 
+                    textColor: 255,
+                    fontSize: 8,
+                    halign: 'center'
+                },
+                styles: { 
+                    fontSize: 7, 
+                    cellPadding: 2,
+                    overflow: 'linebreak',
+                    cellWidth: 'wrap'
+                },
+                columnStyles: {
+                    0: { cellWidth: 50 },  // Nome
+                    1: { cellWidth: 30 },  // CPF
+                    2: { cellWidth: 60 },  // Endereço
+                    3: { cellWidth: 30 }   // Telefone
+                },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 15, right: 15 }
+            });
+        } else {
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Nenhum cliente cadastrado.', 15, yPos);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar clientes:', error);
+    }
+}
+
+// Adicionar empréstimos ao backup
+async function addLoansToBackup(doc, checkPageBreak) {
+    try {
+        const today = new Date().toISOString().split('T')[0];
+        
+        const { data: loans, error } = await supabase
+            .from('loans')
+            .select(`
+                *,
+                client:clients(name)
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        const yPos = addSectionTitle(doc, 'EMPRÉSTIMOS', checkPageBreak);
+
+        if (loans && loans.length > 0) {
+            // Agrupar por status
+            const activeLoans = loans.filter(l => l.status === 'active');
+            const overdueLoans = loans.filter(l => l.status === 'overdue');
+            const dueTodayLoans = loans.filter(l => l.next_due_date === today && l.status === 'active');
+
+            console.log('=== BACKUP EMPRÉSTIMOS ===');
+            console.log('Total de empréstimos:', loans.length);
+            console.log('Empréstimos Ativos:', activeLoans.length);
+            console.log('Empréstimos Vencidos:', overdueLoans.length);
+            console.log('Vencem Hoje:', dueTodayLoans.length);
+
+            let currentY = yPos;
+
+            // Empréstimos Ativos
+            doc.setFontSize(12);
+            doc.setTextColor(0, 0, 0);
+            doc.text(`Empréstimos Ativos: ${activeLoans.length}`, 15, currentY);
+            currentY += 8;
+
+            if (activeLoans.length > 0) {
+                const activeData = activeLoans.map(loan => {
+                    const capital = parseFloat(loan.amount || 0);
+                    const interestRate = parseFloat(loan.interest_rate || 0);
+                    const interest = (capital * interestRate) / 100;
+                    const total = capital + interest;
+                    
+                    return [
+                        loan.client?.name || '-',
+                        `R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        new Date(loan.created_at).toLocaleDateString('pt-BR')
+                    ];
+                });
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: [['Cliente', 'Capital', 'Juros', 'Total', 'Data']],
+                    body: activeData,
+                    theme: 'grid',
+                    headStyles: { 
+                        fillColor: [34, 197, 94], 
+                        textColor: 255,
+                        fontSize: 7,
+                        halign: 'center'
+                    },
+                    styles: { 
+                        fontSize: 6, 
+                        cellPadding: 1.5,
+                        overflow: 'linebreak'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 50, halign: 'left' },   // Cliente
+                        1: { cellWidth: 30, halign: 'right' },  // Capital
+                        2: { cellWidth: 25, halign: 'right' },  // Juros
+                        3: { cellWidth: 30, halign: 'right' },  // Total
+                        4: { cellWidth: 25, halign: 'center' }  // Data
+                    },
+                    alternateRowStyles: { fillColor: [245, 247, 250] },
+                    margin: { left: 15, right: 15 }
+                });
+                currentY = doc.lastAutoTable.finalY + 10;
+            }
+
+            // Empréstimos Vencidos
+            if (overdueLoans.length > 0) {
+                checkPageBreak(30);
+                doc.setFontSize(12);
+                doc.setTextColor(220, 38, 38);
+                doc.text(`Empréstimos Vencidos: ${overdueLoans.length}`, 15, currentY);
+                currentY += 8;
+
+                const overdueData = overdueLoans.map(loan => {
+                    const capital = parseFloat(loan.amount || 0);
+                    const interestRate = parseFloat(loan.interest_rate || 0);
+                    const interest = (capital * interestRate) / 100;
+                    const total = capital + interest;
+                    
+                    return [
+                        loan.client?.name || '-',
+                        `R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        new Date(loan.created_at).toLocaleDateString('pt-BR')
+                    ];
+                });
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: [['Cliente', 'Capital', 'Juros', 'Total', 'Data']],
+                    body: overdueData,
+                    theme: 'grid',
+                    headStyles: { 
+                        fillColor: [220, 38, 38], 
+                        textColor: 255,
+                        fontSize: 7,
+                        halign: 'center'
+                    },
+                    styles: { 
+                        fontSize: 6, 
+                        cellPadding: 1.5,
+                        overflow: 'linebreak'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 50, halign: 'left' },   // Cliente
+                        1: { cellWidth: 30, halign: 'right' },  // Capital
+                        2: { cellWidth: 25, halign: 'right' },  // Juros
+                        3: { cellWidth: 30, halign: 'right' },  // Total
+                        4: { cellWidth: 25, halign: 'center' }  // Data
+                    },
+                    alternateRowStyles: { fillColor: [254, 242, 242] },
+                    margin: { left: 15, right: 15 }
+                });
+                currentY = doc.lastAutoTable.finalY + 10;
+            }
+
+            // Vencem Hoje
+            if (dueTodayLoans.length > 0) {
+                checkPageBreak(30);
+                doc.setFontSize(12);
+                doc.setTextColor(234, 179, 8);
+                doc.text(`Vencem Hoje: ${dueTodayLoans.length}`, 15, currentY);
+                currentY += 8;
+
+                const dueTodayData = dueTodayLoans.map(loan => {
+                    const capital = parseFloat(loan.amount || 0);
+                    const interestRate = parseFloat(loan.interest_rate || 0);
+                    const interest = (capital * interestRate) / 100;
+                    const total = capital + interest;
+                    
+                    return [
+                        loan.client?.name || '-',
+                        `R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        new Date(loan.next_due_date).toLocaleDateString('pt-BR')
+                    ];
+                });
+
+                doc.autoTable({
+                    startY: currentY,
+                    head: [['Cliente', 'Capital', 'Juros', 'Total', 'Vencimento']],
+                    body: dueTodayData,
+                    theme: 'grid',
+                    headStyles: { 
+                        fillColor: [234, 179, 8], 
+                        textColor: 255,
+                        fontSize: 7,
+                        halign: 'center'
+                    },
+                    styles: { 
+                        fontSize: 6, 
+                        cellPadding: 1.5,
+                        overflow: 'linebreak'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 50, halign: 'left' },   // Cliente
+                        1: { cellWidth: 30, halign: 'right' },  // Capital
+                        2: { cellWidth: 25, halign: 'right' },  // Juros
+                        3: { cellWidth: 30, halign: 'right' },  // Total
+                        4: { cellWidth: 25, halign: 'center' }  // Vencimento
+                    },
+                    alternateRowStyles: { fillColor: [254, 252, 232] },
+                    margin: { left: 15, right: 15 }
+                });
+            }
+        } else {
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Nenhum empréstimo cadastrado.', 15, yPos);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar empréstimos:', error);
+    }
+}
+
+// Adicionar parcelamentos ao backup
+async function addInstallmentsToBackup(doc, checkPageBreak) {
+    try {
+        console.log('Buscando parcelamentos...');
+        
+        // Buscar todos os empréstimos
+        const { data: loans, error } = await supabase
+            .from('loans')
+            .select(`
+                *,
+                client:clients(name)
+            `)
+            .order('created_at', { ascending: false });
+
+        if (error) throw error;
+
+        console.log('Total de empréstimos encontrados:', loans?.length || 0);
+
+        // Buscar todas as parcelas separadamente
+        const { data: allInstallments, error: instError } = await supabase
+            .from('installments')
+            .select('*')
+            .order('loan_id');
+
+        if (instError) throw instError;
+
+        console.log('Total de parcelas encontradas:', allInstallments?.length || 0);
+
+        const yPos = addSectionTitle(doc, 'PARCELAMENTOS', checkPageBreak);
+
+        if (loans && loans.length > 0 && allInstallments) {
+            // Agrupar parcelas por loan_id
+            const installmentsByLoan = {};
+            allInstallments.forEach(inst => {
+                if (!installmentsByLoan[inst.loan_id]) {
+                    installmentsByLoan[inst.loan_id] = [];
+                }
+                installmentsByLoan[inst.loan_id].push(inst);
+            });
+
+            // Filtrar empréstimos que têm parcelas
+            const loansWithInstallments = loans.filter(loan => installmentsByLoan[loan.id]);
+
+            console.log('Empréstimos com parcelamentos:', loansWithInstallments.length);
+
+            if (loansWithInstallments.length > 0) {
+                const tableData = loansWithInstallments.map(loan => {
+                    const installments = installmentsByLoan[loan.id] || [];
+                    const totalInstallments = installments.length;
+                    const paidInstallments = installments.filter(inst => inst.status === 'paid').length;
+                    const capital = parseFloat(loan.amount || 0);
+                    const interestRate = parseFloat(loan.interest_rate || 0);
+                    const interest = (capital * interestRate) / 100;
+                    const total = capital + interest;
+                    
+                    return [
+                        loan.client?.name || '-',
+                        totalInstallments.toString(),
+                        paidInstallments.toString(),
+                        `R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                    ];
+                });
+
+                console.log('Linhas de dados para a tabela:', tableData.length);
+
+                doc.autoTable({
+                    startY: yPos,
+                    head: [['Cliente', 'Total Parcelas', 'Pagas', 'Capital', 'Juros', 'Total']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: { 
+                        fillColor: [30, 64, 175], 
+                        textColor: 255,
+                        fontSize: 7,
+                        halign: 'center'
+                    },
+                    styles: { 
+                        fontSize: 6, 
+                        cellPadding: 1.5,
+                        overflow: 'linebreak'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 45, halign: 'left' },   // Cliente
+                        1: { cellWidth: 20, halign: 'center' }, // Total Parcelas
+                        2: { cellWidth: 20, halign: 'center' }, // Pagas
+                        3: { cellWidth: 28, halign: 'right' },  // Capital
+                        4: { cellWidth: 25, halign: 'right' },  // Juros
+                        5: { cellWidth: 28, halign: 'right' }   // Total
+                    },
+                    alternateRowStyles: { fillColor: [245, 247, 250] },
+                    margin: { left: 15, right: 15 }
+                });
+            } else {
+                doc.setFontSize(10);
+                doc.setTextColor(100, 100, 100);
+                doc.text('Nenhum parcelamento cadastrado.', 15, yPos);
+            }
+        } else {
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Nenhum parcelamento cadastrado.', 15, yPos);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar parcelamentos:', error);
+        const yPos = addSectionTitle(doc, 'PARCELAMENTOS', checkPageBreak);
+        doc.setFontSize(10);
+        doc.setTextColor(220, 38, 38);
+        doc.text('Erro ao buscar parcelamentos. Verifique o console para mais detalhes.', 15, yPos);
+    }
+}
+
+// Adicionar pagamentos ao backup
+async function addPaymentsToBackup(doc, checkPageBreak) {
+    try {
+        const { data: payments, error } = await supabase
+            .from('payments')
+            .select(`
+                *,
+                installment:installments(
+                    loan:loans(
+                        client:clients(name)
+                    )
+                )
+            `)
+            .order('payment_date', { ascending: false })
+            .limit(100);
+
+        if (error) throw error;
+
+        const yPos = addSectionTitle(doc, 'PAGAMENTOS (Últimos 100)', checkPageBreak);
+
+        if (payments && payments.length > 0) {
+            const tableData = payments.map(payment => [
+                payment.installment?.loan?.client?.name || '-',
+                `R$ ${parseFloat(payment.amount_paid || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                new Date(payment.payment_date).toLocaleDateString('pt-BR'),
+                payment.payment_method || '-'
+            ]);
+
+            doc.autoTable({
+                startY: yPos,
+                head: [['Cliente', 'Valor', 'Data', 'Método']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { 
+                    fillColor: [30, 64, 175], 
+                    textColor: 255,
+                    fontSize: 7,
+                    halign: 'center'
+                },
+                styles: { 
+                    fontSize: 6, 
+                    cellPadding: 1.5,
+                    overflow: 'linebreak'
+                },
+                columnStyles: {
+                    0: { cellWidth: 60, halign: 'left' },   // Cliente
+                    1: { cellWidth: 35, halign: 'right' },  // Valor
+                    2: { cellWidth: 28, halign: 'center' }, // Data
+                    3: { cellWidth: 35, halign: 'left' }    // Método
+                },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 15, right: 15 }
+            });
+        } else {
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Nenhum pagamento registrado.', 15, yPos);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar pagamentos:', error);
+    }
+}
+
+// Adicionar despesas ao backup
+async function addExpensesToBackup(doc, checkPageBreak) {
+    try {
+        console.log('Buscando despesas...');
+        
+        // Buscar despesas com informações de categoria
+        const { data: expenses, error } = await supabase
+            .from('expenses')
+            .select(`
+                *,
+                category:expense_categories(name)
+            `)
+            .order('date', { ascending: false })
+            .limit(100);
+
+        if (error) {
+            console.error('Erro na query de expenses:', error);
+            throw error;
+        }
+
+        console.log('Despesas encontradas:', expenses?.length || 0);
+
+        const yPos = addSectionTitle(doc, 'DESPESAS (Últimas 100)', checkPageBreak);
+
+        if (expenses && expenses.length > 0) {
+            const tableData = expenses.map(expense => [
+                expense.title || expense.description || '-',
+                `R$ ${parseFloat(expense.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                expense.date ? new Date(expense.date).toLocaleDateString('pt-BR') : '-',
+                expense.category?.name || '-',
+                expense.status || '-'
+            ]);
+
+            doc.autoTable({
+                startY: yPos,
+                head: [['Descrição', 'Valor', 'Data', 'Categoria', 'Status']],
+                body: tableData,
+                theme: 'grid',
+                headStyles: { 
+                    fillColor: [30, 64, 175], 
+                    textColor: 255,
+                    fontSize: 7,
+                    halign: 'center'
+                },
+                styles: { 
+                    fontSize: 6, 
+                    cellPadding: 1.5,
+                    overflow: 'linebreak'
+                },
+                columnStyles: {
+                    0: { cellWidth: 55, halign: 'left' },   // Descrição
+                    1: { cellWidth: 30, halign: 'right' },  // Valor
+                    2: { cellWidth: 25, halign: 'center' }, // Data
+                    3: { cellWidth: 30, halign: 'left' },   // Categoria
+                    4: { cellWidth: 20, halign: 'center' }  // Status
+                },
+                alternateRowStyles: { fillColor: [245, 247, 250] },
+                margin: { left: 15, right: 15 }
+            });
+        } else {
+            doc.setFontSize(10);
+            doc.setTextColor(100, 100, 100);
+            doc.text('Nenhuma despesa registrada.', 15, yPos);
+        }
+    } catch (error) {
+        console.error('Erro ao buscar despesas:', error);
+        const yPos = addSectionTitle(doc, 'DESPESAS (Últimas 100)', checkPageBreak);
+        doc.setFontSize(10);
+        doc.setTextColor(220, 38, 38);
+        doc.text('Erro ao buscar despesas. Verifique o console para mais detalhes.', 15, yPos);
+    }
+}

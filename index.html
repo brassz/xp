@@ -12,6 +12,7 @@
     <script src="https://ucarecdn.com/libs/widget/3.x/uploadcare.full.min.js"></script>
     <link rel="stylesheet" href="https://ucarecdn.com/libs/widget/3.x/uploadcare.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
     <style>
         :root {
             --primary: #1e40af;
@@ -577,8 +578,18 @@
                 <!-- Overview Section -->
                 <div id="overview" class="content-section">
                     <div class="mb-8">
-                        <h2 class="text-3xl font-bold text-white mb-2">Visão Geral</h2>
-                        <p class="text-gray-400">Resumo das operações financeiras</p>
+                        <div class="flex items-center justify-between">
+                            <div>
+                                <h2 class="text-3xl font-bold text-white mb-2">Visão Geral</h2>
+                                <p class="text-gray-400">Resumo das operações financeiras</p>
+                            </div>
+                            <button id="backupBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white flex items-center gap-2">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                                </svg>
+                                Backup Completo
+                            </button>
+                        </div>
                     </div>
                     
                     <!-- Metrics Cards -->
@@ -2011,6 +2022,89 @@
 
 
             </main>
+        </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div id="backupModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-semibold text-white">Backup Completo do Sistema</h3>
+                    <button id="closeBackupModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <p class="text-gray-300 mb-6">Selecione os dados que deseja incluir no backup em PDF:</p>
+                
+                <div class="space-y-4 mb-6">
+                    <!-- Select All -->
+                    <label class="flex items-center p-4 rounded-lg bg-gray-700/50 hover:bg-gray-700 cursor-pointer transition-colors">
+                        <input type="checkbox" id="backupSelectAll" class="w-5 h-5 text-blue-500 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2">
+                        <span class="ml-3 text-white font-semibold text-lg">Selecionar Tudo</span>
+                    </label>
+                    
+                    <!-- Clientes -->
+                    <label class="flex items-center p-4 rounded-lg bg-gray-700/50 hover:bg-gray-700 cursor-pointer transition-colors">
+                        <input type="checkbox" class="backup-option w-5 h-5 text-blue-500 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2" data-type="clients">
+                        <div class="ml-3">
+                            <span class="text-white font-medium block">Clientes</span>
+                            <span class="text-gray-400 text-sm">Nome, CPF, endereço e celular</span>
+                        </div>
+                    </label>
+                    
+                    <!-- Empréstimos -->
+                    <label class="flex items-center p-4 rounded-lg bg-gray-700/50 hover:bg-gray-700 cursor-pointer transition-colors">
+                        <input type="checkbox" class="backup-option w-5 h-5 text-blue-500 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2" data-type="loans">
+                        <div class="ml-3">
+                            <span class="text-white font-medium block">Empréstimos</span>
+                            <span class="text-gray-400 text-sm">Ativos, vencidos e vencem hoje</span>
+                        </div>
+                    </label>
+                    
+                    <!-- Parcelamentos -->
+                    <label class="flex items-center p-4 rounded-lg bg-gray-700/50 hover:bg-gray-700 cursor-pointer transition-colors">
+                        <input type="checkbox" class="backup-option w-5 h-5 text-blue-500 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2" data-type="installments">
+                        <div class="ml-3">
+                            <span class="text-white font-medium block">Parcelamentos</span>
+                            <span class="text-gray-400 text-sm">Quantidade e parcelas pagas</span>
+                        </div>
+                    </label>
+                    
+                    <!-- Pagamentos -->
+                    <label class="flex items-center p-4 rounded-lg bg-gray-700/50 hover:bg-gray-700 cursor-pointer transition-colors">
+                        <input type="checkbox" class="backup-option w-5 h-5 text-blue-500 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2" data-type="payments">
+                        <div class="ml-3">
+                            <span class="text-white font-medium block">Pagamentos</span>
+                            <span class="text-gray-400 text-sm">Todos os pagamentos do sistema</span>
+                        </div>
+                    </label>
+                    
+                    <!-- Despesas -->
+                    <label class="flex items-center p-4 rounded-lg bg-gray-700/50 hover:bg-gray-700 cursor-pointer transition-colors">
+                        <input type="checkbox" class="backup-option w-5 h-5 text-blue-500 bg-gray-600 border-gray-500 rounded focus:ring-blue-500 focus:ring-2" data-type="expenses">
+                        <div class="ml-3">
+                            <span class="text-white font-medium block">Despesas</span>
+                            <span class="text-gray-400 text-sm">Todas as despesas registradas</span>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="flex justify-end space-x-4">
+                    <button id="cancelBackup" class="px-6 py-3 rounded-lg bg-gray-600 hover:bg-gray-700 text-white font-semibold transition-colors">
+                        Cancelar
+                    </button>
+                    <button id="generateBackup" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M9 19l3 3m0 0l3-3m-3 3V10"></path>
+                        </svg>
+                        Gerar Backup PDF
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
