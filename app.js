@@ -15218,10 +15218,6 @@ async function generateBackupPDF(selectedOptions) {
         await addPaymentsToBackup(doc, checkPageBreak);
     }
 
-    if (selectedOptions.includes('capital')) {
-        await addCapitalRaisingToBackup(doc, checkPageBreak);
-    }
-
     if (selectedOptions.includes('expenses')) {
         await addExpensesToBackup(doc, checkPageBreak);
     }
@@ -15325,7 +15321,8 @@ async function addLoansToBackup(doc, checkPageBreak) {
             if (activeLoans.length > 0) {
                 const activeData = activeLoans.slice(0, 50).map(loan => {
                     const capital = parseFloat(loan.amount || 0);
-                    const interest = parseFloat(loan.interest_amount || 0);
+                    const interestRate = parseFloat(loan.interest_rate || 0);
+                    const interest = (capital * interestRate) / 100;
                     const total = capital + interest;
                     
                     return [
@@ -15360,7 +15357,8 @@ async function addLoansToBackup(doc, checkPageBreak) {
 
                 const overdueData = overdueLoans.slice(0, 50).map(loan => {
                     const capital = parseFloat(loan.amount || 0);
-                    const interest = parseFloat(loan.interest_amount || 0);
+                    const interestRate = parseFloat(loan.interest_rate || 0);
+                    const interest = (capital * interestRate) / 100;
                     const total = capital + interest;
                     
                     return [
@@ -15395,7 +15393,8 @@ async function addLoansToBackup(doc, checkPageBreak) {
 
                 const dueTodayData = dueTodayLoans.slice(0, 50).map(loan => {
                     const capital = parseFloat(loan.amount || 0);
-                    const interest = parseFloat(loan.interest_amount || 0);
+                    const interestRate = parseFloat(loan.interest_rate || 0);
+                    const interest = (capital * interestRate) / 100;
                     const total = capital + interest;
                     
                     return [
@@ -15452,7 +15451,8 @@ async function addInstallmentsToBackup(doc, checkPageBreak) {
                     const totalInstallments = loan.installments.length;
                     const paidInstallments = loan.installments.filter(inst => inst.status === 'paid').length;
                     const capital = parseFloat(loan.amount || 0);
-                    const interest = parseFloat(loan.interest_amount || 0);
+                    const interestRate = parseFloat(loan.interest_rate || 0);
+                    const interest = (capital * interestRate) / 100;
                     const total = capital + interest;
                     
                     return [
@@ -15535,56 +15535,6 @@ async function addPaymentsToBackup(doc, checkPageBreak) {
         }
     } catch (error) {
         console.error('Erro ao buscar pagamentos:', error);
-    }
-}
-
-// Adicionar levantamentos de capital ao backup
-async function addCapitalRaisingToBackup(doc, checkPageBreak) {
-    try {
-        console.log('Buscando levantamentos de capital...');
-        const { data: capitalRaisings, error } = await supabase
-            .from('capital_raising')
-            .select('*')
-            .order('data_criacao', { ascending: false });
-
-        if (error) {
-            console.error('Erro na query de capital_raising:', error);
-            throw error;
-        }
-
-        console.log('Levantamentos encontrados:', capitalRaisings?.length || 0);
-
-        const yPos = addSectionTitle(doc, 'LEVANTAMENTOS DE CAPITAL', checkPageBreak);
-
-        if (capitalRaisings && capitalRaisings.length > 0) {
-            const tableData = capitalRaisings.map(capital => [
-                capital.descricao || capital.nome_investidor || '-',
-                `R$ ${parseFloat(capital.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                capital.data_criacao ? new Date(capital.data_criacao).toLocaleDateString('pt-BR') : '-',
-                capital.status || '-'
-            ]);
-
-            doc.autoTable({
-                startY: yPos,
-                head: [['Descrição', 'Valor', 'Data Criação', 'Status']],
-                body: tableData,
-                theme: 'grid',
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                styles: { fontSize: 8, cellPadding: 3 },
-                alternateRowStyles: { fillColor: [245, 247, 250] },
-                margin: { left: 15, right: 15 }
-            });
-        } else {
-            doc.setFontSize(10);
-            doc.setTextColor(100, 100, 100);
-            doc.text('Nenhum levantamento de capital registrado.', 15, yPos);
-        }
-    } catch (error) {
-        console.error('Erro ao buscar levantamentos de capital:', error);
-        const yPos = addSectionTitle(doc, 'LEVANTAMENTOS DE CAPITAL', checkPageBreak);
-        doc.setFontSize(10);
-        doc.setTextColor(220, 38, 38);
-        doc.text('Erro ao buscar levantamentos de capital.', 15, yPos);
     }
 }
 
