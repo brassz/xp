@@ -15323,16 +15323,23 @@ async function addLoansToBackup(doc, checkPageBreak) {
             currentY += 8;
 
             if (activeLoans.length > 0) {
-                const activeData = activeLoans.slice(0, 50).map(loan => [
-                    loan.client?.name || '-',
-                    `R$ ${parseFloat(loan.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                    `R$ ${parseFloat(loan.remaining_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                    new Date(loan.created_at).toLocaleDateString('pt-BR')
-                ]);
+                const activeData = activeLoans.slice(0, 50).map(loan => {
+                    const capital = parseFloat(loan.amount || 0);
+                    const interest = parseFloat(loan.interest_amount || 0);
+                    const total = capital + interest;
+                    
+                    return [
+                        loan.client?.name || '-',
+                        `R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        new Date(loan.created_at).toLocaleDateString('pt-BR')
+                    ];
+                });
 
                 doc.autoTable({
                     startY: currentY,
-                    head: [['Cliente', 'Valor', 'Restante', 'Data']],
+                    head: [['Cliente', 'Capital', 'Juros', 'Total', 'Data']],
                     body: activeData,
                     theme: 'grid',
                     headStyles: { fillColor: [34, 197, 94], textColor: 255 },
@@ -15351,16 +15358,23 @@ async function addLoansToBackup(doc, checkPageBreak) {
                 doc.text(`Empréstimos Vencidos: ${overdueLoans.length}`, 15, currentY);
                 currentY += 8;
 
-                const overdueData = overdueLoans.slice(0, 50).map(loan => [
-                    loan.client?.name || '-',
-                    `R$ ${parseFloat(loan.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                    `R$ ${parseFloat(loan.remaining_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                    new Date(loan.created_at).toLocaleDateString('pt-BR')
-                ]);
+                const overdueData = overdueLoans.slice(0, 50).map(loan => {
+                    const capital = parseFloat(loan.amount || 0);
+                    const interest = parseFloat(loan.interest_amount || 0);
+                    const total = capital + interest;
+                    
+                    return [
+                        loan.client?.name || '-',
+                        `R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        new Date(loan.created_at).toLocaleDateString('pt-BR')
+                    ];
+                });
 
                 doc.autoTable({
                     startY: currentY,
-                    head: [['Cliente', 'Valor', 'Restante', 'Data']],
+                    head: [['Cliente', 'Capital', 'Juros', 'Total', 'Data']],
                     body: overdueData,
                     theme: 'grid',
                     headStyles: { fillColor: [220, 38, 38], textColor: 255 },
@@ -15379,16 +15393,23 @@ async function addLoansToBackup(doc, checkPageBreak) {
                 doc.text(`Vencem Hoje: ${dueTodayLoans.length}`, 15, currentY);
                 currentY += 8;
 
-                const dueTodayData = dueTodayLoans.slice(0, 50).map(loan => [
-                    loan.client?.name || '-',
-                    `R$ ${parseFloat(loan.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                    `R$ ${parseFloat(loan.remaining_amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                    new Date(loan.next_due_date).toLocaleDateString('pt-BR')
-                ]);
+                const dueTodayData = dueTodayLoans.slice(0, 50).map(loan => {
+                    const capital = parseFloat(loan.amount || 0);
+                    const interest = parseFloat(loan.interest_amount || 0);
+                    const total = capital + interest;
+                    
+                    return [
+                        loan.client?.name || '-',
+                        `R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        new Date(loan.next_due_date).toLocaleDateString('pt-BR')
+                    ];
+                });
 
                 doc.autoTable({
                     startY: currentY,
-                    head: [['Cliente', 'Valor', 'Restante', 'Vencimento']],
+                    head: [['Cliente', 'Capital', 'Juros', 'Total', 'Vencimento']],
                     body: dueTodayData,
                     theme: 'grid',
                     headStyles: { fillColor: [234, 179, 8], textColor: 255 },
@@ -15410,54 +15431,55 @@ async function addLoansToBackup(doc, checkPageBreak) {
 // Adicionar parcelamentos ao backup
 async function addInstallmentsToBackup(doc, checkPageBreak) {
     try {
-        const { data: installments, error } = await supabase
-            .from('installments')
+        const { data: loans, error } = await supabase
+            .from('loans')
             .select(`
                 *,
-                loan:loans(
-                    client:clients(name)
-                )
+                client:clients(name),
+                installments:installments(*)
             `)
-            .order('due_date', { ascending: false });
+            .order('created_at', { ascending: false });
 
         if (error) throw error;
 
         const yPos = addSectionTitle(doc, 'PARCELAMENTOS', checkPageBreak);
 
-        if (installments && installments.length > 0) {
-            // Agrupar por empréstimo
-            const loanGroups = {};
-            installments.forEach(inst => {
-                if (!loanGroups[inst.loan_id]) {
-                    loanGroups[inst.loan_id] = {
-                        client: inst.loan?.client?.name || 'Cliente não encontrado',
-                        total: 0,
-                        paid: 0
-                    };
-                }
-                loanGroups[inst.loan_id].total++;
-                if (inst.status === 'paid') {
-                    loanGroups[inst.loan_id].paid++;
-                }
-            });
+        if (loans && loans.length > 0) {
+            const loansWithInstallments = loans.filter(loan => loan.installments && loan.installments.length > 0);
 
-            const tableData = Object.entries(loanGroups).map(([loanId, data]) => [
-                data.client,
-                data.total.toString(),
-                data.paid.toString(),
-                `${((data.paid / data.total) * 100).toFixed(1)}%`
-            ]);
+            if (loansWithInstallments.length > 0) {
+                const tableData = loansWithInstallments.map(loan => {
+                    const totalInstallments = loan.installments.length;
+                    const paidInstallments = loan.installments.filter(inst => inst.status === 'paid').length;
+                    const capital = parseFloat(loan.amount || 0);
+                    const interest = parseFloat(loan.interest_amount || 0);
+                    const total = capital + interest;
+                    
+                    return [
+                        loan.client?.name || '-',
+                        totalInstallments.toString(),
+                        paidInstallments.toString(),
+                        `R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${interest.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                        `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
+                    ];
+                });
 
-            doc.autoTable({
-                startY: yPos,
-                head: [['Cliente', 'Total Parcelas', 'Parcelas Pagas', 'Progresso']],
-                body: tableData,
-                theme: 'grid',
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                styles: { fontSize: 8, cellPadding: 3 },
-                alternateRowStyles: { fillColor: [245, 247, 250] },
-                margin: { left: 15, right: 15 }
-            });
+                doc.autoTable({
+                    startY: yPos,
+                    head: [['Cliente', 'Total Parcelas', 'Pagas', 'Capital', 'Juros', 'Total']],
+                    body: tableData,
+                    theme: 'grid',
+                    headStyles: { fillColor: [30, 64, 175], textColor: 255 },
+                    styles: { fontSize: 7, cellPadding: 2 },
+                    alternateRowStyles: { fillColor: [245, 247, 250] },
+                    margin: { left: 15, right: 15 }
+                });
+            } else {
+                doc.setFontSize(10);
+                doc.setTextColor(100, 100, 100);
+                doc.text('Nenhum parcelamento cadastrado.', 15, yPos);
+            }
         } else {
             doc.setFontSize(10);
             doc.setTextColor(100, 100, 100);
@@ -15519,26 +15541,32 @@ async function addPaymentsToBackup(doc, checkPageBreak) {
 // Adicionar levantamentos de capital ao backup
 async function addCapitalRaisingToBackup(doc, checkPageBreak) {
     try {
+        console.log('Buscando levantamentos de capital...');
         const { data: capitalRaisings, error } = await supabase
             .from('capital_raising')
             .select('*')
-            .order('created_at', { ascending: false });
+            .order('data_criacao', { ascending: false });
 
-        if (error) throw error;
+        if (error) {
+            console.error('Erro na query de capital_raising:', error);
+            throw error;
+        }
+
+        console.log('Levantamentos encontrados:', capitalRaisings?.length || 0);
 
         const yPos = addSectionTitle(doc, 'LEVANTAMENTOS DE CAPITAL', checkPageBreak);
 
         if (capitalRaisings && capitalRaisings.length > 0) {
             const tableData = capitalRaisings.map(capital => [
-                capital.description || '-',
-                `R$ ${parseFloat(capital.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                new Date(capital.created_at).toLocaleDateString('pt-BR'),
-                capital.source || '-'
+                capital.descricao || capital.nome_investidor || '-',
+                `R$ ${parseFloat(capital.valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
+                capital.data_criacao ? new Date(capital.data_criacao).toLocaleDateString('pt-BR') : '-',
+                capital.status || '-'
             ]);
 
             doc.autoTable({
                 startY: yPos,
-                head: [['Descrição', 'Valor', 'Data', 'Fonte']],
+                head: [['Descrição', 'Valor', 'Data Criação', 'Status']],
                 body: tableData,
                 theme: 'grid',
                 headStyles: { fillColor: [30, 64, 175], textColor: 255 },
@@ -15553,33 +15581,49 @@ async function addCapitalRaisingToBackup(doc, checkPageBreak) {
         }
     } catch (error) {
         console.error('Erro ao buscar levantamentos de capital:', error);
+        const yPos = addSectionTitle(doc, 'LEVANTAMENTOS DE CAPITAL', checkPageBreak);
+        doc.setFontSize(10);
+        doc.setTextColor(220, 38, 38);
+        doc.text('Erro ao buscar levantamentos de capital.', 15, yPos);
     }
 }
 
 // Adicionar despesas ao backup
 async function addExpensesToBackup(doc, checkPageBreak) {
     try {
+        console.log('Buscando despesas...');
+        
+        // Buscar despesas com informações de categoria
         const { data: expenses, error } = await supabase
             .from('expenses')
-            .select('*')
-            .order('expense_date', { ascending: false })
+            .select(`
+                *,
+                category:expense_categories(name)
+            `)
+            .order('date', { ascending: false })
             .limit(100);
 
-        if (error) throw error;
+        if (error) {
+            console.error('Erro na query de expenses:', error);
+            throw error;
+        }
+
+        console.log('Despesas encontradas:', expenses?.length || 0);
 
         const yPos = addSectionTitle(doc, 'DESPESAS (Últimas 100)', checkPageBreak);
 
         if (expenses && expenses.length > 0) {
             const tableData = expenses.map(expense => [
-                expense.description || '-',
+                expense.title || expense.description || '-',
                 `R$ ${parseFloat(expense.amount || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`,
-                new Date(expense.expense_date).toLocaleDateString('pt-BR'),
-                expense.category || '-'
+                expense.date ? new Date(expense.date).toLocaleDateString('pt-BR') : '-',
+                expense.category?.name || '-',
+                expense.status || '-'
             ]);
 
             doc.autoTable({
                 startY: yPos,
-                head: [['Descrição', 'Valor', 'Data', 'Categoria']],
+                head: [['Descrição', 'Valor', 'Data', 'Categoria', 'Status']],
                 body: tableData,
                 theme: 'grid',
                 headStyles: { fillColor: [30, 64, 175], textColor: 255 },
@@ -15594,5 +15638,9 @@ async function addExpensesToBackup(doc, checkPageBreak) {
         }
     } catch (error) {
         console.error('Erro ao buscar despesas:', error);
+        const yPos = addSectionTitle(doc, 'DESPESAS (Últimas 100)', checkPageBreak);
+        doc.setFontSize(10);
+        doc.setTextColor(220, 38, 38);
+        doc.text('Erro ao buscar despesas. Verifique o console para mais detalhes.', 15, yPos);
     }
 }
