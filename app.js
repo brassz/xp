@@ -15158,6 +15158,28 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Função para gerar o PDF de backup
 async function generateBackupPDF(selectedOptions) {
+    // Verificar se há uma empresa conectada
+    if (!currentCompany) {
+        alert('Erro: Nenhuma empresa conectada. Por favor, faça login novamente.');
+        console.error('Tentativa de backup sem empresa conectada');
+        return;
+    }
+
+    if (!supabase) {
+        alert('Erro: Conexão com banco de dados não encontrada. Por favor, recarregue a página.');
+        console.error('Tentativa de backup sem conexão Supabase');
+        return;
+    }
+
+    console.log('╔═══════════════════════════════════════════════╗');
+    console.log('║       INICIANDO BACKUP DO SISTEMA             ║');
+    console.log('╚═══════════════════════════════════════════════╝');
+    console.log('🏢 Empresa conectada:', currentCompany);
+    console.log('📋 Nome da empresa:', COMPANIES_CONFIG[currentCompany]?.name);
+    console.log('🗄️  URL do banco:', COMPANIES_CONFIG[currentCompany]?.supabase?.url);
+    console.log('📦 Seções selecionadas:', selectedOptions);
+    console.log('─────────────────────────────────────────────────');
+
     const { jsPDF } = window.jspdf;
     const doc = new jsPDF();
     
@@ -15199,7 +15221,12 @@ async function generateBackupPDF(selectedOptions) {
     });
     doc.text(`Gerado em: ${today}`, pageWidth / 2, yPosition, { align: 'center' });
     
-    yPosition += 15;
+    yPosition += 5;
+    doc.setFontSize(8);
+    doc.setTextColor(150, 150, 150);
+    doc.text(`Banco de dados: ${currentCompany.toUpperCase()}`, pageWidth / 2, yPosition, { align: 'center' });
+    
+    yPosition += 10;
 
     // Buscar e adicionar dados conforme selecionado
     if (selectedOptions.includes('clients')) {
@@ -15223,7 +15250,14 @@ async function generateBackupPDF(selectedOptions) {
     }
 
     // Salvar o PDF
-    const fileName = `backup_completo_${new Date().toISOString().split('T')[0]}.pdf`;
+    const timestamp = new Date().toISOString().split('T')[0];
+    const fileName = `backup_${currentCompany}_${timestamp}.pdf`;
+    
+    console.log('─────────────────────────────────────────────────');
+    console.log('✅ Backup finalizado com sucesso!');
+    console.log('📄 Nome do arquivo:', fileName);
+    console.log('╚═══════════════════════════════════════════════╝');
+    
     doc.save(fileName);
 }
 
