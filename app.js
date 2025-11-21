@@ -15326,6 +15326,12 @@ async function addLoansToBackup(doc, checkPageBreak) {
             const overdueLoans = loans.filter(l => l.status === 'overdue');
             const dueTodayLoans = loans.filter(l => l.next_due_date === today && l.status === 'active');
 
+            console.log('=== BACKUP EMPRÉSTIMOS ===');
+            console.log('Total de empréstimos:', loans.length);
+            console.log('Empréstimos Ativos:', activeLoans.length);
+            console.log('Empréstimos Vencidos:', overdueLoans.length);
+            console.log('Vencem Hoje:', dueTodayLoans.length);
+
             let currentY = yPos;
 
             // Empréstimos Ativos
@@ -15335,7 +15341,7 @@ async function addLoansToBackup(doc, checkPageBreak) {
             currentY += 8;
 
             if (activeLoans.length > 0) {
-                const activeData = activeLoans.slice(0, 50).map(loan => {
+                const activeData = activeLoans.map(loan => {
                     const capital = parseFloat(loan.amount || 0);
                     const interestRate = parseFloat(loan.interest_rate || 0);
                     const interest = (capital * interestRate) / 100;
@@ -15387,7 +15393,7 @@ async function addLoansToBackup(doc, checkPageBreak) {
                 doc.text(`Empréstimos Vencidos: ${overdueLoans.length}`, 15, currentY);
                 currentY += 8;
 
-                const overdueData = overdueLoans.slice(0, 50).map(loan => {
+                const overdueData = overdueLoans.map(loan => {
                     const capital = parseFloat(loan.amount || 0);
                     const interestRate = parseFloat(loan.interest_rate || 0);
                     const interest = (capital * interestRate) / 100;
@@ -15439,7 +15445,7 @@ async function addLoansToBackup(doc, checkPageBreak) {
                 doc.text(`Vencem Hoje: ${dueTodayLoans.length}`, 15, currentY);
                 currentY += 8;
 
-                const dueTodayData = dueTodayLoans.slice(0, 50).map(loan => {
+                const dueTodayData = dueTodayLoans.map(loan => {
                     const capital = parseFloat(loan.amount || 0);
                     const interestRate = parseFloat(loan.interest_rate || 0);
                     const interest = (capital * interestRate) / 100;
