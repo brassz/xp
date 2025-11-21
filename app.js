@@ -15272,8 +15272,24 @@ async function addClientsToBackup(doc, checkPageBreak) {
                 head: [['Nome', 'CPF', 'Endereço', 'Telefone']],
                 body: tableData,
                 theme: 'grid',
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                styles: { fontSize: 8, cellPadding: 3 },
+                headStyles: { 
+                    fillColor: [30, 64, 175], 
+                    textColor: 255,
+                    fontSize: 8,
+                    halign: 'center'
+                },
+                styles: { 
+                    fontSize: 7, 
+                    cellPadding: 2,
+                    overflow: 'linebreak',
+                    cellWidth: 'wrap'
+                },
+                columnStyles: {
+                    0: { cellWidth: 50 },  // Nome
+                    1: { cellWidth: 30 },  // CPF
+                    2: { cellWidth: 60 },  // Endereço
+                    3: { cellWidth: 30 }   // Telefone
+                },
                 alternateRowStyles: { fillColor: [245, 247, 250] },
                 margin: { left: 15, right: 15 }
             });
@@ -15339,8 +15355,24 @@ async function addLoansToBackup(doc, checkPageBreak) {
                     head: [['Cliente', 'Capital', 'Juros', 'Total', 'Data']],
                     body: activeData,
                     theme: 'grid',
-                    headStyles: { fillColor: [34, 197, 94], textColor: 255 },
-                    styles: { fontSize: 7, cellPadding: 2 },
+                    headStyles: { 
+                        fillColor: [34, 197, 94], 
+                        textColor: 255,
+                        fontSize: 7,
+                        halign: 'center'
+                    },
+                    styles: { 
+                        fontSize: 6, 
+                        cellPadding: 1.5,
+                        overflow: 'linebreak'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 50, halign: 'left' },   // Cliente
+                        1: { cellWidth: 30, halign: 'right' },  // Capital
+                        2: { cellWidth: 25, halign: 'right' },  // Juros
+                        3: { cellWidth: 30, halign: 'right' },  // Total
+                        4: { cellWidth: 25, halign: 'center' }  // Data
+                    },
                     alternateRowStyles: { fillColor: [245, 247, 250] },
                     margin: { left: 15, right: 15 }
                 });
@@ -15375,8 +15407,24 @@ async function addLoansToBackup(doc, checkPageBreak) {
                     head: [['Cliente', 'Capital', 'Juros', 'Total', 'Data']],
                     body: overdueData,
                     theme: 'grid',
-                    headStyles: { fillColor: [220, 38, 38], textColor: 255 },
-                    styles: { fontSize: 7, cellPadding: 2 },
+                    headStyles: { 
+                        fillColor: [220, 38, 38], 
+                        textColor: 255,
+                        fontSize: 7,
+                        halign: 'center'
+                    },
+                    styles: { 
+                        fontSize: 6, 
+                        cellPadding: 1.5,
+                        overflow: 'linebreak'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 50, halign: 'left' },   // Cliente
+                        1: { cellWidth: 30, halign: 'right' },  // Capital
+                        2: { cellWidth: 25, halign: 'right' },  // Juros
+                        3: { cellWidth: 30, halign: 'right' },  // Total
+                        4: { cellWidth: 25, halign: 'center' }  // Data
+                    },
                     alternateRowStyles: { fillColor: [254, 242, 242] },
                     margin: { left: 15, right: 15 }
                 });
@@ -15411,8 +15459,24 @@ async function addLoansToBackup(doc, checkPageBreak) {
                     head: [['Cliente', 'Capital', 'Juros', 'Total', 'Vencimento']],
                     body: dueTodayData,
                     theme: 'grid',
-                    headStyles: { fillColor: [234, 179, 8], textColor: 255 },
-                    styles: { fontSize: 7, cellPadding: 2 },
+                    headStyles: { 
+                        fillColor: [234, 179, 8], 
+                        textColor: 255,
+                        fontSize: 7,
+                        halign: 'center'
+                    },
+                    styles: { 
+                        fontSize: 6, 
+                        cellPadding: 1.5,
+                        overflow: 'linebreak'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 50, halign: 'left' },   // Cliente
+                        1: { cellWidth: 30, halign: 'right' },  // Capital
+                        2: { cellWidth: 25, halign: 'right' },  // Juros
+                        3: { cellWidth: 30, halign: 'right' },  // Total
+                        4: { cellWidth: 25, halign: 'center' }  // Vencimento
+                    },
                     alternateRowStyles: { fillColor: [254, 252, 232] },
                     margin: { left: 15, right: 15 }
                 });
@@ -15499,8 +15563,25 @@ async function addInstallmentsToBackup(doc, checkPageBreak) {
                     head: [['Cliente', 'Total Parcelas', 'Pagas', 'Capital', 'Juros', 'Total']],
                     body: tableData,
                     theme: 'grid',
-                    headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                    styles: { fontSize: 7, cellPadding: 2 },
+                    headStyles: { 
+                        fillColor: [30, 64, 175], 
+                        textColor: 255,
+                        fontSize: 7,
+                        halign: 'center'
+                    },
+                    styles: { 
+                        fontSize: 6, 
+                        cellPadding: 1.5,
+                        overflow: 'linebreak'
+                    },
+                    columnStyles: {
+                        0: { cellWidth: 45, halign: 'left' },   // Cliente
+                        1: { cellWidth: 20, halign: 'center' }, // Total Parcelas
+                        2: { cellWidth: 20, halign: 'center' }, // Pagas
+                        3: { cellWidth: 28, halign: 'right' },  // Capital
+                        4: { cellWidth: 25, halign: 'right' },  // Juros
+                        5: { cellWidth: 28, halign: 'right' }   // Total
+                    },
                     alternateRowStyles: { fillColor: [245, 247, 250] },
                     margin: { left: 15, right: 15 }
                 });
@@ -15556,8 +15637,23 @@ async function addPaymentsToBackup(doc, checkPageBreak) {
                 head: [['Cliente', 'Valor', 'Data', 'Método']],
                 body: tableData,
                 theme: 'grid',
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                styles: { fontSize: 7, cellPadding: 2 },
+                headStyles: { 
+                    fillColor: [30, 64, 175], 
+                    textColor: 255,
+                    fontSize: 7,
+                    halign: 'center'
+                },
+                styles: { 
+                    fontSize: 6, 
+                    cellPadding: 1.5,
+                    overflow: 'linebreak'
+                },
+                columnStyles: {
+                    0: { cellWidth: 60, halign: 'left' },   // Cliente
+                    1: { cellWidth: 35, halign: 'right' },  // Valor
+                    2: { cellWidth: 28, halign: 'center' }, // Data
+                    3: { cellWidth: 35, halign: 'left' }    // Método
+                },
                 alternateRowStyles: { fillColor: [245, 247, 250] },
                 margin: { left: 15, right: 15 }
             });
@@ -15609,8 +15705,24 @@ async function addExpensesToBackup(doc, checkPageBreak) {
                 head: [['Descrição', 'Valor', 'Data', 'Categoria', 'Status']],
                 body: tableData,
                 theme: 'grid',
-                headStyles: { fillColor: [30, 64, 175], textColor: 255 },
-                styles: { fontSize: 7, cellPadding: 2 },
+                headStyles: { 
+                    fillColor: [30, 64, 175], 
+                    textColor: 255,
+                    fontSize: 7,
+                    halign: 'center'
+                },
+                styles: { 
+                    fontSize: 6, 
+                    cellPadding: 1.5,
+                    overflow: 'linebreak'
+                },
+                columnStyles: {
+                    0: { cellWidth: 55, halign: 'left' },   // Descrição
+                    1: { cellWidth: 30, halign: 'right' },  // Valor
+                    2: { cellWidth: 25, halign: 'center' }, // Data
+                    3: { cellWidth: 30, halign: 'left' },   // Categoria
+                    4: { cellWidth: 20, halign: 'center' }  // Status
+                },
                 alternateRowStyles: { fillColor: [245, 247, 250] },
                 margin: { left: 15, right: 15 }
             });
