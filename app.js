@@ -15430,26 +15430,53 @@ async function addLoansToBackup(doc, checkPageBreak) {
 // Adicionar parcelamentos ao backup
 async function addInstallmentsToBackup(doc, checkPageBreak) {
     try {
+        console.log('Buscando parcelamentos...');
+        
+        // Buscar todos os empréstimos
         const { data: loans, error } = await supabase
             .from('loans')
             .select(`
                 *,
-                client:clients(name),
-                installments:installments(*)
+                client:clients(name)
             `)
             .order('created_at', { ascending: false });
 
         if (error) throw error;
 
+        console.log('Total de empréstimos encontrados:', loans?.length || 0);
+
+        // Buscar todas as parcelas separadamente
+        const { data: allInstallments, error: instError } = await supabase
+            .from('installments')
+            .select('*')
+            .order('loan_id');
+
+        if (instError) throw instError;
+
+        console.log('Total de parcelas encontradas:', allInstallments?.length || 0);
+
         const yPos = addSectionTitle(doc, 'PARCELAMENTOS', checkPageBreak);
 
-        if (loans && loans.length > 0) {
-            const loansWithInstallments = loans.filter(loan => loan.installments && loan.installments.length > 0);
+        if (loans && loans.length > 0 && allInstallments) {
+            // Agrupar parcelas por loan_id
+            const installmentsByLoan = {};
+            allInstallments.forEach(inst => {
+                if (!installmentsByLoan[inst.loan_id]) {
+                    installmentsByLoan[inst.loan_id] = [];
+                }
+                installmentsByLoan[inst.loan_id].push(inst);
+            });
+
+            // Filtrar empréstimos que têm parcelas
+            const loansWithInstallments = loans.filter(loan => installmentsByLoan[loan.id]);
+
+            console.log('Empréstimos com parcelamentos:', loansWithInstallments.length);
 
             if (loansWithInstallments.length > 0) {
                 const tableData = loansWithInstallments.map(loan => {
-                    const totalInstallments = loan.installments.length;
-                    const paidInstallments = loan.installments.filter(inst => inst.status === 'paid').length;
+                    const installments = installmentsByLoan[loan.id] || [];
+                    const totalInstallments = installments.length;
+                    const paidInstallments = installments.filter(inst => inst.status === 'paid').length;
                     const capital = parseFloat(loan.amount || 0);
                     const interestRate = parseFloat(loan.interest_rate || 0);
                     const interest = (capital * interestRate) / 100;
@@ -15464,6 +15491,8 @@ async function addInstallmentsToBackup(doc, checkPageBreak) {
                         `R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`
                     ];
                 });
+
+                console.log('Linhas de dados para a tabela:', tableData.length);
 
                 doc.autoTable({
                     startY: yPos,
@@ -15487,6 +15516,10 @@ async function addInstallmentsToBackup(doc, checkPageBreak) {
         }
     } catch (error) {
         console.error('Erro ao buscar parcelamentos:', error);
+        const yPos = addSectionTitle(doc, 'PARCELAMENTOS', checkPageBreak);
+        doc.setFontSize(10);
+        doc.setTextColor(220, 38, 38);
+        doc.text('Erro ao buscar parcelamentos. Verifique o console para mais detalhes.', 15, yPos);
     }
 }
 
