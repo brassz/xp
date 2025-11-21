@@ -303,7 +303,23 @@ function setupEventListeners() {
     // Event listener para o botão de Backup Completo
     const generateBackupBtn = document.getElementById('generateBackupBtn');
     if (generateBackupBtn) {
-        generateBackupBtn.addEventListener('click', generateCompleteBackupPDF);
+        console.log('Botão de backup encontrado, adicionando event listener');
+        generateBackupBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Botão de backup clicado');
+            
+            // Chamar a função de forma assíncrona
+            (async () => {
+                try {
+                    await generateCompleteBackupPDF();
+                } catch (error) {
+                    console.error('Erro ao gerar backup:', error);
+                    alert('Erro ao gerar backup: ' + error.message);
+                }
+            })();
+        });
+    } else {
+        console.error('Botão generateBackupBtn não encontrado');
     }
     
     // Event listener para o botão de PDF de pagamentos semanais
@@ -9348,10 +9364,34 @@ async function generateContract(loanId) {
 
 // Função para gerar backup completo do sistema em PDF
 async function generateCompleteBackupPDF() {
+    console.log('=== INICIANDO GERAÇÃO DE BACKUP COMPLETO ===');
+    console.log('window.jspdf disponível?', !!window.jspdf);
+    console.log('clients array:', Array.isArray(clients), 'length:', clients?.length);
+    console.log('loans array:', Array.isArray(loans), 'length:', loans?.length);
+    
+    // Teste simples para verificar se jsPDF está disponível
+    if (!window.jspdf) {
+        console.error('jsPDF não está carregado!');
+        alert('Erro: Biblioteca jsPDF não está disponível. Recarregue a página.');
+        return;
+    }
+    
+    console.log('jsPDF está disponível, continuando...');
+    
     try {
-        showNotification('Gerando backup completo do sistema... Por favor, aguarde.', 'info');
+        console.log('Clientes disponíveis:', clients.length);
+        console.log('Empréstimos disponíveis:', loans.length);
+        
+        // Testar se showNotification existe
+        if (typeof showNotification === 'function') {
+            showNotification('Gerando backup completo do sistema... Por favor, aguarde.', 'info');
+        } else {
+            console.warn('showNotification não está disponível');
+            alert('Gerando backup completo... Por favor, aguarde.');
+        }
         
         // Buscar todos os dados necessários
+        console.log('Buscando dados do banco...');
         const [
             allPayments,
             paidLoans,
@@ -9368,9 +9408,28 @@ async function generateCompleteBackupPDF() {
             supabase.from('capital_raising_clients').select('*')
         ]);
         
+        console.log('Dados buscados:', {
+            pagamentos: allPayments.data?.length || 0,
+            emprestimosQuitados: paidLoans.data?.length || 0,
+            parcelamentos: allInstallments.data?.length || 0,
+            pagamentosParcelamento: allInstallmentPayments.data?.length || 0,
+            capital: allCapitalRaisings.data?.length || 0,
+            clientesCapital: allCapitalClients.data?.length || 0
+        });
+        
+        // Verificar erros
+        if (allPayments.error) console.error('Erro ao buscar pagamentos:', allPayments.error);
+        if (paidLoans.error) console.error('Erro ao buscar empréstimos quitados:', paidLoans.error);
+        if (allInstallments.error) console.error('Erro ao buscar parcelamentos:', allInstallments.error);
+        if (allInstallmentPayments.error) console.error('Erro ao buscar pagamentos de parcelamento:', allInstallmentPayments.error);
+        if (allCapitalRaisings.error) console.error('Erro ao buscar capital:', allCapitalRaisings.error);
+        if (allCapitalClients.error) console.error('Erro ao buscar clientes de capital:', allCapitalClients.error);
+        
         // Criar novo documento PDF
+        console.log('Criando documento PDF...');
         const { jsPDF } = window.jspdf;
         const doc = new jsPDF();
+        console.log('Documento PDF criado');
         
         const pageWidth = doc.internal.pageSize.width;
         const pageHeight = doc.internal.pageSize.height;
@@ -9379,17 +9438,17 @@ async function generateCompleteBackupPDF() {
         let yPosition = 20;
         
         // Função para adicionar nova página se necessário
-        function checkPageBreak(neededSpace = 10) {
+        const checkPageBreak = (neededSpace = 10) => {
             if (yPosition + neededSpace > pageHeight - 20) {
                 doc.addPage();
                 yPosition = 20;
                 return true;
             }
             return false;
-        }
+        };
         
         // Função para adicionar cabeçalho azul
-        function addBlueHeader(text, y) {
+        const addBlueHeader = (text, y) => {
             doc.setFillColor(59, 130, 246); // Cor azul #3b82f6
             doc.rect(margin, y - 8, maxWidth, 12, 'F');
             doc.setTextColor(255, 255, 255);
@@ -9397,7 +9456,7 @@ async function generateCompleteBackupPDF() {
             doc.setFont('helvetica', 'bold');
             doc.text(text, pageWidth / 2, y, { align: 'center' });
             doc.setTextColor(0, 0, 0);
-        }
+        };
         
         // Cabeçalho principal azul
         doc.setFillColor(30, 64, 175); // Cor azul escuro #1e40af
@@ -9638,10 +9697,12 @@ async function generateCompleteBackupPDF() {
         }
         
         // Salvar o PDF
+        console.log('Salvando PDF...');
         const companyName = getCurrentCompanyConfig() ? getCurrentCompanyConfig().name : 'SISTEMA';
         const fileName = `Backup_Completo_${companyName}_${now.toISOString().split('T')[0]}_${now.getHours()}-${now.getMinutes()}.pdf`;
         doc.save(fileName);
         
+        console.log('PDF salvo com sucesso:', fileName);
         showNotification('Backup completo gerado com sucesso!', 'success');
         
     } catch (error) {
