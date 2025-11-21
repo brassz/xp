@@ -15211,13 +15211,18 @@ async function generateCompleteBackup() {
             
             const client = allClients.find(c => c.id === loan.client_id);
             const clientName = client ? client.name : 'Cliente não encontrado';
+            const capital = parseFloat(loan.amount);
+            const juros = capital * (parseFloat(loan.interest_rate) / 100);
+            const valorTotal = capital + juros;
             
             doc.setFont('helvetica', 'bold');
             doc.text(`${index + 1}. ${clientName}`, 25, yPosition);
             yPosition += 5;
             
             doc.setFont('helvetica', 'normal');
-            doc.text(`Valor: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Juros: ${loan.interest_rate}%`, 25, yPosition);
+            doc.text(`Capital: R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Juros: ${loan.interest_rate}% (R$ ${juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`, 25, yPosition);
+            yPosition += 5;
+            doc.text(`Valor Total (Capital+Juros): R$ ${valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 25, yPosition);
             yPosition += 5;
             doc.text(`Data: ${new Date(loan.created_at).toLocaleDateString('pt-BR')} | Vencimento: ${new Date(loan.due_date).toLocaleDateString('pt-BR')}`, 25, yPosition);
             yPosition += 8;
@@ -15247,13 +15252,18 @@ async function generateCompleteBackup() {
                 
                 const client = allClients.find(c => c.id === loan.client_id);
                 const clientName = client ? client.name : 'Cliente não encontrado';
+                const capital = parseFloat(loan.amount);
+                const juros = capital * (parseFloat(loan.interest_rate) / 100);
+                const valorTotal = capital + juros;
                 
                 doc.setFont('helvetica', 'bold');
                 doc.text(`${index + 1}. ${clientName}`, 25, yPosition);
                 yPosition += 5;
                 
                 doc.setFont('helvetica', 'normal');
-                doc.text(`Valor: R$ ${parseFloat(loan.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Juros: ${loan.interest_rate}%`, 25, yPosition);
+                doc.text(`Capital: R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Juros: ${loan.interest_rate}% (R$ ${juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`, 25, yPosition);
+                yPosition += 5;
+                doc.text(`Valor Total (Capital+Juros): R$ ${valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 25, yPosition);
                 yPosition += 5;
                 doc.text(`Data: ${new Date(loan.created_at).toLocaleDateString('pt-BR')} | Vencimento: ${new Date(loan.due_date).toLocaleDateString('pt-BR')}`, 25, yPosition);
                 yPosition += 8;
