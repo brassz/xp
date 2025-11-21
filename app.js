@@ -9390,40 +9390,82 @@ async function generateCompleteBackupPDF() {
             alert('Gerando backup completo... Por favor, aguarde.');
         }
         
-        // Buscar todos os dados necessários
+        // Buscar todos os dados necessários com tratamento de erro individual
         console.log('Buscando dados do banco...');
-        const [
-            allPayments,
-            paidLoans,
-            allInstallments,
-            allInstallmentPayments,
-            allCapitalRaisings,
-            allCapitalClients
-        ] = await Promise.all([
-            supabase.from('payments').select('*').order('payment_date', { ascending: false }),
-            supabase.from('paid_loans').select('*').order('paid_date', { ascending: false }),
-            supabase.from('installments').select('*').order('created_at', { ascending: false }),
-            supabase.from('installment_payments').select('*').order('payment_date', { ascending: false }),
-            supabase.from('capital_raisings').select('*').order('created_at', { ascending: false }),
-            supabase.from('capital_raising_clients').select('*')
-        ]);
         
-        console.log('Dados buscados:', {
-            pagamentos: allPayments.data?.length || 0,
-            emprestimosQuitados: paidLoans.data?.length || 0,
-            parcelamentos: allInstallments.data?.length || 0,
-            pagamentosParcelamento: allInstallmentPayments.data?.length || 0,
-            capital: allCapitalRaisings.data?.length || 0,
-            clientesCapital: allCapitalClients.data?.length || 0
-        });
+        // Buscar pagamentos
+        let allPayments = { data: [], error: null };
+        try {
+            console.log('Buscando pagamentos...');
+            allPayments = await supabase.from('payments').select('*').order('payment_date', { ascending: false });
+            console.log('Pagamentos encontrados:', allPayments.data?.length || 0);
+            if (allPayments.error) console.error('Erro ao buscar pagamentos:', allPayments.error);
+        } catch (e) {
+            console.error('Exceção ao buscar pagamentos:', e);
+        }
         
-        // Verificar erros
-        if (allPayments.error) console.error('Erro ao buscar pagamentos:', allPayments.error);
-        if (paidLoans.error) console.error('Erro ao buscar empréstimos quitados:', paidLoans.error);
-        if (allInstallments.error) console.error('Erro ao buscar parcelamentos:', allInstallments.error);
-        if (allInstallmentPayments.error) console.error('Erro ao buscar pagamentos de parcelamento:', allInstallmentPayments.error);
-        if (allCapitalRaisings.error) console.error('Erro ao buscar capital:', allCapitalRaisings.error);
-        if (allCapitalClients.error) console.error('Erro ao buscar clientes de capital:', allCapitalClients.error);
+        // Buscar empréstimos quitados
+        let paidLoans = { data: [], error: null };
+        try {
+            console.log('Buscando empréstimos quitados...');
+            paidLoans = await supabase.from('paid_loans').select('*').order('paid_date', { ascending: false });
+            console.log('Empréstimos quitados encontrados:', paidLoans.data?.length || 0);
+            if (paidLoans.error) console.error('Erro ao buscar empréstimos quitados:', paidLoans.error);
+        } catch (e) {
+            console.error('Exceção ao buscar empréstimos quitados:', e);
+        }
+        
+        // Buscar parcelamentos
+        let allInstallments = { data: [], error: null };
+        try {
+            console.log('Buscando parcelamentos...');
+            allInstallments = await supabase.from('installments').select('*').order('created_at', { ascending: false });
+            console.log('Parcelamentos encontrados:', allInstallments.data?.length || 0);
+            if (allInstallments.error) console.error('Erro ao buscar parcelamentos:', allInstallments.error);
+        } catch (e) {
+            console.error('Exceção ao buscar parcelamentos:', e);
+        }
+        
+        // Buscar pagamentos de parcelamento
+        let allInstallmentPayments = { data: [], error: null };
+        try {
+            console.log('Buscando pagamentos de parcelamento...');
+            allInstallmentPayments = await supabase.from('installment_payments').select('*').order('payment_date', { ascending: false });
+            console.log('Pagamentos de parcelamento encontrados:', allInstallmentPayments.data?.length || 0);
+            if (allInstallmentPayments.error) console.error('Erro ao buscar pagamentos de parcelamento:', allInstallmentPayments.error);
+        } catch (e) {
+            console.error('Exceção ao buscar pagamentos de parcelamento:', e);
+        }
+        
+        // Buscar levantamentos de capital
+        let allCapitalRaisings = { data: [], error: null };
+        try {
+            console.log('Buscando levantamentos de capital...');
+            allCapitalRaisings = await supabase.from('capital_raisings').select('*').order('created_at', { ascending: false });
+            console.log('Levantamentos de capital encontrados:', allCapitalRaisings.data?.length || 0);
+            if (allCapitalRaisings.error) console.error('Erro ao buscar capital:', allCapitalRaisings.error);
+        } catch (e) {
+            console.error('Exceção ao buscar capital:', e);
+        }
+        
+        // Buscar clientes de capital
+        let allCapitalClients = { data: [], error: null };
+        try {
+            console.log('Buscando clientes de capital...');
+            allCapitalClients = await supabase.from('capital_raising_clients').select('*');
+            console.log('Clientes de capital encontrados:', allCapitalClients.data?.length || 0);
+            if (allCapitalClients.error) console.error('Erro ao buscar clientes de capital:', allCapitalClients.error);
+        } catch (e) {
+            console.error('Exceção ao buscar clientes de capital:', e);
+        }
+        
+        console.log('=== RESUMO DOS DADOS BUSCADOS ===');
+        console.log('Pagamentos:', allPayments.data?.length || 0);
+        console.log('Empréstimos Quitados:', paidLoans.data?.length || 0);
+        console.log('Parcelamentos:', allInstallments.data?.length || 0);
+        console.log('Pagamentos de Parcelamento:', allInstallmentPayments.data?.length || 0);
+        console.log('Levantamentos de Capital:', allCapitalRaisings.data?.length || 0);
+        console.log('Clientes de Capital:', allCapitalClients.data?.length || 0);
         
         // Criar novo documento PDF
         console.log('Criando documento PDF...');
@@ -9509,33 +9551,38 @@ async function generateCompleteBackupPDF() {
         yPosition += 10;
         
         // ===== CLIENTES =====
-        checkPageBreak(20);
-        addBlueHeader(`CLIENTES (${clients.length})`, yPosition);
-        yPosition += 15;
-        
-        doc.setFontSize(9);
-        clients.forEach((client, index) => {
+        if (clients && clients.length > 0) {
             checkPageBreak(20);
+            addBlueHeader(`CLIENTES (${clients.length})`, yPosition);
+            yPosition += 15;
             
-            doc.setFont('helvetica', 'bold');
-            doc.text(`${index + 1}. ${client.name}`, margin, yPosition);
-            yPosition += 5;
-            
-            doc.setFont('helvetica', 'normal');
-            doc.text(`   CPF: ${client.cpf || 'N/A'} | Telefone: ${client.phone || 'N/A'}`, margin, yPosition);
-            yPosition += 5;
-            doc.text(`   Endereço: ${client.address || 'N/A'}`, margin, yPosition);
-            yPosition += 7;
-        });
+            doc.setFontSize(9);
+            clients.forEach((client, index) => {
+                checkPageBreak(20);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${index + 1}. ${client.name || 'Nome não informado'}`, margin, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`   CPF: ${client.cpf || 'N/A'} | Telefone: ${client.phone || 'N/A'}`, margin, yPosition);
+                yPosition += 5;
+                doc.text(`   Endereço: ${client.address || 'N/A'}`, margin, yPosition);
+                yPosition += 7;
+            });
+        } else {
+            console.log('Nenhum cliente disponível para incluir no PDF');
+        }
         
         // ===== EMPRÉSTIMOS ATIVOS =====
-        const activeLoansData = loans.filter(l => l.status === 'active' || l.status === 'overdue');
-        checkPageBreak(20);
-        addBlueHeader(`EMPRÉSTIMOS ATIVOS (${activeLoansData.length})`, yPosition);
-        yPosition += 15;
-        
-        doc.setFontSize(9);
-        for (const loan of activeLoansData) {
+        const activeLoansData = loans ? loans.filter(l => l.status === 'active' || l.status === 'overdue') : [];
+        if (activeLoansData.length > 0) {
+            checkPageBreak(20);
+            addBlueHeader(`EMPRÉSTIMOS ATIVOS (${activeLoansData.length})`, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            for (const loan of activeLoansData) {
             checkPageBreak(25);
             
             const client = clients.find(c => c.id === loan.client_id);
@@ -9552,10 +9599,13 @@ async function generateCompleteBackupPDF() {
             yPosition += 5;
             doc.text(`   Data: ${new Date(loan.loan_date).toLocaleDateString('pt-BR')} | Vencimento: ${new Date(loan.due_date).toLocaleDateString('pt-BR')} | Status: ${status}`, margin, yPosition);
             yPosition += 7;
+            }
+        } else {
+            console.log('Nenhum empréstimo ativo para incluir no PDF');
         }
         
         // ===== EMPRÉSTIMOS VENCIDOS =====
-        const overdueLoansData = loans.filter(l => l.status === 'overdue');
+        const overdueLoansData = loans ? loans.filter(l => l.status === 'overdue') : [];
         if (overdueLoansData.length > 0) {
             checkPageBreak(20);
             addBlueHeader(`EMPRÉSTIMOS VENCIDOS (${overdueLoansData.length})`, yPosition);
@@ -9583,11 +9633,11 @@ async function generateCompleteBackupPDF() {
         }
         
         // ===== EMPRÉSTIMOS QUE VENCEM HOJE =====
-        const todayDueLoansData = loans.filter(l => {
+        const todayDueLoansData = loans ? loans.filter(l => {
             const dueDate = new Date(l.due_date);
             const today = new Date();
             return dueDate.toDateString() === today.toDateString();
-        });
+        }) : [];
         
         if (todayDueLoansData.length > 0) {
             checkPageBreak(20);
@@ -9699,15 +9749,31 @@ async function generateCompleteBackupPDF() {
         // Salvar o PDF
         console.log('Salvando PDF...');
         const companyName = getCurrentCompanyConfig() ? getCurrentCompanyConfig().name : 'SISTEMA';
-        const fileName = `Backup_Completo_${companyName}_${now.toISOString().split('T')[0]}_${now.getHours()}-${now.getMinutes()}.pdf`;
+        const fileName = `Backup_Completo_${companyName.replace(/\s+/g, '_')}_${now.toISOString().split('T')[0]}_${now.getHours()}-${now.getMinutes()}.pdf`;
+        
+        console.log('Tentando salvar arquivo:', fileName);
         doc.save(fileName);
         
-        console.log('PDF salvo com sucesso:', fileName);
-        showNotification('Backup completo gerado com sucesso!', 'success');
+        console.log('=== PDF GERADO COM SUCESSO ===');
+        console.log('Nome do arquivo:', fileName);
+        console.log('Total de páginas:', doc.internal.getNumberOfPages());
+        
+        if (typeof showNotification === 'function') {
+            showNotification('Backup completo gerado com sucesso!', 'success');
+        } else {
+            alert('Backup completo gerado com sucesso!');
+        }
         
     } catch (error) {
-        console.error('Erro ao gerar backup completo:', error);
-        showNotification('Erro ao gerar backup completo: ' + error.message, 'error');
+        console.error('=== ERRO AO GERAR BACKUP ===');
+        console.error('Erro:', error);
+        console.error('Stack:', error.stack);
+        
+        if (typeof showNotification === 'function') {
+            showNotification('Erro ao gerar backup completo: ' + error.message, 'error');
+        } else {
+            alert('Erro ao gerar backup completo: ' + error.message);
+        }
     }
 }
 
