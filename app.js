@@ -220,6 +220,7 @@ const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn')
 const generateTotalPDFBtn = document.getElementById('generateTotalPDFBtn');
 const generateWeeklyPDFBtn = document.getElementById('generateWeeklyPDFBtn');
 const generateMonthlyPDFBtn = document.getElementById('generateMonthlyPDFBtn');
+const generateBackupBtn = document.getElementById('generateBackupBtn');
 
 // Formulários
 const newClientForm = document.getElementById('newClientForm');
@@ -15053,4 +15054,398 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
             resultsContainer.classList.add('hidden');
         }
     });
+}
+
+// ===================================================
+// FUNÇÃO DE BACKUP COMPLETO DO SISTEMA
+// ===================================================
+
+async function generateCompleteBackup() {
+    try {
+        showInfoMessage('Gerando backup completo do sistema...');
+        
+        // Buscar todos os dados do sistema
+        const [clientsData, loansData, paymentsData, installmentsData, capitalRaisingsData, expensesData, guarantorsData] = await Promise.all([
+            supabase.from('clients').select('*').order('name'),
+            supabase.from('loans').select('*').order('created_at', { ascending: false }),
+            supabase.from('payments').select('*').order('payment_date', { ascending: false }),
+            supabase.from('installments').select('*').order('created_at', { ascending: false }),
+            supabase.from('capital_raisings').select('*').order('created_at', { ascending: false }),
+            supabase.from('expenses').select('*').order('date', { ascending: false }),
+            supabase.from('guarantors').select('*').order('name')
+        ]);
+
+        const allClients = clientsData.data || [];
+        const allLoans = loansData.data || [];
+        const allPayments = paymentsData.data || [];
+        const allInstallments = installmentsData.data || [];
+        const allCapitalRaisings = capitalRaisingsData.data || [];
+        const allExpenses = expensesData.data || [];
+        const allGuarantors = guarantorsData.data || [];
+
+        // Criar documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        const pageWidth = doc.internal.pageSize.getWidth();
+        const pageHeight = doc.internal.pageSize.getHeight();
+        let yPosition = 20;
+        
+        // Função auxiliar para adicionar nova página se necessário
+        const checkPageBreak = (spaceNeeded = 20) => {
+            if (yPosition + spaceNeeded > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+                return true;
+            }
+            return false;
+        };
+        
+        // Função para adicionar cabeçalho azul
+        const addBlueHeader = () => {
+            // Cabeçalho azul (RGB: 41, 98, 255 aproximadamente)
+            doc.setFillColor(41, 98, 255);
+            doc.rect(0, 0, pageWidth, 50, 'F');
+            
+            // Título
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(24);
+            doc.setFont('helvetica', 'bold');
+            doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, 25, { align: 'center' });
+            
+            // Data de geração
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            const now = new Date();
+            const dateStr = `Gerado em: ${now.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric' })}, ${now.toLocaleTimeString('pt-BR', { hour: '2-digit', minute: '2-digit', second: '2-digit' })}`;
+            doc.text(dateStr, pageWidth / 2, 38, { align: 'center' });
+            
+            doc.setTextColor(0, 0, 0);
+            yPosition = 60;
+        };
+        
+        addBlueHeader();
+        
+        // ===== ESTATÍSTICAS GERAIS =====
+        doc.setFillColor(41, 98, 255);
+        doc.rect(20, yPosition, pageWidth - 40, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('ESTATÍSTICAS GERAIS', 25, yPosition + 6);
+        doc.setTextColor(0, 0, 0);
+        yPosition += 15;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        // Calcular estatísticas
+        const activeLoans = allLoans.filter(l => l.status === 'active');
+        const overdueLoans = allLoans.filter(l => getLoanStatus(l.due_date, l.status) === 'overdue');
+        const paidInstallments = allInstallments.filter(i => i.status === 'paid');
+        
+        const stats = [
+            `• Total de Clientes: ${allClients.length}`,
+            `• Total de Empréstimos: ${allLoans.length}`,
+            `• Empréstimos Vencidos: ${overdueLoans.length}`,
+            `• Total de Parcelamentos: ${allInstallments.length}`,
+            `• Total de Pagamentos: ${allPayments.length}`,
+            `• Total de Despesas: ${allExpenses.length}`,
+            `• Levantamentos de Capital: ${allCapitalRaisings.length}`,
+            `• Avalistas Registrados: ${allGuarantors.length}`
+        ];
+        
+        stats.forEach(stat => {
+            checkPageBreak(8);
+            doc.text(stat, 25, yPosition);
+            yPosition += 6;
+        });
+        
+        yPosition += 10;
+        
+        // ===== CLIENTES =====
+        checkPageBreak(30);
+        doc.setFillColor(41, 98, 255);
+        doc.rect(20, yPosition, pageWidth - 40, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`CLIENTES (${allClients.length})`, 25, yPosition + 6);
+        doc.setTextColor(0, 0, 0);
+        yPosition += 15;
+        
+        doc.setFontSize(9);
+        allClients.forEach((client, index) => {
+            checkPageBreak(20);
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${index + 1}. ${client.name}`, 25, yPosition);
+            yPosition += 5;
+            
+            doc.setFont('helvetica', 'normal');
+            doc.text(`CPF: ${client.cpf || 'Não informado'} | Telefone: ${client.phone || 'Não informado'}`, 25, yPosition);
+            yPosition += 5;
+            doc.text(`Endereço: ${client.address || 'Não informado'}`, 25, yPosition);
+            yPosition += 8;
+        });
+        
+        yPosition += 5;
+        
+        // ===== EMPRÉSTIMOS ATIVOS =====
+        checkPageBreak(30);
+        doc.addPage();
+        yPosition = 20;
+        
+        doc.setFillColor(41, 98, 255);
+        doc.rect(20, yPosition, pageWidth - 40, 8, 'F');
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`EMPRÉSTIMOS ATIVOS (${activeLoans.length})`, 25, yPosition + 6);
+        doc.setTextColor(0, 0, 0);
+        yPosition += 15;
+        
+        doc.setFontSize(9);
+        activeLoans.forEach((loan, index) => {
+            checkPageBreak(25);
+            
+            const client = allClients.find(c => c.id === loan.client_id);
+            const clientName = client ? client.name : 'Cliente não encontrado';
+            const capital = parseFloat(loan.amount);
+            const juros = capital * (parseFloat(loan.interest_rate) / 100);
+            const valorTotal = capital + juros;
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text(`${index + 1}. ${clientName}`, 25, yPosition);
+            yPosition += 5;
+            
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Capital: R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Juros: ${loan.interest_rate}% (R$ ${juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`, 25, yPosition);
+            yPosition += 5;
+            doc.text(`Valor Total (Capital+Juros): R$ ${valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 25, yPosition);
+            yPosition += 5;
+            doc.text(`Data: ${new Date(loan.created_at).toLocaleDateString('pt-BR')} | Vencimento: ${new Date(loan.due_date).toLocaleDateString('pt-BR')}`, 25, yPosition);
+            yPosition += 8;
+        });
+        
+        // ===== EMPRÉSTIMOS VENCIDOS =====
+        if (overdueLoans.length > 0) {
+            checkPageBreak(30);
+            if (yPosition > 200) {
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            yPosition += 5;
+            doc.setFillColor(220, 38, 38);
+            doc.rect(20, yPosition, pageWidth - 40, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`EMPRÉSTIMOS VENCIDOS (${overdueLoans.length})`, 25, yPosition + 6);
+            doc.setTextColor(0, 0, 0);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            overdueLoans.forEach((loan, index) => {
+                checkPageBreak(25);
+                
+                const client = allClients.find(c => c.id === loan.client_id);
+                const clientName = client ? client.name : 'Cliente não encontrado';
+                const capital = parseFloat(loan.amount);
+                const juros = capital * (parseFloat(loan.interest_rate) / 100);
+                const valorTotal = capital + juros;
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${index + 1}. ${clientName}`, 25, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Capital: R$ ${capital.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Juros: ${loan.interest_rate}% (R$ ${juros.toLocaleString('pt-BR', { minimumFractionDigits: 2 })})`, 25, yPosition);
+                yPosition += 5;
+                doc.text(`Valor Total (Capital+Juros): R$ ${valorTotal.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 25, yPosition);
+                yPosition += 5;
+                doc.text(`Data: ${new Date(loan.created_at).toLocaleDateString('pt-BR')} | Vencimento: ${new Date(loan.due_date).toLocaleDateString('pt-BR')}`, 25, yPosition);
+                yPosition += 8;
+            });
+        }
+        
+        // ===== PARCELAMENTOS =====
+        if (allInstallments.length > 0) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFillColor(41, 98, 255);
+            doc.rect(20, yPosition, pageWidth - 40, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`PARCELAMENTOS (${allInstallments.length})`, 25, yPosition + 6);
+            doc.setTextColor(0, 0, 0);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            
+            // Agrupar parcelas por cliente
+            const installmentsByClient = {};
+            allInstallments.forEach(inst => {
+                const loan = allLoans.find(l => l.id === inst.loan_id);
+                if (loan) {
+                    const clientId = loan.client_id;
+                    if (!installmentsByClient[clientId]) {
+                        installmentsByClient[clientId] = [];
+                    }
+                    installmentsByClient[clientId].push({ ...inst, loan });
+                }
+            });
+            
+            Object.entries(installmentsByClient).forEach(([clientId, insts]) => {
+                const client = allClients.find(c => c.id === parseInt(clientId));
+                const clientName = client ? client.name : 'Cliente não encontrado';
+                
+                checkPageBreak(15);
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${clientName}`, 25, yPosition);
+                yPosition += 5;
+                
+                const totalInstallments = insts.length;
+                const paidInstallmentsClient = insts.filter(i => i.status === 'paid').length;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de parcelas: ${totalInstallments} | Pagas: ${paidInstallmentsClient} | Pendentes: ${totalInstallments - paidInstallmentsClient}`, 25, yPosition);
+                yPosition += 8;
+            });
+        }
+        
+        // ===== PAGAMENTOS =====
+        if (allPayments.length > 0) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFillColor(41, 98, 255);
+            doc.rect(20, yPosition, pageWidth - 40, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`PAGAMENTOS (${allPayments.length})`, 25, yPosition + 6);
+            doc.setTextColor(0, 0, 0);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            
+            // Mostrar últimos 50 pagamentos
+            const recentPayments = allPayments.slice(0, 50);
+            
+            recentPayments.forEach((payment, index) => {
+                checkPageBreak(20);
+                
+                const loan = allLoans.find(l => l.id === payment.loan_id);
+                let clientName = 'N/A';
+                if (loan) {
+                    const client = allClients.find(c => c.id === loan.client_id);
+                    clientName = client ? client.name : 'Cliente não encontrado';
+                }
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${index + 1}. ${clientName}`, 25, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Valor: R$ ${parseFloat(payment.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Data: ${new Date(payment.payment_date).toLocaleDateString('pt-BR')}`, 25, yPosition);
+                yPosition += 5;
+                doc.text(`Tipo: ${payment.payment_type || 'Não especificado'}`, 25, yPosition);
+                yPosition += 8;
+            });
+            
+            if (allPayments.length > 50) {
+                yPosition += 5;
+                doc.setFont('helvetica', 'italic');
+                doc.text(`... e mais ${allPayments.length - 50} pagamentos`, 25, yPosition);
+            }
+        }
+        
+        // ===== LEVANTAMENTOS DE CAPITAL =====
+        if (allCapitalRaisings.length > 0) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFillColor(41, 98, 255);
+            doc.rect(20, yPosition, pageWidth - 40, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`LEVANTAMENTOS DE CAPITAL (${allCapitalRaisings.length})`, 25, yPosition + 6);
+            doc.setTextColor(0, 0, 0);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            
+            allCapitalRaisings.forEach((capital, index) => {
+                checkPageBreak(20);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${index + 1}. ${capital.description || 'Sem descrição'}`, 25, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Valor: R$ ${parseFloat(capital.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Data: ${new Date(capital.created_at).toLocaleDateString('pt-BR')}`, 25, yPosition);
+                yPosition += 8;
+            });
+        }
+        
+        // ===== DESPESAS =====
+        if (allExpenses.length > 0) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFillColor(41, 98, 255);
+            doc.rect(20, yPosition, pageWidth - 40, 8, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text(`DESPESAS (${allExpenses.length})`, 25, yPosition + 6);
+            doc.setTextColor(0, 0, 0);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            
+            // Mostrar últimas 30 despesas
+            const recentExpenses = allExpenses.slice(0, 30);
+            
+            recentExpenses.forEach((expense, index) => {
+                checkPageBreak(20);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${index + 1}. ${expense.description || 'Sem descrição'}`, 25, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Valor: R$ ${parseFloat(expense.amount).toLocaleString('pt-BR', { minimumFractionDigits: 2 })} | Data: ${new Date(expense.date).toLocaleDateString('pt-BR')}`, 25, yPosition);
+                yPosition += 5;
+                doc.text(`Categoria: ${expense.category || 'Não especificada'}`, 25, yPosition);
+                yPosition += 8;
+            });
+            
+            if (allExpenses.length > 30) {
+                yPosition += 5;
+                doc.setFont('helvetica', 'italic');
+                doc.text(`... e mais ${allExpenses.length - 30} despesas`, 25, yPosition);
+            }
+        }
+        
+        // Salvar PDF
+        const fileName = `backup_completo_sistema_${new Date().toISOString().split('T')[0]}_${new Date().getTime()}.pdf`;
+        doc.save(fileName);
+        
+        showInfoMessage('Backup completo gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar backup completo:', error);
+        showInfoMessage('Erro ao gerar backup: ' + error.message);
+    }
+}
+
+// Event listener para o botão de backup completo
+if (generateBackupBtn) {
+    generateBackupBtn.addEventListener('click', generateCompleteBackup);
 }
