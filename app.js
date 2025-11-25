@@ -7900,6 +7900,37 @@ async function createTablesIfNotExist() {
             console.log('Erro ao verificar tabela capital_raising_clients:', error);
         }
         
+        // Verificar se a tabela paid_loans existe
+        try {
+            const { data: paidLoansCheck, error: paidLoansCheckError } = await supabase
+                .from('paid_loans')
+                .select('id')
+                .limit(1);
+            
+            if (paidLoansCheckError) {
+                console.error('❌ Tabela paid_loans não encontrada!');
+                console.error('⚠️ A funcionalidade "Marcar como Quitado" NÃO VAI FUNCIONAR!');
+                console.error('📋 SOLUÇÃO: Execute o script fix-litoral-paid-loans.sql no SQL Editor do Supabase.');
+                console.error('📁 Arquivo: fix-litoral-paid-loans.sql');
+                console.error('📖 Instruções: README-FIX-LITORAL-QUITADOS.md');
+                
+                // Mostrar alerta visual para o usuário
+                showInfoMessage(
+                    '⚠️ ATENÇÃO: A tabela de empréstimos quitados não foi encontrada!\n\n' +
+                    'A funcionalidade "Marcar como Quitado" não vai funcionar.\n\n' +
+                    '📋 SOLUÇÃO:\n' +
+                    '1. Abra o SQL Editor no Supabase\n' +
+                    '2. Execute o arquivo: fix-litoral-paid-loans.sql\n' +
+                    '3. Recarregue a página\n\n' +
+                    'Veja o arquivo README-FIX-LITORAL-QUITADOS.md para instruções detalhadas.'
+                );
+            } else {
+                console.log('✓ Tabela paid_loans encontrada');
+            }
+        } catch (error) {
+            console.error('❌ Erro ao verificar tabela paid_loans:', error);
+        }
+        
         console.log('Verificação de tabelas concluída!');
         console.log('Se alguma tabela não foi encontrada, execute os scripts SQL apropriados no SQL Editor do Supabase.');
         
