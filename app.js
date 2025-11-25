@@ -5538,11 +5538,9 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
             return;
         }
 
-        // Calcular valores atuais do empréstimo
+        // Calcular valores atuais do empréstimo usando a mesma lógica da tabela
         const principalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
-        const interestAmount = principalAmount * (interestRate / 100);
-        const totalWithInterest = principalAmount + interestAmount;
         
         // Buscar histórico de pagamentos
         const { data: payments, error: paymentsError } = await supabase
@@ -5553,33 +5551,50 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
 
         if (paymentsError) throw paymentsError;
 
-        // Verificar se houve renovações e calcular total pago corretamente
-        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
-        const hasRenewals = payments.some(p => p.payment_type === 'renewal' || p.payment_type === 'interest_renewal');
+        // Calcular valor restante usando a mesma lógica da tabela
+        const originalCapital = parseFloat(loan.original_amount || loan.amount);
+        const originalInterest = originalCapital * (interestRate / 100);
+        const originalTotal = originalCapital + originalInterest;
         
-        let totalPaid;
-        if (hasRenewals) {
-            // Se houve renovação, considerar apenas pagamentos após a última renovação
-            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
-            const lastInterestRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('interest_renewal');
-            const lastRenewalIdx = Math.max(lastRenewalIndex, lastInterestRenewalIndex);
+        // Separar pagamentos reais
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        
+        // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
+        const interestOnlyTypes = ['renewal', 'interest_renewal', 'early_payment_partial_interest', 
+                                  'early_payment_interest_renewal', 'partial_interest'];
+        
+        // Calcular capital pago acumulado
+        let capitalPaid = 0;
+        let currentCapital = originalCapital;
+        
+        // Processar cada pagamento em ordem
+        for (const payment of realPayments) {
+            const paymentAmount = parseFloat(payment.amount);
+            const paymentType = payment.payment_type;
             
-            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
-                const paymentIndex = payments.findIndex(p => p === payment);
-                return paymentIndex > lastRenewalIdx;
-            });
-            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        } else {
-            // Lógica original - excluir renovações
-            const validPayments = realPayments.filter(p => 
-                p.payment_type !== 'renewal' && 
-                p.payment_type !== 'interest_renewal'
-            );
-            totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            // Se for pagamento apenas de juros, não reduz capital
+            if (interestOnlyTypes.includes(paymentType)) {
+                continue;
+            }
+            
+            // Para outros tipos de pagamento, calcular quanto foi de capital
+            const currentInterest = currentCapital * (interestRate / 100);
+            
+            if (paymentAmount > currentInterest) {
+                // Pagou mais que os juros, a diferença reduziu o capital
+                const capitalReduction = paymentAmount - currentInterest;
+                capitalPaid += capitalReduction;
+                currentCapital = Math.max(0, currentCapital - capitalReduction);
+            }
         }
         
-        // Calcular valor restante
-        const remainingAmount = Math.max(0, totalWithInterest - totalPaid);
+        // Calcular valor restante correto
+        const remainingCapital = Math.max(0, originalCapital - capitalPaid);
+        const remainingInterest = remainingCapital * (interestRate / 100);
+        const remainingAmount = remainingCapital + remainingInterest;
+        
+        const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const interestAmount = originalInterest;
         
         // Calcular multa se estiver vencido
         const dueDate = new Date(loan.due_date);
@@ -5627,6 +5642,9 @@ Após o vencimento, será aplicada uma multa diária de R$ 50,00.
 
         // Mostrar mensagem de sucesso
         showSuccessMessage(`Cobrança enviada para ${client.name} via ${bankName}`);
+
+        // Atualizar a tabela de empréstimos para refletir valores atualizados
+        await loadLoans();
 
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp:', error);
@@ -5854,11 +5872,9 @@ async function sendGuarantorOrEmergencyMessage(loanId, client, contact, contactT
     }
 
     try {
-        // Calcular valores atuais do empréstimo
+        // Calcular valores atuais do empréstimo usando a mesma lógica da tabela
         const principalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
-        const interestAmount = principalAmount * (interestRate / 100);
-        const totalWithInterest = principalAmount + interestAmount;
         
         // Buscar histórico de pagamentos
         const { data: payments, error: paymentsError } = await supabase
@@ -5869,31 +5885,50 @@ async function sendGuarantorOrEmergencyMessage(loanId, client, contact, contactT
 
         if (paymentsError) throw paymentsError;
 
-        // Verificar se houve renovações e calcular total pago corretamente
-        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
-        const hasRenewals = payments.some(p => p.payment_type === 'renewal' || p.payment_type === 'interest_renewal');
+        // Calcular valor restante usando a mesma lógica da tabela
+        const originalCapital = parseFloat(loan.original_amount || loan.amount);
+        const originalInterest = originalCapital * (interestRate / 100);
+        const originalTotal = originalCapital + originalInterest;
         
-        let totalPaid;
-        if (hasRenewals) {
-            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
-            const lastInterestRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('interest_renewal');
-            const lastRenewalIdx = Math.max(lastRenewalIndex, lastInterestRenewalIndex);
+        // Separar pagamentos reais
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        
+        // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
+        const interestOnlyTypes = ['renewal', 'interest_renewal', 'early_payment_partial_interest', 
+                                  'early_payment_interest_renewal', 'partial_interest'];
+        
+        // Calcular capital pago acumulado
+        let capitalPaid = 0;
+        let currentCapital = originalCapital;
+        
+        // Processar cada pagamento em ordem
+        for (const payment of realPayments) {
+            const paymentAmount = parseFloat(payment.amount);
+            const paymentType = payment.payment_type;
             
-            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
-                const paymentIndex = payments.findIndex(p => p === payment);
-                return paymentIndex > lastRenewalIdx;
-            });
-            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        } else {
-            const validPayments = realPayments.filter(p => 
-                p.payment_type !== 'renewal' && 
-                p.payment_type !== 'interest_renewal'
-            );
-            totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            // Se for pagamento apenas de juros, não reduz capital
+            if (interestOnlyTypes.includes(paymentType)) {
+                continue;
+            }
+            
+            // Para outros tipos de pagamento, calcular quanto foi de capital
+            const currentInterest = currentCapital * (interestRate / 100);
+            
+            if (paymentAmount > currentInterest) {
+                // Pagou mais que os juros, a diferença reduziu o capital
+                const capitalReduction = paymentAmount - currentInterest;
+                capitalPaid += capitalReduction;
+                currentCapital = Math.max(0, currentCapital - capitalReduction);
+            }
         }
         
-        // Calcular valor restante
-        const remainingAmount = Math.max(0, totalWithInterest - totalPaid);
+        // Calcular valor restante correto
+        const remainingCapital = Math.max(0, originalCapital - capitalPaid);
+        const remainingInterest = remainingCapital * (interestRate / 100);
+        const remainingAmount = remainingCapital + remainingInterest;
+        
+        const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const interestAmount = originalInterest;
         
         // Calcular multa se estiver vencido
         const dueDate = new Date(loan.due_date);
@@ -6067,6 +6102,9 @@ async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId,
         // Mostrar mensagem de sucesso
         showSuccessMessage(`Cobrança de parcela enviada para ${client.name} via ${bankName}`);
 
+        // Atualizar a tabela de parcelamentos para refletir valores atualizados
+        await loadInstallments();
+
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp:', error);
         showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
@@ -6103,11 +6141,9 @@ async function sendWhatsAppMessage(loanId) {
             return;
         }
 
-        // Calcular valores atuais do empréstimo
+        // Calcular valores atuais do empréstimo usando a mesma lógica da tabela
         const principalAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
-        const interestAmount = principalAmount * (interestRate / 100);
-        const totalWithInterest = principalAmount + interestAmount;
         
         // Buscar histórico de pagamentos
         const { data: payments, error: paymentsError } = await supabase
@@ -6118,33 +6154,50 @@ async function sendWhatsAppMessage(loanId) {
 
         if (paymentsError) throw paymentsError;
 
-        // Verificar se houve renovações e calcular total pago corretamente
-        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
-        const hasRenewals = payments.some(p => p.payment_type === 'renewal' || p.payment_type === 'interest_renewal');
+        // Calcular valor restante usando a mesma lógica da tabela
+        const originalCapital = parseFloat(loan.original_amount || loan.amount);
+        const originalInterest = originalCapital * (interestRate / 100);
+        const originalTotal = originalCapital + originalInterest;
         
-        let totalPaid;
-        if (hasRenewals) {
-            // Se houve renovação, considerar apenas pagamentos após a última renovação
-            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
-            const lastInterestRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('interest_renewal');
-            const lastRenewalIdx = Math.max(lastRenewalIndex, lastInterestRenewalIndex);
+        // Separar pagamentos reais
+        const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
+        
+        // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
+        const interestOnlyTypes = ['renewal', 'interest_renewal', 'early_payment_partial_interest', 
+                                  'early_payment_interest_renewal', 'partial_interest'];
+        
+        // Calcular capital pago acumulado
+        let capitalPaid = 0;
+        let currentCapital = originalCapital;
+        
+        // Processar cada pagamento em ordem
+        for (const payment of realPayments) {
+            const paymentAmount = parseFloat(payment.amount);
+            const paymentType = payment.payment_type;
             
-            const paymentsAfterRenewal = realPayments.filter((payment, index) => {
-                const paymentIndex = payments.findIndex(p => p === payment);
-                return paymentIndex > lastRenewalIdx;
-            });
-            totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        } else {
-            // Lógica original - excluir renovações
-            const validPayments = realPayments.filter(p => 
-                p.payment_type !== 'renewal' && 
-                p.payment_type !== 'interest_renewal'
-            );
-            totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            // Se for pagamento apenas de juros, não reduz capital
+            if (interestOnlyTypes.includes(paymentType)) {
+                continue;
+            }
+            
+            // Para outros tipos de pagamento, calcular quanto foi de capital
+            const currentInterest = currentCapital * (interestRate / 100);
+            
+            if (paymentAmount > currentInterest) {
+                // Pagou mais que os juros, a diferença reduziu o capital
+                const capitalReduction = paymentAmount - currentInterest;
+                capitalPaid += capitalReduction;
+                currentCapital = Math.max(0, currentCapital - capitalReduction);
+            }
         }
         
-        // Calcular valor restante
-        const remainingAmount = Math.max(0, totalWithInterest - totalPaid);
+        // Calcular valor restante correto
+        const remainingCapital = Math.max(0, originalCapital - capitalPaid);
+        const remainingInterest = remainingCapital * (interestRate / 100);
+        const remainingAmount = remainingCapital + remainingInterest;
+        
+        const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const interestAmount = originalInterest;
         
         // Calcular multa se estiver vencido
         const dueDate = new Date(loan.due_date);
@@ -6156,31 +6209,12 @@ async function sendWhatsAppMessage(loanId) {
         // Formatar data de vencimento
         const formattedDueDate = formatDate(loan.due_date);
 
-        // Montar histórico de pagamentos para a mensagem (apenas pagamentos válidos)
+        // Montar histórico de pagamentos para a mensagem
         let paymentHistory = '';
-        let validPaymentsForHistory;
         
-        if (hasRenewals) {
-            // Mostrar apenas pagamentos após a última renovação
-            const lastRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('renewal');
-            const lastInterestRenewalIndex = payments.map(p => p.payment_type).lastIndexOf('interest_renewal');
-            const lastRenewalIdx = Math.max(lastRenewalIndex, lastInterestRenewalIndex);
-            
-            validPaymentsForHistory = realPayments.filter((payment, index) => {
-                const paymentIndex = payments.findIndex(p => p === payment);
-                return paymentIndex > lastRenewalIdx;
-            });
-        } else {
-            // Mostrar todos os pagamentos válidos (excluindo renovações)
-            validPaymentsForHistory = realPayments.filter(p => 
-                p.payment_type !== 'renewal' && 
-                p.payment_type !== 'interest_renewal'
-            );
-        }
-        
-        if (validPaymentsForHistory.length > 0) {
+        if (realPayments.length > 0) {
             paymentHistory = '\n\n📋 *HISTÓRICO DE PAGAMENTOS:*\n';
-            validPaymentsForHistory.forEach((payment, index) => {
+            realPayments.forEach((payment, index) => {
                 const paymentDate = formatDate(payment.payment_date);
                 paymentHistory += `${index + 1}. R$ ${parseFloat(payment.amount).toFixed(2)} - ${paymentDate}\n`;
             });
@@ -6215,6 +6249,9 @@ Após o vencimento, será aplicada uma multa diária de R$ 50,00.`;
 
         // Mostrar mensagem de sucesso
         showSuccessMessage(`Mensagem de cobrança enviada para ${client.name} (${client.phone})`);
+
+        // Atualizar a tabela de empréstimos para refletir valores atualizados
+        await loadLoans();
 
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp:', error);
@@ -6322,6 +6359,9 @@ async function sendInstallmentWhatsAppMessage(installmentId) {
 
         // Mostrar mensagem de sucesso
         showNotification(`Mensagem de cobrança da parcela enviada para ${client.name} (${client.phone})`, 'success');
+
+        // Atualizar a tabela de parcelamentos para refletir valores atualizados
+        await loadInstallments();
 
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp do parcelamento:', error);
@@ -6613,16 +6653,57 @@ async function generatePaymentReceipt(paymentId, loanId) {
         const { data: allPayments, error: allPaymentsError } = await supabase
             .from('payments')
             .select('*')
-            .eq('loan_id', loanId);
+            .eq('loan_id', loanId)
+            .order('payment_date', { ascending: true });
         
         if (allPaymentsError) throw allPaymentsError;
 
-        // Calcular valores
+        // Calcular valores usando a mesma lógica da tabela
         const loanAmount = parseFloat(loan.amount);
         const interestRate = parseFloat(loan.interest_rate);
-        const totalWithInterest = loanAmount + (loanAmount * interestRate / 100);
-        const totalPaid = allPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
-        const remainingAmount = totalWithInterest - totalPaid;
+        
+        const originalCapital = parseFloat(loan.original_amount || loan.amount);
+        const originalInterest = originalCapital * (interestRate / 100);
+        const totalWithInterest = originalCapital + originalInterest;
+        
+        // Separar pagamentos reais
+        const realPayments = allPayments.filter(p => parseFloat(p.amount) > 0);
+        
+        // Tipos de pagamento que NÃO reduzem o capital (apenas juros)
+        const interestOnlyTypes = ['renewal', 'interest_renewal', 'early_payment_partial_interest', 
+                                  'early_payment_interest_renewal', 'partial_interest'];
+        
+        // Calcular capital pago acumulado
+        let capitalPaid = 0;
+        let currentCapital = originalCapital;
+        
+        // Processar cada pagamento em ordem
+        for (const pmt of realPayments) {
+            const pAmount = parseFloat(pmt.amount);
+            const pType = pmt.payment_type;
+            
+            // Se for pagamento apenas de juros, não reduz capital
+            if (interestOnlyTypes.includes(pType)) {
+                continue;
+            }
+            
+            // Para outros tipos de pagamento, calcular quanto foi de capital
+            const currentInterest = currentCapital * (interestRate / 100);
+            
+            if (pAmount > currentInterest) {
+                // Pagou mais que os juros, a diferença reduziu o capital
+                const capitalReduction = pAmount - currentInterest;
+                capitalPaid += capitalReduction;
+                currentCapital = Math.max(0, currentCapital - capitalReduction);
+            }
+        }
+        
+        // Calcular valor restante correto
+        const remainingCapital = Math.max(0, originalCapital - capitalPaid);
+        const remainingInterest = remainingCapital * (interestRate / 100);
+        const remainingAmount = remainingCapital + remainingInterest;
+        
+        const totalPaid = realPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
         const paymentAmount = parseFloat(payment.amount);
 
         // Calcular próxima data de vencimento (30 dias a partir de hoje)
