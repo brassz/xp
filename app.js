@@ -5626,6 +5626,8 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
 O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
 Após o vencimento, será aplicada uma multa diária de R$ 50,00.
 
+*FAVOR AO REALIZAR O PAGAMENTO EM OUTRA TITULARIDADE, MANDAR O COMPROVANTE, CASO CONTRÁRIO NÃO SERÁ DADO BAIXA NA PARCELA!!!*
+
 📱 Envie o comprovante após o pagamento.`;
 
         // Limpar o número de telefone (remover caracteres especiais)
@@ -6085,6 +6087,8 @@ async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId,
 📞 Entre em contato para efetuar o pagamento`;
         }
 
+        message += `\n\n*FAVOR AO REALIZAR O PAGAMENTO EM OUTRA TITULARIDADE, MANDAR O COMPROVANTE, CASO CONTRÁRIO NÃO SERÁ DADO BAIXA NA PARCELA!!!*`;
+        
         message += `\n\n📱 Envie o comprovante após o pagamento.`;
 
         // Limpar o número de telefone (remover caracteres especiais)
