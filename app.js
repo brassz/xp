@@ -2474,7 +2474,11 @@ async function handleNewRenewalPayment(paymentOption) {
         hideModal(renewalOptionsModal);
         hideModal(paymentModal);
         document.getElementById('paymentForm').reset();
+        
+        // Invalidar cache e recarregar dados
+        invalidateLoanRemainingAmountsCache();
         await loadLoans();
+        await updateDashboard();
         
         // Preparar informações do pagamento para o modal de mensagens
         const paymentInfo = {
@@ -2729,31 +2733,17 @@ async function handlePayment(e) {
             if (loanError) throw loanError;
         }
         
-        // Invalidar cache e recarregar dados
-        invalidateLoanRemainingAmountsCache();
-        invalidateLoanRemainingAmountsCache();
-        await loadLoans();
-        await updateDashboard();
-        
-        // Atualizar o modal com os novos valores antes de fechar (se estiver aberto)
-        if (!paymentModal.classList.contains('hidden')) {
-            await calculateAndShowRemainingAmount(loanId);
-            
-            // Adicionar feedback visual de que os valores foram atualizados
-            const feedbackDiv = document.getElementById('paymentValidationFeedback');
-            feedbackDiv.textContent = '✅ Pagamento processado! Valores atualizados.';
-            feedbackDiv.className = 'mt-2 text-sm text-green-400';
-            feedbackDiv.classList.remove('hidden');
-            
-                    // Aguardar 3 segundos para o usuário ver os novos valores e logs
-        await new Promise(resolve => setTimeout(resolve, 3000));
-        }
-        
+        // Fechar o modal imediatamente
         hideModal(paymentModal);
         paymentForm.reset();
         
         // Limpar dataset do formulário
         delete paymentForm.dataset.paymentId;
+        
+        // Invalidar cache e recarregar dados APÓS fechar o modal
+        invalidateLoanRemainingAmountsCache();
+        await loadLoans();
+        await updateDashboard();
         
         // Se o modal de histórico estiver aberto, recarregar os dados
         if (!paymentHistoryModal.classList.contains('hidden')) {
