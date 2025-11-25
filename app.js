@@ -1194,6 +1194,22 @@ async function loadLoans() {
         if (error) throw error;
         
         loans = data || [];
+        
+        // Verificar se há empréstimos quitados que precisam ser movidos para paid_loans
+        const paidLoansInActiveTable = loans.filter(loan => loan.status === 'paid');
+        if (paidLoansInActiveTable.length > 0) {
+            console.log(`Encontrados ${paidLoansInActiveTable.length} empréstimos quitados na tabela loans. Movendo para paid_loans...`);
+            for (const loan of paidLoansInActiveTable) {
+                try {
+                    await moveLoanToPaidLoans(loan.id, 'Sistema', 'Movido automaticamente durante carregamento');
+                } catch (error) {
+                    console.error(`Erro ao mover empréstimo ${loan.id}:`, error);
+                }
+            }
+            // Remover empréstimos quitados da lista local após movê-los
+            loans = loans.filter(loan => loan.status !== 'paid');
+        }
+        
         filteredLoans = [...loans]; // Inicializar filteredLoans
         await renderLoansTable();
         
@@ -2641,6 +2657,11 @@ async function handlePayment(e) {
             
             if (loanUpdateError) throw loanUpdateError;
             
+            // Se o empréstimo foi quitado, mover para a tabela paid_loans
+            if (recalcInfo.isFullyPaid) {
+                await moveLoanToPaidLoans(loanId, paymentType, 'Quitado através de pagamento');
+            }
+            
             // Nota: O tipo de operação já foi registrado no pagamento principal com o payment_type correto
             // Não é mais necessário criar um segundo registro de pagamento
         } else {
@@ -2731,6 +2752,11 @@ async function handlePayment(e) {
                 .eq('id', loanId);
             
             if (loanError) throw loanError;
+            
+            // Se o empréstimo foi quitado, mover para a tabela paid_loans
+            if (updateData.status === 'paid') {
+                await moveLoanToPaidLoans(loanId, paymentType, 'Quitado através de pagamento');
+            }
         }
         
         // Fechar o modal imediatamente
@@ -7909,6 +7935,110 @@ async function createTablesIfNotExist() {
     }
 }
 
+// Função auxiliar para mover empréstimo quitado para a tabela paid_loans
+async function moveLoanToPaidLoans(loanId, paymentMethod = 'Sistema', notes = 'Quitado automaticamente') {
+    try {
+        console.log(`Movendo empréstimo ${loanId} para paid_loans...`);
+        
+        // Buscar dados do empréstimo
+        const { data: loanData, error: loanError } = await supabase
+            .from('loans')
+            .select('*')
+            .eq('id', loanId)
+            .single();
+        
+        if (loanError) throw loanError;
+        if (!loanData) {
+            console.warn(`Empréstimo ${loanId} não encontrado na tabela loans`);
+            return false;
+        }
+        
+        // Calcular valores
+        const totalWithInterest = parseFloat(loanData.amount) + (parseFloat(loanData.amount) * parseFloat(loanData.interest_rate) / 100);
+        
+        // Buscar total pago
+        const { data: payments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('amount')
+            .eq('loan_id', loanId);
+        
+        if (paymentsError) throw paymentsError;
+        
+        const totalPaid = payments?.reduce((sum, payment) => sum + parseFloat(payment.amount), 0) || 0;
+        
+        // Verificar se já existe na tabela paid_loans
+        const { data: existingPaidLoan, error: checkError } = await supabase
+            .from('paid_loans')
+            .select('id')
+            .eq('loan_id', loanId)
+            .single();
+        
+        if (checkError && checkError.code !== 'PGRST116') { // PGRST116 = não encontrado
+            throw checkError;
+        }
+        
+        if (existingPaidLoan) {
+            console.log(`Empréstimo ${loanId} já existe na tabela paid_loans`);
+            // Mesmo assim, remover da tabela loans
+            await supabase.from('loans').delete().eq('id', loanId);
+            return true;
+        }
+        
+        // Inserir na tabela paid_loans
+        const { error: insertError } = await supabase
+            .from('paid_loans')
+            .insert([{
+                loan_id: loanId,
+                client_id: loanData.client_id,
+                original_amount: loanData.amount,
+                interest_rate: loanData.interest_rate,
+                total_with_interest: totalWithInterest,
+                loan_date: loanData.loan_date,
+                due_date: loanData.due_date,
+                paid_date: new Date().toISOString().split('T')[0],
+                total_paid: totalPaid,
+                payment_method: paymentMethod,
+                notes: notes,
+                created_by: loanData.created_by
+            }]);
+        
+        if (insertError) {
+            console.error('Erro ao inserir em paid_loans:', insertError);
+            throw insertError;
+        }
+        
+        // Remover da tabela loans
+        const { error: deleteError } = await supabase
+            .from('loans')
+            .delete()
+            .eq('id', loanId);
+        
+        if (deleteError) {
+            console.error('Erro ao remover de loans:', deleteError);
+            throw deleteError;
+        }
+        
+        // Remover da lista local
+        const loanIndex = loans.findIndex(l => l.id === loanId);
+        if (loanIndex > -1) {
+            loans.splice(loanIndex, 1);
+        }
+        
+        // Remover da lista filtrada
+        const filteredLoanIndex = filteredLoans.findIndex(l => l.id === loanId);
+        if (filteredLoanIndex > -1) {
+            filteredLoans.splice(filteredLoanIndex, 1);
+        }
+        
+        console.log(`Empréstimo ${loanId} movido com sucesso para paid_loans`);
+        return true;
+        
+    } catch (error) {
+        console.error(`Erro ao mover empréstimo ${loanId} para paid_loans:`, error);
+        throw error;
+    }
+}
+
 // Função para marcar empréstimo como quitado
 async function markLoanAsPaid(loanId) {
     try {
@@ -7929,58 +8059,8 @@ async function markLoanAsPaid(loanId) {
             'Confirmar Quitação',
             `Deseja realmente marcar este empréstimo como quitado?\n\nCliente: ${loan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(loan.amount).toFixed(2)}\nJuros: ${loan.interest_rate}%`,
             async () => {
-                // Calcular valores
-                const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-                
-                // Buscar total pago
-                const { data: payments, error: paymentsError } = await supabase
-                    .from('payments')
-                    .select('amount')
-                    .eq('loan_id', loanId);
-                
-                if (paymentsError) throw paymentsError;
-                
-                const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-                
-                // Inserir na tabela paid_loans
-                const { error: insertError } = await supabase
-                    .from('paid_loans')
-                    .insert([{
-                        loan_id: loanId,
-                        client_id: loan.client_id,
-                        original_amount: loan.amount,
-                        interest_rate: loan.interest_rate,
-                        total_with_interest: totalWithInterest,
-                        loan_date: loan.loan_date,
-                        due_date: loan.due_date,
-                        paid_date: new Date().toISOString().split('T')[0],
-                        total_paid: totalPaid,
-                        payment_method: 'Sistema',
-                        notes: 'Quitado pelo sistema',
-                        created_by: loan.created_by
-                    }]);
-                
-                if (insertError) throw insertError;
-                
-                // Remover da tabela loans
-                const { error: deleteError } = await supabase
-                    .from('loans')
-                    .delete()
-                    .eq('id', loanId);
-                
-                if (deleteError) throw deleteError;
-                
-                // Remover da lista local
-                const loanIndex = loans.findIndex(l => l.id === loanId);
-                if (loanIndex > -1) {
-                    loans.splice(loanIndex, 1);
-                }
-                
-                // Remover da lista filtrada
-                const filteredLoanIndex = filteredLoans.findIndex(l => l.id === loanId);
-                if (filteredLoanIndex > -1) {
-                    filteredLoans.splice(filteredLoanIndex, 1);
-                }
+                // Usar a função auxiliar para mover o empréstimo
+                await moveLoanToPaidLoans(loanId, 'Sistema', 'Quitado manualmente pelo usuário');
                 
                 // Mostrar mensagem de sucesso
                 showSuccessMessage('Empréstimo quitado com sucesso e movido para histórico de quitados!');
