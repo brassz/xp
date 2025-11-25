@@ -207,6 +207,7 @@ const guarantorModal = document.getElementById('guarantorModal');
 const emergencyContactModal = document.getElementById('emergencyContactModal');
 const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
 const renewalOptionsModal = document.getElementById('renewalOptionsModal');
+const backupModal = document.getElementById('backupModal');
 
 
 // Botões
@@ -214,6 +215,7 @@ const newClientBtn = document.getElementById('newClientBtn');
 const newLoanBtn = document.getElementById('newLoanBtn');
 const newExpenseBtn = document.getElementById('newExpenseBtn');
 const newCapitalRaisingBtn = document.getElementById('newCapitalRaisingBtn');
+const backupCompletoBtn = document.getElementById('backupCompletoBtn');
 
 const generatePdfBtn = document.getElementById('generatePdfBtn');
 const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
@@ -379,6 +381,49 @@ function setupEventListeners() {
     if (generateMonthlyPDFBtn) {
         generateMonthlyPDFBtn.addEventListener('click', generateMonthlyReportPDF);
     }
+    
+    // Backup button
+    if (backupCompletoBtn) {
+        backupCompletoBtn.addEventListener('click', () => showModal(backupModal));
+    }
+    
+    // Backup modal event listeners
+    const closeBackupModal = document.getElementById('closeBackupModal');
+    const cancelBackupBtn = document.getElementById('cancelBackupBtn');
+    const generateBackupBtn = document.getElementById('generateBackupBtn');
+    const backupSelectAll = document.getElementById('backupSelectAll');
+    const backupOptions = document.querySelectorAll('.backup-option');
+    
+    if (closeBackupModal) {
+        closeBackupModal.addEventListener('click', () => hideModal(backupModal));
+    }
+    
+    if (cancelBackupBtn) {
+        cancelBackupBtn.addEventListener('click', () => hideModal(backupModal));
+    }
+    
+    if (generateBackupBtn) {
+        generateBackupBtn.addEventListener('click', generateSystemBackup);
+    }
+    
+    // Select all functionality
+    if (backupSelectAll) {
+        backupSelectAll.addEventListener('change', function() {
+            backupOptions.forEach(option => {
+                option.checked = this.checked;
+            });
+        });
+    }
+    
+    // Update select all when individual options change
+    backupOptions.forEach(option => {
+        option.addEventListener('change', function() {
+            const allChecked = Array.from(backupOptions).every(opt => opt.checked);
+            if (backupSelectAll) {
+                backupSelectAll.checked = allChecked;
+            }
+        });
+    });
     
     // Fechar modais
     document.getElementById('closeClientModal').addEventListener('click', () => hideModal(newClientModal));
@@ -15043,4 +15088,633 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
             resultsContainer.classList.add('hidden');
         }
     });
+}
+
+// ==================== SISTEMA DE BACKUP COMPLETO ====================
+
+/**
+ * Função principal para gerar o backup do sistema
+ */
+async function generateSystemBackup() {
+    try {
+        // Obter opções selecionadas
+        const selectedOptions = Array.from(document.querySelectorAll('.backup-option:checked'))
+            .map(option => option.dataset.type);
+        
+        if (selectedOptions.length === 0) {
+            showErrorMessage('Por favor, selecione pelo menos uma opção de backup.');
+            return;
+        }
+        
+        // Desabilitar botão durante geração
+        const generateBtn = document.getElementById('generateBackupBtn');
+        const originalText = generateBtn.innerHTML;
+        generateBtn.disabled = true;
+        generateBtn.innerHTML = '<svg class="animate-spin h-5 w-5 mr-2 inline" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4" fill="none"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>Gerando...';
+        
+        // Criar PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Nome da empresa atual
+        const companyName = COMPANIES_CONFIG[currentCompany]?.name || currentCompany.toUpperCase();
+        
+        // Cabeçalho principal
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(20);
+        doc.text('BACKUP COMPLETO DO SISTEMA', 105, 20, { align: 'center' });
+        
+        doc.setFontSize(14);
+        doc.text(companyName, 105, 30, { align: 'center' });
+        
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text(`Gerado em: ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, 105, 38, { align: 'center' });
+        
+        // Linha divisória
+        doc.setLineWidth(0.5);
+        doc.line(20, 42, 190, 42);
+        
+        let yPosition = 50;
+        
+        // Gerar cada seção selecionada
+        for (const option of selectedOptions) {
+            switch (option) {
+                case 'clientes':
+                    yPosition = await addClientesBackup(doc, yPosition);
+                    break;
+                case 'emprestimos':
+                    yPosition = await addEmprestimosBackup(doc, yPosition);
+                    break;
+                case 'parcelamentos':
+                    yPosition = await addParcelamentosBackup(doc, yPosition);
+                    break;
+                case 'pagamentos':
+                    yPosition = await addPagamentosBackup(doc, yPosition);
+                    break;
+                case 'levantamentos':
+                    yPosition = await addLevantamentosBackup(doc, yPosition);
+                    break;
+                case 'despesas':
+                    yPosition = await addDespesasBackup(doc, yPosition);
+                    break;
+            }
+        }
+        
+        // Salvar PDF
+        const fileName = `Backup_${companyName.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+        
+        // Restaurar botão
+        generateBtn.disabled = false;
+        generateBtn.innerHTML = originalText;
+        
+        // Fechar modal e mostrar mensagem de sucesso
+        hideModal(backupModal);
+        showSuccessMessage('Backup gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar backup:', error);
+        showErrorMessage('Erro ao gerar backup: ' + error.message);
+        
+        // Restaurar botão em caso de erro
+        const generateBtn = document.getElementById('generateBackupBtn');
+        if (generateBtn) {
+            generateBtn.disabled = false;
+            generateBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path></svg>Gerar Backup PDF';
+        }
+    }
+}
+
+/**
+ * Adiciona seção de Clientes ao backup
+ */
+async function addClientesBackup(doc, yPosition) {
+    // Verificar se precisa de nova página
+    if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+    }
+    
+    // Título da seção
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('CLIENTES', 20, yPosition);
+    yPosition += 8;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total de clientes: ${clients.length}`, 20, yPosition);
+    yPosition += 10;
+    
+    // Cabeçalho da tabela
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Nome', 20, yPosition);
+    doc.text('CPF', 75, yPosition);
+    doc.text('Telefone', 115, yPosition);
+    doc.text('Endereço', 150, yPosition);
+    yPosition += 4;
+    doc.line(20, yPosition, 190, yPosition);
+    yPosition += 4;
+    
+    // Dados dos clientes
+    doc.setFont('helvetica', 'normal');
+    for (const client of clients) {
+        if (yPosition > 280) {
+            doc.addPage();
+            yPosition = 20;
+            
+            // Repetir cabeçalho
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Nome', 20, yPosition);
+            doc.text('CPF', 75, yPosition);
+            doc.text('Telefone', 115, yPosition);
+            doc.text('Endereço', 150, yPosition);
+            yPosition += 4;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 4;
+            doc.setFont('helvetica', 'normal');
+        }
+        
+        const name = (client.name || '').substring(0, 20);
+        const cpf = client.cpf || '-';
+        const phone = client.phone || '-';
+        const address = (client.address || '-').substring(0, 15);
+        
+        doc.text(name, 20, yPosition);
+        doc.text(cpf, 75, yPosition);
+        doc.text(phone, 115, yPosition);
+        doc.text(address, 150, yPosition);
+        yPosition += 5;
+    }
+    
+    yPosition += 10;
+    return yPosition;
+}
+
+/**
+ * Adiciona seção de Empréstimos ao backup
+ */
+async function addEmprestimosBackup(doc, yPosition) {
+    if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+    }
+    
+    // Título da seção
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('EMPRÉSTIMOS', 20, yPosition);
+    yPosition += 8;
+    
+    // Buscar empréstimos quitados
+    const { data: paidLoans, error: paidError } = await supabase
+        .from('paid_loans')
+        .select('*')
+        .order('paid_date', { ascending: false });
+    
+    // Categorizar empréstimos
+    const activeLoans = loans.filter(loan => loan.status === 'active');
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    const overdueLoans = activeLoans.filter(loan => {
+        const dueDate = new Date(loan.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate < today;
+    });
+    
+    const dueTodayLoans = activeLoans.filter(loan => {
+        const dueDate = new Date(loan.due_date);
+        dueDate.setHours(0, 0, 0, 0);
+        return dueDate.getTime() === today.getTime();
+    });
+    
+    // Estatísticas
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total de empréstimos ativos: ${activeLoans.length}`, 20, yPosition);
+    yPosition += 5;
+    doc.text(`Empréstimos vencidos: ${overdueLoans.length}`, 20, yPosition);
+    yPosition += 5;
+    doc.text(`Vencem hoje: ${dueTodayLoans.length}`, 20, yPosition);
+    yPosition += 5;
+    doc.text(`Empréstimos quitados: ${paidLoans?.length || 0}`, 20, yPosition);
+    yPosition += 10;
+    
+    // Tabela de empréstimos ativos
+    doc.setFontSize(12);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Empréstimos Ativos', 20, yPosition);
+    yPosition += 6;
+    
+    doc.setFontSize(8);
+    doc.text('Cliente', 20, yPosition);
+    doc.text('Valor', 70, yPosition);
+    doc.text('Juros', 95, yPosition);
+    doc.text('Total', 115, yPosition);
+    doc.text('Restante', 140, yPosition);
+    doc.text('Vencimento', 170, yPosition);
+    yPosition += 4;
+    doc.line(20, yPosition, 190, yPosition);
+    yPosition += 4;
+    
+    doc.setFont('helvetica', 'normal');
+    for (const loan of activeLoans) {
+        if (yPosition > 280) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Cliente', 20, yPosition);
+            doc.text('Valor', 70, yPosition);
+            doc.text('Juros', 95, yPosition);
+            doc.text('Total', 115, yPosition);
+            doc.text('Restante', 140, yPosition);
+            doc.text('Vencimento', 170, yPosition);
+            yPosition += 4;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 4;
+            doc.setFont('helvetica', 'normal');
+        }
+        
+        const clientName = loan.clients?.name?.substring(0, 18) || 'N/A';
+        const amount = parseFloat(loan.amount);
+        const interest = amount * parseFloat(loan.interest_rate) / 100;
+        const total = amount + interest;
+        const remaining = parseFloat(loan.remaining_amount || total);
+        const dueDate = formatDate(loan.due_date);
+        
+        doc.text(clientName, 20, yPosition);
+        doc.text(`R$ ${amount.toFixed(2)}`, 70, yPosition);
+        doc.text(`R$ ${interest.toFixed(2)}`, 95, yPosition);
+        doc.text(`R$ ${total.toFixed(2)}`, 115, yPosition);
+        doc.text(`R$ ${remaining.toFixed(2)}`, 140, yPosition);
+        doc.text(dueDate, 170, yPosition);
+        yPosition += 5;
+    }
+    
+    yPosition += 10;
+    return yPosition;
+}
+
+/**
+ * Adiciona seção de Parcelamentos ao backup
+ */
+async function addParcelamentosBackup(doc, yPosition) {
+    if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+    }
+    
+    // Título da seção
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PARCELAMENTOS', 20, yPosition);
+    yPosition += 8;
+    
+    // Buscar parcelamentos
+    const { data: installments, error } = await supabase
+        .from('installments')
+        .select('*, clients(name)')
+        .order('created_at', { ascending: false });
+    
+    if (error) {
+        console.error('Erro ao buscar parcelamentos:', error);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text('Erro ao carregar parcelamentos', 20, yPosition);
+        yPosition += 10;
+        return yPosition;
+    }
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total de parcelamentos: ${installments?.length || 0}`, 20, yPosition);
+    yPosition += 10;
+    
+    // Tabela
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Cliente', 20, yPosition);
+    doc.text('Valor Total', 70, yPosition);
+    doc.text('Parcelas', 105, yPosition);
+    doc.text('Pagas', 130, yPosition);
+    doc.text('Valor Parcela', 150, yPosition);
+    yPosition += 4;
+    doc.line(20, yPosition, 190, yPosition);
+    yPosition += 4;
+    
+    doc.setFont('helvetica', 'normal');
+    for (const inst of installments || []) {
+        if (yPosition > 280) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Cliente', 20, yPosition);
+            doc.text('Valor Total', 70, yPosition);
+            doc.text('Parcelas', 105, yPosition);
+            doc.text('Pagas', 130, yPosition);
+            doc.text('Valor Parcela', 150, yPosition);
+            yPosition += 4;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 4;
+            doc.setFont('helvetica', 'normal');
+        }
+        
+        const clientName = inst.clients?.name?.substring(0, 18) || 'N/A';
+        const totalAmount = parseFloat(inst.total_amount || 0);
+        const totalInstallments = inst.total_installments || 0;
+        const paidInstallments = inst.paid_installments || 0;
+        const installmentValue = parseFloat(inst.installment_value || 0);
+        
+        doc.text(clientName, 20, yPosition);
+        doc.text(`R$ ${totalAmount.toFixed(2)}`, 70, yPosition);
+        doc.text(totalInstallments.toString(), 105, yPosition);
+        doc.text(paidInstallments.toString(), 130, yPosition);
+        doc.text(`R$ ${installmentValue.toFixed(2)}`, 150, yPosition);
+        yPosition += 5;
+    }
+    
+    yPosition += 10;
+    return yPosition;
+}
+
+/**
+ * Adiciona seção de Pagamentos ao backup
+ */
+async function addPagamentosBackup(doc, yPosition) {
+    if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+    }
+    
+    // Título da seção
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('PAGAMENTOS', 20, yPosition);
+    yPosition += 8;
+    
+    // Buscar pagamentos
+    const { data: payments, error } = await supabase
+        .from('payments')
+        .select('*, loans(clients(name))')
+        .order('payment_date', { ascending: false });
+    
+    if (error) {
+        console.error('Erro ao buscar pagamentos:', error);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text('Erro ao carregar pagamentos', 20, yPosition);
+        yPosition += 10;
+        return yPosition;
+    }
+    
+    const totalPagamentos = payments?.length || 0;
+    const totalValor = payments?.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0) || 0;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total de pagamentos: ${totalPagamentos}`, 20, yPosition);
+    yPosition += 5;
+    doc.text(`Valor total: R$ ${totalValor.toFixed(2)}`, 20, yPosition);
+    yPosition += 10;
+    
+    // Tabela
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Data', 20, yPosition);
+    doc.text('Cliente', 45, yPosition);
+    doc.text('Valor', 95, yPosition);
+    doc.text('Tipo', 125, yPosition);
+    doc.text('Método', 160, yPosition);
+    yPosition += 4;
+    doc.line(20, yPosition, 190, yPosition);
+    yPosition += 4;
+    
+    doc.setFont('helvetica', 'normal');
+    for (const payment of payments || []) {
+        if (yPosition > 280) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Data', 20, yPosition);
+            doc.text('Cliente', 45, yPosition);
+            doc.text('Valor', 95, yPosition);
+            doc.text('Tipo', 125, yPosition);
+            doc.text('Método', 160, yPosition);
+            yPosition += 4;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 4;
+            doc.setFont('helvetica', 'normal');
+        }
+        
+        const date = formatDate(payment.payment_date);
+        const clientName = payment.loans?.clients?.name?.substring(0, 18) || 'N/A';
+        const amount = parseFloat(payment.amount || 0);
+        const type = payment.payment_type || 'N/A';
+        const method = payment.payment_method || 'N/A';
+        
+        doc.text(date, 20, yPosition);
+        doc.text(clientName, 45, yPosition);
+        doc.text(`R$ ${amount.toFixed(2)}`, 95, yPosition);
+        doc.text(type.substring(0, 10), 125, yPosition);
+        doc.text(method.substring(0, 12), 160, yPosition);
+        yPosition += 5;
+    }
+    
+    yPosition += 10;
+    return yPosition;
+}
+
+/**
+ * Adiciona seção de Levantamentos de Capital ao backup
+ */
+async function addLevantamentosBackup(doc, yPosition) {
+    if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+    }
+    
+    // Título da seção
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('LEVANTAMENTOS DE CAPITAL', 20, yPosition);
+    yPosition += 8;
+    
+    // Buscar levantamentos
+    const { data: capitalRaisings, error } = await supabase
+        .from('capital_raising')
+        .select('*')
+        .order('created_at', { ascending: false });
+    
+    if (error) {
+        console.error('Erro ao buscar levantamentos:', error);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text('Erro ao carregar levantamentos', 20, yPosition);
+        yPosition += 10;
+        return yPosition;
+    }
+    
+    const totalLevantamentos = capitalRaisings?.length || 0;
+    const totalValor = capitalRaisings?.reduce((sum, cr) => sum + parseFloat(cr.value_bruto || 0), 0) || 0;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total de levantamentos: ${totalLevantamentos}`, 20, yPosition);
+    yPosition += 5;
+    doc.text(`Valor total bruto: R$ ${totalValor.toFixed(2)}`, 20, yPosition);
+    yPosition += 10;
+    
+    // Tabela
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Data', 20, yPosition);
+    doc.text('Valor Bruto', 50, yPosition);
+    doc.text('Taxa Juros', 85, yPosition);
+    doc.text('Valor Total', 120, yPosition);
+    doc.text('Participantes', 155, yPosition);
+    yPosition += 4;
+    doc.line(20, yPosition, 190, yPosition);
+    yPosition += 4;
+    
+    doc.setFont('helvetica', 'normal');
+    for (const cr of capitalRaisings || []) {
+        if (yPosition > 280) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Data', 20, yPosition);
+            doc.text('Valor Bruto', 50, yPosition);
+            doc.text('Taxa Juros', 85, yPosition);
+            doc.text('Valor Total', 120, yPosition);
+            doc.text('Participantes', 155, yPosition);
+            yPosition += 4;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 4;
+            doc.setFont('helvetica', 'normal');
+        }
+        
+        const date = formatDate(cr.created_at);
+        const valueBruto = parseFloat(cr.value_bruto || 0);
+        const interestRate = parseFloat(cr.interest_rate || 0);
+        const valueTotal = parseFloat(cr.value_total || 0);
+        
+        // Buscar número de participantes
+        const { data: participants } = await supabase
+            .from('capital_clients')
+            .select('id')
+            .eq('capital_raising_id', cr.id);
+        
+        const participantCount = participants?.length || 0;
+        
+        doc.text(date, 20, yPosition);
+        doc.text(`R$ ${valueBruto.toFixed(2)}`, 50, yPosition);
+        doc.text(`${interestRate.toFixed(1)}%`, 85, yPosition);
+        doc.text(`R$ ${valueTotal.toFixed(2)}`, 120, yPosition);
+        doc.text(participantCount.toString(), 155, yPosition);
+        yPosition += 5;
+    }
+    
+    yPosition += 10;
+    return yPosition;
+}
+
+/**
+ * Adiciona seção de Despesas ao backup
+ */
+async function addDespesasBackup(doc, yPosition) {
+    if (yPosition > 250) {
+        doc.addPage();
+        yPosition = 20;
+    }
+    
+    // Título da seção
+    doc.setFontSize(16);
+    doc.setFont('helvetica', 'bold');
+    doc.text('DESPESAS', 20, yPosition);
+    yPosition += 8;
+    
+    // Buscar despesas
+    const { data: expenses, error } = await supabase
+        .from('expenses')
+        .select('*')
+        .order('expense_date', { ascending: false });
+    
+    if (error) {
+        console.error('Erro ao buscar despesas:', error);
+        doc.setFont('helvetica', 'normal');
+        doc.setFontSize(10);
+        doc.text('Erro ao carregar despesas', 20, yPosition);
+        yPosition += 10;
+        return yPosition;
+    }
+    
+    const totalDespesas = expenses?.length || 0;
+    const totalValor = expenses?.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0) || 0;
+    
+    doc.setFontSize(10);
+    doc.setFont('helvetica', 'normal');
+    doc.text(`Total de despesas: ${totalDespesas}`, 20, yPosition);
+    yPosition += 5;
+    doc.text(`Valor total: R$ ${totalValor.toFixed(2)}`, 20, yPosition);
+    yPosition += 10;
+    
+    // Tabela
+    doc.setFontSize(8);
+    doc.setFont('helvetica', 'bold');
+    doc.text('Data', 20, yPosition);
+    doc.text('Descrição', 45, yPosition);
+    doc.text('Categoria', 105, yPosition);
+    doc.text('Valor', 145, yPosition);
+    doc.text('Método', 170, yPosition);
+    yPosition += 4;
+    doc.line(20, yPosition, 190, yPosition);
+    yPosition += 4;
+    
+    doc.setFont('helvetica', 'normal');
+    for (const expense of expenses || []) {
+        if (yPosition > 280) {
+            doc.addPage();
+            yPosition = 20;
+            
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Data', 20, yPosition);
+            doc.text('Descrição', 45, yPosition);
+            doc.text('Categoria', 105, yPosition);
+            doc.text('Valor', 145, yPosition);
+            doc.text('Método', 170, yPosition);
+            yPosition += 4;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 4;
+            doc.setFont('helvetica', 'normal');
+        }
+        
+        const date = formatDate(expense.expense_date);
+        const description = (expense.description || 'N/A').substring(0, 22);
+        const category = (expense.category || 'N/A').substring(0, 15);
+        const amount = parseFloat(expense.amount || 0);
+        const method = (expense.payment_method || 'N/A').substring(0, 8);
+        
+        doc.text(date, 20, yPosition);
+        doc.text(description, 45, yPosition);
+        doc.text(category, 105, yPosition);
+        doc.text(`R$ ${amount.toFixed(2)}`, 145, yPosition);
+        doc.text(method, 170, yPosition);
+        yPosition += 5;
+    }
+    
+    yPosition += 10;
+    return yPosition;
 }
