@@ -978,6 +978,34 @@ function handleNavigation(e) {
     });
 }
 
+// Navegar para uma seção programaticamente
+function navigateToSection(sectionId) {
+    // Atualizar navegação ativa
+    navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${sectionId}`) {
+            link.classList.add('active');
+        }
+    });
+    
+    const submenuLinks = document.querySelectorAll('.submenu-item');
+    submenuLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${sectionId}`) {
+            link.classList.add('active');
+        }
+    });
+    
+    // Mostrar seção correspondente
+    contentSections.forEach(section => {
+        section.classList.add('hidden');
+        if (section.id === sectionId) {
+            section.classList.remove('hidden');
+            section.classList.add('fade-in');
+        }
+    });
+}
+
 // Carregar dados
 async function loadData() {
     if (isLoadingData) {
@@ -1872,6 +1900,7 @@ async function renderLoansTable() {
 async function renderPaidLoansTable() {
     try {
         console.log('Iniciando carregamento de empréstimos quitados...');
+        console.log('Empresa atual:', currentCompany, getCurrentCompanyConfig()?.name);
         
         // Verificar se o elemento tbody existe
         const tbody = document.getElementById('paidLoansTableBody');
@@ -1881,26 +1910,53 @@ async function renderPaidLoansTable() {
         }
         
         // Buscar empréstimos quitados da tabela paid_loans
+        console.log('Buscando empréstimos quitados da tabela paid_loans...');
         const { data: paidLoans, error } = await supabase
             .from('paid_loans')
             .select('*')
             .order('paid_date', { ascending: false });
         
         if (error) {
-            console.error('Erro ao buscar empréstimos quitados:', error);
-            throw error;
+            console.error('❌ Erro ao buscar empréstimos quitados:', error);
+            console.error('Detalhes do erro:', {
+                message: error.message,
+                code: error.code,
+                details: error.details,
+                hint: error.hint
+            });
+            
+            // Mostrar mensagem de erro mais amigável
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="8" class="px-6 py-8 text-center">
+                        <div class="text-red-400 mb-2">❌ Erro ao carregar empréstimos quitados</div>
+                        <div class="text-sm text-gray-400">${error.message}</div>
+                        <div class="text-xs text-gray-500 mt-2">
+                            Verifique se a tabela 'paid_loans' existe no banco de dados.
+                            <br>Execute o script 'setup-paid-loans.sql' se necessário.
+                        </div>
+                    </td>
+                </tr>
+            `;
+            return;
         }
+        
+        console.log('✅ Empréstimos quitados encontrados:', paidLoans?.length || 0);
         
         // Buscar dados dos clientes separadamente
         let clientsData = {};
         if (paidLoans && paidLoans.length > 0) {
+            console.log('Buscando dados de clientes para', paidLoans.length, 'empréstimos...');
             const clientIds = [...new Set(paidLoans.map(loan => loan.client_id))];
             const { data: clients, error: clientsError } = await supabase
                 .from('clients')
                 .select('id, name, cpf, email, phone')
                 .in('id', clientIds);
             
-            if (!clientsError && clients) {
+            if (clientsError) {
+                console.warn('⚠️ Erro ao buscar clientes:', clientsError);
+            } else if (clients) {
+                console.log('✅ Dados de', clients.length, 'clientes carregados');
                 clientsData = clients.reduce((acc, client) => {
                     acc[client.id] = client;
                     return acc;
@@ -1908,12 +1964,11 @@ async function renderPaidLoansTable() {
             }
         }
         
-        if (error) {
-            console.error('Erro na consulta Supabase:', error);
-            throw error;
-        }
-        
-        console.log('Dados recebidos:', paidLoans);
+        console.log('📊 Resumo dos dados:', {
+            totalEmprestimosQuitados: paidLoans?.length || 0,
+            totalClientes: Object.keys(clientsData).length,
+            empresa: getCurrentCompanyConfig()?.name
+        });
         
         if (!paidLoans || paidLoans.length === 0) {
             tbody.innerHTML = `
@@ -7991,6 +8046,9 @@ async function markLoanAsPaid(loanId) {
                 await renderPaidLoansTable();
                 await updateDashboard();
                 await updateCharts();
+                
+                // Redirecionar para a aba de empréstimos quitados
+                navigateToSection('paidLoans');
             },
             'Marcar como Quitado',
             true  // isPayment = true para usar botão verde
