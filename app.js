@@ -8001,29 +8001,75 @@ async function markLoanAsPaid(loanId) {
                         total_paid: totalPaid,
                         payment_method: 'Sistema',
                         notes: 'Quitado pelo sistema',
-                        created_by: loan.created_by
+                        created_by: currentUser?.id || loan.created_by
                     };
                     
                     console.log('🔵 Inserindo empréstimo na tabela paid_loans:', paidLoanData);
+                    console.log('👤 Usuário atual:', currentUser);
+                    console.log('🏢 Empresa atual:', currentCompany);
+                    
+                    // Verificar se a tabela paid_loans existe antes de inserir
+                    console.log('🔵 Verificando se tabela paid_loans existe...');
+                    const { data: tableCheck, error: tableCheckError } = await supabase
+                        .from('paid_loans')
+                        .select('id')
+                        .limit(1);
+                    
+                    if (tableCheckError && tableCheckError.code === '42P01') {
+                        console.error('❌ ERRO CRÍTICO: Tabela paid_loans não existe!');
+                        throw new Error(
+                            'A tabela paid_loans não foi encontrada no banco de dados.\n\n' +
+                            'Execute o script fix-litoral-paid-loans.sql no SQL Editor do Supabase.'
+                        );
+                    }
+                    
+                    if (tableCheckError && tableCheckError.code !== 'PGRST116') {
+                        console.warn('⚠️ Aviso ao verificar tabela:', tableCheckError);
+                    } else {
+                        console.log('✅ Tabela paid_loans existe');
+                    }
                     
                     // Inserir na tabela paid_loans
+                    console.log('🔵 Executando INSERT...');
                     const { data: insertedData, error: insertError } = await supabase
                         .from('paid_loans')
                         .insert([paidLoanData])
                         .select();
                     
                     if (insertError) {
-                        console.error('❌ Erro ao inserir na tabela paid_loans:', insertError);
-                        console.error('Detalhes do erro:', {
-                            code: insertError.code,
-                            message: insertError.message,
-                            details: insertError.details,
-                            hint: insertError.hint
-                        });
-                        throw new Error(`Erro ao salvar empréstimo quitado: ${insertError.message}`);
+                        console.error('❌ ERRO AO INSERIR NA TABELA paid_loans');
+                        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                        console.error('Código do erro:', insertError.code);
+                        console.error('Mensagem:', insertError.message);
+                        console.error('Detalhes:', insertError.details);
+                        console.error('Hint:', insertError.hint);
+                        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                        console.error('Dados que tentei inserir:', paidLoanData);
+                        console.error('━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━');
+                        
+                        // Mensagens de erro específicas
+                        let errorMsg = 'Erro ao salvar empréstimo quitado.\n\n';
+                        
+                        if (insertError.code === '42P01') {
+                            errorMsg += '❌ A tabela paid_loans não existe!\n';
+                            errorMsg += 'Execute: fix-litoral-paid-loans.sql no SQL Editor.';
+                        } else if (insertError.code === '42501') {
+                            errorMsg += '❌ Permissão negada!\n';
+                            errorMsg += 'Execute: fix-paid-loans-rls.sql no SQL Editor\n';
+                            errorMsg += 'para corrigir as políticas RLS.';
+                        } else if (insertError.message.includes('policy')) {
+                            errorMsg += '❌ Política RLS bloqueou a inserção!\n';
+                            errorMsg += 'Execute: fix-paid-loans-rls.sql no SQL Editor\n';
+                            errorMsg += 'para usar políticas mais permissivas.';
+                        } else {
+                            errorMsg += `Detalhes: ${insertError.message}`;
+                        }
+                        
+                        throw new Error(errorMsg);
                     }
                     
-                    console.log('✅ Empréstimo inserido na tabela paid_loans com sucesso:', insertedData);
+                    console.log('✅ Empréstimo inserido na tabela paid_loans com sucesso!');
+                    console.log('📊 Dados inseridos:', insertedData);
                     
                     // Remover da tabela loans
                     console.log('🔵 Removendo empréstimo da tabela loans...');
