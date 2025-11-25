@@ -7987,6 +7987,26 @@ async function markLoanAsPaid(loanId) {
                 
                 console.log('Empréstimo quitado inserido com sucesso:', insertData);
                 
+                // VERIFICAÇÃO ADICIONAL: Confirmar que foi realmente inserido
+                const { data: verificacao, error: verifyError } = await supabase
+                    .from('paid_loans')
+                    .select('*')
+                    .eq('loan_id', loanId)
+                    .single();
+                
+                if (verifyError) {
+                    console.error('❌ ERRO ao verificar inserção:', verifyError);
+                    throw new Error('Empréstimo foi "inserido" mas não foi encontrado no banco! Possível problema de RLS.');
+                }
+                
+                if (!verificacao) {
+                    console.error('❌ CRÍTICO: Empréstimo não foi encontrado após inserção!');
+                    console.error('Isso indica que o RLS está bloqueando a leitura ou a inserção foi revertida');
+                    throw new Error('Empréstimo não foi salvo no banco. Execute fix-paid-loans-DEFINITIVO.sql');
+                }
+                
+                console.log('✅ CONFIRMADO: Empréstimo realmente salvo no banco:', verificacao);
+                
                 // Remover da tabela loans
                 const { error: deleteError } = await supabase
                     .from('loans')
