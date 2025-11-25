@@ -131,6 +131,31 @@ WHERE tablename = 'paid_loans';
 
 ---
 
+## ⚠️ Erro Comum: "relation paid_loans_id_seq does not exist"
+
+Se você recebeu este erro ao executar o script:
+
+```
+ERROR: 42P01: relation "paid_loans_id_seq" does not exist
+```
+
+**Causa**: Versão antiga do script tentava dar permissão em uma sequence que não existe.
+
+**Solução 1 - Script Corrigido** (RECOMENDADO):
+1. Use o arquivo **atualizado** `fix-litoral-paid-loans.sql`
+2. O erro já foi corrigido
+3. Execute normalmente
+
+**Solução 2 - Correção Rápida**:
+1. Se a tabela já foi parcialmente criada
+2. Execute o script `fix-sequence-error.sql`
+3. Ele só vai conceder as permissões corretas
+
+**Por que aconteceu?**
+- A tabela `paid_loans` usa UUID (`gen_random_uuid()`)
+- UUID não cria sequence automática como SERIAL
+- Linha que dava `GRANT USAGE ON SEQUENCE` foi removida
+
 ## 🆘 Suporte
 
 Se o problema persistir, envie:
@@ -138,6 +163,7 @@ Se o problema persistir, envie:
 1. ✅ Print do resultado da execução do script
 2. ✅ Print dos logs do console (F12) quando clicar em "Marcar como Quitado"
 3. ✅ Confirmação de que está no projeto correto da LITORAL CRED
+4. ✅ Se recebeu algum erro SQL, copie a mensagem completa
 
 ---
 

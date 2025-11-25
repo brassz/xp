@@ -136,6 +136,9 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON paid_loans TO authenticated;
 -- Conceder permissões para a view
 GRANT SELECT ON paid_loans_with_details TO authenticated;
 
+-- Nota: Não é necessário dar GRANT em sequence porque a tabela usa UUID com gen_random_uuid()
+-- ao invés de SERIAL, então não há sequence automática
+
 -- =====================================================
 -- VERIFICAÇÃO FINAL
 -- =====================================================

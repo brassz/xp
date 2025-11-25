@@ -224,6 +224,32 @@ SELECT * FROM paid_loans ORDER BY paid_date DESC LIMIT 10;
 
 ## 🆘 Troubleshooting
 
+### ❌ Erro: "relation paid_loans_id_seq does not exist"
+**Erro Completo**: 
+```
+ERROR: 42P01: relation "paid_loans_id_seq" does not exist
+```
+
+**Causa**: Você está usando uma versão antiga do script que tenta dar permissão em uma sequence que não existe. A tabela usa UUID, não SERIAL.
+
+**Solução**:
+1. **Opção A - Usar script corrigido** (RECOMENDADO):
+   - Use o arquivo **ATUALIZADO** `fix-litoral-paid-loans.sql`
+   - O erro já foi corrigido
+   - Execute normalmente no SQL Editor
+
+2. **Opção B - Se a tabela já foi parcialmente criada**:
+   - Execute o script `fix-sequence-error.sql`
+   - Ele apenas concede as permissões sem tentar acessar a sequence
+   
+3. **Opção C - Recriar do zero**:
+   ```sql
+   -- Deletar tabela se existir
+   DROP TABLE IF EXISTS paid_loans CASCADE;
+   
+   -- Depois execute o script corrigido
+   ```
+
 ### ❌ Erro: "relation paid_loans does not exist"
 **Causa**: Script não foi executado ou foi executado no projeto errado  
 **Solução**: 

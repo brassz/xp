@@ -150,7 +150,6 @@ CREATE POLICY "Users can delete paid loans they created or admins can delete all
 
 -- Conceder permissões para usuários autenticados
 GRANT SELECT, INSERT, UPDATE, DELETE ON paid_loans TO authenticated;
-GRANT USAGE ON SEQUENCE paid_loans_id_seq TO authenticated;
 
 -- Conceder permissões para a view
 GRANT SELECT ON paid_loans_with_details TO authenticated;
