@@ -1,0 +1,606 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>🔧 Solução: Erro de Renovação - Passo a Passo</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            background: linear-gradient(135deg, #e74c3c 0%, #c0392b 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 30px 80px rgba(0,0,0,0.4);
+            max-width: 1000px;
+            width: 100%;
+            padding: 50px;
+        }
+        
+        .header {
+            text-align: center;
+            margin-bottom: 40px;
+        }
+        
+        h1 {
+            color: #e74c3c;
+            font-size: 42px;
+            margin-bottom: 15px;
+        }
+        
+        .error-display {
+            background: #fee;
+            border: 3px solid #e74c3c;
+            padding: 20px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            color: #c0392b;
+            font-size: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .step {
+            background: #f8f9fa;
+            border-left: 6px solid #3498db;
+            padding: 30px;
+            margin-bottom: 25px;
+            border-radius: 10px;
+            position: relative;
+            transition: all 0.3s;
+        }
+        
+        .step.completed {
+            border-left-color: #27ae60;
+            background: #e8f5e9;
+        }
+        
+        .step-number {
+            position: absolute;
+            top: -15px;
+            left: 20px;
+            background: #3498db;
+            color: white;
+            width: 45px;
+            height: 45px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+            font-size: 22px;
+            box-shadow: 0 4px 10px rgba(52, 152, 219, 0.3);
+        }
+        
+        .step.completed .step-number {
+            background: #27ae60;
+        }
+        
+        .step-title {
+            color: #2c3e50;
+            font-size: 24px;
+            font-weight: bold;
+            margin-bottom: 15px;
+            margin-top: 10px;
+        }
+        
+        .step-content {
+            color: #555;
+            line-height: 1.8;
+            font-size: 16px;
+        }
+        
+        .code-box {
+            background: #1e272e;
+            color: #0be881;
+            padding: 25px;
+            border-radius: 12px;
+            font-family: 'Courier New', monospace;
+            font-size: 16px;
+            margin: 20px 0;
+            position: relative;
+            overflow-x: auto;
+            white-space: pre;
+        }
+        
+        .copy-button {
+            position: absolute;
+            top: 15px;
+            right: 15px;
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 8px;
+            cursor: pointer;
+            font-weight: bold;
+            font-size: 14px;
+            transition: all 0.3s;
+        }
+        
+        .copy-button:hover {
+            background: #2980b9;
+            transform: scale(1.05);
+        }
+        
+        .copy-button.copied {
+            background: #27ae60;
+        }
+        
+        .big-button {
+            display: block;
+            width: 100%;
+            padding: 20px;
+            background: #3498db;
+            color: white;
+            text-align: center;
+            text-decoration: none;
+            font-size: 20px;
+            font-weight: bold;
+            border-radius: 12px;
+            margin: 15px 0;
+            transition: all 0.3s;
+            border: none;
+            cursor: pointer;
+        }
+        
+        .big-button:hover {
+            background: #2980b9;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 20px rgba(52, 152, 219, 0.3);
+        }
+        
+        .big-button.success {
+            background: #27ae60;
+        }
+        
+        .big-button.success:hover {
+            background: #229954;
+        }
+        
+        .company-selector {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+            gap: 15px;
+            margin: 20px 0;
+        }
+        
+        .company-btn {
+            padding: 15px;
+            background: #ecf0f1;
+            border: 3px solid #bdc3c7;
+            border-radius: 10px;
+            cursor: pointer;
+            text-align: center;
+            font-weight: bold;
+            transition: all 0.3s;
+        }
+        
+        .company-btn:hover {
+            border-color: #3498db;
+            background: #e3f2fd;
+            transform: scale(1.05);
+        }
+        
+        .company-btn.selected {
+            border-color: #3498db;
+            background: #3498db;
+            color: white;
+        }
+        
+        .warning-box {
+            background: #fff3cd;
+            border: 3px solid #ffc107;
+            padding: 20px;
+            border-radius: 12px;
+            margin: 20px 0;
+        }
+        
+        .warning-box strong {
+            color: #856404;
+            display: block;
+            font-size: 18px;
+            margin-bottom: 10px;
+        }
+        
+        .success-box {
+            background: #d4edda;
+            border: 3px solid #28a745;
+            padding: 30px;
+            border-radius: 12px;
+            text-align: center;
+            margin: 30px 0;
+            display: none;
+        }
+        
+        .success-box.show {
+            display: block;
+            animation: bounceIn 0.6s;
+        }
+        
+        .success-box h2 {
+            color: #155724;
+            font-size: 32px;
+            margin-bottom: 15px;
+        }
+        
+        @keyframes bounceIn {
+            0% { transform: scale(0.8); opacity: 0; }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); opacity: 1; }
+        }
+        
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            margin: 15px 0;
+            font-size: 16px;
+        }
+        
+        .checkbox-item input {
+            width: 25px;
+            height: 25px;
+            margin-right: 15px;
+            cursor: pointer;
+        }
+        
+        .progress-tracker {
+            background: #ecf0f1;
+            height: 40px;
+            border-radius: 20px;
+            overflow: hidden;
+            margin: 30px 0;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #3498db, #2ecc71);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>🔧 Solução: Erro de Renovação</h1>
+            <p style="color: #7f8c8d; font-size: 18px;">Siga os passos abaixo na ordem</p>
+        </div>
+        
+        <div class="error-display">
+            ❌ <strong>ERRO:</strong> new row for relation "payments" violates check constraint "payments_payment_type_check"
+        </div>
+        
+        <div class="progress-tracker">
+            <div class="progress-fill" id="progressBar" style="width: 0%">
+                <span id="progressText">0% Completo</span>
+            </div>
+        </div>
+        
+        <!-- PASSO 1 -->
+        <div class="step" id="step1">
+            <div class="step-number">1</div>
+            <div class="step-title">🏢 Selecione a Empresa</div>
+            <div class="step-content">
+                <p><strong>Qual empresa você está usando no sistema Nexus?</strong></p>
+                <div class="company-selector">
+                    <div class="company-btn" onclick="selectCompany('nexus', 'mhtxyxizfnxupwmilith')">
+                        🏆 NEXUS
+                    </div>
+                    <div class="company-btn" onclick="selectCompany('litoral', 'dtifsfzmnjnllzzlndxv')">
+                        🌊 LITORAL
+                    </div>
+                    <div class="company-btn" onclick="selectCompany('mogiana', 'eemfnpefgojllvzzaimu')">
+                        ☕ MOGIANA
+                    </div>
+                    <div class="company-btn" onclick="selectCompany('erechim', 'adjrvtupfshdhwjvhmgj')">
+                        🌾 ERECHIM
+                    </div>
+                    <div class="company-btn" onclick="selectCompany('imperatriz', 'eppzphzwwpvpoocospxy')">
+                        👑 IMPERATRIZ
+                    </div>
+                </div>
+                <button class="big-button" id="confirmCompany" style="display:none;" onclick="confirmStep1()">
+                    ✅ Confirmar Empresa
+                </button>
+            </div>
+        </div>
+        
+        <!-- PASSO 2 -->
+        <div class="step" id="step2" style="opacity: 0.5; pointer-events: none;">
+            <div class="step-number">2</div>
+            <div class="step-title">📋 Copie o Código SQL</div>
+            <div class="step-content">
+                <p>Este comando remove a restrição que está causando o erro:</p>
+                <div class="code-box" id="sqlCode">ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_type_check;<button class="copy-button" onclick="copySQL()">📋 COPIAR</button></div>
+                <button class="big-button" onclick="confirmStep2()">✅ Código Copiado!</button>
+            </div>
+        </div>
+        
+        <!-- PASSO 3 -->
+        <div class="step" id="step3" style="opacity: 0.5; pointer-events: none;">
+            <div class="step-number">3</div>
+            <div class="step-title">🔗 Abra o Supabase</div>
+            <div class="step-content">
+                <p>Clique no botão abaixo para abrir o Supabase da empresa selecionada:</p>
+                <a class="big-button" id="supabaseLink" href="#" target="_blank" onclick="confirmStep3()">
+                    🚀 Abrir Supabase SQL Editor
+                </a>
+                <div class="warning-box">
+                    <strong>⚠️ IMPORTANTE:</strong>
+                    <p>Certifique-se de que está abrindo o Supabase da empresa <strong id="selectedCompanyName">correta</strong>!</p>
+                </div>
+            </div>
+        </div>
+        
+        <!-- PASSO 4 -->
+        <div class="step" id="step4" style="opacity: 0.5; pointer-events: none;">
+            <div class="step-number">4</div>
+            <div class="step-title">▶️ Execute o Código</div>
+            <div class="step-content">
+                <p><strong>No Supabase SQL Editor:</strong></p>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check1" onchange="updateStep4()">
+                    <label for="check1">Cole o código SQL que você copiou</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check2" onchange="updateStep4()">
+                    <label for="check2">Clique no botão <strong>"RUN"</strong> (ou pressione Ctrl+Enter)</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check3" onchange="updateStep4()">
+                    <label for="check3">Aguarde a mensagem de sucesso aparecer</label>
+                </div>
+                <button class="big-button success" id="step4Confirm" style="display:none;" onclick="confirmStep4()">
+                    ✅ Executei o Código com Sucesso!
+                </button>
+            </div>
+        </div>
+        
+        <!-- PASSO 5 -->
+        <div class="step" id="step5" style="opacity: 0.5; pointer-events: none;">
+            <div class="step-number">5</div>
+            <div class="step-title">🔄 Limpe o Cache</div>
+            <div class="step-content">
+                <p><strong>Para garantir que as mudanças sejam aplicadas:</strong></p>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check4" onchange="updateStep5()">
+                    <label for="check4">Pressione <strong>Ctrl+Shift+Del</strong> (Windows/Linux) ou <strong>Cmd+Shift+Del</strong> (Mac)</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check5" onchange="updateStep5()">
+                    <label for="check5">Marque "Cache" e "Cookies"</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check6" onchange="updateStep5()">
+                    <label for="check6">Clique em "Limpar dados"</label>
+                </div>
+                <div class="checkbox-item">
+                    <input type="checkbox" id="check7" onchange="updateStep5()">
+                    <label for="check7">Feche COMPLETAMENTE o navegador (todas as abas)</label>
+                </div>
+                <button class="big-button success" id="step5Confirm" style="display:none;" onclick="confirmStep5()">
+                    ✅ Cache Limpo!
+                </button>
+            </div>
+        </div>
+        
+        <!-- PASSO 6 -->
+        <div class="step" id="step6" style="opacity: 0.5; pointer-events: none;">
+            <div class="step-number">6</div>
+            <div class="step-title">✅ Teste a Renovação</div>
+            <div class="step-content">
+                <p><strong>Hora de testar!</strong></p>
+                <ol style="line-height: 2; margin: 20px 0 20px 30px;">
+                    <li>Abra o sistema Nexus novamente</li>
+                    <li>Faça login</li>
+                    <li>Selecione a empresa que você corrigiu</li>
+                    <li>Tente renovar um empréstimo com:
+                        <ul style="margin-left: 30px; margin-top: 10px;">
+                            <li>✓ Somente Juros</li>
+                            <li>✓ Capital + Juros</li>
+                            <li>✓ Somente Capital</li>
+                        </ul>
+                    </li>
+                </ol>
+                <button class="big-button success" onclick="confirmStep6()">
+                    🎉 Funcionou! Erro Resolvido!
+                </button>
+                <button class="big-button" style="background: #e74c3c;" onclick="showTroubleshooting()">
+                    ❌ Ainda dá erro... Ajuda!
+                </button>
+            </div>
+        </div>
+        
+        <!-- SUCCESS BOX -->
+        <div class="success-box" id="successBox">
+            <h2>🎉 Parabéns!</h2>
+            <p style="font-size: 20px; color: #155724; margin-top: 10px;">
+                Você resolveu o problema com sucesso!<br>
+                Agora pode renovar empréstimos sem erros. ✅
+            </p>
+        </div>
+        
+        <!-- TROUBLESHOOTING (hidden) -->
+        <div id="troubleshootingBox" style="display: none;">
+            <div class="warning-box">
+                <strong>🔍 Se ainda dá erro, verifique:</strong>
+                <ol style="margin: 15px 0 0 30px; line-height: 2;">
+                    <li>Você executou o SQL na empresa CORRETA?</li>
+                    <li>Você limpou o cache E fechou o navegador?</li>
+                    <li>Você fez logout/login no sistema?</li>
+                    <li>Execute este comando no Supabase para verificar:</li>
+                </ol>
+                <div class="code-box">SELECT conname FROM pg_constraint WHERE conrelid = 'payments'::regclass AND conname LIKE '%payment_type%';<button class="copy-button" onclick="copyDiagnostic()">📋 COPIAR</button></div>
+                <p style="margin-top: 15px;"><strong>Se retornar alguma linha:</strong> A constraint ainda existe. Execute o fix novamente.</p>
+                <p><strong>Se retornar vazio:</strong> A constraint foi removida. O problema é de cache. Limpe novamente.</p>
+            </div>
+        </div>
+        
+        <div style="margin-top: 40px; padding-top: 30px; border-top: 3px solid #ecf0f1; text-align: center; color: #7f8c8d;">
+            <p><strong>💡 Dica:</strong> Se você usa múltiplas empresas, aplique este fix em todas elas de uma vez!</p>
+            <p style="margin-top: 10px; font-size: 14px;">Tempo estimado: 5 minutos por empresa</p>
+        </div>
+    </div>
+    
+    <script>
+        let selectedCompany = null;
+        let selectedProjectId = null;
+        let currentStep = 1;
+        
+        function selectCompany(company, projectId) {
+            selectedCompany = company;
+            selectedProjectId = projectId;
+            
+            // Highlight selected
+            document.querySelectorAll('.company-btn').forEach(btn => {
+                btn.classList.remove('selected');
+            });
+            event.target.classList.add('selected');
+            
+            // Show confirm button
+            document.getElementById('confirmCompany').style.display = 'block';
+        }
+        
+        function confirmStep1() {
+            if (!selectedCompany) {
+                alert('Por favor, selecione uma empresa primeiro!');
+                return;
+            }
+            
+            // Update step 3 with correct link
+            const companyNames = {
+                'nexus': '🏆 NEXUS',
+                'litoral': '🌊 LITORAL CRED',
+                'mogiana': '☕ MOGIANA CRED',
+                'erechim': '🌾 ERECHIM',
+                'imperatriz': '👑 IMPERATRIZ CRED'
+            };
+            
+            document.getElementById('selectedCompanyName').textContent = companyNames[selectedCompany];
+            document.getElementById('supabaseLink').href = `https://supabase.com/dashboard/project/${selectedProjectId}/sql/new`;
+            
+            completeStep(1);
+            enableStep(2);
+            updateProgress();
+        }
+        
+        function copySQL() {
+            const sql = 'ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_type_check;';
+            navigator.clipboard.writeText(sql).then(() => {
+                const btn = event.target;
+                btn.textContent = '✅ COPIADO!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = '📋 COPIAR';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+        
+        function copyDiagnostic() {
+            const sql = "SELECT conname FROM pg_constraint WHERE conrelid = 'payments'::regclass AND conname LIKE '%payment_type%';";
+            navigator.clipboard.writeText(sql).then(() => {
+                event.target.textContent = '✅ COPIADO!';
+                setTimeout(() => {
+                    event.target.textContent = '📋 COPIAR';
+                }, 2000);
+            });
+        }
+        
+        function confirmStep2() {
+            completeStep(2);
+            enableStep(3);
+            updateProgress();
+        }
+        
+        function confirmStep3() {
+            setTimeout(() => {
+                completeStep(3);
+                enableStep(4);
+                updateProgress();
+            }, 1000);
+        }
+        
+        function updateStep4() {
+            const allChecked = document.getElementById('check1').checked &&
+                              document.getElementById('check2').checked &&
+                              document.getElementById('check3').checked;
+            
+            if (allChecked) {
+                document.getElementById('step4Confirm').style.display = 'block';
+            }
+        }
+        
+        function confirmStep4() {
+            completeStep(4);
+            enableStep(5);
+            updateProgress();
+        }
+        
+        function updateStep5() {
+            const allChecked = document.getElementById('check4').checked &&
+                              document.getElementById('check5').checked &&
+                              document.getElementById('check6').checked &&
+                              document.getElementById('check7').checked;
+            
+            if (allChecked) {
+                document.getElementById('step5Confirm').style.display = 'block';
+            }
+        }
+        
+        function confirmStep5() {
+            completeStep(5);
+            enableStep(6);
+            updateProgress();
+        }
+        
+        function confirmStep6() {
+            document.getElementById('successBox').classList.add('show');
+            updateProgress(100);
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+        
+        function showTroubleshooting() {
+            document.getElementById('troubleshootingBox').style.display = 'block';
+            window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
+        }
+        
+        function completeStep(stepNum) {
+            document.getElementById(`step${stepNum}`).classList.add('completed');
+            currentStep = stepNum + 1;
+        }
+        
+        function enableStep(stepNum) {
+            const step = document.getElementById(`step${stepNum}`);
+            step.style.opacity = '1';
+            step.style.pointerEvents = 'auto';
+            step.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+        
+        function updateProgress(override) {
+            const progress = override || (currentStep - 1) * 20;
+            document.getElementById('progressBar').style.width = progress + '%';
+            document.getElementById('progressText').textContent = progress + '% Completo';
+        }
+    </script>
+</body>
+</html>
