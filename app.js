@@ -7912,14 +7912,20 @@ async function createTablesIfNotExist() {
 // Função para marcar empréstimo como quitado
 async function markLoanAsPaid(loanId) {
     try {
+        console.log('🔵 Iniciando processo de quitação do empréstimo:', loanId);
+        
         // Verificar se o empréstimo já está quitado
         const loan = loans.find(l => l.id === loanId);
         if (!loan) {
+            console.error('❌ Empréstimo não encontrado:', loanId);
             showInfoMessage('Empréstimo não encontrado');
             return;
         }
         
+        console.log('✅ Empréstimo encontrado:', loan);
+        
         if (loan.status === 'paid') {
+            console.warn('⚠️ Empréstimo já está quitado');
             showInfoMessage('Este empréstimo já está quitado');
             return;
         }
@@ -7929,27 +7935,34 @@ async function markLoanAsPaid(loanId) {
             'Confirmar Quitação',
             `Deseja realmente marcar este empréstimo como quitado?\n\nCliente: ${loan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(loan.amount).toFixed(2)}\nJuros: ${loan.interest_rate}%`,
             async () => {
-                // Calcular valores
-                const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-                
-                // Buscar total pago
-                const { data: payments, error: paymentsError } = await supabase
-                    .from('payments')
-                    .select('amount')
-                    .eq('loan_id', loanId);
-                
-                if (paymentsError) throw paymentsError;
-                
-                const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-                
-                // Inserir na tabela paid_loans
-                const { error: insertError } = await supabase
-                    .from('paid_loans')
-                    .insert([{
+                try {
+                    console.log('🔵 Usuário confirmou quitação. Processando...');
+                    
+                    // Calcular valores
+                    const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+                    console.log('💰 Total com juros calculado:', totalWithInterest);
+                    
+                    // Buscar total pago
+                    console.log('🔵 Buscando pagamentos do empréstimo...');
+                    const { data: payments, error: paymentsError } = await supabase
+                        .from('payments')
+                        .select('amount')
+                        .eq('loan_id', loanId);
+                    
+                    if (paymentsError) {
+                        console.error('❌ Erro ao buscar pagamentos:', paymentsError);
+                        throw paymentsError;
+                    }
+                    
+                    const totalPaid = payments ? payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0) : 0;
+                    console.log('✅ Total pago:', totalPaid, '- Pagamentos:', payments);
+                    
+                    // Preparar dados para inserção
+                    const paidLoanData = {
                         loan_id: loanId,
                         client_id: loan.client_id,
-                        original_amount: loan.amount,
-                        interest_rate: loan.interest_rate,
+                        original_amount: parseFloat(loan.amount),
+                        interest_rate: parseFloat(loan.interest_rate),
                         total_with_interest: totalWithInterest,
                         loan_date: loan.loan_date,
                         due_date: loan.due_date,
@@ -7958,46 +7971,99 @@ async function markLoanAsPaid(loanId) {
                         payment_method: 'Sistema',
                         notes: 'Quitado pelo sistema',
                         created_by: loan.created_by
-                    }]);
-                
-                if (insertError) throw insertError;
-                
-                // Remover da tabela loans
-                const { error: deleteError } = await supabase
-                    .from('loans')
-                    .delete()
-                    .eq('id', loanId);
-                
-                if (deleteError) throw deleteError;
-                
-                // Remover da lista local
-                const loanIndex = loans.findIndex(l => l.id === loanId);
-                if (loanIndex > -1) {
-                    loans.splice(loanIndex, 1);
+                    };
+                    
+                    console.log('🔵 Inserindo empréstimo na tabela paid_loans:', paidLoanData);
+                    
+                    // Inserir na tabela paid_loans
+                    const { data: insertedData, error: insertError } = await supabase
+                        .from('paid_loans')
+                        .insert([paidLoanData])
+                        .select();
+                    
+                    if (insertError) {
+                        console.error('❌ Erro ao inserir na tabela paid_loans:', insertError);
+                        console.error('Detalhes do erro:', {
+                            code: insertError.code,
+                            message: insertError.message,
+                            details: insertError.details,
+                            hint: insertError.hint
+                        });
+                        throw new Error(`Erro ao salvar empréstimo quitado: ${insertError.message}`);
+                    }
+                    
+                    console.log('✅ Empréstimo inserido na tabela paid_loans com sucesso:', insertedData);
+                    
+                    // Remover da tabela loans
+                    console.log('🔵 Removendo empréstimo da tabela loans...');
+                    const { error: deleteError } = await supabase
+                        .from('loans')
+                        .delete()
+                        .eq('id', loanId);
+                    
+                    if (deleteError) {
+                        console.error('❌ Erro ao remover empréstimo da tabela loans:', deleteError);
+                        throw new Error(`Erro ao remover empréstimo: ${deleteError.message}`);
+                    }
+                    
+                    console.log('✅ Empréstimo removido da tabela loans com sucesso');
+                    
+                    // Remover da lista local
+                    const loanIndex = loans.findIndex(l => l.id === loanId);
+                    if (loanIndex > -1) {
+                        loans.splice(loanIndex, 1);
+                        console.log('✅ Empréstimo removido da lista local');
+                    }
+                    
+                    // Remover da lista filtrada
+                    const filteredLoanIndex = filteredLoans.findIndex(l => l.id === loanId);
+                    if (filteredLoanIndex > -1) {
+                        filteredLoans.splice(filteredLoanIndex, 1);
+                        console.log('✅ Empréstimo removido da lista filtrada');
+                    }
+                    
+                    // Mostrar mensagem de sucesso
+                    showSuccessMessage('Empréstimo quitado com sucesso e movido para histórico de quitados!');
+                    console.log('✅ Mensagem de sucesso exibida');
+                    
+                    // Invalidar cache e atualizar interface imediatamente
+                    console.log('🔵 Atualizando interface...');
+                    invalidateLoanRemainingAmountsCache();
+                    await renderLoansTable();
+                    console.log('✅ Tabela de empréstimos atualizada');
+                    
+                    await renderPaidLoansTable();
+                    console.log('✅ Tabela de empréstimos quitados atualizada');
+                    
+                    await updateDashboard();
+                    console.log('✅ Dashboard atualizado');
+                    
+                    await updateCharts();
+                    console.log('✅ Gráficos atualizados');
+                    
+                    // Mudar para a aba de empréstimos quitados
+                    console.log('🔵 Mudando para aba de empréstimos quitados...');
+                    const paidLoansTab = document.querySelector('a[href="#paidLoans"]');
+                    if (paidLoansTab) {
+                        paidLoansTab.click();
+                        console.log('✅ Mudou para aba de empréstimos quitados');
+                    } else {
+                        console.warn('⚠️ Botão da aba de empréstimos quitados não encontrado');
+                    }
+                    
+                    console.log('🎉 Processo de quitação concluído com sucesso!');
+                    
+                } catch (innerError) {
+                    console.error('❌ Erro no processo de quitação:', innerError);
+                    showInfoMessage('Erro ao marcar empréstimo como quitado: ' + innerError.message);
                 }
-                
-                // Remover da lista filtrada
-                const filteredLoanIndex = filteredLoans.findIndex(l => l.id === loanId);
-                if (filteredLoanIndex > -1) {
-                    filteredLoans.splice(filteredLoanIndex, 1);
-                }
-                
-                // Mostrar mensagem de sucesso
-                showSuccessMessage('Empréstimo quitado com sucesso e movido para histórico de quitados!');
-                
-                // Invalidar cache e atualizar interface imediatamente
-                invalidateLoanRemainingAmountsCache();
-                await renderLoansTable();
-                await renderPaidLoansTable();
-                await updateDashboard();
-                await updateCharts();
             },
             'Marcar como Quitado',
             true  // isPayment = true para usar botão verde
         );
         
     } catch (error) {
-        console.error('Erro ao marcar empréstimo como quitado:', error);
+        console.error('❌ Erro ao marcar empréstimo como quitado:', error);
         showInfoMessage('Erro ao marcar empréstimo como quitado: ' + error.message);
     }
 }
