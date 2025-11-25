@@ -1,0 +1,407 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fix Renovação - Helper</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, Cantarell, sans-serif;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+            padding: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        
+        .container {
+            background: white;
+            border-radius: 20px;
+            box-shadow: 0 20px 60px rgba(0,0,0,0.3);
+            max-width: 900px;
+            width: 100%;
+            padding: 40px;
+        }
+        
+        h1 {
+            color: #2d3748;
+            margin-bottom: 10px;
+            font-size: 32px;
+        }
+        
+        .subtitle {
+            color: #718096;
+            margin-bottom: 30px;
+            font-size: 16px;
+        }
+        
+        .error-box {
+            background: #fed7d7;
+            border-left: 4px solid #e53e3e;
+            padding: 15px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            color: #742a2a;
+        }
+        
+        .company-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+        
+        .company-card {
+            background: #f7fafc;
+            border: 2px solid #e2e8f0;
+            border-radius: 12px;
+            padding: 20px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+        }
+        
+        .company-card:hover {
+            border-color: #667eea;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(102, 126, 234, 0.2);
+        }
+        
+        .company-card.fixed {
+            background: #c6f6d5;
+            border-color: #38a169;
+        }
+        
+        .company-card.fixed::after {
+            content: '✅';
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            font-size: 24px;
+        }
+        
+        .company-name {
+            font-weight: bold;
+            color: #2d3748;
+            margin-bottom: 5px;
+            font-size: 16px;
+        }
+        
+        .company-url {
+            font-size: 12px;
+            color: #718096;
+            font-family: 'Courier New', monospace;
+            word-break: break-all;
+        }
+        
+        .sql-box {
+            background: #1a202c;
+            color: #68d391;
+            padding: 20px;
+            border-radius: 12px;
+            margin-bottom: 20px;
+            font-family: 'Courier New', monospace;
+            font-size: 14px;
+            line-height: 1.8;
+            position: relative;
+            overflow-x: auto;
+        }
+        
+        .copy-btn {
+            position: absolute;
+            top: 10px;
+            right: 10px;
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 8px 16px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 12px;
+            font-weight: bold;
+            transition: all 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: #3182ce;
+        }
+        
+        .copy-btn.copied {
+            background: #38a169;
+        }
+        
+        .instructions {
+            background: #ebf8ff;
+            border-left: 4px solid #4299e1;
+            padding: 20px;
+            margin-bottom: 30px;
+            border-radius: 8px;
+        }
+        
+        .instructions h3 {
+            color: #2c5282;
+            margin-bottom: 15px;
+            font-size: 18px;
+        }
+        
+        .instructions ol {
+            margin-left: 20px;
+            color: #2d3748;
+            line-height: 1.8;
+        }
+        
+        .instructions li {
+            margin-bottom: 8px;
+        }
+        
+        .progress {
+            margin-top: 30px;
+            text-align: center;
+        }
+        
+        .progress-text {
+            font-size: 24px;
+            font-weight: bold;
+            color: #667eea;
+            margin-bottom: 10px;
+        }
+        
+        .progress-bar {
+            height: 30px;
+            background: #e2e8f0;
+            border-radius: 15px;
+            overflow: hidden;
+            position: relative;
+        }
+        
+        .progress-fill {
+            height: 100%;
+            background: linear-gradient(90deg, #667eea 0%, #764ba2 100%);
+            transition: width 0.5s ease;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            font-weight: bold;
+        }
+        
+        .btn-supabase {
+            display: inline-block;
+            background: #3ecf8e;
+            color: white;
+            padding: 12px 24px;
+            border-radius: 8px;
+            text-decoration: none;
+            font-weight: bold;
+            margin-top: 20px;
+            transition: all 0.3s;
+            text-align: center;
+        }
+        
+        .btn-supabase:hover {
+            background: #2da771;
+            transform: translateY(-2px);
+            box-shadow: 0 4px 12px rgba(62, 207, 142, 0.3);
+        }
+        
+        .success-message {
+            background: #c6f6d5;
+            border: 2px solid #38a169;
+            padding: 20px;
+            border-radius: 12px;
+            text-align: center;
+            margin-top: 20px;
+            display: none;
+        }
+        
+        .success-message.show {
+            display: block;
+            animation: slideIn 0.5s ease;
+        }
+        
+        @keyframes slideIn {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+        
+        .success-message h3 {
+            color: #22543d;
+            font-size: 24px;
+            margin-bottom: 10px;
+        }
+        
+        .success-message p {
+            color: #276749;
+            font-size: 16px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 Fix: Erro de Renovação</h1>
+        <p class="subtitle">Helper interativo para corrigir constraint de payment_type</p>
+        
+        <div class="error-box">
+            ❌ Erro: new row for relation "payments" violates check constraint "payments_payment_type_check"
+        </div>
+        
+        <div class="instructions">
+            <h3>📋 Instruções Rápidas</h3>
+            <ol>
+                <li>Copie o script SQL abaixo (botão "Copiar")</li>
+                <li>Clique em uma empresa para abrir o Supabase</li>
+                <li>No Supabase: SQL Editor → New Query</li>
+                <li>Cole o script e clique em "Run"</li>
+                <li>Volte aqui e marque a empresa como concluída ✅</li>
+                <li>Repita para todas as empresas</li>
+            </ol>
+        </div>
+        
+        <h3 style="margin-bottom: 15px; color: #2d3748;">📜 Script SQL (One-Liner)</h3>
+        <div class="sql-box">
+            <button class="copy-btn" onclick="copySQL()">📋 Copiar</button>
+            <pre id="sqlScript">ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_type_check;</pre>
+        </div>
+        
+        <h3 style="margin-bottom: 15px; color: #2d3748;">🏢 Empresas (Clique para abrir Supabase)</h3>
+        <div class="company-grid">
+            <div class="company-card" data-company="nexus" onclick="toggleCompany('nexus', 'https://supabase.com/dashboard/project/mhtxyxizfnxupwmilith')">
+                <div class="company-name">🏆 NEXUS</div>
+                <div class="company-url">mhtxyxizfnxupwmilith</div>
+            </div>
+            
+            <div class="company-card" data-company="litoral" onclick="toggleCompany('litoral', 'https://supabase.com/dashboard/project/dtifsfzmnjnllzzlndxv')">
+                <div class="company-name">🌊 LITORAL CRED</div>
+                <div class="company-url">dtifsfzmnjnllzzlndxv</div>
+            </div>
+            
+            <div class="company-card" data-company="mogiana" onclick="toggleCompany('mogiana', 'https://supabase.com/dashboard/project/eemfnpefgojllvzzaimu')">
+                <div class="company-name">☕ MOGIANA CRED</div>
+                <div class="company-url">eemfnpefgojllvzzaimu</div>
+            </div>
+            
+            <div class="company-card" data-company="erechim" onclick="toggleCompany('erechim', 'https://supabase.com/dashboard/project/adjrvtupfshdhwjvhmgj')">
+                <div class="company-name">🌾 ERECHIM</div>
+                <div class="company-url">adjrvtupfshdhwjvhmgj</div>
+            </div>
+            
+            <div class="company-card" data-company="imperatriz" onclick="toggleCompany('imperatriz', 'https://supabase.com/dashboard/project/eppzphzwwpvpoocospxy')">
+                <div class="company-name">👑 IMPERATRIZ CRED</div>
+                <div class="company-url">eppzphzwwpvpoocospxy</div>
+            </div>
+        </div>
+        
+        <div class="progress">
+            <div class="progress-text">Progresso: <span id="progressCount">0/5</span></div>
+            <div class="progress-bar">
+                <div class="progress-fill" id="progressFill" style="width: 0%">
+                    <span id="progressPercent">0%</span>
+                </div>
+            </div>
+        </div>
+        
+        <div class="success-message" id="successMessage">
+            <h3>🎉 Parabéns!</h3>
+            <p>Todas as empresas foram corrigidas! Agora você pode renovar empréstimos sem problemas. ✅</p>
+        </div>
+        
+        <div style="margin-top: 30px; padding-top: 20px; border-top: 2px solid #e2e8f0; color: #718096; font-size: 14px;">
+            <strong>💡 Dica:</strong> Este fix é seguro e pode ser executado múltiplas vezes sem problemas.
+            <br>
+            <strong>⏱️ Tempo estimado:</strong> 1-2 minutos por empresa (5-10 minutos no total)
+        </div>
+    </div>
+    
+    <script>
+        // Carregar estado salvo
+        const savedState = JSON.parse(localStorage.getItem('fixedCompanies') || '[]');
+        savedState.forEach(company => {
+            document.querySelector(`[data-company="${company}"]`).classList.add('fixed');
+        });
+        updateProgress();
+        
+        function toggleCompany(companyId, url) {
+            const card = document.querySelector(`[data-company="${companyId}"]`);
+            
+            if (!card.classList.contains('fixed')) {
+                // Abrir Supabase
+                window.open(url, '_blank');
+                
+                // Perguntar se foi aplicado
+                setTimeout(() => {
+                    if (confirm('✅ Você executou o script SQL nesta empresa?\n\nClique OK para marcar como concluída.')) {
+                        card.classList.add('fixed');
+                        saveState();
+                        updateProgress();
+                    }
+                }, 2000);
+            } else {
+                // Desmarcar se clicar novamente
+                if (confirm('❌ Desmarcar esta empresa?\n\nApenas se você NÃO aplicou o fix ainda.')) {
+                    card.classList.remove('fixed');
+                    saveState();
+                    updateProgress();
+                }
+            }
+        }
+        
+        function saveState() {
+            const fixed = Array.from(document.querySelectorAll('.company-card.fixed'))
+                .map(card => card.dataset.company);
+            localStorage.setItem('fixedCompanies', JSON.stringify(fixed));
+        }
+        
+        function updateProgress() {
+            const total = document.querySelectorAll('.company-card').length;
+            const fixed = document.querySelectorAll('.company-card.fixed').length;
+            const percent = Math.round((fixed / total) * 100);
+            
+            document.getElementById('progressCount').textContent = `${fixed}/${total}`;
+            document.getElementById('progressFill').style.width = `${percent}%`;
+            document.getElementById('progressPercent').textContent = `${percent}%`;
+            
+            if (fixed === total) {
+                document.getElementById('successMessage').classList.add('show');
+            } else {
+                document.getElementById('successMessage').classList.remove('show');
+            }
+        }
+        
+        function copySQL() {
+            const sql = document.getElementById('sqlScript').textContent;
+            navigator.clipboard.writeText(sql).then(() => {
+                const btn = document.querySelector('.copy-btn');
+                btn.textContent = '✅ Copiado!';
+                btn.classList.add('copied');
+                setTimeout(() => {
+                    btn.textContent = '📋 Copiar';
+                    btn.classList.remove('copied');
+                }, 2000);
+            });
+        }
+        
+        // Reset button (hidden, accessible via console)
+        window.resetProgress = function() {
+            if (confirm('⚠️ Resetar todo o progresso?')) {
+                localStorage.removeItem('fixedCompanies');
+                location.reload();
+            }
+        };
+    </script>
+</body>
+</html>
