@@ -697,6 +697,16 @@
 
                     </div>
                     
+                    <!-- Backup Button -->
+                    <div class="mb-8">
+                        <button id="backupCompletoBtn" class="bg-indigo-600 hover:bg-indigo-700 px-8 py-4 rounded-lg font-semibold text-white transition-all transform hover:scale-105 shadow-lg flex items-center gap-3 mx-auto">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                            </svg>
+                            <span class="text-lg">Backup Completo do Sistema</span>
+                        </button>
+                    </div>
+                    
                     <!-- Charts -->
                     <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
                         <div class="glass-card p-6 rounded-xl">
@@ -3979,6 +3989,102 @@
                     </button>
                 </div>
             </form>
+        </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div id="backupModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-2xl p-8">
+                <div class="flex items-center justify-between mb-6">
+                    <h2 class="text-3xl font-bold text-white">🔒 Backup Completo do Sistema</h2>
+                    <button id="closeBackupModal" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <p class="text-gray-300 text-sm mb-4">
+                        Selecione os dados que deseja incluir no backup em PDF:
+                    </p>
+                    
+                    <!-- Select All Option -->
+                    <div class="glass-card p-4 rounded-lg mb-4">
+                        <label class="flex items-center cursor-pointer hover:bg-gray-700/30 p-2 rounded transition-all">
+                            <input type="checkbox" id="backupSelectAll" class="w-5 h-5 text-indigo-600 rounded focus:ring-indigo-500 focus:ring-2">
+                            <div class="ml-4">
+                                <span class="text-white font-semibold text-lg">Selecionar Tudo</span>
+                                <p class="text-gray-400 text-sm">Backup completo de todos os dados</p>
+                            </div>
+                        </label>
+                    </div>
+                    
+                    <!-- Individual Options -->
+                    <div class="space-y-3">
+                        <label class="flex items-center glass-card p-4 rounded-lg cursor-pointer hover:bg-gray-700/30 transition-all">
+                            <input type="checkbox" class="backup-option w-5 h-5 text-blue-600 rounded focus:ring-blue-500 focus:ring-2" data-type="clientes">
+                            <div class="ml-4">
+                                <span class="text-white font-semibold">👥 Clientes</span>
+                                <p class="text-gray-400 text-sm">Nome, CPF, endereço e celular</p>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-center glass-card p-4 rounded-lg cursor-pointer hover:bg-gray-700/30 transition-all">
+                            <input type="checkbox" class="backup-option w-5 h-5 text-green-600 rounded focus:ring-green-500 focus:ring-2" data-type="emprestimos">
+                            <div class="ml-4">
+                                <span class="text-white font-semibold">💰 Empréstimos</span>
+                                <p class="text-gray-400 text-sm">Ativos, vencidos, vencem hoje e quitados</p>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-center glass-card p-4 rounded-lg cursor-pointer hover:bg-gray-700/30 transition-all">
+                            <input type="checkbox" class="backup-option w-5 h-5 text-purple-600 rounded focus:ring-purple-500 focus:ring-2" data-type="parcelamentos">
+                            <div class="ml-4">
+                                <span class="text-white font-semibold">📊 Parcelamentos</span>
+                                <p class="text-gray-400 text-sm">Quantidade de parcelas e parcelas pagas</p>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-center glass-card p-4 rounded-lg cursor-pointer hover:bg-gray-700/30 transition-all">
+                            <input type="checkbox" class="backup-option w-5 h-5 text-yellow-600 rounded focus:ring-yellow-500 focus:ring-2" data-type="pagamentos">
+                            <div class="ml-4">
+                                <span class="text-white font-semibold">💳 Pagamentos</span>
+                                <p class="text-gray-400 text-sm">Todos os registros de pagamentos</p>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-center glass-card p-4 rounded-lg cursor-pointer hover:bg-gray-700/30 transition-all">
+                            <input type="checkbox" class="backup-option w-5 h-5 text-orange-600 rounded focus:ring-orange-500 focus:ring-2" data-type="levantamentos">
+                            <div class="ml-4">
+                                <span class="text-white font-semibold">📈 Levantamentos de Capital</span>
+                                <p class="text-gray-400 text-sm">Histórico de levantamentos</p>
+                            </div>
+                        </label>
+                        
+                        <label class="flex items-center glass-card p-4 rounded-lg cursor-pointer hover:bg-gray-700/30 transition-all">
+                            <input type="checkbox" class="backup-option w-5 h-5 text-red-600 rounded focus:ring-red-500 focus:ring-2" data-type="despesas">
+                            <div class="ml-4">
+                                <span class="text-white font-semibold">💸 Despesas</span>
+                                <p class="text-gray-400 text-sm">Registro de todas as despesas</p>
+                            </div>
+                        </label>
+                    </div>
+                </div>
+                
+                <div class="flex justify-end space-x-4 mt-8">
+                    <button id="cancelBackupBtn" class="px-6 py-3 bg-gray-600 hover:bg-gray-700 text-white rounded-lg font-semibold transition-colors">
+                        Cancelar
+                    </button>
+                    <button id="generateBackupBtn" class="px-6 py-3 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-semibold transition-all transform hover:scale-105 shadow-lg flex items-center gap-2">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                        </svg>
+                        Gerar Backup PDF
+                    </button>
+                </div>
+            </div>
         </div>
     </div>
 
