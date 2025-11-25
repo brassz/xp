@@ -4,13 +4,13 @@
 -- Execute este script para diagnosticar problemas
 -- =====================================================
 
-\echo '=========================================='
-\echo 'VERIFICAÇÃO DA TABELA PAID_LOANS'
-\echo '=========================================='
-\echo ''
+-- ==========================================
+-- VERIFICAÇÃO DA TABELA PAID_LOANS
+-- ==========================================
 
 -- 1. Verificar se a tabela existe
-\echo '1. Verificando se a tabela existe...'
+SELECT '1. VERIFICANDO SE A TABELA EXISTE...' as etapa;
+
 SELECT 
     CASE 
         WHEN EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'paid_loans') 
@@ -18,10 +18,8 @@ SELECT
         ELSE '❌ Tabela paid_loans NÃO EXISTE - Execute setup-paid-loans.sql'
     END as status;
 
-\echo ''
-
 -- 2. Verificar estrutura da tabela
-\echo '2. Estrutura da tabela:'
+SELECT '2. ESTRUTURA DA TABELA:' as etapa;
 SELECT 
     column_name as "Coluna",
     data_type as "Tipo",
@@ -31,10 +29,9 @@ FROM information_schema.columns
 WHERE table_name = 'paid_loans'
 ORDER BY ordinal_position;
 
-\echo ''
-
 -- 3. Verificar RLS (Row Level Security)
-\echo '3. Status do RLS:'
+SELECT '3. STATUS DO RLS:' as etapa;
+
 SELECT 
     schemaname as "Schema",
     tablename as "Tabela",
@@ -45,10 +42,9 @@ SELECT
 FROM pg_tables
 WHERE tablename = 'paid_loans';
 
-\echo ''
-
 -- 4. Verificar políticas RLS
-\echo '4. Políticas RLS ativas:'
+SELECT '4. POLÍTICAS RLS ATIVAS:' as etapa;
+
 SELECT 
     policyname as "Nome da Política",
     cmd as "Comando",
@@ -61,10 +57,9 @@ FROM pg_policies
 WHERE tablename = 'paid_loans'
 ORDER BY cmd;
 
-\echo ''
-
 -- 5. Verificar permissões
-\echo '5. Permissões concedidas:'
+SELECT '5. PERMISSÕES CONCEDIDAS:' as etapa;
+
 SELECT 
     grantee as "Usuário/Role",
     privilege_type as "Permissão"
@@ -72,10 +67,9 @@ FROM information_schema.role_table_grants
 WHERE table_name = 'paid_loans'
 ORDER BY grantee, privilege_type;
 
-\echo ''
-
 -- 6. Verificar índices
-\echo '6. Índices criados:'
+SELECT '6. ÍNDICES CRIADOS:' as etapa;
+
 SELECT 
     indexname as "Nome do Índice",
     indexdef as "Definição"
@@ -83,20 +77,18 @@ FROM pg_indexes
 WHERE tablename = 'paid_loans'
 ORDER BY indexname;
 
-\echo ''
-
 -- 7. Contar registros existentes
-\echo '7. Registros na tabela:'
+SELECT '7. REGISTROS NA TABELA:' as etapa;
+
 SELECT 
     COUNT(*) as "Total de Empréstimos Quitados",
     COALESCE(MIN(paid_date)::text, 'N/A') as "Primeira Quitação",
     COALESCE(MAX(paid_date)::text, 'N/A') as "Última Quitação"
 FROM paid_loans;
 
-\echo ''
-
 -- 8. Verificar últimos 5 registros
-\echo '8. Últimos 5 empréstimos quitados:'
+SELECT '8. ÚLTIMOS 5 EMPRÉSTIMOS QUITADOS:' as etapa;
+
 SELECT 
     id,
     loan_id,
@@ -108,10 +100,9 @@ FROM paid_loans
 ORDER BY created_at DESC
 LIMIT 5;
 
-\echo ''
-
 -- 9. Verificar foreign keys
-\echo '9. Relacionamentos (Foreign Keys):'
+SELECT '9. RELACIONAMENTOS (FOREIGN KEYS):' as etapa;
+
 SELECT 
     tc.constraint_name as "Nome da Constraint",
     kcu.column_name as "Coluna",
@@ -126,10 +117,9 @@ WHERE tc.table_name = 'paid_loans'
     AND tc.constraint_type = 'FOREIGN KEY'
 ORDER BY tc.constraint_name;
 
-\echo ''
-
 -- 10. Verificar triggers
-\echo '10. Triggers configurados:'
+SELECT '10. TRIGGERS CONFIGURADOS:' as etapa;
+
 SELECT 
     trigger_name as "Nome do Trigger",
     event_manipulation as "Evento",
@@ -138,10 +128,11 @@ FROM information_schema.triggers
 WHERE event_object_table = 'paid_loans'
 ORDER BY trigger_name;
 
-\echo ''
-\echo '=========================================='
-\echo 'DIAGNÓSTICO COMPLETO'
-\echo '=========================================='
+-- ==========================================
+-- DIAGNÓSTICO COMPLETO
+-- ==========================================
+
+SELECT 'DIAGNÓSTICO FINAL:' as etapa;
 
 -- Diagnóstico resumido
 SELECT 
@@ -163,19 +154,17 @@ SELECT
         ELSE '✅ SETUP PARECE OK - Se ainda há problemas, verifique o console do navegador'
     END as "Diagnóstico Final";
 
-\echo ''
-\echo '=========================================='
-\echo 'PRÓXIMOS PASSOS'
-\echo '=========================================='
-\echo ''
-\echo 'Se encontrou problemas:'
-\echo '1. Execute: fix-paid-loans-issue.sql'
-\echo '2. Teste marcar um empréstimo como quitado'
-\echo '3. Abra o console do navegador (F12) para ver logs detalhados'
-\echo ''
-\echo 'Se tudo está OK mas ainda não funciona:'
-\echo '1. Abra o console do navegador (F12)'
-\echo '2. Marque um empréstimo como quitado'
-\echo '3. Procure por erros em vermelho'
-\echo '4. Compartilhe os logs do console'
-\echo ''
+-- ==========================================
+-- PRÓXIMOS PASSOS
+-- ==========================================
+-- Se encontrou problemas:
+-- 1. Execute: fix-paid-loans-issue.sql
+-- 2. Teste marcar um empréstimo como quitado
+-- 3. Abra o console do navegador (F12) para ver logs detalhados
+-- 
+-- Se tudo está OK mas ainda não funciona:
+-- 1. Abra o console do navegador (F12)
+-- 2. Marque um empréstimo como quitado
+-- 3. Procure por erros em vermelho
+-- 4. Compartilhe os logs do console
+-- ==========================================

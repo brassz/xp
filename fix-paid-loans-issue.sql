@@ -6,15 +6,16 @@
 -- =====================================================
 
 -- PASSO 1: Verificar se a tabela existe
+SELECT '✓ PASSO 1: Verificando se a tabela existe...' as status;
+
 DO $$ 
 BEGIN
     IF NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'paid_loans') THEN
-        RAISE NOTICE 'ERRO: Tabela paid_loans não existe!';
-        RAISE NOTICE 'Execute o script setup-paid-loans.sql primeiro';
-    ELSE
-        RAISE NOTICE '✓ Tabela paid_loans existe';
+        RAISE EXCEPTION 'ERRO: Tabela paid_loans não existe! Execute o script setup-paid-loans.sql primeiro';
     END IF;
 END $$;
+
+SELECT 'Tabela paid_loans encontrada!' as resultado;
 
 -- PASSO 2: Verificar estrutura da tabela
 SELECT 
@@ -33,11 +34,13 @@ DROP POLICY IF EXISTS "Users can update paid loans they created or admins can up
 DROP POLICY IF EXISTS "Users can delete paid loans they created or admins can delete all" ON paid_loans;
 
 -- PASSO 4: Desabilitar RLS temporariamente para diagnóstico
+SELECT '✓ PASSO 4: Desabilitando RLS...' as status;
+
 ALTER TABLE paid_loans DISABLE ROW LEVEL SECURITY;
 
-RAISE NOTICE '✓ RLS desabilitado na tabela paid_loans';
-
 -- PASSO 5: Criar políticas RLS mais permissivas
+SELECT '✓ PASSO 5: Criando políticas RLS permissivas...' as status;
+
 ALTER TABLE paid_loans ENABLE ROW LEVEL SECURITY;
 
 -- Política de SELECT - Todos usuários autenticados podem ver
@@ -60,16 +63,20 @@ CREATE POLICY "Enable delete access for authenticated users" ON paid_loans
     FOR DELETE
     USING (true);
 
-RAISE NOTICE '✓ Políticas RLS permissivas criadas';
+SELECT 'Políticas RLS criadas com sucesso!' as resultado;
 
 -- PASSO 6: Garantir permissões no nível de tabela
+SELECT '✓ PASSO 6: Concedendo permissões...' as status;
+
 GRANT ALL ON paid_loans TO authenticated;
 GRANT ALL ON paid_loans TO anon;
 GRANT ALL ON paid_loans TO service_role;
 
-RAISE NOTICE '✓ Permissões concedidas';
+SELECT 'Permissões concedidas com sucesso!' as resultado;
 
 -- PASSO 7: Verificar se existem dados na tabela
+SELECT '✓ PASSO 7: Verificando dados existentes...' as status;
+
 SELECT 
     COUNT(*) as total_emprestimos_quitados,
     MIN(paid_date) as primeira_quitacao,
@@ -77,6 +84,8 @@ SELECT
 FROM paid_loans;
 
 -- PASSO 8: Verificar políticas ativas
+SELECT '✓ PASSO 8: Verificando políticas RLS...' as status;
+
 SELECT 
     schemaname,
     tablename,
@@ -88,11 +97,21 @@ FROM pg_policies
 WHERE tablename = 'paid_loans';
 
 -- PASSO 9: Verificar permissões
+SELECT '✓ PASSO 9: Verificando permissões concedidas...' as status;
+
 SELECT 
     grantee,
     privilege_type
 FROM information_schema.role_table_grants 
 WHERE table_name = 'paid_loans';
+
+-- =====================================================
+-- RESULTADO FINAL
+-- =====================================================
+
+SELECT '✅✅✅ CORREÇÃO APLICADA COM SUCESSO! ✅✅✅' as resultado_final;
+
+SELECT 'Agora teste marcar um empréstimo como quitado no sistema.' as proximos_passos;
 
 -- =====================================================
 -- INSTRUÇÕES DE USO

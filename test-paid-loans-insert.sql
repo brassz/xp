@@ -5,13 +5,13 @@
 -- Execute APÓS aplicar a correção fix-paid-loans-issue.sql
 -- =====================================================
 
-\echo '=========================================='
-\echo 'TESTE DE INSERÇÃO EM PAID_LOANS'
-\echo '=========================================='
-\echo ''
+-- ==========================================
+-- TESTE DE INSERÇÃO EM PAID_LOANS
+-- ==========================================
 
 -- Passo 1: Verificar se a tabela existe
-\echo '1. Verificando se a tabela existe...'
+SELECT '1. VERIFICANDO SE A TABELA EXISTE...' as etapa;
+
 DO $$ 
 BEGIN
     IF NOT EXISTS (SELECT FROM information_schema.tables WHERE table_name = 'paid_loans') THEN
@@ -21,11 +21,8 @@ BEGIN
     END IF;
 END $$;
 
-\echo ''
-
 -- Passo 2: Buscar um cliente e um empréstimo para teste
-\echo '2. Buscando dados para teste...'
-\echo ''
+SELECT '2. BUSCANDO DADOS PARA TESTE...' as etapa;
 
 -- Pegar primeiro cliente disponível
 SELECT 
@@ -48,11 +45,8 @@ JOIN clients c ON l.client_id = c.id
 WHERE l.status != 'paid'
 LIMIT 1;
 
-\echo ''
-
 -- Passo 3: Realizar inserção de teste
-\echo '3. Tentando inserir um registro de teste...'
-\echo ''
+SELECT '3. TENTANDO INSERIR UM REGISTRO DE TESTE...' as etapa;
 
 DO $$
 DECLARE
@@ -113,11 +107,8 @@ EXCEPTION
         RAISE;
 END $$;
 
-\echo ''
-
 -- Passo 4: Verificar se o registro foi inserido
-\echo '4. Verificando registros de teste inseridos...'
-\echo ''
+SELECT '4. VERIFICANDO REGISTROS DE TESTE INSERIDOS...' as etapa;
 
 SELECT 
     id,
@@ -134,27 +125,24 @@ WHERE payment_method = 'TESTE'
 ORDER BY created_at DESC
 LIMIT 5;
 
-\echo ''
-
 -- Passo 5: Contar total de registros
-\echo '5. Total de registros em paid_loans:'
+SELECT '5. TOTAL DE REGISTROS EM PAID_LOANS:' as etapa;
+
 SELECT 
     COUNT(*) as total_registros,
     COUNT(CASE WHEN payment_method = 'TESTE' THEN 1 END) as registros_teste,
     COUNT(CASE WHEN payment_method != 'TESTE' THEN 1 END) as registros_reais
 FROM paid_loans;
 
-\echo ''
-\echo '=========================================='
-\echo 'LIMPEZA (OPCIONAL)'
-\echo '=========================================='
-\echo ''
-\echo 'Para REMOVER os registros de teste:'
-\echo 'DELETE FROM paid_loans WHERE payment_method = ''TESTE'';'
-\echo ''
+-- ==========================================
+-- LIMPEZA (OPCIONAL)
+-- ==========================================
+-- Para REMOVER os registros de teste:
+-- DELETE FROM paid_loans WHERE payment_method = 'TESTE';
 
 -- Passo 6: Diagnóstico de permissões
-\echo '6. Verificando permissões...'
+SELECT '6. VERIFICANDO PERMISSÕES...' as etapa;
+
 SELECT 
     grantee as "Role",
     string_agg(privilege_type, ', ') as "Permissões"
@@ -163,10 +151,9 @@ WHERE table_name = 'paid_loans'
 GROUP BY grantee
 ORDER BY grantee;
 
-\echo ''
-
 -- Passo 7: Verificar RLS
-\echo '7. Verificando políticas RLS...'
+SELECT '7. VERIFICANDO POLÍTICAS RLS...' as etapa;
+
 SELECT 
     policyname as "Política",
     cmd as "Comando",
@@ -175,11 +162,11 @@ FROM pg_policies
 WHERE tablename = 'paid_loans'
 ORDER BY cmd;
 
-\echo ''
-\echo '=========================================='
-\echo 'RESULTADO DO TESTE'
-\echo '=========================================='
-\echo ''
+-- ==========================================
+-- RESULTADO DO TESTE
+-- ==========================================
+
+SELECT 'RESULTADO DO TESTE:' as etapa;
 
 DO $$
 DECLARE
@@ -232,12 +219,11 @@ BEGIN
     END IF;
 END $$;
 
-\echo ''
-\echo '=========================================='
-\echo 'FIM DO TESTE'
-\echo '=========================================='
-\echo ''
-\echo '📚 Para mais detalhes, consulte:'
-\echo '   - README-CORRECAO-PAID-LOANS.md'
-\echo '   - GUIA-RAPIDO-PAID-LOANS.md'
-\echo ''
+-- ==========================================
+-- FIM DO TESTE
+-- ==========================================
+-- 
+-- 📚 Para mais detalhes, consulte:
+--    - README-CORRECAO-PAID-LOANS.md
+--    - GUIA-RAPIDO-PAID-LOANS.md
+-- ==========================================
