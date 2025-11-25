@@ -6396,6 +6396,7 @@ function updatePaymentHistorySummary(loanId, payments) {
     const originalInterest = originalAmount * (interestRate / 100);
     const originalTotal = originalAmount + originalInterest;
     const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    const totalFines = payments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
     
     // Calcular valor restante considerando tipos de pagamento
     let remainingAmount;
@@ -6435,6 +6436,7 @@ function updatePaymentHistorySummary(loanId, payments) {
     remainingAmount = remainingCapital + remainingInterest;
     
     document.getElementById('paymentHistoryTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
+    document.getElementById('paymentHistoryTotalFines').textContent = `R$ ${totalFines.toFixed(2)}`;
     document.getElementById('paymentHistoryRemainingAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
     document.getElementById('paymentHistoryTotalWithInterest').textContent = `R$ ${originalTotal.toFixed(2)}`;
 }
@@ -8184,10 +8186,11 @@ async function loadClientHistory() {
         const totalPaidAmount = (paidLoansWithClient || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
         const totalAmount = totalActiveAmount + totalPaidAmount;
         
-        // Total pago inclui pagamentos de empréstimos ativos + total pago de empréstimos quitados
+        // Total pago inclui pagamentos de empréstimos ativos + total pago de empréstimos quitados + multas
         const totalPaidFromActive = clientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        const totalFinesFromActive = clientPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
         const totalPaidFromSettled = (paidLoansWithClient || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
-        const totalPaid = totalPaidFromActive + totalPaidFromSettled;
+        const totalPaid = totalPaidFromActive + totalFinesFromActive + totalPaidFromSettled;
         
         // Calcular valores restantes em lote para melhor performance
         const clientLoanIds = (clientLoans || []).map(loan => loan.id);
@@ -8618,8 +8621,10 @@ function updatePaidLoanPaymentSummary(paidLoan, payments) {
     const interestRate = parseFloat(paidLoan.interest_rate || 0);
     const totalWithInterest = originalAmount + (originalAmount * interestRate / 100);
     const totalPaid = parseFloat(paidLoan.total_paid || 0);
+    const totalFines = payments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
     
     document.getElementById('paymentHistoryTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
+    document.getElementById('paymentHistoryTotalFines').textContent = `R$ ${totalFines.toFixed(2)}`;
     document.getElementById('paymentHistoryRemainingAmount').textContent = 'R$ 0,00 (QUITADO)';
     document.getElementById('paymentHistoryTotalWithInterest').textContent = `R$ ${totalWithInterest.toFixed(2)}`;
 }
