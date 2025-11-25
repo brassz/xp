@@ -2526,6 +2526,10 @@ async function handlePayment(e) {
     const includeFine = document.getElementById('includeFineCheckbox').checked;
     const fineAmount = includeFine ? parseFloat(document.getElementById('fineAmount').value) || 0 : 0;
     
+    console.log('=== REGISTRANDO PAGAMENTO ===');
+    console.log('Include Fine:', includeFine);
+    console.log('Fine Amount:', fineAmount);
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -5569,6 +5573,8 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
                 return paymentIndex > lastRenewalIdx;
             });
             totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            const totalFines = paymentsAfterRenewal.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            totalPaid += totalFines;
         } else {
             // Lógica original - excluir renovações
             const validPayments = realPayments.filter(p => 
@@ -5576,6 +5582,8 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
                 p.payment_type !== 'interest_renewal'
             );
             totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            const totalFines = validPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            totalPaid += totalFines;
         }
         
         // Calcular valor restante
@@ -5884,12 +5892,16 @@ async function sendGuarantorOrEmergencyMessage(loanId, client, contact, contactT
                 return paymentIndex > lastRenewalIdx;
             });
             totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            const totalFines = paymentsAfterRenewal.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            totalPaid += totalFines;
         } else {
             const validPayments = realPayments.filter(p => 
                 p.payment_type !== 'renewal' && 
                 p.payment_type !== 'interest_renewal'
             );
             totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            const totalFines = validPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            totalPaid += totalFines;
         }
         
         // Calcular valor restante
@@ -6134,6 +6146,8 @@ async function sendWhatsAppMessage(loanId) {
                 return paymentIndex > lastRenewalIdx;
             });
             totalPaid = paymentsAfterRenewal.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            const totalFines = paymentsAfterRenewal.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            totalPaid += totalFines;
         } else {
             // Lógica original - excluir renovações
             const validPayments = realPayments.filter(p => 
@@ -6141,6 +6155,8 @@ async function sendWhatsAppMessage(loanId) {
                 p.payment_type !== 'interest_renewal'
             );
             totalPaid = validPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            const totalFines = validPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            totalPaid += totalFines;
         }
         
         // Calcular valor restante
@@ -6362,6 +6378,13 @@ async function loadPaymentHistory(loanId) {
             const paymentType = getPaymentTypeText(payment.payment_type);
             const paymentNotes = payment.notes || 'Sem notas';
             
+            console.log('Pagamento:', {
+                id: payment.id,
+                amount: paymentAmount,
+                fine_amount: fineAmount,
+                fine_amount_raw: payment.fine_amount
+            });
+            
             tbody.innerHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(payment.payment_date)}</td>
@@ -6396,6 +6419,7 @@ function updatePaymentHistorySummary(loanId, payments) {
     const originalInterest = originalAmount * (interestRate / 100);
     const originalTotal = originalAmount + originalInterest;
     const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+    const totalFines = payments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
     
     // Calcular valor restante considerando tipos de pagamento
     let remainingAmount;
@@ -6434,7 +6458,10 @@ function updatePaymentHistorySummary(loanId, payments) {
     const remainingInterest = remainingCapital * (interestRate / 100);
     remainingAmount = remainingCapital + remainingInterest;
     
-    document.getElementById('paymentHistoryTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
+    // Incluir multas no total pago
+    const totalPaidWithFines = totalPaid + totalFines;
+    
+    document.getElementById('paymentHistoryTotalPaid').textContent = `R$ ${totalPaidWithFines.toFixed(2)}`;
     document.getElementById('paymentHistoryRemainingAmount').textContent = `R$ ${remainingAmount.toFixed(2)}`;
     document.getElementById('paymentHistoryTotalWithInterest').textContent = `R$ ${originalTotal.toFixed(2)}`;
 }
@@ -6747,8 +6774,10 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
             // Separar pagamentos reais de ajustes
             const realPayments = payments.filter(p => parseFloat(p.amount) > 0);
             
-            // Calcular total pago (todos os pagamentos reais)
+            // Calcular total pago (todos os pagamentos reais + multas)
             const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+            const totalFines = realPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            const totalPaidWithFines = totalPaid + totalFines;
             
             // Calcular valor restante baseado no valor original
             let remaining;
@@ -7935,12 +7964,14 @@ async function markLoanAsPaid(loanId) {
                 // Buscar total pago
                 const { data: payments, error: paymentsError } = await supabase
                     .from('payments')
-                    .select('amount')
+                    .select('amount, fine_amount')
                     .eq('loan_id', loanId);
                 
                 if (paymentsError) throw paymentsError;
                 
                 const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+                const totalFines = payments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+                const totalPaidWithFines = totalPaid + totalFines;
                 
                 // Inserir na tabela paid_loans
                 const { error: insertError } = await supabase
@@ -7954,7 +7985,7 @@ async function markLoanAsPaid(loanId) {
                         loan_date: loan.loan_date,
                         due_date: loan.due_date,
                         paid_date: new Date().toISOString().split('T')[0],
-                        total_paid: totalPaid,
+                        total_paid: totalPaidWithFines,
                         payment_method: 'Sistema',
                         notes: 'Quitado pelo sistema',
                         created_by: loan.created_by
@@ -8186,8 +8217,9 @@ async function loadClientHistory() {
         
         // Total pago inclui pagamentos de empréstimos ativos + total pago de empréstimos quitados
         const totalPaidFromActive = clientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        const totalFinesFromActive = clientPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
         const totalPaidFromSettled = (paidLoansWithClient || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
-        const totalPaid = totalPaidFromActive + totalPaidFromSettled;
+        const totalPaid = totalPaidFromActive + totalFinesFromActive + totalPaidFromSettled;
         
         // Calcular valores restantes em lote para melhor performance
         const clientLoanIds = (clientLoans || []).map(loan => loan.id);
@@ -8395,12 +8427,14 @@ async function cancelLoan(loanId) {
         // Calcular valor total pago antes do cancelamento
         const { data: payments, error: paymentsError } = await supabase
             .from('payments')
-            .select('amount')
+            .select('amount, fine_amount')
             .eq('loan_id', loanId);
         
         if (paymentsError) throw paymentsError;
         
-        const totalPaidBeforeCancellation = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalPaidAmount = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalFinesAmount = payments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+        const totalPaidBeforeCancellation = totalPaidAmount + totalFinesAmount;
         const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
         
         // Inserir na tabela cancelled_loans
@@ -8539,7 +8573,8 @@ async function loadPaidLoanPaymentHistory(originalLoanId, paidLoan) {
         // Adicionar a quitação final como último pagamento
         if (paidLoan.paid_date) {
             const totalPaidInPartialPayments = (payments || []).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
-            const finalPaymentAmount = parseFloat(paidLoan.total_paid || 0) - totalPaidInPartialPayments;
+            const totalFinesInPartialPayments = (payments || []).reduce((sum, p) => sum + (parseFloat(p.fine_amount) || 0), 0);
+            const finalPaymentAmount = parseFloat(paidLoan.total_paid || 0) - totalPaidInPartialPayments - totalFinesInPartialPayments;
             
             if (finalPaymentAmount > 0) {
                 allPayments.unshift({
@@ -9689,6 +9724,7 @@ async function generateWeeklyPaymentsPDF() {
         
         // Calcular totais
         const totalPayments = allWeeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalFinesInPayments = allWeeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
         const totalCapital = allWeeklyPayments.reduce((sum, payment) => {
             const loan = payment.loans;
             const loanAmount = parseFloat(loan.amount);
@@ -9703,7 +9739,7 @@ async function generateWeeklyPaymentsPDF() {
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de Pagamentos: ${allWeeklyPayments.length}`, 20, yPosition);
         yPosition += 8;
-        doc.text(`Total Recebido: R$ ${totalPayments.toFixed(2)}`, 20, yPosition);
+        doc.text(`Total Recebido: R$ ${(totalPayments + totalFinesInPayments).toFixed(2)}`, 20, yPosition);
         yPosition += 8;
         doc.text(`Total em Juros: R$ ${totalInterest.toFixed(2)}`, 20, yPosition);
         yPosition += 8;
@@ -14002,6 +14038,7 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         
         // Calcular totais
         const totalPayments = allWeeklyPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+        const totalFinesInPayments = allWeeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
         const totalCapital = allWeeklyPayments.reduce((sum, payment) => {
             const loan = payment.loans;
             const loanAmount = parseFloat(loan.amount);
@@ -14016,7 +14053,7 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         doc.setFont('helvetica', 'normal');
         doc.text(`Total de Pagamentos: ${allWeeklyPayments.length}`, 20, yPosition);
         yPosition += 8;
-        doc.text(`Total Recebido: R$ ${totalPayments.toFixed(2)}`, 20, yPosition);
+        doc.text(`Total Recebido: R$ ${(totalPayments + totalFinesInPayments).toFixed(2)}`, 20, yPosition);
         yPosition += 8;
         doc.text(`Total em Juros: R$ ${totalInterest.toFixed(2)}`, 20, yPosition);
         yPosition += 8;
