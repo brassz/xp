@@ -1,15 +1,26 @@
 -- =====================================================
--- CONFIGURAÇÃO DA TABELA PAID_LOANS
+-- SCRIPT DE CORREÇÃO PARA LITORAL CRED
+-- Verificar e Criar Tabela paid_loans
 -- =====================================================
--- Execute este script no SQL Editor do Supabase
+-- Execute este script no SQL Editor do Supabase da LITORAL CRED
+-- =====================================================
+
+-- PASSO 1: Verificar se a tabela paid_loans existe
+DO $$ 
+BEGIN
+    IF NOT EXISTS (SELECT FROM pg_tables WHERE schemaname = 'public' AND tablename = 'paid_loans') THEN
+        RAISE NOTICE '❌ TABELA paid_loans NÃO EXISTE - Será criada agora...';
+    ELSE
+        RAISE NOTICE '✅ TABELA paid_loans JÁ EXISTE';
+    END IF;
+END $$;
+
+-- =====================================================
+-- PASSO 2: CRIAR TABELA paid_loans
 -- =====================================================
 
 -- Habilitar extensões necessárias
 CREATE EXTENSION IF NOT EXISTS "uuid-ossp";
-
--- =====================================================
--- TABELA DE EMPRÉSTIMOS QUITADOS
--- =====================================================
 
 -- Criar tabela se não existir
 CREATE TABLE IF NOT EXISTS paid_loans (
@@ -47,7 +58,7 @@ COMMENT ON COLUMN paid_loans.notes IS 'Observações sobre a quitação';
 COMMENT ON COLUMN paid_loans.created_by IS 'Usuário que criou o empréstimo original';
 
 -- =====================================================
--- ÍNDICES PARA PERFORMANCE
+-- PASSO 3: CRIAR ÍNDICES PARA PERFORMANCE
 -- =====================================================
 
 CREATE INDEX IF NOT EXISTS idx_paid_loans_loan_id ON paid_loans(loan_id);
@@ -57,7 +68,7 @@ CREATE INDEX IF NOT EXISTS idx_paid_loans_created_by ON paid_loans(created_by);
 CREATE INDEX IF NOT EXISTS idx_paid_loans_created_at ON paid_loans(created_at);
 
 -- =====================================================
--- FUNÇÃO PARA ATUALIZAR UPDATED_AT
+-- PASSO 4: CRIAR FUNÇÃO PARA ATUALIZAR UPDATED_AT
 -- =====================================================
 
 CREATE OR REPLACE FUNCTION update_paid_loans_updated_at()
@@ -68,14 +79,15 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
--- Trigger para atualizar updated_at automaticamente
+-- Criar trigger para atualizar updated_at automaticamente
+DROP TRIGGER IF EXISTS update_paid_loans_updated_at_trigger ON paid_loans;
 CREATE TRIGGER update_paid_loans_updated_at_trigger
     BEFORE UPDATE ON paid_loans
     FOR EACH ROW
     EXECUTE FUNCTION update_paid_loans_updated_at();
 
 -- =====================================================
--- VIEW PARA EMPRÉSTIMOS QUITADOS COM DETALHES
+-- PASSO 5: CRIAR VIEW PARA EMPRÉSTIMOS QUITADOS
 -- =====================================================
 
 CREATE OR REPLACE VIEW paid_loans_with_details AS
@@ -93,13 +105,19 @@ LEFT JOIN users u ON pl.created_by = u.id
 ORDER BY pl.paid_date DESC;
 
 -- =====================================================
--- POLÍTICAS DE SEGURANÇA (RLS)
+-- PASSO 6: CONFIGURAR POLÍTICAS DE SEGURANÇA (RLS)
 -- =====================================================
 
 -- Habilitar RLS na tabela
 ALTER TABLE paid_loans ENABLE ROW LEVEL SECURITY;
 
--- Políticas para empréstimos quitados
+-- Remover políticas antigas se existirem
+DROP POLICY IF EXISTS "Authenticated users can view all paid loans" ON paid_loans;
+DROP POLICY IF EXISTS "Authenticated users can insert paid loans" ON paid_loans;
+DROP POLICY IF EXISTS "Users can update paid loans they created or admins can update all" ON paid_loans;
+DROP POLICY IF EXISTS "Users can delete paid loans they created or admins can delete all" ON paid_loans;
+
+-- Criar políticas novas
 CREATE POLICY "Authenticated users can view all paid loans" ON paid_loans
     FOR SELECT USING (auth.role() = 'authenticated');
 
@@ -127,7 +145,7 @@ CREATE POLICY "Users can delete paid loans they created or admins can delete all
     );
 
 -- =====================================================
--- PERMISSÕES
+-- PASSO 7: CONCEDER PERMISSÕES
 -- =====================================================
 
 -- Conceder permissões para usuários autenticados
@@ -136,15 +154,13 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON paid_loans TO authenticated;
 -- Conceder permissões para a view
 GRANT SELECT ON paid_loans_with_details TO authenticated;
 
--- Nota: Não é necessário dar GRANT em sequence porque a tabela usa UUID com gen_random_uuid()
--- ao invés de SERIAL, então não há sequence automática
-
 -- =====================================================
--- VERIFICAÇÃO FINAL
+-- PASSO 8: VERIFICAÇÃO FINAL
 -- =====================================================
 
 -- Verificar se a tabela foi criada
 SELECT 
+    '✅ Tabela paid_loans criada com sucesso!' as status,
     table_name,
     table_type
 FROM information_schema.tables 
@@ -153,6 +169,7 @@ AND table_name = 'paid_loans';
 
 -- Verificar se os índices foram criados
 SELECT 
+    '✅ Índices criados:' as status,
     indexname,
     tablename
 FROM pg_indexes 
@@ -161,28 +178,30 @@ ORDER BY indexname;
 
 -- Verificar se as políticas RLS estão ativas
 SELECT 
-    schemaname,
-    tablename,
+    '✅ Políticas RLS configuradas:' as status,
     policyname,
-    permissive,
-    roles,
-    cmd,
-    qual,
-    with_check
+    cmd
 FROM pg_policies 
 WHERE schemaname = 'public' AND tablename = 'paid_loans'
 ORDER BY policyname;
 
+-- Contar registros existentes
+SELECT 
+    '📊 Total de empréstimos quitados:' as status,
+    COUNT(*) as total
+FROM paid_loans;
+
 -- =====================================================
--- FIM DA CONFIGURAÇÃO
+-- FIM DO SCRIPT
 -- =====================================================
--- 
--- Para executar este script:
--- 1. Acesse o SQL Editor no Supabase
--- 2. Cole todo o conteúdo deste arquivo
--- 3. Clique em "Run" para executar
--- 4. Verifique se não há erros na execução
--- 5. Confirme que a tabela foi criada corretamente
---
--- Após a execução, a funcionalidade de quitação estará disponível!
--- ===================================================== 
+
+-- Mensagem final
+DO $$ 
+BEGIN
+    RAISE NOTICE '==============================================';
+    RAISE NOTICE '✅ CONFIGURAÇÃO CONCLUÍDA COM SUCESSO!';
+    RAISE NOTICE '==============================================';
+    RAISE NOTICE 'A tabela paid_loans está pronta para uso.';
+    RAISE NOTICE 'Agora você pode marcar empréstimos como quitados.';
+    RAISE NOTICE '==============================================';
+END $$;
