@@ -7943,7 +7943,22 @@ async function markLoanAsPaid(loanId) {
                 const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
                 
                 // Inserir na tabela paid_loans
-                const { error: insertError } = await supabase
+                console.log('Tentando inserir empréstimo quitado:', {
+                    loan_id: loanId,
+                    client_id: loan.client_id,
+                    original_amount: loan.amount,
+                    interest_rate: loan.interest_rate,
+                    total_with_interest: totalWithInterest,
+                    loan_date: loan.loan_date,
+                    due_date: loan.due_date,
+                    paid_date: new Date().toISOString().split('T')[0],
+                    total_paid: totalPaid,
+                    payment_method: 'Sistema',
+                    notes: 'Quitado pelo sistema',
+                    created_by: loan.created_by
+                });
+                
+                const { data: insertData, error: insertError } = await supabase
                     .from('paid_loans')
                     .insert([{
                         loan_id: loanId,
@@ -7958,9 +7973,19 @@ async function markLoanAsPaid(loanId) {
                         payment_method: 'Sistema',
                         notes: 'Quitado pelo sistema',
                         created_by: loan.created_by
-                    }]);
+                    }])
+                    .select();
                 
-                if (insertError) throw insertError;
+                if (insertError) {
+                    console.error('ERRO DETALHADO ao inserir em paid_loans:', insertError);
+                    console.error('Código do erro:', insertError.code);
+                    console.error('Mensagem:', insertError.message);
+                    console.error('Detalhes:', insertError.details);
+                    console.error('Hint:', insertError.hint);
+                    throw new Error(`Erro ao salvar empréstimo quitado: ${insertError.message} (Código: ${insertError.code})`);
+                }
+                
+                console.log('Empréstimo quitado inserido com sucesso:', insertData);
                 
                 // Remover da tabela loans
                 const { error: deleteError } = await supabase
@@ -8703,7 +8728,9 @@ async function restorePaidLoan(paidLoanId) {
         if (!confirm(confirmMessage)) return;
         
         // Recriar o empréstimo na tabela loans
-        const { error: insertError } = await supabase
+        console.log('Restaurando empréstimo de paid_loans para loans:', paidLoan);
+        
+        const { data: insertData, error: insertError } = await supabase
             .from('loans')
             .insert([{
                 id: paidLoan.loan_id, // Manter o ID original
@@ -8716,17 +8743,30 @@ async function restorePaidLoan(paidLoanId) {
                 status: 'active', // Status ativo
                 created_by: paidLoan.created_by,
                 created_at: paidLoan.created_at
-            }]);
+            }])
+            .select();
         
-        if (insertError) throw insertError;
+        if (insertError) {
+            console.error('ERRO ao restaurar empréstimo:', insertError);
+            throw new Error(`Erro ao restaurar empréstimo: ${insertError.message}`);
+        }
+        
+        console.log('Empréstimo restaurado com sucesso:', insertData);
         
         // Remover da tabela paid_loans
+        console.log('Removendo empréstimo restaurado de paid_loans...');
+        
         const { error: deleteError } = await supabase
             .from('paid_loans')
             .delete()
             .eq('id', paidLoanId);
         
-        if (deleteError) throw deleteError;
+        if (deleteError) {
+            console.error('ERRO ao remover de paid_loans:', deleteError);
+            throw new Error(`Erro ao remover de paid_loans: ${deleteError.message}`);
+        }
+        
+        console.log('Empréstimo removido de paid_loans com sucesso');
         
         // Recarregar dados
         invalidateLoanRemainingAmountsCache();
@@ -8737,7 +8777,7 @@ async function restorePaidLoan(paidLoanId) {
         showSuccessMessage('Empréstimo restaurado com sucesso!');
         
     } catch (error) {
-        console.error('Erro ao restaurar empréstimo:', error);
+        console.error('ERRO COMPLETO ao restaurar empréstimo:', error);
         showInfoMessage('Erro ao restaurar empréstimo: ' + error.message);
     }
 }
@@ -8771,12 +8811,19 @@ async function deletePaidLoan(paidLoanId) {
         if (!confirm(confirmMessage)) return;
         
         // Excluir da tabela paid_loans
+        console.log('Excluindo permanentemente empréstimo quitado:', paidLoanId);
+        
         const { error: deleteError } = await supabase
             .from('paid_loans')
             .delete()
             .eq('id', paidLoanId);
         
-        if (deleteError) throw deleteError;
+        if (deleteError) {
+            console.error('ERRO ao excluir empréstimo quitado:', deleteError);
+            throw new Error(`Erro ao excluir: ${deleteError.message}`);
+        }
+        
+        console.log('Empréstimo quitado excluído com sucesso');
         
         // Invalidar cache e atualizar interface
         invalidateLoanRemainingAmountsCache();
@@ -8787,7 +8834,7 @@ async function deletePaidLoan(paidLoanId) {
         showSuccessMessage('Empréstimo quitado excluído permanentemente!');
         
     } catch (error) {
-        console.error('Erro ao excluir empréstimo quitado:', error);
+        console.error('ERRO COMPLETO ao excluir empréstimo quitado:', error);
         showInfoMessage('Erro ao excluir empréstimo: ' + error.message);
     }
 }
