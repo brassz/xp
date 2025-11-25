@@ -978,6 +978,34 @@ function handleNavigation(e) {
     });
 }
 
+// Navegar para uma seção programaticamente
+function navigateToSection(sectionId) {
+    // Atualizar navegação ativa
+    navLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${sectionId}`) {
+            link.classList.add('active');
+        }
+    });
+    
+    const submenuLinks = document.querySelectorAll('.submenu-item');
+    submenuLinks.forEach(link => {
+        link.classList.remove('active');
+        if (link.getAttribute('href') === `#${sectionId}`) {
+            link.classList.add('active');
+        }
+    });
+    
+    // Mostrar seção correspondente
+    contentSections.forEach(section => {
+        section.classList.add('hidden');
+        if (section.id === sectionId) {
+            section.classList.remove('hidden');
+            section.classList.add('fade-in');
+        }
+    });
+}
+
 // Carregar dados
 async function loadData() {
     if (isLoadingData) {
@@ -7991,6 +8019,9 @@ async function markLoanAsPaid(loanId) {
                 await renderPaidLoansTable();
                 await updateDashboard();
                 await updateCharts();
+                
+                // Redirecionar para a aba de empréstimos quitados
+                navigateToSection('paidLoans');
             },
             'Marcar como Quitado',
             true  // isPayment = true para usar botão verde
