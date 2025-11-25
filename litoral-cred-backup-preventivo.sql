@@ -8,17 +8,24 @@
 -- ⚠️ IMPORTANTE: Este script cria cópias de segurança das tabelas principais
 -- para permitir rollback em caso de problemas
 
-\echo '========================================='
-\echo 'BACKUP PREVENTIVO - LITORAL CRED'
-\echo '========================================='
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE 'BACKUP PREVENTIVO - LITORAL CRED';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- CRIAR TABELAS DE BACKUP
 -- =====================================================
 
 -- Backup da tabela loans
-\echo '📦 Criando backup da tabela loans...'
+DO $$
+BEGIN
+    RAISE NOTICE '📦 Criando backup da tabela loans...';
+END $$;
 DROP TABLE IF EXISTS loans_backup_20241125 CASCADE;
 CREATE TABLE loans_backup_20241125 AS 
 SELECT * FROM loans;
@@ -27,7 +34,10 @@ SELECT COUNT(*) as registros_backup_loans
 FROM loans_backup_20241125;
 
 -- Backup da tabela payments
-\echo '📦 Criando backup da tabela payments...'
+DO $$
+BEGIN
+    RAISE NOTICE '📦 Criando backup da tabela payments...';
+END $$;
 DROP TABLE IF EXISTS payments_backup_20241125 CASCADE;
 CREATE TABLE payments_backup_20241125 AS 
 SELECT * FROM payments;
@@ -36,7 +46,10 @@ SELECT COUNT(*) as registros_backup_payments
 FROM payments_backup_20241125;
 
 -- Backup da tabela clients
-\echo '📦 Criando backup da tabela clients...'
+DO $$
+BEGIN
+    RAISE NOTICE '📦 Criando backup da tabela clients...';
+END $$;
 DROP TABLE IF EXISTS clients_backup_20241125 CASCADE;
 CREATE TABLE clients_backup_20241125 AS 
 SELECT * FROM clients;
@@ -45,7 +58,10 @@ SELECT COUNT(*) as registros_backup_clients
 FROM clients_backup_20241125;
 
 -- Backup da tabela paid_loans (se existir)
-\echo '📦 Verificando e criando backup da tabela paid_loans (se existir)...'
+DO $$
+BEGIN
+    RAISE NOTICE '📦 Verificando e criando backup da tabela paid_loans (se existir)...';
+END $$;
 DO $$
 BEGIN
     IF EXISTS (
@@ -61,13 +77,19 @@ BEGIN
     END IF;
 END $$;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- CRIAR TABELA DE AUDITORIA DO BACKUP
 -- =====================================================
 
-\echo '📋 Criando registro de auditoria do backup...'
+DO $$
+BEGIN
+    RAISE NOTICE '📋 Criando registro de auditoria do backup...';
+END $$;
 
 DROP TABLE IF EXISTS backup_audit_litoral_cred CASCADE;
 CREATE TABLE backup_audit_litoral_cred (
@@ -108,13 +130,19 @@ BEGIN
     END IF;
 END $$;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- EXPORTAR DADOS CRÍTICOS (FORMATO SQL)
 -- =====================================================
 
-\echo '💾 Criando scripts de restauração...'
+DO $$
+BEGIN
+    RAISE NOTICE '💾 Criando scripts de restauração...';
+END $$;
 
 -- Criar função para gerar script de restauração
 CREATE OR REPLACE FUNCTION generate_restore_script()
@@ -151,15 +179,21 @@ BEGIN
 END;
 $$ LANGUAGE plpgsql;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- RELATÓRIO DE BACKUP
 -- =====================================================
 
-\echo '========================================='
-\echo 'RELATÓRIO DE BACKUP'
-\echo '========================================='
+DO $$
+BEGIN
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE 'RELATÓRIO DE BACKUP';
+    RAISE NOTICE '=========================================';
+END $$;
 
 SELECT 
     table_name as tabela,
@@ -169,10 +203,13 @@ SELECT
 FROM backup_audit_litoral_cred
 ORDER BY backup_date DESC;
 
-\echo ''
-\echo '========================================='
-\echo 'ESTATÍSTICAS DO BACKUP'
-\echo '========================================='
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE 'ESTATÍSTICAS DO BACKUP';
+    RAISE NOTICE '=========================================';
+END $$;
 
 DO $$
 DECLARE
@@ -241,31 +278,34 @@ END $$;
 -- INSTRUÇÕES DE RESTAURAÇÃO
 -- =====================================================
 
-\echo ''
-\echo '========================================='
-\echo 'INSTRUÇÕES DE RESTAURAÇÃO'
-\echo '========================================='
-\echo ''
-\echo '🔄 Para restaurar os dados originais em caso de problema:'
-\echo ''
-\echo '1. Restaurar tabela loans:'
-\echo '   DROP TABLE IF EXISTS loans CASCADE;'
-\echo '   CREATE TABLE loans AS SELECT * FROM loans_backup_20241125;'
-\echo ''
-\echo '2. Restaurar tabela payments:'
-\echo '   DROP TABLE IF EXISTS payments CASCADE;'
-\echo '   CREATE TABLE payments AS SELECT * FROM payments_backup_20241125;'
-\echo ''
-\echo '3. Restaurar tabela clients:'
-\echo '   DROP TABLE IF EXISTS clients CASCADE;'
-\echo '   CREATE TABLE clients AS SELECT * FROM clients_backup_20241125;'
-\echo ''
-\echo '4. Recriar índices e constraints (execute database-setup.sql)'
-\echo ''
-\echo '⚠️  IMPORTANTE: Guarde o nome das tabelas de backup!'
-\echo '   Elas têm a data no nome: _backup_20241125'
-\echo ''
-\echo '========================================='
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE 'INSTRUÇÕES DE RESTAURAÇÃO';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE '';
+    RAISE NOTICE '🔄 Para restaurar os dados originais em caso de problema:';
+    RAISE NOTICE '';
+    RAISE NOTICE '1. Restaurar tabela loans:';
+    RAISE NOTICE '   DROP TABLE IF EXISTS loans CASCADE;';
+    RAISE NOTICE '   CREATE TABLE loans AS SELECT * FROM loans_backup_20241125;';
+    RAISE NOTICE '';
+    RAISE NOTICE '2. Restaurar tabela payments:';
+    RAISE NOTICE '   DROP TABLE IF EXISTS payments CASCADE;';
+    RAISE NOTICE '   CREATE TABLE payments AS SELECT * FROM payments_backup_20241125;';
+    RAISE NOTICE '';
+    RAISE NOTICE '3. Restaurar tabela clients:';
+    RAISE NOTICE '   DROP TABLE IF EXISTS clients CASCADE;';
+    RAISE NOTICE '   CREATE TABLE clients AS SELECT * FROM clients_backup_20241125;';
+    RAISE NOTICE '';
+    RAISE NOTICE '4. Recriar índices e constraints (execute database-setup.sql)';
+    RAISE NOTICE '';
+    RAISE NOTICE '⚠️  IMPORTANTE: Guarde o nome das tabelas de backup!';
+    RAISE NOTICE '   Elas têm a data no nome: _backup_20241125';
+    RAISE NOTICE '';
+    RAISE NOTICE '=========================================';
+END $$;
 
 -- =====================================================
 -- CRIAR SCRIPT DE RESTAURAÇÃO RÁPIDA
@@ -292,25 +332,31 @@ UNION ALL SELECT 'SELECT COUNT(*) FROM loans;'
 UNION ALL SELECT 'SELECT COUNT(*) FROM payments;'
 UNION ALL SELECT 'SELECT COUNT(*) FROM clients;';
 
-\echo ''
-\echo '📝 Script de restauração rápida disponível em:'
-\echo '   SELECT * FROM restore_commands;'
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '📝 Script de restauração rápida disponível em:';
+    RAISE NOTICE '   SELECT * FROM restore_commands;';
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- FIM DO BACKUP
 -- =====================================================
 
-\echo '========================================='
-\echo '✅ BACKUP CONCLUÍDO COM SUCESSO!'
-\echo '========================================='
-\echo ''
-\echo '📋 Próximos passos:'
-\echo '1. Execute: litoral-cred-diagnostico-rapido.sql'
-\echo '2. Execute: litoral-cred-restore-paid-loans.sql'
-\echo '3. Execute: litoral-cred-recover-data.sql'
-\echo ''
-\echo '⚠️  Em caso de problemas, use os comandos em:'
-\echo '   SELECT * FROM restore_commands;'
-\echo ''
-\echo '========================================='
+DO $$
+BEGIN
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE '✅ BACKUP CONCLUÍDO COM SUCESSO!';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE '';
+    RAISE NOTICE '📋 Próximos passos:';
+    RAISE NOTICE '1. Execute: litoral-cred-diagnostico-rapido.sql';
+    RAISE NOTICE '2. Execute: litoral-cred-restore-paid-loans.sql';
+    RAISE NOTICE '3. Execute: litoral-cred-recover-data.sql';
+    RAISE NOTICE '';
+    RAISE NOTICE '⚠️  Em caso de problemas, use os comandos em:';
+    RAISE NOTICE '   SELECT * FROM restore_commands;';
+    RAISE NOTICE '';
+    RAISE NOTICE '=========================================';
+END $$;

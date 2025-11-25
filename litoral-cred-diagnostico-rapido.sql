@@ -5,17 +5,24 @@
 -- URL: https://dtifsfzmnjnllzzlndxv.supabase.co
 -- =====================================================
 
-\echo '========================================='
-\echo 'DIAGNÓSTICO - EMPRÉSTIMOS QUITADOS'
-\echo 'Empresa: LITORAL CRED'
-\echo '========================================='
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE 'DIAGNÓSTICO - EMPRÉSTIMOS QUITADOS';
+    RAISE NOTICE 'Empresa: LITORAL CRED';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 1. VERIFICAR SE A TABELA PAID_LOANS EXISTE
 -- =====================================================
 
-\echo '1️⃣ Verificando se a tabela paid_loans existe...'
+DO $$
+BEGIN
+    RAISE NOTICE '1️⃣ Verificando se a tabela paid_loans existe...';
+END $$;
 SELECT 
     CASE 
         WHEN EXISTS (
@@ -26,13 +33,19 @@ SELECT
         ELSE '❌ NÃO - Tabela paid_loans NÃO existe (precisa ser criada)'
     END as resultado;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 2. CONTAR EMPRÉSTIMOS POR STATUS
 -- =====================================================
 
-\echo '2️⃣ Contando empréstimos por status na tabela loans...'
+DO $$
+BEGIN
+    RAISE NOTICE '2️⃣ Contando empréstimos por status na tabela loans...';
+END $$;
 SELECT 
     COALESCE(status, 'NULL') as status,
     COUNT(*) as quantidade,
@@ -49,13 +62,19 @@ ORDER BY
         ELSE 6
     END;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 3. VERIFICAR REGISTROS EM PAID_LOANS (SE EXISTIR)
 -- =====================================================
 
-\echo '3️⃣ Verificando registros em paid_loans (se a tabela existir)...'
+DO $$
+BEGIN
+    RAISE NOTICE '3️⃣ Verificando registros em paid_loans (se a tabela existir)...';
+END $$;
 DO $$
 DECLARE
     v_count INTEGER;
@@ -80,13 +99,19 @@ BEGIN
     END IF;
 END $$;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 4. IDENTIFICAR EMPRÉSTIMOS COMPLETAMENTE PAGOS
 -- =====================================================
 
-\echo '4️⃣ Identificando empréstimos completamente pagos mas não marcados como quitados...'
+DO $$
+BEGIN
+    RAISE NOTICE '4️⃣ Identificando empréstimos completamente pagos mas não marcados como quitados...';
+END $$;
 SELECT 
     COUNT(*) as quantidade,
     CONCAT('R$ ', TO_CHAR(SUM(l.amount), '999,999,990.00')) as valor_total,
@@ -100,13 +125,19 @@ WHERE l.status != 'paid'
 GROUP BY l.id, l.amount, l.interest_rate
 HAVING COALESCE(SUM(p.amount), 0) >= (l.amount + (l.amount * l.interest_rate / 100));
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 5. DETECTAR PAGAMENTOS ÓRFÃOS (EMPRÉSTIMOS DELETADOS)
 -- =====================================================
 
-\echo '5️⃣ Detectando pagamentos órfãos (de empréstimos que foram deletados)...'
+DO $$
+BEGIN
+    RAISE NOTICE '5️⃣ Detectando pagamentos órfãos (de empréstimos que foram deletados)...';
+END $$;
 SELECT 
     COUNT(DISTINCT p.loan_id) as emprestimos_deletados,
     COUNT(p.id) as total_pagamentos_orfaos,
@@ -119,13 +150,19 @@ FROM payments p
 LEFT JOIN loans l ON p.loan_id = l.id
 WHERE l.id IS NULL;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 6. LISTAR EMPRÉSTIMOS ÓRFÃOS DETALHADOS
 -- =====================================================
 
-\echo '6️⃣ Detalhes dos empréstimos órfãos (se houver)...'
+DO $$
+BEGIN
+    RAISE NOTICE '6️⃣ Detalhes dos empréstimos órfãos (se houver)...';
+END $$;
 SELECT 
     p.loan_id as emprestimo_deletado,
     COUNT(p.id) as num_pagamentos,
@@ -140,13 +177,19 @@ GROUP BY p.loan_id
 ORDER BY MAX(p.payment_date) DESC
 LIMIT 10;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 7. VERIFICAR TRIGGERS EXISTENTES
 -- =====================================================
 
-\echo '7️⃣ Verificando triggers na tabela loans...'
+DO $$
+BEGIN
+    RAISE NOTICE '7️⃣ Verificando triggers na tabela loans...';
+END $$;
 SELECT 
     trigger_name,
     event_manipulation as evento,
@@ -158,13 +201,19 @@ FROM information_schema.triggers
 WHERE event_object_table = 'loans'
 ORDER BY trigger_name;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 8. ESTATÍSTICAS GERAIS
 -- =====================================================
 
-\echo '8️⃣ Estatísticas gerais do sistema...'
+DO $$
+BEGIN
+    RAISE NOTICE '8️⃣ Estatísticas gerais do sistema...';
+END $$;
 SELECT 
     'Total de Clientes' as metrica,
     COUNT(*)::text as valor
@@ -191,15 +240,22 @@ SELECT
     CONCAT('R$ ', TO_CHAR(SUM(amount), '999,999,990.00')) as valor
 FROM loans;
 
-\echo ''
+DO $$
+BEGIN
+    RAISE NOTICE '';
+END $$;
 
 -- =====================================================
 -- 9. RESUMO E RECOMENDAÇÕES
 -- =====================================================
 
-\echo '========================================='
-\echo 'RESUMO DO DIAGNÓSTICO'
-\echo '========================================='
+DO $$
+BEGIN
+    RAISE NOTICE '';
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE 'RESUMO DO DIAGNÓSTICO';
+    RAISE NOTICE '=========================================';
+END $$;
 
 DO $$
 DECLARE
@@ -282,6 +338,9 @@ BEGIN
     RAISE NOTICE '';
 END $$;
 
-\echo '========================================='
-\echo 'FIM DO DIAGNÓSTICO'
-\echo '========================================='
+DO $$
+BEGIN
+    RAISE NOTICE '=========================================';
+    RAISE NOTICE 'FIM DO DIAGNÓSTICO';
+    RAISE NOTICE '=========================================';
+END $$;
