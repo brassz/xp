@@ -2526,6 +2526,10 @@ async function handlePayment(e) {
     const includeFine = document.getElementById('includeFineCheckbox').checked;
     const fineAmount = includeFine ? parseFloat(document.getElementById('fineAmount').value) || 0 : 0;
     
+    console.log('=== REGISTRANDO PAGAMENTO ===');
+    console.log('Include Fine:', includeFine);
+    console.log('Fine Amount:', fineAmount);
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -6373,6 +6377,13 @@ async function loadPaymentHistory(loanId) {
             const fineAmount = parseFloat(payment.fine_amount) || 0;
             const paymentType = getPaymentTypeText(payment.payment_type);
             const paymentNotes = payment.notes || 'Sem notas';
+            
+            console.log('Pagamento:', {
+                id: payment.id,
+                amount: paymentAmount,
+                fine_amount: fineAmount,
+                fine_amount_raw: payment.fine_amount
+            });
             
             tbody.innerHTML += `
                 <tr class="table-row">
