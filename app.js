@@ -5628,6 +5628,9 @@ Após o vencimento, será aplicada uma multa diária de R$ 50,00.
         // Mostrar mensagem de sucesso
         showSuccessMessage(`Cobrança enviada para ${client.name} via ${bankName}`);
 
+        // Atualizar a tabela de empréstimos para refletir valores atualizados
+        await loadLoans();
+
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp:', error);
         showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
@@ -6067,6 +6070,9 @@ async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId,
         // Mostrar mensagem de sucesso
         showSuccessMessage(`Cobrança de parcela enviada para ${client.name} via ${bankName}`);
 
+        // Atualizar a tabela de parcelamentos para refletir valores atualizados
+        await loadInstallments();
+
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp:', error);
         showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
@@ -6216,6 +6222,9 @@ Após o vencimento, será aplicada uma multa diária de R$ 50,00.`;
         // Mostrar mensagem de sucesso
         showSuccessMessage(`Mensagem de cobrança enviada para ${client.name} (${client.phone})`);
 
+        // Atualizar a tabela de empréstimos para refletir valores atualizados
+        await loadLoans();
+
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp:', error);
         showErrorMessage('Erro ao preparar mensagem do WhatsApp: ' + error.message);
@@ -6322,6 +6331,9 @@ async function sendInstallmentWhatsAppMessage(installmentId) {
 
         // Mostrar mensagem de sucesso
         showNotification(`Mensagem de cobrança da parcela enviada para ${client.name} (${client.phone})`, 'success');
+
+        // Atualizar a tabela de parcelamentos para refletir valores atualizados
+        await loadInstallments();
 
     } catch (error) {
         console.error('Erro ao enviar mensagem do WhatsApp do parcelamento:', error);
