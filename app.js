@@ -977,6 +977,12 @@ function handleNavigation(e) {
                 initializeCommissionsSection();
             }
             
+            // Inicializar seção de multas quando for exibida
+            if (target === 'fines') {
+                console.log('Seção de multas ativada, inicializando...');
+                initializeFinesSection();
+            }
+            
 
         }
     });
@@ -15185,4 +15191,302 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
             resultsContainer.classList.add('hidden');
         }
     });
+}
+
+// ============================================================================
+// FUNÇÕES DE MULTAS
+// ============================================================================
+
+// Variáveis globais para multas
+let finesData = [];
+
+// Inicializar seção de multas
+async function initializeFinesSection() {
+    console.log('Inicializando seção de multas...');
+    
+    // Definir data padrão (últimos 30 dias)
+    const today = new Date();
+    const thirtyDaysAgo = new Date(today);
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    document.getElementById('finesStartDate').value = thirtyDaysAgo.toISOString().split('T')[0];
+    document.getElementById('finesEndDate').value = today.toISOString().split('T')[0];
+    
+    // Carregar dados de multas
+    await loadFinesData();
+    
+    // Configurar event listener para o botão de filtro
+    const filterBtn = document.getElementById('filterFinesBtn');
+    if (filterBtn) {
+        filterBtn.addEventListener('click', loadFinesData);
+    }
+}
+
+// Carregar dados de multas do banco de dados
+async function loadFinesData() {
+    try {
+        console.log('Carregando dados de multas...');
+        
+        // Obter datas dos filtros
+        const startDate = document.getElementById('finesStartDate').value;
+        const endDate = document.getElementById('finesEndDate').value;
+        
+        // Buscar todos os pagamentos com multas
+        let query = supabase
+            .from('payments')
+            .select(`
+                id,
+                amount,
+                fine_amount,
+                payment_date,
+                payment_type,
+                loan_id,
+                loans!inner(
+                    id,
+                    client_id,
+                    clients!inner(
+                        id,
+                        name,
+                        cpf,
+                        phone
+                    )
+                )
+            `)
+            .gt('fine_amount', 0)
+            .order('payment_date', { ascending: false });
+        
+        // Aplicar filtros de data se fornecidos
+        if (startDate) {
+            query = query.gte('payment_date', startDate);
+        }
+        if (endDate) {
+            query = query.lte('payment_date', endDate);
+        }
+        
+        const { data: paymentsData, error } = await query;
+        
+        if (error) throw error;
+        
+        console.log(`Carregados ${paymentsData?.length || 0} pagamentos com multas`);
+        
+        // Agrupar multas por cliente
+        const clientFinesMap = {};
+        
+        (paymentsData || []).forEach(payment => {
+            const clientId = payment.loans.clients.id;
+            const clientName = payment.loans.clients.name;
+            const clientCPF = payment.loans.clients.cpf;
+            const clientPhone = payment.loans.clients.phone;
+            const fineAmount = parseFloat(payment.fine_amount) || 0;
+            
+            if (!clientFinesMap[clientId]) {
+                clientFinesMap[clientId] = {
+                    clientId: clientId,
+                    clientName: clientName,
+                    clientCPF: clientCPF,
+                    clientPhone: clientPhone,
+                    totalFines: 0,
+                    finesCount: 0,
+                    payments: []
+                };
+            }
+            
+            clientFinesMap[clientId].totalFines += fineAmount;
+            clientFinesMap[clientId].finesCount += 1;
+            clientFinesMap[clientId].payments.push({
+                paymentId: payment.id,
+                paymentDate: payment.payment_date,
+                paymentAmount: payment.amount,
+                fineAmount: fineAmount,
+                paymentType: payment.payment_type
+            });
+        });
+        
+        // Converter map para array e ordenar por total de multas (maior para menor)
+        finesData = Object.values(clientFinesMap).sort((a, b) => b.totalFines - a.totalFines);
+        
+        // Atualizar UI
+        updateFinesSummary();
+        displayFinesTable();
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados de multas:', error);
+        showErrorMessage('Erro ao carregar dados de multas: ' + error.message);
+    }
+}
+
+// Atualizar resumo de multas (cards no topo)
+function updateFinesSummary() {
+    // Calcular totais
+    const totalFines = finesData.reduce((sum, client) => sum + client.totalFines, 0);
+    const totalFinesCount = finesData.reduce((sum, client) => sum + client.finesCount, 0);
+    const clientsWithFines = finesData.length;
+    
+    // Atualizar cards
+    document.getElementById('totalFines').textContent = `R$ ${totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+    document.getElementById('totalFinesCount').textContent = totalFinesCount;
+    document.getElementById('clientsWithFines').textContent = clientsWithFines;
+}
+
+// Exibir tabela de multas por cliente
+function displayFinesTable() {
+    const tbody = document.getElementById('finesTableBody');
+    
+    if (finesData.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-12 text-center text-gray-400">
+                    <div class="flex flex-col items-center justify-center">
+                        <svg class="w-16 h-16 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">Nenhuma multa encontrada</p>
+                        <p class="text-sm">Não há multas registradas no período selecionado</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = finesData.map(client => `
+        <tr class="table-row hover:bg-gray-700 transition-colors">
+            <td class="px-6 py-4">
+                <div>
+                    <p class="text-white font-medium">${client.clientName}</p>
+                </div>
+            </td>
+            <td class="px-6 py-4">
+                <span class="text-gray-300">${client.clientCPF || 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4">
+                <span class="text-gray-300">${client.clientPhone || 'N/A'}</span>
+            </td>
+            <td class="px-6 py-4">
+                <span class="inline-flex items-center px-3 py-1 rounded-full text-sm font-medium bg-yellow-500 bg-opacity-20 text-yellow-400">
+                    ${client.finesCount} multa${client.finesCount > 1 ? 's' : ''}
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <span class="text-red-400 font-bold text-lg">R$ ${client.totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</span>
+            </td>
+            <td class="px-6 py-4">
+                <button onclick="viewClientFinesDetails('${client.clientId}')" class="btn-primary px-4 py-2 rounded-lg text-sm font-medium">
+                    Ver Detalhes
+                </button>
+            </td>
+        </tr>
+    `).join('');
+}
+
+// Ver detalhes das multas de um cliente específico
+function viewClientFinesDetails(clientId) {
+    const clientData = finesData.find(c => c.clientId === clientId);
+    
+    if (!clientData) {
+        showErrorMessage('Cliente não encontrado');
+        return;
+    }
+    
+    // Criar modal com detalhes
+    const modalHTML = `
+        <div id="finesDetailsModal" class="modal-overlay fixed inset-0 z-50 flex items-center justify-center p-4">
+            <div class="modal-content w-full max-w-4xl max-h-[85vh] overflow-y-auto p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <div>
+                        <h3 class="text-2xl font-bold text-white">Detalhes das Multas</h3>
+                        <p class="text-gray-400 mt-1">${clientData.clientName}</p>
+                    </div>
+                    <button onclick="closeFinesDetailsModal()" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mb-6 p-4 bg-gray-800 rounded-lg">
+                    <div class="grid grid-cols-3 gap-4">
+                        <div>
+                            <p class="text-gray-400 text-sm">Total em Multas</p>
+                            <p class="text-red-400 text-2xl font-bold">R$ ${clientData.totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-400 text-sm">Quantidade</p>
+                            <p class="text-yellow-400 text-2xl font-bold">${clientData.finesCount}</p>
+                        </div>
+                        <div>
+                            <p class="text-gray-400 text-sm">Telefone</p>
+                            <p class="text-blue-400 text-xl font-semibold">${clientData.clientPhone || 'N/A'}</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="overflow-x-auto">
+                    <table class="w-full">
+                        <thead class="table-header">
+                            <tr>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-blue-300 uppercase">Data</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-blue-300 uppercase">Valor Pagamento</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-blue-300 uppercase">Valor Multa</th>
+                                <th class="px-4 py-3 text-left text-xs font-medium text-blue-300 uppercase">Tipo Pagamento</th>
+                            </tr>
+                        </thead>
+                        <tbody class="divide-y divide-gray-700">
+                            ${clientData.payments.map(payment => `
+                                <tr class="hover:bg-gray-700">
+                                    <td class="px-4 py-3 text-gray-300">${formatDate(payment.paymentDate)}</td>
+                                    <td class="px-4 py-3 text-white font-semibold">R$ ${parseFloat(payment.paymentAmount).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td class="px-4 py-3 text-red-400 font-bold">R$ ${payment.fineAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                                    <td class="px-4 py-3">
+                                        <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentTypeBadgeColor(payment.paymentType)}">
+                                            ${getPaymentTypeName(payment.paymentType)}
+                                        </span>
+                                    </td>
+                                </tr>
+                            `).join('')}
+                        </tbody>
+                    </table>
+                </div>
+            </div>
+        </div>
+    `;
+    
+    // Adicionar modal ao body
+    const existingModal = document.getElementById('finesDetailsModal');
+    if (existingModal) {
+        existingModal.remove();
+    }
+    document.body.insertAdjacentHTML('beforeend', modalHTML);
+}
+
+// Fechar modal de detalhes de multas
+function closeFinesDetailsModal() {
+    const modal = document.getElementById('finesDetailsModal');
+    if (modal) {
+        modal.remove();
+    }
+}
+
+// Função auxiliar para obter cor do badge do tipo de pagamento
+function getPaymentTypeBadgeColor(paymentType) {
+    const colors = {
+        'money': 'bg-green-500 bg-opacity-20 text-green-400',
+        'pix': 'bg-blue-500 bg-opacity-20 text-blue-400',
+        'card': 'bg-purple-500 bg-opacity-20 text-purple-400',
+        'transfer': 'bg-yellow-500 bg-opacity-20 text-yellow-400',
+        'other': 'bg-gray-500 bg-opacity-20 text-gray-400'
+    };
+    return colors[paymentType] || colors['other'];
+}
+
+// Função auxiliar para obter nome do tipo de pagamento
+function getPaymentTypeName(paymentType) {
+    const names = {
+        'money': 'Dinheiro',
+        'pix': 'PIX',
+        'card': 'Cartão',
+        'transfer': 'Transferência',
+        'other': 'Outro'
+    };
+    return names[paymentType] || 'Outro';
 }
