@@ -1199,7 +1199,9 @@ async function loadLoans() {
         
         loans = data || [];
         filteredLoans = [...loans]; // Inicializar filteredLoans
-        await renderLoansTable();
+        
+        // Aplicar filtros restaurados (se houver) ao invés de renderizar diretamente
+        applyFiltersAndSort();
         
     } catch (error) {
         console.error('Erro ao carregar empréstimos:', error);
