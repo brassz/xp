@@ -5958,7 +5958,7 @@ Estamos entrando em contato com você como ${contactTypeText} do(a) cliente ${cl
 📅 Data de Vencimento: ${formattedDueDate}
 💰 Valor do Capital: R$ ${principalAmount.toFixed(2)}
 📈 Juros: R$ ${interestAmount.toFixed(2)}
-💳 Valor Total: R$ ${totalWithInterest.toFixed(2)}
+💳 Valor Total: R$ ${originalTotal.toFixed(2)}
 💸 Valor Restante: R$ ${remainingAmount.toFixed(2)}
 ${daysOverdue > 0 ? `⚠️ Multa acumulada: R$ ${currentFine.toFixed(2)} (${daysOverdue} dias em atraso)` : ''}
 
