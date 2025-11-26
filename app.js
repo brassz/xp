@@ -503,11 +503,15 @@ function setupEventListeners() {
     // Campo de busca de empréstimos
     document.getElementById('loanSearchInput').addEventListener('input', function(e) {
         const searchTerm = e.target.value;
+        saveLoanFilters();
         searchLoans(searchTerm);
     });
 
     // Botão de limpar busca de empréstimos
     document.getElementById('clearLoanSearch').addEventListener('click', clearLoanSearch);
+    
+    // Restaurar filtros salvos dos empréstimos ao carregar a página
+    restoreLoanFilters();
     
     // Event listeners para os novos filtros
     const creationDateFrom = document.getElementById('creationDateFrom');
@@ -518,12 +522,12 @@ function setupEventListeners() {
     const sortOrder = document.getElementById('sortOrder');
     const clearAllFiltersBtn = document.getElementById('clearAllFilters');
     
-    if (creationDateFrom) creationDateFrom.addEventListener('change', applyFiltersAndSort);
-    if (creationDateTo) creationDateTo.addEventListener('change', applyFiltersAndSort);
-    if (dueDateFrom) dueDateFrom.addEventListener('change', applyFiltersAndSort);
-    if (dueDateTo) dueDateTo.addEventListener('change', applyFiltersAndSort);
-    if (sortBy) sortBy.addEventListener('change', applyFiltersAndSort);
-    if (sortOrder) sortOrder.addEventListener('change', applyFiltersAndSort);
+    if (creationDateFrom) creationDateFrom.addEventListener('change', () => { saveLoanFilters(); applyFiltersAndSort(); });
+    if (creationDateTo) creationDateTo.addEventListener('change', () => { saveLoanFilters(); applyFiltersAndSort(); });
+    if (dueDateFrom) dueDateFrom.addEventListener('change', () => { saveLoanFilters(); applyFiltersAndSort(); });
+    if (dueDateTo) dueDateTo.addEventListener('change', () => { saveLoanFilters(); applyFiltersAndSort(); });
+    if (sortBy) sortBy.addEventListener('change', () => { saveLoanFilters(); applyFiltersAndSort(); });
+    if (sortOrder) sortOrder.addEventListener('change', () => { saveLoanFilters(); applyFiltersAndSort(); });
     if (clearAllFiltersBtn) clearAllFiltersBtn.addEventListener('click', clearAllFilters);
     
     // Event listeners para os filtros de parcelamentos
@@ -1195,7 +1199,9 @@ async function loadLoans() {
         
         loans = data || [];
         filteredLoans = [...loans]; // Inicializar filteredLoans
-        await renderLoansTable();
+        
+        // Aplicar filtros restaurados (se houver) ao invés de renderizar diretamente
+        applyFiltersAndSort();
         
     } catch (error) {
         console.error('Erro ao carregar empréstimos:', error);
@@ -1406,6 +1412,53 @@ function searchLoans(searchTerm) {
     applyFiltersAndSort();
 }
 
+// Função para salvar filtros de empréstimos no localStorage
+function saveLoanFilters() {
+    const filters = {
+        searchTerm: document.getElementById('loanSearchInput')?.value || '',
+        creationDateFrom: document.getElementById('creationDateFrom')?.value || '',
+        creationDateTo: document.getElementById('creationDateTo')?.value || '',
+        dueDateFrom: document.getElementById('dueDateFrom')?.value || '',
+        dueDateTo: document.getElementById('dueDateTo')?.value || '',
+        sortBy: document.getElementById('sortBy')?.value || 'loan_date',
+        sortOrder: document.getElementById('sortOrder')?.value || 'desc'
+    };
+    
+    localStorage.setItem('loanFilters', JSON.stringify(filters));
+}
+
+// Função para restaurar filtros de empréstimos do localStorage
+function restoreLoanFilters() {
+    try {
+        const savedFilters = localStorage.getItem('loanFilters');
+        
+        if (savedFilters) {
+            const filters = JSON.parse(savedFilters);
+            
+            // Restaurar valores nos campos
+            const searchInput = document.getElementById('loanSearchInput');
+            const creationDateFrom = document.getElementById('creationDateFrom');
+            const creationDateTo = document.getElementById('creationDateTo');
+            const dueDateFrom = document.getElementById('dueDateFrom');
+            const dueDateTo = document.getElementById('dueDateTo');
+            const sortBy = document.getElementById('sortBy');
+            const sortOrder = document.getElementById('sortOrder');
+            
+            if (searchInput) searchInput.value = filters.searchTerm || '';
+            if (creationDateFrom) creationDateFrom.value = filters.creationDateFrom || '';
+            if (creationDateTo) creationDateTo.value = filters.creationDateTo || '';
+            if (dueDateFrom) dueDateFrom.value = filters.dueDateFrom || '';
+            if (dueDateTo) dueDateTo.value = filters.dueDateTo || '';
+            if (sortBy) sortBy.value = filters.sortBy || 'loan_date';
+            if (sortOrder) sortOrder.value = filters.sortOrder || 'desc';
+            
+            console.log('Filtros de empréstimos restaurados:', filters);
+        }
+    } catch (error) {
+        console.error('Erro ao restaurar filtros de empréstimos:', error);
+    }
+}
+
 // Função principal para aplicar filtros e ordenação
 function applyFiltersAndSort() {
     let result = [...loans];
@@ -1555,6 +1608,7 @@ function clearLoanSearch() {
     const searchInput = document.getElementById('loanSearchInput');
     if (searchInput) {
         searchInput.value = '';
+        saveLoanFilters();
         applyFiltersAndSort();
     }
 }
@@ -1582,6 +1636,9 @@ function clearAllFilters() {
     
     if (sortBy) sortBy.value = 'loan_date';
     if (sortOrder) sortOrder.value = 'desc';
+    
+    // Limpar filtros salvos do localStorage
+    localStorage.removeItem('loanFilters');
     
     // Aplicar filtros
     applyFiltersAndSort();
