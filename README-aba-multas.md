@@ -4,6 +4,15 @@
 
 Foi implementada uma nova aba **MULTAS** no sistema para visualizar todas as multas aplicadas nos empréstimos, exibindo informações detalhadas incluindo o nome do cliente.
 
+## Última Atualização
+
+**Data:** 26/11/2025  
+**Correções aplicadas:**
+- ✅ Corrigida query de carregamento de multas para funcionar corretamente com relacionamentos do Supabase
+- ✅ Adicionado reload automático da aba quando uma multa é registrada
+- ✅ Adicionada confirmação visual quando multa é aplicada em pagamento
+- ✅ Adicionados logs detalhados para debugging
+
 ## Funcionalidades Implementadas
 
 ### 1. Nova Aba na Navegação
@@ -31,13 +40,15 @@ Tabela completa com as seguintes colunas:
 - **Total Pago**: Soma do pagamento + multa
 
 ### 3. Funções JavaScript
-**Arquivo:** `app.js` (linhas 10585-10712)
+**Arquivo:** `app.js` (linhas 10589-10750 aproximadamente)
 
 #### `loadFines()`
 - Carrega todas as multas do banco de dados
-- Faz JOIN com as tabelas `loans` e `clients` para obter informações completas
-- Filtra apenas pagamentos com `fine_amount > 0`
+- Busca pagamentos com `fine_amount > 0`
+- Carrega empréstimos e clientes relacionados em queries separadas para garantir compatibilidade
+- Cria um mapa de relacionamentos para associar os dados
 - Ordena por data de pagamento (mais recentes primeiro)
+- Inclui logs detalhados para debugging
 - Chama as funções de renderização e atualização de resumo
 
 #### `renderFinesTable(finesData)`
@@ -92,26 +103,39 @@ Tabela completa com as seguintes colunas:
 ## Características Técnicas
 
 ### Consulta ao Banco de Dados
-```sql
-SELECT 
-    payments.id,
-    payments.payment_date,
-    payments.amount,
-    payments.fine_amount,
-    payments.loan_id,
-    loans.id,
-    loans.original_amount,
-    loans.interest_rate,
-    clients.id,
-    clients.name,
-    clients.cpf,
-    clients.phone
-FROM payments
-INNER JOIN loans ON payments.loan_id = loans.id
-INNER JOIN clients ON loans.client_id = clients.id
-WHERE payments.fine_amount > 0
-ORDER BY payments.payment_date DESC;
+
+A função realiza as seguintes queries:
+
+**1. Buscar pagamentos com multa:**
+```javascript
+supabase
+    .from('payments')
+    .select('*')
+    .gt('fine_amount', 0)
+    .order('payment_date', { ascending: false })
 ```
+
+**2. Buscar empréstimos e clientes relacionados:**
+```javascript
+supabase
+    .from('loans')
+    .select(`
+        id,
+        original_amount,
+        interest_rate,
+        client_id,
+        clients (
+            id,
+            name,
+            cpf,
+            phone
+        )
+    `)
+    .in('id', loanIds)
+```
+
+**3. Combinar os dados:**
+Os dados são combinados em JavaScript criando um mapa de empréstimos por ID, garantindo performance e compatibilidade com todas as configurações do Supabase.
 
 ### Formatação de Valores
 - Todos os valores monetários são formatados com 2 casas decimais
@@ -158,8 +182,44 @@ ORDER BY payments.payment_date DESC;
 
 - A aba só exibe multas que já foram registradas em pagamentos
 - É necessário que o campo `fine_amount` exista na tabela `payments`
-- O sistema mantém compatibilidade com pagamentos sem multa (fine_amount = 0)
+- O sistema mantém compatibilidade com pagamentos sem multa (fine_amount = 0 ou NULL)
 - Não afeta funcionalidades existentes do sistema
+- **Atualização automática:** A aba é recarregada automaticamente quando uma nova multa é registrada (se estiver aberta)
+- **Mensagem de confirmação:** Ao aplicar uma multa, o sistema exibe uma confirmação visual no alerta de sucesso
+
+## Solução de Problemas
+
+### Multas não aparecem na aba
+
+**Possíveis causas e soluções:**
+
+1. **Cache do navegador:**
+   - Pressione F12 para abrir DevTools
+   - Vá até a aba Console
+   - Recarregue a página com Ctrl+Shift+R (hard refresh)
+   - Verifique se há erros no console
+
+2. **Verificar se a multa foi salva:**
+   - Abra o Console (F12)
+   - Digite: `await supabase.from('payments').select('*').gt('fine_amount', 0)`
+   - Verifique se aparecem registros
+
+3. **Permissões do banco de dados:**
+   - Verifique se o usuário tem permissão de leitura na tabela `payments`
+   - Verifique RLS (Row Level Security) no Supabase
+
+4. **Reload manual:**
+   - Saia da aba Multas e entre novamente
+   - Isso força um reload completo dos dados
+
+5. **Verificar logs:**
+   - Abra o Console (F12)
+   - Acesse a aba Multas
+   - Verifique os logs:
+     - "Carregando multas..."
+     - "Pagamentos com multa encontrados: X"
+     - "Empréstimos relacionados: [ids]"
+     - "Dados de multas processados: X"
 
 ## Suporte
 

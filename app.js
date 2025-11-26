@@ -2812,10 +2812,24 @@ async function handlePayment(e) {
             await loadPaymentHistory(loanId);
         }
         
+        // Se incluiu multa e a aba de multas está ativa, recarregar
+        if (fineAmount > 0) {
+            const finesSection = document.getElementById('fines');
+            if (finesSection && !finesSection.classList.contains('hidden')) {
+                console.log('Recarregando aba de multas após registro de pagamento com multa');
+                await loadFines();
+            }
+        }
+        
         // Mostrar mensagem de sucesso com informações sobre a operação
         let successMessage = paymentId 
             ? `Pagamento de R$ ${paymentAmount.toFixed(2)} editado com sucesso!`
             : `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
+        
+        // Adicionar informação sobre multa se houver
+        if (fineAmount > 0) {
+            successMessage += `\n\n⚠️ MULTA APLICADA: R$ ${fineAmount.toFixed(2)}`;
+        }
         
         // Adicionar informação sobre alteração de data de vencimento
         if (changeDueDate && newDueDate) {
@@ -10589,34 +10603,73 @@ async function createDefaultCategories() {
 // Carregar multas
 async function loadFines() {
     try {
-        // Query payments with fine_amount > 0, joining with loans and clients
-        const { data, error } = await supabase
+        console.log('Carregando multas...');
+        
+        // Query payments with fine_amount > 0
+        const { data: paymentsData, error: paymentsError } = await supabase
             .from('payments')
-            .select(`
-                id,
-                payment_date,
-                amount,
-                fine_amount,
-                loan_id,
-                loans!inner (
-                    id,
-                    original_amount,
-                    interest_rate,
-                    client_id,
-                    clients!inner (
-                        id,
-                        name,
-                        cpf,
-                        phone
-                    )
-                )
-            `)
+            .select('*')
             .gt('fine_amount', 0)
             .order('payment_date', { ascending: false });
         
-        if (error) throw error;
+        if (paymentsError) {
+            console.error('Erro ao buscar pagamentos:', paymentsError);
+            throw paymentsError;
+        }
         
-        const finesData = data || [];
+        console.log('Pagamentos com multa encontrados:', paymentsData?.length || 0);
+        
+        if (!paymentsData || paymentsData.length === 0) {
+            console.log('Nenhuma multa encontrada');
+            renderFinesTable([]);
+            updateFinesSummary([]);
+            return;
+        }
+        
+        // Get all loan IDs
+        const loanIds = [...new Set(paymentsData.map(p => p.loan_id))];
+        console.log('Empréstimos relacionados:', loanIds);
+        
+        // Query loans with clients
+        const { data: loansData, error: loansError } = await supabase
+            .from('loans')
+            .select(`
+                id,
+                original_amount,
+                interest_rate,
+                client_id,
+                clients (
+                    id,
+                    name,
+                    cpf,
+                    phone
+                )
+            `)
+            .in('id', loanIds);
+        
+        if (loansError) {
+            console.error('Erro ao buscar empréstimos:', loansError);
+            throw loansError;
+        }
+        
+        console.log('Empréstimos carregados:', loansData?.length || 0);
+        
+        // Create a map of loans by ID for quick lookup
+        const loansMap = {};
+        (loansData || []).forEach(loan => {
+            loansMap[loan.id] = loan;
+        });
+        
+        // Combine payments with loan and client data
+        const finesData = paymentsData.map(payment => {
+            const loan = loansMap[payment.loan_id];
+            return {
+                ...payment,
+                loans: loan || null
+            };
+        });
+        
+        console.log('Dados de multas processados:', finesData.length);
         
         // Render the fines table
         renderFinesTable(finesData);
