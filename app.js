@@ -977,6 +977,11 @@ function handleNavigation(e) {
                 initializeCommissionsSection();
             }
             
+            // Carregar dados das multas quando a seção for exibida
+            if (target === 'fines') {
+                console.log('Seção de multas ativada, carregando dados...');
+                loadFines();
+            }
 
         }
     });
@@ -2807,10 +2812,24 @@ async function handlePayment(e) {
             await loadPaymentHistory(loanId);
         }
         
+        // Se incluiu multa e a aba de multas está ativa, recarregar
+        if (fineAmount > 0) {
+            const finesSection = document.getElementById('fines');
+            if (finesSection && !finesSection.classList.contains('hidden')) {
+                console.log('Recarregando aba de multas após registro de pagamento com multa');
+                await loadFines();
+            }
+        }
+        
         // Mostrar mensagem de sucesso com informações sobre a operação
         let successMessage = paymentId 
             ? `Pagamento de R$ ${paymentAmount.toFixed(2)} editado com sucesso!`
             : `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
+        
+        // Adicionar informação sobre multa se houver
+        if (fineAmount > 0) {
+            successMessage += `\n\n⚠️ MULTA APLICADA: R$ ${fineAmount.toFixed(2)}`;
+        }
         
         // Adicionar informação sobre alteração de data de vencimento
         if (changeDueDate && newDueDate) {
@@ -10574,6 +10593,174 @@ async function createDefaultCategories() {
     } catch (error) {
         console.error('❌ Erro ao criar categorias padrão:', error);
         return false;
+    }
+}
+
+// ===================================================
+// FUNÇÕES DE MULTAS (Fines)
+// ===================================================
+
+// Carregar multas
+async function loadFines() {
+    try {
+        console.log('Carregando multas...');
+        
+        // Query payments with fine_amount > 0
+        const { data: paymentsData, error: paymentsError } = await supabase
+            .from('payments')
+            .select('*')
+            .gt('fine_amount', 0)
+            .order('payment_date', { ascending: false });
+        
+        if (paymentsError) {
+            console.error('Erro ao buscar pagamentos:', paymentsError);
+            throw paymentsError;
+        }
+        
+        console.log('Pagamentos com multa encontrados:', paymentsData?.length || 0);
+        
+        if (!paymentsData || paymentsData.length === 0) {
+            console.log('Nenhuma multa encontrada');
+            renderFinesTable([]);
+            updateFinesSummary([]);
+            return;
+        }
+        
+        // Get all loan IDs
+        const loanIds = [...new Set(paymentsData.map(p => p.loan_id))];
+        console.log('Empréstimos relacionados:', loanIds);
+        
+        // Query loans with clients
+        const { data: loansData, error: loansError } = await supabase
+            .from('loans')
+            .select(`
+                id,
+                original_amount,
+                interest_rate,
+                client_id,
+                clients (
+                    id,
+                    name,
+                    cpf,
+                    phone
+                )
+            `)
+            .in('id', loanIds);
+        
+        if (loansError) {
+            console.error('Erro ao buscar empréstimos:', loansError);
+            throw loansError;
+        }
+        
+        console.log('Empréstimos carregados:', loansData?.length || 0);
+        
+        // Create a map of loans by ID for quick lookup
+        const loansMap = {};
+        (loansData || []).forEach(loan => {
+            loansMap[loan.id] = loan;
+        });
+        
+        // Combine payments with loan and client data
+        const finesData = paymentsData.map(payment => {
+            const loan = loansMap[payment.loan_id];
+            return {
+                ...payment,
+                loans: loan || null
+            };
+        });
+        
+        console.log('Dados de multas processados:', finesData.length);
+        
+        // Render the fines table
+        renderFinesTable(finesData);
+        
+        // Update summary cards
+        updateFinesSummary(finesData);
+        
+    } catch (error) {
+        console.error('Erro ao carregar multas:', error);
+        showInfoMessage('Erro ao carregar multas: ' + error.message);
+    }
+}
+
+// Renderizar tabela de multas
+function renderFinesTable(finesData) {
+    const tbody = document.getElementById('finesTableBody');
+    
+    if (!finesData || finesData.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
+                    <div class="flex flex-col items-center">
+                        <svg class="w-12 h-12 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-1.964-1.333-2.732 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">Nenhuma multa encontrada</p>
+                        <p class="text-sm">As multas aplicadas em pagamentos serão exibidas aqui</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = finesData.map(fine => {
+        const client = fine.loans?.clients;
+        const loan = fine.loans;
+        const totalPaid = parseFloat(fine.amount) + parseFloat(fine.fine_amount);
+        
+        return `
+            <tr class="table-row">
+                <td class="px-6 py-4">
+                    <span class="text-gray-300">${formatDate(fine.payment_date)}</span>
+                </td>
+                <td class="px-6 py-4">
+                    <div>
+                        <p class="text-white font-medium">${client?.name || 'N/A'}</p>
+                        <p class="text-gray-400 text-sm">${client?.cpf || ''}</p>
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    <div>
+                        <p class="text-white">R$ ${parseFloat(loan?.original_amount || 0).toFixed(2).replace('.', ',')}</p>
+                        <p class="text-gray-400 text-sm">${loan?.interest_rate || 0}% juros</p>
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="text-red-400 font-semibold">R$ ${parseFloat(fine.fine_amount).toFixed(2).replace('.', ',')}</span>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="text-gray-300">R$ ${parseFloat(fine.amount).toFixed(2).replace('.', ',')}</span>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="text-white font-semibold">R$ ${totalPaid.toFixed(2).replace('.', ',')}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Atualizar resumo de multas
+function updateFinesSummary(finesData) {
+    const totalFinesCount = finesData.length;
+    const totalFinesAmount = finesData.reduce((sum, fine) => sum + parseFloat(fine.fine_amount || 0), 0);
+    const averageFineAmount = totalFinesCount > 0 ? totalFinesAmount / totalFinesCount : 0;
+    
+    // Update summary cards
+    const totalFinesCountEl = document.getElementById('totalFinesCount');
+    const totalFinesAmountEl = document.getElementById('totalFinesAmount');
+    const averageFineAmountEl = document.getElementById('averageFineAmount');
+    
+    if (totalFinesCountEl) {
+        totalFinesCountEl.textContent = totalFinesCount;
+    }
+    
+    if (totalFinesAmountEl) {
+        totalFinesAmountEl.textContent = `R$ ${totalFinesAmount.toFixed(2).replace('.', ',')}`;
+    }
+    
+    if (averageFineAmountEl) {
+        averageFineAmountEl.textContent = `R$ ${averageFineAmount.toFixed(2).replace('.', ',')}`;
     }
 }
 
