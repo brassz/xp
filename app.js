@@ -977,6 +977,11 @@ function handleNavigation(e) {
                 initializeCommissionsSection();
             }
             
+            // Carregar dados das multas quando a seção for exibida
+            if (target === 'fines') {
+                console.log('Seção de multas ativada, carregando dados...');
+                loadFines();
+            }
 
         }
     });
@@ -10574,6 +10579,135 @@ async function createDefaultCategories() {
     } catch (error) {
         console.error('❌ Erro ao criar categorias padrão:', error);
         return false;
+    }
+}
+
+// ===================================================
+// FUNÇÕES DE MULTAS (Fines)
+// ===================================================
+
+// Carregar multas
+async function loadFines() {
+    try {
+        // Query payments with fine_amount > 0, joining with loans and clients
+        const { data, error } = await supabase
+            .from('payments')
+            .select(`
+                id,
+                payment_date,
+                amount,
+                fine_amount,
+                loan_id,
+                loans!inner (
+                    id,
+                    original_amount,
+                    interest_rate,
+                    client_id,
+                    clients!inner (
+                        id,
+                        name,
+                        cpf,
+                        phone
+                    )
+                )
+            `)
+            .gt('fine_amount', 0)
+            .order('payment_date', { ascending: false });
+        
+        if (error) throw error;
+        
+        const finesData = data || [];
+        
+        // Render the fines table
+        renderFinesTable(finesData);
+        
+        // Update summary cards
+        updateFinesSummary(finesData);
+        
+    } catch (error) {
+        console.error('Erro ao carregar multas:', error);
+        showInfoMessage('Erro ao carregar multas: ' + error.message);
+    }
+}
+
+// Renderizar tabela de multas
+function renderFinesTable(finesData) {
+    const tbody = document.getElementById('finesTableBody');
+    
+    if (!finesData || finesData.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
+                    <div class="flex flex-col items-center">
+                        <svg class="w-12 h-12 text-gray-600 mb-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-1.964-1.333-2.732 0L3.34 16c-.77 1.333.192 3 1.732 3z"></path>
+                        </svg>
+                        <p class="text-lg font-medium">Nenhuma multa encontrada</p>
+                        <p class="text-sm">As multas aplicadas em pagamentos serão exibidas aqui</p>
+                    </div>
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    tbody.innerHTML = finesData.map(fine => {
+        const client = fine.loans?.clients;
+        const loan = fine.loans;
+        const totalPaid = parseFloat(fine.amount) + parseFloat(fine.fine_amount);
+        
+        return `
+            <tr class="table-row">
+                <td class="px-6 py-4">
+                    <span class="text-gray-300">${formatDate(fine.payment_date)}</span>
+                </td>
+                <td class="px-6 py-4">
+                    <div>
+                        <p class="text-white font-medium">${client?.name || 'N/A'}</p>
+                        <p class="text-gray-400 text-sm">${client?.cpf || ''}</p>
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    <div>
+                        <p class="text-white">R$ ${parseFloat(loan?.original_amount || 0).toFixed(2).replace('.', ',')}</p>
+                        <p class="text-gray-400 text-sm">${loan?.interest_rate || 0}% juros</p>
+                    </div>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="text-red-400 font-semibold">R$ ${parseFloat(fine.fine_amount).toFixed(2).replace('.', ',')}</span>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="text-gray-300">R$ ${parseFloat(fine.amount).toFixed(2).replace('.', ',')}</span>
+                </td>
+                <td class="px-6 py-4">
+                    <span class="text-white font-semibold">R$ ${totalPaid.toFixed(2).replace('.', ',')}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+}
+
+// Atualizar resumo de multas
+function updateFinesSummary(finesData) {
+    const totalFinesCount = finesData.length;
+    const totalFinesAmount = finesData.reduce((sum, fine) => sum + parseFloat(fine.fine_amount || 0), 0);
+    const averageFineAmount = totalFinesCount > 0 ? totalFinesAmount / totalFinesCount : 0;
+    
+    // Update summary cards
+    const totalFinesCountEl = document.getElementById('totalFinesCount');
+    const totalFinesAmountEl = document.getElementById('totalFinesAmount');
+    const averageFineAmountEl = document.getElementById('averageFineAmount');
+    
+    if (totalFinesCountEl) {
+        totalFinesCountEl.textContent = totalFinesCount;
+    }
+    
+    if (totalFinesAmountEl) {
+        totalFinesAmountEl.textContent = `R$ ${totalFinesAmount.toFixed(2).replace('.', ',')}`;
+    }
+    
+    if (averageFineAmountEl) {
+        averageFineAmountEl.textContent = `R$ ${averageFineAmount.toFixed(2).replace('.', ',')}`;
     }
 }
 
