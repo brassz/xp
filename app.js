@@ -35,7 +35,7 @@ function getEnvVar(name, fallback = '') {
 // Configurações das empresas usando variáveis de ambiente
 const COMPANIES_CONFIG = {
     nexus: {
-        name: 'Franca Cred',
+        name: 'FRANCA CRED',
         supabase: {
             url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA1'),
             key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA1')
