@@ -2729,57 +2729,40 @@ async function handlePayment(e) {
                     // Empréstimo quitado completamente
                     updateData.status = 'paid';
                 } else {
-                    // Empréstimo parcialmente pago - reativar com nova data de vencimento
+                    // Empréstimo parcialmente pago - reativar SEM alterar data de vencimento original
                     updateData.status = 'active';
                     
-                    // PRIORIZAR alteração manual da data de vencimento
+                    // Alterar data de vencimento APENAS se o usuário solicitou explicitamente
                     if (changeDueDate && newDueDate) {
                         // Usuário escolheu alterar a data manualmente - usar a data fornecida
                         updateData.due_date = newDueDate;
-                    } else {
-                        // Calcular nova data de vencimento automaticamente: 30 dias a partir da data do pagamento
-                        const paymentDateObj = new Date(paymentDate);
-                        const newDueDateObj = new Date(paymentDateObj);
-                        newDueDateObj.setDate(newDueDateObj.getDate() + 30);
                         
-                        // Formatar a nova data no formato YYYY-MM-DD
-                        const newDueDateFormatted = newDueDateObj.toISOString().split('T')[0];
-                        updateData.due_date = newDueDateFormatted;
+                        // Registrar nota sobre a reativação do empréstimo com nova data
+                        const reactivationNote = `EMPRÉSTIMO REATIVADO: Status alterado de 'vencido' para 'ativo'. Nova data de vencimento: ${updateData.due_date} (definida manualmente pelo usuário). Valor restante: R$ ${remainingAmountAfterPayment.toFixed(2)}`;
+                        
+                        const { error: reactivationNoteError } = await supabase
+                            .from('payments')
+                            .insert([{
+                                loan_id: loanId,
+                                amount: 0,
+                                payment_date: paymentDate,
+                                payment_type: 'loan_reactivation',
+                                notes: reactivationNote,
+                                created_by: currentUser.id,
+                                created_at: new Date().toISOString()
+                            }]);
+                        
+                        if (reactivationNoteError) console.warn('Erro ao registrar nota de reativação:', reactivationNoteError);
                     }
-                    
-                    // Registrar nota sobre a reativação do empréstimo
-                    const reactivationNote = `EMPRÉSTIMO REATIVADO: Status alterado de 'vencido' para 'ativo'. Nova data de vencimento: ${updateData.due_date} ${changeDueDate && newDueDate ? '(definida manualmente)' : `(30 dias a partir do pagamento de ${paymentDate})`}. Valor restante: R$ ${remainingAmountAfterPayment.toFixed(2)}`;
-                    
-                    const { error: reactivationNoteError } = await supabase
-                        .from('payments')
-                        .insert([{
-                            loan_id: loanId,
-                            amount: 0,
-                            payment_date: paymentDate,
-                            payment_type: 'loan_reactivation',
-                            notes: reactivationNote,
-                            created_by: currentUser.id,
-                            created_at: new Date().toISOString()
-                        }]);
-                    
-                    if (reactivationNoteError) console.warn('Erro ao registrar nota de reativação:', reactivationNoteError);
+                    // NÃO alterar automaticamente a data de vencimento - manter a data original
                 }
             } else {
-                // Se o empréstimo NÃO está vencido, atualizar data de vencimento
-                // PRIORIZAR alteração manual da data de vencimento
+                // Se o empréstimo NÃO está vencido, alterar data de vencimento APENAS se o usuário solicitou
                 if (changeDueDate && newDueDate) {
                     // Usuário escolheu alterar a data manualmente - usar a data fornecida
                     updateData.due_date = newDueDate;
-                } else {
-                    // Calcular nova data de vencimento automaticamente: 30 dias a partir da data do pagamento
-                    const paymentDateObj = new Date(paymentDate);
-                    const newDueDateObj = new Date(paymentDateObj);
-                    newDueDateObj.setDate(newDueDateObj.getDate() + 30);
-                    
-                    // Formatar a nova data no formato YYYY-MM-DD
-                    const newDueDateFormatted = newDueDateObj.toISOString().split('T')[0];
-                    updateData.due_date = newDueDateFormatted;
                 }
+                // NÃO alterar automaticamente a data de vencimento em pagamentos normais
             }
             
             const { error: loanError } = await supabase
@@ -2812,12 +2795,9 @@ async function handlePayment(e) {
             ? `Pagamento de R$ ${paymentAmount.toFixed(2)} editado com sucesso!`
             : `Pagamento de R$ ${paymentAmount.toFixed(2)} registrado com sucesso!`;
         
-        // Adicionar informação sobre alteração de data de vencimento
+        // Adicionar informação sobre alteração de data de vencimento (APENAS se o usuário alterou manualmente)
         if (changeDueDate && newDueDate) {
             successMessage += `\n\n📅 DATA DE VENCIMENTO ALTERADA!\n• Nova data: ${formatDate(newDueDate)}`;
-        } else if (updateData && updateData.due_date && !recalcInfo.shouldRecalculate) {
-            // Informar sobre atualização automática da data de vencimento
-            successMessage += `\n\n📅 DATA DE VENCIMENTO ATUALIZADA!\n• Nova data: ${formatDate(updateData.due_date)}\n• (+30 dias a partir do pagamento)`;
         }
         
         if (recalcInfo.shouldRecalculate) {
