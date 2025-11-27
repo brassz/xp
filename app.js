@@ -5644,28 +5644,23 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
         const formattedDueDate = formatDate(loan.due_date);
 
         // Montar mensagem do WhatsApp com informações da chave PIX
-        const message = `🏦 COBRANÇA - ${bankName}
+        const message = `📢 COBRANÇA – Grupo Creditas
+📅 Venc.: ${formattedDueDate}
 
-📅 VENCIMENTO: ${formattedDueDate}
+Cliente: ${client.name}
+Capital: R$ ${principalAmount.toFixed(2).replace('.', ',')}
+Juros: R$ ${interestAmount.toFixed(2).replace('.', ',')}
+Multa: R$ ${currentFine.toFixed(2).replace('.', ',')}
+Restante: R$ ${remainingAmount.toFixed(2).replace('.', ',')}
 
-👤 CLIENTE: ${client.name}
-💰 Capital: R$ ${principalAmount.toFixed(2)}
-📈 Juros: R$ ${interestAmount.toFixed(2)}
-⚠️ Multa atual: R$ ${currentFine.toFixed(2)}
-💳 Valor restante: R$ ${remainingAmount.toFixed(2)}
+PIX p/ pagamento:
+Banco: ${bankName}
+Titular: ${accountHolder}
+Chave: ${pixKey}
 
-💸 DADOS PARA PAGAMENTO PIX:
-🏦 Banco: ${bankName}
-👤 Titular: ${accountHolder}
-🔑 Chave PIX: ${pixKey}
-
-⚠️ ATENÇÃO!
-O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
-Após o vencimento, será aplicada uma multa diária de R$ 50,00.
-
-*FAVOR AO REALIZAR O PAGAMENTO EM OUTRA TITULARIDADE, MANDAR O COMPROVANTE, CASO CONTRÁRIO NÃO SERÁ DADO BAIXA NA PARCELA!!!*
-
-📱 Envie o comprovante após o pagamento.`;
+⚠ Pagamento até o vencimento.
+Multa diária R$ 50 após a data.
+Enviar comprovante (obrigatório se pago em outra titularidade).`;
 
         // Limpar o número de telefone (remover caracteres especiais)
         const cleanPhone = client.phone.replace(/\D/g, '');
@@ -6101,32 +6096,28 @@ async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId,
         const isOverdue = today > paymentDueDate;
         const daysOverdue = isOverdue ? Math.floor((today - paymentDueDate) / (1000 * 60 * 60 * 24)) : 0;
 
-        // Montar mensagem do WhatsApp com informações da chave PIX
-        let message = `🏦 COBRANÇA PARCELAMENTO - ${bankName}
-
-📋 CLIENTE: ${client.name}
-💰 Valor da Parcela: R$ ${installmentAmount.toFixed(2)}
-📅 Vencimento: ${nextDueDate}
-📊 Parcelas Restantes: ${remainingInstallments} de ${installment.total_installments}
-💵 Valor Total Restante: R$ ${totalRemaining.toFixed(2)}
-
-💸 DADOS PARA PAGAMENTO PIX:
-🏦 Banco: ${bankName}
-👤 Titular: ${accountHolder}
-🔑 Chave PIX: ${pixKey}`;
-
-        if (isOverdue) {
-            message += `\n\n⚠️ ATENÇÃO - PARCELA VENCIDA
-🚨 Venceu há ${daysOverdue} dia${daysOverdue > 1 ? 's' : ''}
-📞 Entre em contato conosco para regularizar sua situação`;
-        } else {
-            message += `\n\n✅ Parcela ainda dentro do prazo
-📞 Entre em contato para efetuar o pagamento`;
-        }
-
-        message += `\n\n*FAVOR AO REALIZAR O PAGAMENTO EM OUTRA TITULARIDADE, MANDAR O COMPROVANTE, CASO CONTRÁRIO NÃO SERÁ DADO BAIXA NA PARCELA!!!*`;
+        // Calcular multa se estiver vencida
+        const dailyFine = 50.00;
+        const currentFine = daysOverdue > 0 ? daysOverdue * dailyFine : 0;
         
-        message += `\n\n📱 Envie o comprovante após o pagamento.`;
+        // Montar mensagem do WhatsApp com informações da chave PIX
+        const message = `📢 COBRANÇA – Grupo Creditas
+📅 Venc.: ${nextDueDate}
+
+Cliente: ${client.name}
+Valor da Parcela: R$ ${installmentAmount.toFixed(2).replace('.', ',')}
+Parcelas Restantes: ${remainingInstallments} de ${installment.total_installments}
+Multa: R$ ${currentFine.toFixed(2).replace('.', ',')}
+Restante: R$ ${totalRemaining.toFixed(2).replace('.', ',')}
+
+PIX p/ pagamento:
+Banco: ${bankName}
+Titular: ${accountHolder}
+Chave: ${pixKey}
+
+⚠ Pagamento até o vencimento.
+Multa diária R$ 50 após a data.
+Enviar comprovante (obrigatório se pago em outra titularidade).`;
 
         // Limpar o número de telefone (remover caracteres especiais)
         const cleanPhone = client.phone.replace(/\D/g, '');
