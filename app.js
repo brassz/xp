@@ -7653,7 +7653,7 @@ Seu ${productType} foi *QUITADO COMPLETAMENTE*! ${paymentDetails}
 
 Muito obrigado pela parceria e pontualidade! 🤝
 
-_Equipe Nexus Financeira_`;
+_Equipe Grupo Creditas_`;
     },
 
     renovacao: (data) => {
@@ -7683,7 +7683,7 @@ Agradecemos pela confiança e pontualidade. Estamos sempre à disposição para 
 
 Tenha um ótimo dia! 😊
 
-_Equipe Nexus Financeira_`;
+_Equipe Grupo Creditas_`;
     },
 
     lembrete: (data) => {
@@ -7720,7 +7720,7 @@ Agradecemos pela confiança. Para dúvidas ou negociações, estamos sempre disp
 
 Conte conosco! 🤝
 
-_Equipe Nexus Financeira_`;
+_Equipe Grupo Creditas_`;
     }
 };
 
