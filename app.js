@@ -5644,22 +5644,17 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
         const formattedDueDate = formatDate(loan.due_date);
 
         // Montar mensagem do WhatsApp com informações da chave PIX
-        const message = `📢 COBRANÇA – Grupo Creditas
-📅 Venc.: ${formattedDueDate}
+        const message = `📢 *COBRANÇA – Grupo Creditas*
+📅 *Venc.: ${formattedDueDate}*
 
-Cliente: ${client.name}
-Capital: R$ ${principalAmount.toFixed(2).replace('.', ',')}
-Juros: R$ ${interestAmount.toFixed(2).replace('.', ',')}
-Multa: R$ ${currentFine.toFixed(2).replace('.', ',')}
-Restante: R$ ${remainingAmount.toFixed(2).replace('.', ',')}
+Cliente: ${client.name}  
+Valor: R$ ${remainingAmount.toFixed(2).replace('.', ',')} (Cap.: ${principalAmount.toFixed(2).replace('.', ',')} • Juros: ${interestAmount.toFixed(2).replace('.', ',')} • Multa: ${currentFine.toFixed(2).replace('.', ',')})
 
-PIX p/ pagamento:
-Banco: ${bankName}
-Titular: ${accountHolder}
+💸 *PIX – ${bankName}*  
+Titular: ${accountHolder}  
 Chave: ${pixKey}
 
-⚠ Pagamento até o vencimento.
-Multa diária R$ 50 após a data.
+⚠ Após vencimento: multa diária R$ 50.  
 Enviar comprovante (obrigatório se pago em outra titularidade).`;
 
         // Limpar o número de telefone (remover caracteres especiais)
@@ -6101,22 +6096,18 @@ async function sendInstallmentWhatsAppMessageWithPixKey(installmentId, pixKeyId,
         const currentFine = daysOverdue > 0 ? daysOverdue * dailyFine : 0;
         
         // Montar mensagem do WhatsApp com informações da chave PIX
-        const message = `📢 COBRANÇA – Grupo Creditas
-📅 Venc.: ${nextDueDate}
+        const message = `📢 *COBRANÇA – Grupo Creditas*
+📅 *Venc.: ${nextDueDate}*
 
-Cliente: ${client.name}
-Valor da Parcela: R$ ${installmentAmount.toFixed(2).replace('.', ',')}
-Parcelas Restantes: ${remainingInstallments} de ${installment.total_installments}
-Multa: R$ ${currentFine.toFixed(2).replace('.', ',')}
-Restante: R$ ${totalRemaining.toFixed(2).replace('.', ',')}
+Cliente: ${client.name}  
+Valor: R$ ${installmentAmount.toFixed(2).replace('.', ',')} (Parcela ${installment.total_installments - remainingInstallments + 1}/${installment.total_installments} • Multa: ${currentFine.toFixed(2).replace('.', ',')})
+Total Restante: R$ ${totalRemaining.toFixed(2).replace('.', ',')}
 
-PIX p/ pagamento:
-Banco: ${bankName}
-Titular: ${accountHolder}
+💸 *PIX – ${bankName}*  
+Titular: ${accountHolder}  
 Chave: ${pixKey}
 
-⚠ Pagamento até o vencimento.
-Multa diária R$ 50 após a data.
+⚠ Após vencimento: multa diária R$ 50.  
 Enviar comprovante (obrigatório se pago em outra titularidade).`;
 
         // Limpar o número de telefone (remover caracteres especiais)
