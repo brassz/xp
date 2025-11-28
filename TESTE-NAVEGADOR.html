@@ -1,0 +1,415 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>🔥 TESTE FINAL - Salvar Multa</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: monospace;
+            background: #000;
+            color: #0f0;
+            padding: 20px;
+            line-height: 1.6;
+        }
+        .container { max-width: 1200px; margin: 0 auto; }
+        h1 { color: #f00; font-size: 32px; margin-bottom: 20px; }
+        .box {
+            background: #111;
+            border: 2px solid #0f0;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            font-size: 18px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px;
+        }
+        button:hover { background: #0ff; }
+        input {
+            background: #000;
+            color: #0f0;
+            border: 2px solid #0f0;
+            padding: 10px;
+            width: 100%;
+            font-family: monospace;
+            font-size: 16px;
+        }
+        .success { color: #0f0; }
+        .error { color: #f00; }
+        .warning { color: #ff0; }
+        pre {
+            background: #000;
+            border: 1px solid #0f0;
+            padding: 15px;
+            overflow-x: auto;
+            white-space: pre-wrap;
+        }
+        label {
+            display: block;
+            margin: 10px 0 5px 0;
+            color: #0ff;
+        }
+        h2 {
+            color: #0ff;
+            font-size: 24px;
+            margin: 20px 0 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔥 TESTE FINAL - DESCOBRIR POR QUE NÃO SALVA</h1>
+
+        <div class="box">
+            <h2>CONFIGURAÇÃO</h2>
+            <label>Supabase URL:</label>
+            <input type="text" id="url" value="https://mhtxyxizfnxupwmilith.supabase.co">
+            
+            <label>Anon Key:</label>
+            <input type="text" id="key" placeholder="Cole sua chave aqui">
+            
+            <label>Loan ID (de um empréstimo existente):</label>
+            <input type="text" id="loanId" placeholder="ID do empréstimo">
+            
+            <button onclick="iniciar()">🔌 INICIAR TESTE</button>
+            <div id="status"></div>
+        </div>
+
+        <div class="box">
+            <h2>PASSO 1: Verificar Coluna</h2>
+            <button onclick="passo1()">▶️ EXECUTAR</button>
+            <div id="passo1"></div>
+        </div>
+
+        <div class="box">
+            <h2>PASSO 2: Verificar RLS</h2>
+            <button onclick="passo2()">▶️ EXECUTAR</button>
+            <div id="passo2"></div>
+        </div>
+
+        <div class="box">
+            <h2>PASSO 3: Inserir SEM fine_amount</h2>
+            <button onclick="passo3()">▶️ EXECUTAR</button>
+            <div id="passo3"></div>
+        </div>
+
+        <div class="box">
+            <h2>PASSO 4: Inserir COM fine_amount</h2>
+            <button onclick="passo4()">▶️ EXECUTAR</button>
+            <div id="passo4"></div>
+        </div>
+
+        <div class="box">
+            <h2>PASSO 5: Update de pagamento existente</h2>
+            <label>Payment ID (do passo 3):</label>
+            <input type="text" id="paymentId" placeholder="Será preenchido automaticamente">
+            <button onclick="passo5()">▶️ EXECUTAR</button>
+            <div id="passo5"></div>
+        </div>
+
+        <div class="box">
+            <h2>PASSO 6: Verificar o que foi salvo</h2>
+            <button onclick="passo6()">▶️ EXECUTAR</button>
+            <div id="passo6"></div>
+        </div>
+
+        <div class="box">
+            <h2>📊 RESUMO FINAL</h2>
+            <button onclick="resumo()">📋 VER RESUMO</button>
+            <div id="resumo"></div>
+        </div>
+    </div>
+
+    <script>
+        let supabase = null;
+        let testResults = {};
+
+        function iniciar() {
+            const url = document.getElementById('url').value;
+            const key = document.getElementById('key').value;
+
+            if (!key) {
+                alert('❌ Cole sua Anon Key!');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                document.getElementById('status').innerHTML = '<p class="success">✅ CONECTADO!</p>';
+                console.log('✅ Supabase conectado');
+            } catch (e) {
+                document.getElementById('status').innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+
+        async function passo1() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            const div = document.getElementById('passo1');
+            div.innerHTML = '<p>⏳ Verificando...</p>';
+
+            try {
+                const { data, error } = await supabase
+                    .from('payments')
+                    .select('*')
+                    .limit(1);
+
+                if (error) throw error;
+
+                const colunas = Object.keys(data[0] || {});
+                const temFine = colunas.includes('fine_amount');
+
+                testResults.coluna_existe = temFine;
+
+                let html = '<h3>Colunas da tabela:</h3><pre>';
+                html += colunas.join('\n');
+                html += '</pre>';
+
+                if (temFine) {
+                    html += '<p class="success">✅ Coluna fine_amount EXISTE!</p>';
+                } else {
+                    html += '<p class="error">❌ Coluna fine_amount NÃO EXISTE!</p>';
+                    html += '<p class="error">🚨 PARE AQUI! A coluna não foi criada!</p>';
+                }
+
+                div.innerHTML = html;
+            } catch (e) {
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+
+        async function passo2() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            const div = document.getElementById('passo2');
+            div.innerHTML = '<p>⏳ Verificando RLS...</p>';
+
+            div.innerHTML = '<p class="warning">⚠️ Não é possível verificar RLS via JavaScript</p><p>Execute o SQL: SELECT rowsecurity FROM pg_tables WHERE tablename = \'payments\';</p>';
+        }
+
+        async function passo3() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            const loanId = document.getElementById('loanId').value;
+            if (!loanId) { alert('Digite o Loan ID!'); return; }
+
+            const div = document.getElementById('passo3');
+            div.innerHTML = '<p>⏳ Inserindo SEM fine_amount...</p>';
+
+            try {
+                const { data, error } = await supabase
+                    .from('payments')
+                    .insert([{
+                        loan_id: loanId,
+                        amount: 100.00,
+                        payment_date: new Date().toISOString().split('T')[0],
+                        payment_type: 'dinheiro',
+                        notes: 'TESTE 3 - SEM multa'
+                    }])
+                    .select();
+
+                if (error) throw error;
+
+                testResults.insert_sem_fine = { sucesso: true, data: data[0] };
+                document.getElementById('paymentId').value = data[0].id;
+
+                div.innerHTML = '<p class="success">✅ INSERT funcionou!</p><pre>' + JSON.stringify(data[0], null, 2) + '</pre>';
+            } catch (e) {
+                testResults.insert_sem_fine = { sucesso: false, erro: e.message };
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+
+        async function passo4() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            const loanId = document.getElementById('loanId').value;
+            if (!loanId) { alert('Digite o Loan ID!'); return; }
+
+            const div = document.getElementById('passo4');
+            div.innerHTML = '<p>⏳ Inserindo COM fine_amount = 50.00...</p>';
+
+            try {
+                console.log('🔥 TENTANDO INSERIR COM MULTA 50.00');
+
+                const dados = {
+                    loan_id: loanId,
+                    amount: 200.00,
+                    fine_amount: 50.00,
+                    payment_date: new Date().toISOString().split('T')[0],
+                    payment_type: 'dinheiro',
+                    notes: 'TESTE 4 - COM multa'
+                };
+
+                console.log('📤 Dados enviados:', dados);
+
+                const { data, error } = await supabase
+                    .from('payments')
+                    .insert([dados])
+                    .select();
+
+                console.log('📥 Resposta:', { data, error });
+
+                if (error) throw error;
+
+                const fineSalvo = data[0].fine_amount;
+                testResults.insert_com_fine = {
+                    sucesso: true,
+                    enviado: 50.00,
+                    salvo: fineSalvo,
+                    igual: fineSalvo == 50.00
+                };
+
+                let html = '<p class="success">✅ INSERT funcionou!</p>';
+                html += '<h3>🔥 RESULTADO CRÍTICO:</h3>';
+                html += '<table border="1" style="color:#0f0; border-color:#0f0; width:100%;">';
+                html += '<tr><td>Enviado</td><td>50.00</td></tr>';
+                html += '<tr><td>Salvo</td><td style="font-size:24px; font-weight:bold; color:' + (fineSalvo == 50 ? '#0f0' : '#f00') + ';">' + fineSalvo + '</td></tr>';
+                html += '<tr><td>Status</td><td>' + (fineSalvo == 50 ? '✅ CORRETO' : '❌ ERRADO!') + '</td></tr>';
+                html += '</table>';
+                html += '<pre>' + JSON.stringify(data[0], null, 2) + '</pre>';
+
+                if (fineSalvo != 50) {
+                    html += '<p class="error">🚨🚨 PROBLEMA ENCONTRADO! 🚨🚨</p>';
+                    html += '<p class="error">A multa foi enviada como 50.00 mas foi salva como ' + fineSalvo + '</p>';
+                    html += '<p class="error">Isso significa que há RLS, TRIGGER ou CONSTRAINT bloqueando!</p>';
+                }
+
+                div.innerHTML = html;
+            } catch (e) {
+                testResults.insert_com_fine = { sucesso: false, erro: e.message };
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p><pre>' + JSON.stringify(e, null, 2) + '</pre>';
+            }
+        }
+
+        async function passo5() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            const paymentId = document.getElementById('paymentId').value;
+            if (!paymentId) { alert('Execute o Passo 3 primeiro!'); return; }
+
+            const div = document.getElementById('passo5');
+            div.innerHTML = '<p>⏳ Atualizando pagamento para adicionar multa...</p>';
+
+            try {
+                const { data, error } = await supabase
+                    .from('payments')
+                    .update({ fine_amount: 75.00 })
+                    .eq('id', paymentId)
+                    .select();
+
+                if (error) throw error;
+
+                const fineSalvo = data[0].fine_amount;
+                testResults.update_fine = {
+                    sucesso: true,
+                    enviado: 75.00,
+                    salvo: fineSalvo,
+                    igual: fineSalvo == 75.00
+                };
+
+                let html = '<p class="success">✅ UPDATE funcionou!</p>';
+                html += '<p>Fine enviado: 75.00</p>';
+                html += '<p class="' + (fineSalvo == 75 ? 'success' : 'error') + '">Fine salvo: ' + fineSalvo + '</p>';
+                html += '<pre>' + JSON.stringify(data[0], null, 2) + '</pre>';
+
+                div.innerHTML = html;
+            } catch (e) {
+                testResults.update_fine = { sucesso: false, erro: e.message };
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+
+        async function passo6() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            const div = document.getElementById('passo6');
+            div.innerHTML = '<p>⏳ Buscando últimos pagamentos...</p>';
+
+            try {
+                const { data, error } = await supabase
+                    .from('payments')
+                    .select('id, amount, fine_amount, notes, created_at')
+                    .order('created_at', { ascending: false })
+                    .limit(5);
+
+                if (error) throw error;
+
+                let html = '<h3>Últimos 5 pagamentos:</h3>';
+                html += '<table border="1" style="width:100%; color:#0f0; border-color:#0f0;">';
+                html += '<tr><th>ID</th><th>Valor</th><th>Multa</th><th>Notas</th></tr>';
+
+                data.forEach(p => {
+                    const cor = p.fine_amount > 0 ? '#0f0' : '#666';
+                    html += '<tr>';
+                    html += '<td>' + p.id.substring(0, 8) + '</td>';
+                    html += '<td>R$ ' + p.amount + '</td>';
+                    html += '<td style="color:' + cor + '; font-weight:bold;">R$ ' + (p.fine_amount || 0) + '</td>';
+                    html += '<td>' + (p.notes || '-') + '</td>';
+                    html += '</tr>';
+                });
+
+                html += '</table>';
+                div.innerHTML = html;
+            } catch (e) {
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+
+        function resumo() {
+            const div = document.getElementById('resumo');
+            
+            let html = '<h3>📊 DIAGNÓSTICO COMPLETO</h3>';
+            html += '<pre style="font-size:18px;">';
+            
+            html += '\n1. COLUNA EXISTE? ';
+            html += testResults.coluna_existe ? '✅ SIM' : '❌ NÃO';
+            
+            html += '\n\n2. INSERT SEM FINE? ';
+            html += testResults.insert_sem_fine?.sucesso ? '✅ FUNCIONOU' : '❌ FALHOU';
+            
+            html += '\n\n3. INSERT COM FINE? ';
+            if (testResults.insert_com_fine?.sucesso) {
+                html += '\n   Enviado: ' + testResults.insert_com_fine.enviado;
+                html += '\n   Salvo: ' + testResults.insert_com_fine.salvo;
+                html += '\n   Status: ' + (testResults.insert_com_fine.igual ? '✅ CORRETO' : '❌ ERRADO');
+            } else {
+                html += '❌ FALHOU';
+            }
+            
+            html += '\n\n4. UPDATE FINE? ';
+            if (testResults.update_fine?.sucesso) {
+                html += '\n   Enviado: ' + testResults.update_fine.enviado;
+                html += '\n   Salvo: ' + testResults.update_fine.salvo;
+                html += '\n   Status: ' + (testResults.update_fine.igual ? '✅ CORRETO' : '❌ ERRADO');
+            } else {
+                html += '❌ FALHOU';
+            }
+            
+            html += '\n\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+            html += '\n🎯 CONCLUSÃO:';
+            
+            if (!testResults.coluna_existe) {
+                html += '\n❌ A coluna fine_amount NÃO EXISTE!';
+                html += '\n➡️ Execute: ALTER TABLE payments ADD COLUMN fine_amount DECIMAL(10,2) DEFAULT 0;';
+            } else if (testResults.insert_com_fine?.sucesso && !testResults.insert_com_fine?.igual) {
+                html += '\n❌ A coluna existe mas NÃO SALVA corretamente!';
+                html += '\n➡️ Problema: RLS, TRIGGER ou CONSTRAINT';
+                html += '\n➡️ Execute: ALTER TABLE payments DISABLE ROW LEVEL SECURITY;';
+            } else if (testResults.insert_com_fine?.igual) {
+                html += '\n✅✅✅ TUDO FUNCIONA! ✅✅✅';
+                html += '\n➡️ O banco de dados salva fine_amount corretamente!';
+                html += '\n➡️ O problema deve estar no código do seu sistema!';
+            } else {
+                html += '\n⚠️ Execute todos os testes para diagnóstico completo';
+            }
+            
+            html += '\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━';
+            html += '</pre>';
+            
+            div.innerHTML = html;
+        }
+    </script>
+</body>
+</html>
