@@ -1,0 +1,350 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <title>TESTE DIRETO - Multas</title>
+    <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+    <style>
+        body {
+            font-family: monospace;
+            background: #000;
+            color: #0f0;
+            padding: 20px;
+            max-width: 1400px;
+            margin: 0 auto;
+        }
+        .box {
+            background: #111;
+            border: 2px solid #0f0;
+            padding: 20px;
+            margin: 20px 0;
+        }
+        button {
+            background: #0f0;
+            color: #000;
+            border: none;
+            padding: 15px 30px;
+            font-size: 16px;
+            font-weight: bold;
+            cursor: pointer;
+            margin: 10px 5px;
+        }
+        button:hover { background: #0ff; }
+        .error { color: #f00; }
+        .success { color: #0f0; }
+        .warning { color: #ff0; }
+        pre {
+            background: #000;
+            border: 1px solid #0f0;
+            padding: 10px;
+            overflow-x: auto;
+        }
+        input {
+            background: #000;
+            color: #0f0;
+            border: 1px solid #0f0;
+            padding: 10px;
+            width: 100%;
+            font-family: monospace;
+        }
+        h2 { color: #0ff; text-transform: uppercase; }
+    </style>
+</head>
+<body>
+    <h1>🔥 TESTE DIRETO - MULTAS NO HISTÓRICO 🔥</h1>
+
+    <div class="box">
+        <h2>SUAS CREDENCIAIS (mhtxyxizfnxupwmilith)</h2>
+        <p>URL: <input type="text" id="url" value="https://mhtxyxizfnxupwmilith.supabase.co"></p>
+        <p>KEY: <input type="text" id="key" placeholder="Cole sua anon key aqui"></p>
+        <button onclick="conectar()">🔌 CONECTAR</button>
+        <div id="statusConexao"></div>
+    </div>
+
+    <div class="box">
+        <h2>TESTE 1: Verificar Coluna fine_amount</h2>
+        <button onclick="teste1()">▶️ EXECUTAR TESTE 1</button>
+        <div id="resultado1"></div>
+    </div>
+
+    <div class="box">
+        <h2>TESTE 2: Buscar Pagamentos (Query Real)</h2>
+        <p>Esta é a MESMA query que o sistema usa:</p>
+        <button onclick="teste2()">▶️ EXECUTAR TESTE 2</button>
+        <div id="resultado2"></div>
+    </div>
+
+    <div class="box">
+        <h2>TESTE 3: Criar Pagamento COM MULTA</h2>
+        <p>Loan ID: <input type="text" id="loanId" placeholder="Digite o ID de um empréstimo"></p>
+        <button onclick="teste3()">▶️ CRIAR PAGAMENTO DE TESTE</button>
+        <div id="resultado3"></div>
+    </div>
+
+    <div class="box">
+        <h2>TESTE 4: Buscar Pagamento Específico</h2>
+        <p>Payment ID: <input type="text" id="paymentId" placeholder="ID do pagamento criado acima"></p>
+        <button onclick="teste4()">▶️ BUSCAR PAGAMENTO</button>
+        <div id="resultado4"></div>
+    </div>
+
+    <div class="box">
+        <h2>TESTE 5: Estatísticas de Multas</h2>
+        <button onclick="teste5()">▶️ VER ESTATÍSTICAS</button>
+        <div id="resultado5"></div>
+    </div>
+
+    <script>
+        let supabase = null;
+
+        function conectar() {
+            const url = document.getElementById('url').value;
+            const key = document.getElementById('key').value;
+            
+            if (!key) {
+                alert('❌ Digite sua Anon Key!');
+                return;
+            }
+
+            try {
+                supabase = window.supabase.createClient(url, key);
+                document.getElementById('statusConexao').innerHTML = 
+                    '<p class="success">✅ CONECTADO!</p>';
+            } catch (e) {
+                document.getElementById('statusConexao').innerHTML = 
+                    '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+
+        async function teste1() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            
+            const div = document.getElementById('resultado1');
+            div.innerHTML = '<p>⏳ Verificando...</p>';
+
+            try {
+                // Buscar um pagamento para ver estrutura
+                const { data, error } = await supabase
+                    .from('payments')
+                    .select('*')
+                    .limit(1);
+
+                if (error) throw error;
+
+                if (data && data.length > 0) {
+                    const colunas = Object.keys(data[0]);
+                    const temFineAmount = colunas.includes('fine_amount');
+
+                    let html = '<h3>📋 COLUNAS DA TABELA PAYMENTS:</h3><pre>';
+                    colunas.forEach(col => {
+                        html += col === 'fine_amount' ? '✅ ' + col + ' (ENCONTRADA!)\n' : '   ' + col + '\n';
+                    });
+                    html += '</pre>';
+
+                    if (temFineAmount) {
+                        html += '<p class="success">✅✅✅ COLUNA fine_amount EXISTE! ✅✅✅</p>';
+                        html += '<p>Valor de fine_amount no primeiro pagamento: <strong>' + 
+                                (data[0].fine_amount || 0) + '</strong></p>';
+                    } else {
+                        html += '<p class="error">❌❌❌ COLUNA fine_amount NÃO EXISTE! ❌❌❌</p>';
+                    }
+
+                    div.innerHTML = html;
+                } else {
+                    div.innerHTML = '<p class="warning">⚠️ Nenhum pagamento encontrado</p>';
+                }
+            } catch (e) {
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+
+        async function teste2() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            
+            const div = document.getElementById('resultado2');
+            div.innerHTML = '<p>⏳ Buscando últimos 10 pagamentos...</p>';
+
+            try {
+                // QUERY EXATA DO SISTEMA (loadPaymentHistory)
+                const { data, error } = await supabase
+                    .from('payments')
+                    .select('*')
+                    .order('payment_date', { ascending: false })
+                    .limit(10);
+
+                if (error) throw error;
+
+                let html = '<h3>📊 ÚLTIMOS 10 PAGAMENTOS:</h3>';
+                html += '<p>Total encontrado: <strong>' + data.length + '</strong></p>';
+
+                const comMultas = data.filter(p => (p.fine_amount || 0) > 0);
+                html += '<p class="' + (comMultas.length > 0 ? 'success' : 'warning') + '">🔥 Com multas: <strong>' + comMultas.length + '</strong></p>';
+
+                html += '<table border="1" style="width:100%; color:#0f0; border-color:#0f0;">';
+                html += '<tr><th>ID</th><th>Loan ID</th><th>Valor</th><th style="color:#f00;">MULTA</th><th>Data</th></tr>';
+
+                data.forEach(p => {
+                    const multa = parseFloat(p.fine_amount || 0);
+                    const cor = multa > 0 ? '#0f0' : '#666';
+                    html += '<tr>';
+                    html += '<td>' + p.id + '</td>';
+                    html += '<td>' + p.loan_id + '</td>';
+                    html += '<td>R$ ' + parseFloat(p.amount).toFixed(2) + '</td>';
+                    html += '<td style="color:' + cor + '; font-weight:bold;">R$ ' + multa.toFixed(2) + '</td>';
+                    html += '<td>' + p.payment_date + '</td>';
+                    html += '</tr>';
+                });
+
+                html += '</table>';
+
+                if (comMultas.length === 0) {
+                    html += '<p class="warning">⚠️⚠️ PROBLEMA ENCONTRADO: Nenhum pagamento tem multa!</p>';
+                    html += '<p>➡️ Execute o TESTE 3 para criar um pagamento COM multa</p>';
+                }
+
+                div.innerHTML = html;
+            } catch (e) {
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p><pre>' + JSON.stringify(e, null, 2) + '</pre>';
+            }
+        }
+
+        async function teste3() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            
+            const loanId = document.getElementById('loanId').value;
+            if (!loanId) {
+                alert('❌ Digite um Loan ID!');
+                return;
+            }
+
+            const div = document.getElementById('resultado3');
+            div.innerHTML = '<p>⏳ Criando pagamento com multa...</p>';
+
+            try {
+                const hoje = new Date().toISOString().split('T')[0];
+                
+                // Criar pagamento COM multa
+                const { data, error } = await supabase
+                    .from('payments')
+                    .insert([{
+                        loan_id: loanId,
+                        amount: 100.00,
+                        fine_amount: 50.00,  // MULTA DE R$ 50,00
+                        payment_date: hoje,
+                        payment_type: 'dinheiro',
+                        notes: '🧪 TESTE - Pagamento com multa R$ 50,00'
+                    }])
+                    .select();
+
+                if (error) throw error;
+
+                let html = '<p class="success">✅✅✅ PAGAMENTO CRIADO COM SUCESSO! ✅✅✅</p>';
+                html += '<h3>📋 Dados do pagamento criado:</h3>';
+                html += '<pre>' + JSON.stringify(data, null, 2) + '</pre>';
+                html += '<p class="success">Payment ID: <strong>' + data[0].id + '</strong></p>';
+                html += '<p class="success">Multa cadastrada: <strong>R$ ' + data[0].fine_amount + '</strong></p>';
+                html += '<p>➡️ Agora vá no sistema e veja se a multa aparece!</p>';
+                html += '<p>➡️ Ou execute o TESTE 4 usando o Payment ID acima</p>';
+
+                div.innerHTML = html;
+                
+                // Preencher automaticamente o campo do teste 4
+                document.getElementById('paymentId').value = data[0].id;
+            } catch (e) {
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p><pre>' + JSON.stringify(e, null, 2) + '</pre>';
+            }
+        }
+
+        async function teste4() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            
+            const paymentId = document.getElementById('paymentId').value;
+            if (!paymentId) {
+                alert('❌ Digite um Payment ID!');
+                return;
+            }
+
+            const div = document.getElementById('resultado4');
+            div.innerHTML = '<p>⏳ Buscando pagamento...</p>';
+
+            try {
+                const { data, error } = await supabase
+                    .from('payments')
+                    .select('*')
+                    .eq('id', paymentId)
+                    .single();
+
+                if (error) throw error;
+
+                const multa = parseFloat(data.fine_amount || 0);
+
+                let html = '<h3>🔍 DETALHES DO PAGAMENTO:</h3>';
+                html += '<table border="1" style="width:100%; color:#0f0; border-color:#0f0;">';
+                html += '<tr><th>Campo</th><th>Valor</th></tr>';
+                html += '<tr><td>ID</td><td>' + data.id + '</td></tr>';
+                html += '<tr><td>Loan ID</td><td>' + data.loan_id + '</td></tr>';
+                html += '<tr><td>Valor</td><td>R$ ' + parseFloat(data.amount).toFixed(2) + '</td></tr>';
+                html += '<tr><td style="color:#f00;">MULTA</td><td style="color:' + (multa > 0 ? '#0f0' : '#f00') + '; font-weight:bold; font-size:20px;">R$ ' + multa.toFixed(2) + '</td></tr>';
+                html += '<tr><td>Data</td><td>' + data.payment_date + '</td></tr>';
+                html += '<tr><td>Tipo</td><td>' + data.payment_type + '</td></tr>';
+                html += '<tr><td>Notas</td><td>' + (data.notes || '-') + '</td></tr>';
+                html += '</table>';
+
+                if (multa > 0) {
+                    html += '<p class="success">✅✅✅ MULTA ENCONTRADA NO BANCO! ✅✅✅</p>';
+                    html += '<p class="warning">⚠️ Se não aparece no sistema, o problema é no JAVASCRIPT!</p>';
+                } else {
+                    html += '<p class="error">❌ Este pagamento NÃO tem multa cadastrada</p>';
+                }
+
+                html += '<h3>JSON Completo:</h3><pre>' + JSON.stringify(data, null, 2) + '</pre>';
+
+                div.innerHTML = html;
+            } catch (e) {
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+
+        async function teste5() {
+            if (!supabase) { alert('Conecte primeiro!'); return; }
+            
+            const div = document.getElementById('resultado5');
+            div.innerHTML = '<p>⏳ Calculando estatísticas...</p>';
+
+            try {
+                const { data, error } = await supabase
+                    .from('payments')
+                    .select('amount, fine_amount');
+
+                if (error) throw error;
+
+                const total = data.length;
+                const comMultas = data.filter(p => (p.fine_amount || 0) > 0).length;
+                const totalMultas = data.reduce((sum, p) => sum + (parseFloat(p.fine_amount) || 0), 0);
+                const totalPagamentos = data.reduce((sum, p) => sum + parseFloat(p.amount), 0);
+
+                let html = '<h3>📊 ESTATÍSTICAS GERAIS:</h3>';
+                html += '<table border="1" style="width:100%; color:#0f0; border-color:#0f0; font-size:18px;">';
+                html += '<tr><td>Total de Pagamentos</td><td><strong>' + total + '</strong></td></tr>';
+                html += '<tr><td>Pagamentos COM Multa</td><td class="' + (comMultas > 0 ? 'success' : 'error') + '"><strong>' + comMultas + '</strong></td></tr>';
+                html += '<tr><td>Pagamentos SEM Multa</td><td>' + (total - comMultas) + '</td></tr>';
+                html += '<tr><td>Total em Pagamentos</td><td>R$ ' + totalPagamentos.toFixed(2) + '</td></tr>';
+                html += '<tr><td style="color:#f00;">Total em Multas</td><td style="color:' + (totalMultas > 0 ? '#0f0' : '#f00') + '; font-size:24px;"><strong>R$ ' + totalMultas.toFixed(2) + '</strong></td></tr>';
+                html += '<tr><td>% com Multas</td><td>' + ((comMultas / total) * 100).toFixed(2) + '%</td></tr>';
+                html += '</table>';
+
+                if (comMultas === 0) {
+                    html += '<p class="error">❌❌❌ PROBLEMA: Nenhum pagamento tem multa! ❌❌❌</p>';
+                    html += '<p class="warning">➡️ Execute o TESTE 3 para criar pagamentos com multa</p>';
+                } else {
+                    html += '<p class="success">✅ Sistema tem pagamentos com multas cadastradas!</p>';
+                }
+
+                div.innerHTML = html;
+            } catch (e) {
+                div.innerHTML = '<p class="error">❌ ERRO: ' + e.message + '</p>';
+            }
+        }
+    </script>
+</body>
+</html>

@@ -6454,6 +6454,14 @@ async function loadPaymentHistory(loanId) {
         
         if (error) throw error;
         
+        // DEBUG: Verificar dados recebidos do Supabase
+        console.log('🔍 DEBUG loadPaymentHistory - Total de pagamentos:', data.length);
+        if (data.length > 0) {
+            console.log('🔍 DEBUG - Primeiro pagamento:', data[0]);
+            console.log('🔍 DEBUG - Colunas disponíveis:', Object.keys(data[0]));
+            console.log('🔍 DEBUG - Tem fine_amount?', 'fine_amount' in data[0]);
+        }
+        
         const tbody = document.getElementById('paymentHistoryTableBody');
         tbody.innerHTML = ''; // Limpar tabela antes de renderizar
         
@@ -6476,6 +6484,15 @@ async function loadPaymentHistory(loanId) {
             const fineAmount = parseFloat(payment.fine_amount) || 0;
             const paymentType = getPaymentTypeText(payment.payment_type);
             const paymentNotes = payment.notes || 'Sem notas';
+            
+            // DEBUG: Log para verificar se fine_amount está vindo do banco
+            console.log('🔍 DEBUG Pagamento:', {
+                id: payment.id,
+                amount: paymentAmount,
+                fine_amount: fineAmount,
+                fine_amount_raw: payment.fine_amount,
+                has_fine: fineAmount > 0
+            });
             
             tbody.innerHTML += `
                 <tr class="table-row">
@@ -8463,11 +8480,22 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
     for (const payment of clientPayments) {
         const loan = clientLoans.find(l => l.id === payment.loan_id);
         if (loan) {
+            const fineAmt = parseFloat(payment.fine_amount || 0);
+            
+            // DEBUG: Log para verificar multas
+            if (fineAmt > 0) {
+                console.log('🔥 MULTA ENCONTRADA!', {
+                    payment_id: payment.id,
+                    fine_amount: fineAmt,
+                    amount: payment.amount
+                });
+            }
+            
             allPaymentInfo.push({
                 type: 'payment',
                 date: payment.payment_date,
                 amount: parseFloat(payment.amount),
-                fineAmount: parseFloat(payment.fine_amount || 0),
+                fineAmount: fineAmt,
                 paymentType: payment.payment_type,
                 notes: payment.notes || 'Sem notas',
                 loanAmount: parseFloat(loan.amount),
