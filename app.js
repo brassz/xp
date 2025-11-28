@@ -5631,7 +5631,6 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
         const remainingAmount = remainingCapital + remainingInterest;
         
         const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        const interestAmount = originalInterest;
         
         // Calcular multa se estiver vencido
         const dueDate = new Date(loan.due_date);
@@ -5643,12 +5642,12 @@ async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey,
         // Formatar data de vencimento
         const formattedDueDate = formatDate(loan.due_date);
 
-        // Montar mensagem do WhatsApp com informações da chave PIX
+        // Montar mensagem do WhatsApp com informações da chave PIX (usando valores RESTANTES, não originais)
         const message = `📢 *COBRANÇA – Grupo Creditas*
 📅 *Venc.: ${formattedDueDate}*
 
 Cliente: ${client.name}  
-Valor: R$ ${remainingAmount.toFixed(2).replace('.', ',')} (Cap.: ${principalAmount.toFixed(2).replace('.', ',')} • Juros: ${interestAmount.toFixed(2).replace('.', ',')} • Multa: ${currentFine.toFixed(2).replace('.', ',')})
+Valor: R$ ${remainingAmount.toFixed(2).replace('.', ',')} (Cap.: ${remainingCapital.toFixed(2).replace('.', ',')} • Juros: ${remainingInterest.toFixed(2).replace('.', ',')} • Multa: ${currentFine.toFixed(2).replace('.', ',')})
 
 💸 *PIX – ${bankName}*  
 Titular: ${accountHolder}  
@@ -5957,7 +5956,6 @@ async function sendGuarantorOrEmergencyMessage(loanId, client, contact, contactT
         const remainingAmount = remainingCapital + remainingInterest;
         
         const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        const interestAmount = originalInterest;
         
         // Calcular multa se estiver vencido
         const dueDate = new Date(loan.due_date);
@@ -5973,7 +5971,7 @@ async function sendGuarantorOrEmergencyMessage(loanId, client, contact, contactT
         const contactTypeText = contactType === 'guarantor' ? 'avalista' : 'contato de emergência';
         const contactIcon = contactType === 'guarantor' ? '👥' : '🚨';
 
-        // Montar mensagem do WhatsApp personalizada
+        // Montar mensagem do WhatsApp personalizada (usando valores RESTANTES, não originais)
         const message = `${contactIcon} ATENÇÃO - CONTATO SOBRE EMPRÉSTIMO
 
 Olá, ${contact.name}!
@@ -5983,9 +5981,8 @@ Estamos entrando em contato com você como ${contactTypeText} do(a) cliente ${cl
 📋 INFORMAÇÕES DO EMPRÉSTIMO:
 👤 Cliente: ${client.name}
 📅 Data de Vencimento: ${formattedDueDate}
-💰 Valor do Capital: R$ ${principalAmount.toFixed(2)}
-📈 Juros: R$ ${interestAmount.toFixed(2)}
-💳 Valor Total: R$ ${originalTotal.toFixed(2)}
+💰 Capital Restante: R$ ${remainingCapital.toFixed(2)}
+📈 Juros Restantes: R$ ${remainingInterest.toFixed(2)}
 💸 Valor Restante: R$ ${remainingAmount.toFixed(2)}
 ${daysOverdue > 0 ? `⚠️ Multa acumulada: R$ ${currentFine.toFixed(2)} (${daysOverdue} dias em atraso)` : ''}
 
@@ -6220,7 +6217,6 @@ async function sendWhatsAppMessage(loanId) {
         const remainingAmount = remainingCapital + remainingInterest;
         
         const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
-        const interestAmount = originalInterest;
         
         // Calcular multa se estiver vencido
         const dueDate = new Date(loan.due_date);
@@ -6246,12 +6242,13 @@ async function sendWhatsAppMessage(loanId) {
             paymentHistory = '\n\n📋 *HISTÓRICO DE PAGAMENTOS:*\nNenhum pagamento registrado ainda.';
         }
 
-        // Montar mensagem do WhatsApp
+        // Montar mensagem do WhatsApp (usando valores RESTANTES, não originais)
         const message = ` VENCIMENTO: ${formattedDueDate}
 
   CLIENTE: ${client.name}
-  Capital: R$ ${principalAmount.toFixed(2)}
-  Juros: R$ ${interestAmount.toFixed(2)}
+  Capital Restante: R$ ${remainingCapital.toFixed(2)}
+  Juros Restantes: R$ ${remainingInterest.toFixed(2)}
+  Valor Restante: R$ ${remainingAmount.toFixed(2)}
   Multa atual: R$ ${currentFine.toFixed(2)}
   
    ATENÇÃO!
