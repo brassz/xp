@@ -252,8 +252,15 @@ A nova abordagem é um meio-termo que:
 - `setMonth(date.getMonth() + 1)` → Adiciona 1 mês, mantém o mesmo dia
 
 ### Tratamento de Timezone
-- Todas as datas são criadas com `'T00:00:00'` para evitar problemas de timezone
+- Usa a função `parseLocalDate()` existente no código para parsing seguro de datas
+- `parseLocalDate()` previne problemas de timezone ao parsear strings no formato `YYYY-MM-DD`
+- Cria datas locais sem conversão de fuso horário: `new Date(year, month - 1, day)`
 - Formato usado: `YYYY-MM-DD`
+
+### Correção de Bug (28/11/2025)
+- **Problema identificado:** Datas estavam sendo parseadas incorretamente, resultando em dia errado (ex: 27 ao invés de 28)
+- **Causa:** Uso de `new Date(dateString + 'T00:00:00')` ao invés da função `parseLocalDate()` existente
+- **Solução:** Substituído parsing manual por `parseLocalDate()` que já existe no código e trata corretamente timezone
 
 ### Fallbacks
 - Se `loan_date` não estiver disponível, usa lógica antiga (+30 dias)

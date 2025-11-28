@@ -3802,13 +3802,14 @@ function formatDate(dateString) {
 function calculateNextDueDateKeepingOriginalDay(loanDate, currentDueDate) {
     try {
         // Pegar o dia do mês da data original do empréstimo (dia de referência)
-        const loanDateObj = new Date(loanDate + 'T00:00:00');
+        // Usar parseLocalDate para evitar problemas de timezone
+        const loanDateObj = parseLocalDate(loanDate);
         const originalDay = loanDateObj.getDate();
         
         // Pegar a data de vencimento atual
-        const currentDueDateObj = new Date(currentDueDate + 'T00:00:00');
+        const currentDueDateObj = parseLocalDate(currentDueDate);
         
-        // Adicionar 1 mês à data de vencimento atual
+        // Adicionar 1 mês à data de vencimento atual, mantendo o dia original
         let nextMonth = currentDueDateObj.getMonth() + 1;
         let nextYear = currentDueDateObj.getFullYear();
         
@@ -3818,7 +3819,8 @@ function calculateNextDueDateKeepingOriginalDay(loanDate, currentDueDate) {
             nextYear++;
         }
         
-        // Criar nova data com o dia original
+        // Criar nova data com o dia original do empréstimo
+        // Usar o construtor com year, month, day para evitar problemas de timezone
         let nextDueDate = new Date(nextYear, nextMonth, originalDay);
         
         // Verificar se o dia é válido para o mês (ex: dia 31 em fevereiro)
@@ -3828,18 +3830,21 @@ function calculateNextDueDateKeepingOriginalDay(loanDate, currentDueDate) {
             nextDueDate = new Date(nextYear, nextMonth + 1, 0);
         }
         
-        // Formatar no formato YYYY-MM-DD
-        const year = nextDueDate.getFullYear();
-        const month = String(nextDueDate.getMonth() + 1).padStart(2, '0');
-        const day = String(nextDueDate.getDate()).padStart(2, '0');
-        
-        return `${year}-${month}-${day}`;
+        // Formatar no formato YYYY-MM-DD usando formatDateForInput
+        return formatDateForInput(nextDueDate);
     } catch (error) {
         console.error('Erro ao calcular próxima data de vencimento:', error);
+        console.error('loanDate:', loanDate, 'currentDueDate:', currentDueDate);
         // Fallback: adicionar 30 dias à data atual de vencimento
-        const fallbackDate = new Date(currentDueDate + 'T00:00:00');
-        fallbackDate.setDate(fallbackDate.getDate() + 30);
-        return fallbackDate.toISOString().split('T')[0];
+        const fallbackDate = parseLocalDate(currentDueDate);
+        if (fallbackDate) {
+            fallbackDate.setDate(fallbackDate.getDate() + 30);
+            return formatDateForInput(fallbackDate);
+        }
+        // Último fallback: retornar data atual + 30 dias
+        const today = new Date();
+        today.setDate(today.getDate() + 30);
+        return formatDateForInput(today);
     }
 }
 
