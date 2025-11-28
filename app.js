@@ -13332,13 +13332,13 @@ function renderWeeklyPaymentsTable(payments) {
                 <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium ${payment.fine_amount > 0 ? 'text-red-400' : 'text-gray-500'}">
-                    ${payment.fine_amount > 0 ? `R$ ${payment.fine_amount.toFixed(2)}` : '-'}
+                <div class="text-sm font-medium ${(payment.fine_amount || 0) > 0 ? 'text-red-400' : 'text-gray-500'}">
+                    ${(payment.fine_amount || 0) > 0 ? `R$ ${parseFloat(payment.fine_amount).toFixed(2)}` : '-'}
                 </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
-                    ${getPaymentMethodText(payment.payment_method)}
+                <span class="text-sm text-gray-300">
+                    ${getPaymentTypeText(payment.payment_type)}
                 </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
