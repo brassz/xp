@@ -2302,7 +2302,7 @@ async function handleLoanRenewal() {
         }
         
         // Confirmar com o usuário
-        const confirmMsg = `Confirmar renovação do empréstimo por +30 dias?\n\nValor do pagamento (juros): R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDateToAdd30Days(loan.due_date)}`;
+        const confirmMsg = `Confirmar renovação do empréstimo por +30 dias?\n\nValor do pagamento (juros): R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDateToAdd30Days(loan.due_date, loan.loan_date)}`;
         if (!confirm(confirmMsg)) {
             return;
         }
@@ -2327,11 +2327,8 @@ async function handleLoanRenewal() {
         
         if (paymentError) throw paymentError;
         
-        // Calcular nova data de vencimento (atual + 30 dias)
-        const currentDueDate = new Date(loan.due_date);
-        const newDueDate = new Date(currentDueDate);
-        newDueDate.setDate(newDueDate.getDate() + 30);
-        const newDueDateStr = newDueDate.toISOString().split('T')[0];
+        // Calcular nova data de vencimento mantendo o dia original do empréstimo
+        const newDueDateStr = calculateNextDueDateKeepingOriginalDay(loan.loan_date, loan.due_date);
         
         // Atualizar o empréstimo com a nova data de vencimento
         const { error: loanError } = await supabase
@@ -2386,8 +2383,18 @@ function parseMonetaryValue(text) {
     return parseFloat(cleanText);
 }
 
-// Função auxiliar para formatar data + 30 dias
-function formatDateToAdd30Days(dateStr) {
+// Função auxiliar para formatar próxima data de vencimento (mantendo dia original)
+function formatNextDueDate(loanDate, currentDueDate) {
+    const nextDueDate = calculateNextDueDateKeepingOriginalDay(loanDate, currentDueDate);
+    return formatDate(nextDueDate);
+}
+
+// Função OBSOLETA - mantida para compatibilidade (mas agora usa a nova lógica)
+function formatDateToAdd30Days(dateStr, loanDate = null) {
+    if (loanDate) {
+        return formatNextDueDate(loanDate, dateStr);
+    }
+    // Fallback antigo: adicionar 30 dias (usado quando não há loanDate disponível)
     const date = new Date(dateStr);
     date.setDate(date.getDate() + 30);
     return formatDate(date.toISOString().split('T')[0]);
@@ -2416,11 +2423,9 @@ async function openRenewalOptionsModal() {
         document.getElementById('renewalClientName').textContent = loan.clients?.name || 'Cliente não encontrado';
         document.getElementById('renewalPaymentAmount').textContent = `R$ ${paymentAmount.toFixed(2)}`;
         
-        // Calcular nova data de vencimento (atual + 30 dias)
-        const currentDueDate = new Date(loan.due_date);
-        const newDueDate = new Date(currentDueDate);
-        newDueDate.setDate(newDueDate.getDate() + 30);
-        document.getElementById('renewalNewDueDate').textContent = formatDate(newDueDate.toISOString().split('T')[0]);
+        // Calcular nova data de vencimento mantendo o dia original do empréstimo
+        const newDueDateStr = calculateNextDueDateKeepingOriginalDay(loan.loan_date, loan.due_date);
+        document.getElementById('renewalNewDueDate').textContent = formatDate(newDueDateStr);
         
         // Mostrar modal
         showModal(renewalOptionsModal);
@@ -2472,7 +2477,7 @@ async function handleNewRenewalPayment(paymentOption) {
         }
         
         // Confirmar com o usuário
-        const confirmMsg = `Confirmar renovação do empréstimo por +30 dias?\n\nTipo: ${paymentDescription}\nValor do pagamento: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDateToAdd30Days(loan.due_date)}`;
+        const confirmMsg = `Confirmar renovação do empréstimo por +30 dias?\n\nTipo: ${paymentDescription}\nValor do pagamento: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDateToAdd30Days(loan.due_date, loan.loan_date)}`;
         if (!confirm(confirmMsg)) {
             return;
         }
@@ -2497,11 +2502,9 @@ async function handleNewRenewalPayment(paymentOption) {
         
         if (paymentError) throw paymentError;
         
-        // Calcular nova data de vencimento (atual + 30 dias)
-        const currentDueDate = new Date(loan.due_date);
-        const newDueDate = new Date(currentDueDate);
-        newDueDate.setDate(newDueDate.getDate() + 30);
-        const newDueDateStr = newDueDate.toISOString().split('T')[0];
+        // Calcular nova data de vencimento mantendo o dia original do empréstimo
+        // Por exemplo: se o empréstimo foi feito dia 25, os vencimentos sempre serão dia 25
+        const newDueDateStr = calculateNextDueDateKeepingOriginalDay(loan.loan_date, loan.due_date);
         
         // Atualizar o empréstimo com a nova data de vencimento
         const { error: loanError } = await supabase
@@ -3790,6 +3793,58 @@ function formatDate(dateString) {
     } catch (error) {
         console.warn('Erro ao formatar data:', dateString, error);
         return 'Data inválida';
+    }
+}
+
+// Calcular próxima data de vencimento mantendo o dia original do empréstimo
+// Esta função garante que o dia do vencimento seja sempre o mesmo dia do mês em que o empréstimo foi criado
+// Por exemplo: se o empréstimo foi feito dia 25, os vencimentos serão sempre dia 25 de cada mês
+function calculateNextDueDateKeepingOriginalDay(loanDate, currentDueDate) {
+    try {
+        // Pegar o dia do mês da data original do empréstimo (dia de referência)
+        // Usar parseLocalDate para evitar problemas de timezone
+        const loanDateObj = parseLocalDate(loanDate);
+        const originalDay = loanDateObj.getDate();
+        
+        // Pegar a data de vencimento atual
+        const currentDueDateObj = parseLocalDate(currentDueDate);
+        
+        // Adicionar 1 mês à data de vencimento atual, mantendo o dia original
+        let nextMonth = currentDueDateObj.getMonth() + 1;
+        let nextYear = currentDueDateObj.getFullYear();
+        
+        // Se passou de dezembro, ajustar para janeiro do próximo ano
+        if (nextMonth > 11) {
+            nextMonth = 0;
+            nextYear++;
+        }
+        
+        // Criar nova data com o dia original do empréstimo
+        // Usar o construtor com year, month, day para evitar problemas de timezone
+        let nextDueDate = new Date(nextYear, nextMonth, originalDay);
+        
+        // Verificar se o dia é válido para o mês (ex: dia 31 em fevereiro)
+        // Se o mês não tiver o dia original, usar o último dia do mês
+        if (nextDueDate.getDate() !== originalDay) {
+            // O JavaScript automaticamente ajusta para o último dia do mês anterior se o dia não existir
+            nextDueDate = new Date(nextYear, nextMonth + 1, 0);
+        }
+        
+        // Formatar no formato YYYY-MM-DD usando formatDateForInput
+        return formatDateForInput(nextDueDate);
+    } catch (error) {
+        console.error('Erro ao calcular próxima data de vencimento:', error);
+        console.error('loanDate:', loanDate, 'currentDueDate:', currentDueDate);
+        // Fallback: adicionar 30 dias à data atual de vencimento
+        const fallbackDate = parseLocalDate(currentDueDate);
+        if (fallbackDate) {
+            fallbackDate.setDate(fallbackDate.getDate() + 30);
+            return formatDateForInput(fallbackDate);
+        }
+        // Último fallback: retornar data atual + 30 dias
+        const today = new Date();
+        today.setDate(today.getDate() + 30);
+        return formatDateForInput(today);
     }
 }
 
@@ -6726,13 +6781,9 @@ async function generatePaymentReceipt(paymentId, loanId) {
         const totalPaid = realPayments.reduce((sum, p) => sum + parseFloat(p.amount), 0);
         const paymentAmount = parseFloat(payment.amount);
 
-        // Calcular próxima data de vencimento (30 dias a partir de hoje)
-        const today = new Date();
-        const nextDueDate = new Date(today);
-        nextDueDate.setDate(today.getDate() + 30); // 30 dias a partir de hoje
-        
-        // Converter para string no formato correto
-        const nextDueDateString = formatDateForInput(nextDueDate);
+        // Calcular próxima data de vencimento mantendo o dia original do empréstimo
+        const nextDueDateStr = calculateNextDueDateKeepingOriginalDay(loan.loan_date, loan.due_date);
+        const nextDueDateString = nextDueDateStr;
 
         // Formatar dados do cliente
         const clientName = loan.clients?.name || 'Cliente não encontrado';
@@ -7560,15 +7611,23 @@ async function showPaymentMessageModal(loanId, paymentInfo) {
         // Calcular próxima data de pagamento
         let nextPaymentDate = '';
         if (paymentInfo.newDueDate) {
+            // Se a renovação já definiu uma nova data, usar essa
             nextPaymentDate = formatDate(paymentInfo.newDueDate);
-        } else if (loan.due_date) {
+        } else if (loan.due_date && loan.loan_date) {
+            // Usar a data de vencimento atual do empréstimo (que já deve estar atualizada)
             nextPaymentDate = formatDate(loan.due_date);
         } else {
-            // Se não há data específica, calcular 30 dias a partir de hoje
-            const today = new Date();
-            const nextDate = new Date(today);
-            nextDate.setDate(nextDate.getDate() + 30);
-            nextPaymentDate = formatDate(nextDate.toISOString().split('T')[0]);
+            // Fallback: calcular mantendo o dia original (se possível)
+            if (loan.loan_date && loan.due_date) {
+                const nextDueDate = calculateNextDueDateKeepingOriginalDay(loan.loan_date, loan.due_date);
+                nextPaymentDate = formatDate(nextDueDate);
+            } else {
+                // Último fallback: adicionar 30 dias à data atual
+                const today = new Date();
+                const nextDate = new Date(today);
+                nextDate.setDate(nextDate.getDate() + 30);
+                nextPaymentDate = formatDate(nextDate.toISOString().split('T')[0]);
+            }
         }
 
         // Determinar tipo de pagamento
