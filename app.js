@@ -2586,6 +2586,13 @@ async function handlePayment(e) {
     const includeFine = document.getElementById('includeFineCheckbox').checked;
     const fineAmount = includeFine ? parseFloat(document.getElementById('fineAmount').value) || 0 : 0;
     
+    // DEBUG: Verificar se está capturando a multa
+    console.log('🔍 DEBUG handlePayment - Capturando multa:', {
+        includeFine,
+        fineAmountInput: document.getElementById('fineAmount').value,
+        fineAmountParsed: fineAmount
+    });
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -2644,9 +2651,17 @@ async function handlePayment(e) {
         
         // Registrar ou atualizar o pagamento
         let paymentError;
+        let insertedData;
+        
         if (paymentId) {
             // Editar pagamento existente
-            const { error } = await supabase
+            console.log('🔍 DEBUG - Atualizando pagamento:', {
+                id: paymentId,
+                amount: paymentAmount,
+                fine_amount: fineAmount
+            });
+            
+            const { data, error } = await supabase
                 .from('payments')
                 .update({
                     amount: paymentAmount,
@@ -2656,26 +2671,58 @@ async function handlePayment(e) {
                     fine_amount: fineAmount,
                     updated_at: new Date().toISOString()
                 })
-                .eq('id', paymentId);
+                .eq('id', paymentId)
+                .select();
+            
             paymentError = error;
+            insertedData = data;
         } else {
             // Criar novo pagamento
-            const { error } = await supabase
+            const paymentData = {
+                loan_id: loanId,
+                amount: paymentAmount,
+                payment_date: paymentDate,
+                payment_type: finalPaymentType,
+                notes: combinedNotes,
+                fine_amount: fineAmount,
+                created_by: currentUser.id,
+                created_at: new Date().toISOString()
+            };
+            
+            console.log('🔍 DEBUG - Criando novo pagamento:', paymentData);
+            
+            const { data, error } = await supabase
                 .from('payments')
-                .insert([{
-                    loan_id: loanId,
-                    amount: paymentAmount,
-                    payment_date: paymentDate,
-                    payment_type: finalPaymentType,
-                    notes: combinedNotes,
-                    fine_amount: fineAmount,
-                    created_by: currentUser.id,
-                    created_at: new Date().toISOString()
-                }]);
+                .insert([paymentData])
+                .select();
+            
             paymentError = error;
+            insertedData = data;
+            
+            console.log('🔍 DEBUG - Resultado do INSERT:', {
+                error: error,
+                data: data,
+                fine_amount_salvo: data?.[0]?.fine_amount
+            });
         }
         
-        if (paymentError) throw paymentError;
+        if (paymentError) {
+            console.error('❌ ERRO ao salvar pagamento:', paymentError);
+            throw paymentError;
+        }
+        
+        // Verificar se a multa foi realmente salva
+        if (insertedData && insertedData.length > 0) {
+            const savedFine = insertedData[0].fine_amount;
+            if (fineAmount > 0 && savedFine != fineAmount) {
+                console.error('⚠️ ALERTA: Multa não foi salva corretamente!', {
+                    tentou_salvar: fineAmount,
+                    foi_salvo: savedFine
+                });
+            } else if (fineAmount > 0) {
+                console.log('✅ Multa salva com sucesso:', savedFine);
+            }
+        }
         
         // Declarar updateData no escopo da função para uso posterior
         let updateData = null;
@@ -6454,6 +6501,14 @@ async function loadPaymentHistory(loanId) {
         
         if (error) throw error;
         
+        // DEBUG: Verificar dados recebidos do Supabase
+        console.log('🔍 DEBUG loadPaymentHistory - Total de pagamentos:', data.length);
+        if (data.length > 0) {
+            console.log('🔍 DEBUG - Primeiro pagamento:', data[0]);
+            console.log('🔍 DEBUG - Colunas disponíveis:', Object.keys(data[0]));
+            console.log('🔍 DEBUG - Tem fine_amount?', 'fine_amount' in data[0]);
+        }
+        
         const tbody = document.getElementById('paymentHistoryTableBody');
         tbody.innerHTML = ''; // Limpar tabela antes de renderizar
         
@@ -6476,6 +6531,15 @@ async function loadPaymentHistory(loanId) {
             const fineAmount = parseFloat(payment.fine_amount) || 0;
             const paymentType = getPaymentTypeText(payment.payment_type);
             const paymentNotes = payment.notes || 'Sem notas';
+            
+            // DEBUG: Log para verificar se fine_amount está vindo do banco
+            console.log('🔍 DEBUG Pagamento:', {
+                id: payment.id,
+                amount: paymentAmount,
+                fine_amount: fineAmount,
+                fine_amount_raw: payment.fine_amount,
+                has_fine: fineAmount > 0
+            });
             
             tbody.innerHTML += `
                 <tr class="table-row">
@@ -8463,11 +8527,22 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
     for (const payment of clientPayments) {
         const loan = clientLoans.find(l => l.id === payment.loan_id);
         if (loan) {
+            const fineAmt = parseFloat(payment.fine_amount || 0);
+            
+            // DEBUG: Log para verificar multas
+            if (fineAmt > 0) {
+                console.log('🔥 MULTA ENCONTRADA!', {
+                    payment_id: payment.id,
+                    fine_amount: fineAmt,
+                    amount: payment.amount
+                });
+            }
+            
             allPaymentInfo.push({
                 type: 'payment',
                 date: payment.payment_date,
                 amount: parseFloat(payment.amount),
-                fineAmount: parseFloat(payment.fine_amount || 0),
+                fineAmount: fineAmt,
                 paymentType: payment.payment_type,
                 notes: payment.notes || 'Sem notas',
                 loanAmount: parseFloat(loan.amount),
@@ -13332,13 +13407,13 @@ function renderWeeklyPaymentsTable(payments) {
                 <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium ${payment.fine_amount > 0 ? 'text-red-400' : 'text-gray-500'}">
-                    ${payment.fine_amount > 0 ? `R$ ${payment.fine_amount.toFixed(2)}` : '-'}
+                <div class="text-sm font-medium ${(payment.fine_amount || 0) > 0 ? 'text-red-400' : 'text-gray-500'}">
+                    ${(payment.fine_amount || 0) > 0 ? `R$ ${parseFloat(payment.fine_amount).toFixed(2)}` : '-'}
                 </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
-                    ${getPaymentMethodText(payment.payment_method)}
+                <span class="text-sm text-gray-300">
+                    ${getPaymentTypeText(payment.payment_type)}
                 </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
