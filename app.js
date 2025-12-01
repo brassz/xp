@@ -15825,3 +15825,399 @@ function setupClientSearch(searchInputId, selectId, resultsListId, resultsContai
         }
     });
 }
+
+// =====================================================
+// FUNÇÃO PARA GERAR PDF COMPLETO DO CLIENTE
+// =====================================================
+
+async function generateClientCompletePDF() {
+    try {
+        const clientId = document.getElementById('historyClientSelect').value;
+        
+        if (!clientId) {
+            showInfoMessage('Por favor, selecione um cliente primeiro');
+            return;
+        }
+
+        showInfoMessage('Gerando PDF completo do cliente... Por favor, aguarde.');
+
+        // Buscar dados do cliente
+        const client = clients.find(c => c.id === clientId);
+        if (!client) {
+            showInfoMessage('Cliente não encontrado');
+            return;
+        }
+
+        // Buscar empréstimos ativos
+        const { data: clientLoans, error: loansError } = await supabase
+            .from('loans')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+        
+        if (loansError) throw loansError;
+
+        // Buscar empréstimos quitados
+        const { data: paidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('paid_date', { ascending: false });
+        
+        if (paidLoansError) throw paidLoansError;
+
+        // Buscar pagamentos
+        const loanIds = (clientLoans || []).map(l => l.id);
+        let clientPayments = [];
+        if (loanIds.length > 0) {
+            const { data: payments, error: paymentsError } = await supabase
+                .from('payments')
+                .select('*')
+                .in('loan_id', loanIds)
+                .order('payment_date', { ascending: false });
+            
+            if (paymentsError) throw paymentsError;
+            clientPayments = payments || [];
+        }
+
+        // Buscar avalistas
+        const { data: clientGuarantors, error: guarantorsError } = await supabase
+            .from('guarantors')
+            .select('*')
+            .eq('client_id', clientId);
+        
+        if (guarantorsError) throw guarantorsError;
+
+        // Buscar contatos de emergência
+        const { data: emergencyContacts, error: emergencyError } = await supabase
+            .from('emergency_contacts')
+            .select('*')
+            .eq('client_id', clientId);
+        
+        if (emergencyError) throw emergencyError;
+
+        // Calcular totais
+        const allLoans = [...(clientLoans || []), ...(paidLoans || [])];
+        let totalAmount = 0;
+        let totalPaid = 0;
+        let totalRemaining = 0;
+
+        // Calcular totais de empréstimos ativos
+        for (const loan of (clientLoans || [])) {
+            const loanAmount = parseFloat(loan.amount || 0);
+            const interestRate = parseFloat(loan.interest_rate || 0);
+            const totalWithInterest = loanAmount + (loanAmount * interestRate / 100);
+            
+            // Calcular quanto já foi pago
+            const loanPayments = clientPayments.filter(p => p.loan_id === loan.id);
+            const paidForLoan = loanPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+            
+            totalAmount += totalWithInterest;
+            totalPaid += paidForLoan;
+            totalRemaining += (totalWithInterest - paidForLoan);
+        }
+
+        // Adicionar totais de empréstimos quitados
+        for (const paidLoan of (paidLoans || [])) {
+            const originalAmount = parseFloat(paidLoan.original_amount || 0);
+            const interestRate = parseFloat(paidLoan.interest_rate || 0);
+            const totalWithInterest = originalAmount + (originalAmount * interestRate / 100);
+            const paid = parseFloat(paidLoan.total_paid || 0);
+            
+            totalAmount += totalWithInterest;
+            totalPaid += paid;
+        }
+
+        // Gerar PDF usando jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        let yPosition = 20;
+        const pageHeight = doc.internal.pageSize.height;
+        const pageWidth = doc.internal.pageSize.width;
+        const margin = 20;
+        const lineHeight = 7;
+
+        // Função auxiliar para adicionar nova página se necessário
+        function checkPageBreak(additionalHeight = 10) {
+            if (yPosition + additionalHeight > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+                return true;
+            }
+            return false;
+        }
+
+        // Título do documento
+        doc.setFontSize(20);
+        doc.setFont(undefined, 'bold');
+        doc.text('RELATÓRIO COMPLETO DO CLIENTE', pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 15;
+
+        // Informações do Cliente
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('DADOS DO CLIENTE', margin, yPosition);
+        yPosition += 10;
+
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Nome: ${client.name || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`CPF: ${client.cpf || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`RG: ${client.rg || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Telefone: ${client.phone || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Email: ${client.email || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        
+        if (client.address) {
+            doc.text(`Endereco: ${client.address}`, margin, yPosition);
+            yPosition += lineHeight;
+        }
+        
+        if (client.birth_date) {
+            const birthDate = new Date(client.birth_date).toLocaleDateString('pt-BR');
+            doc.text(`Data de Nascimento: ${birthDate}`, margin, yPosition);
+            yPosition += lineHeight;
+        }
+
+        yPosition += 5;
+        checkPageBreak();
+
+        // Avalistas
+        if (clientGuarantors && clientGuarantors.length > 0) {
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('AVALISTAS', margin, yPosition);
+            yPosition += 10;
+
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'normal');
+            
+            for (const guarantor of clientGuarantors) {
+                checkPageBreak(40);
+                doc.text(`Nome: ${guarantor.name || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`CPF: ${guarantor.cpf || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Telefone: ${guarantor.phone || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                if (guarantor.email) {
+                    doc.text(`Email: ${guarantor.email}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                
+                if (guarantor.relationship) {
+                    doc.text(`Relacionamento: ${getRelationshipText(guarantor.relationship)}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                
+                if (guarantor.address) {
+                    doc.text(`Endereco: ${guarantor.address}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                
+                yPosition += 3;
+            }
+
+            yPosition += 5;
+        }
+
+        // Contatos de Emergência
+        if (emergencyContacts && emergencyContacts.length > 0) {
+            checkPageBreak();
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('CONTATOS DE EMERGENCIA', margin, yPosition);
+            yPosition += 10;
+
+            doc.setFontSize(11);
+            doc.setFont(undefined, 'normal');
+            
+            for (const contact of emergencyContacts) {
+                checkPageBreak(30);
+                doc.text(`Nome: ${contact.name || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Telefone: ${contact.phone || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                if (contact.relationship) {
+                    doc.text(`Relacionamento: ${getRelationshipText(contact.relationship)}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                
+                yPosition += 3;
+            }
+
+            yPosition += 5;
+        }
+
+        // Resumo Financeiro
+        checkPageBreak();
+        doc.setFontSize(16);
+        doc.setFont(undefined, 'bold');
+        doc.text('RESUMO FINANCEIRO', margin, yPosition);
+        yPosition += 10;
+
+        doc.setFontSize(11);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Total de Emprestimos: ${allLoans.length}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Valor Total Emprestado: R$ ${totalAmount.toFixed(2)}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Total Pago: R$ ${totalPaid.toFixed(2)}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Valor Restante: R$ ${totalRemaining.toFixed(2)}`, margin, yPosition);
+        yPosition += 10;
+
+        // Empréstimos Ativos
+        if (clientLoans && clientLoans.length > 0) {
+            checkPageBreak();
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('EMPRESTIMOS ATIVOS', margin, yPosition);
+            yPosition += 10;
+
+            doc.setFontSize(10);
+            
+            for (const loan of clientLoans) {
+                checkPageBreak(50);
+                
+                const loanAmount = parseFloat(loan.amount || 0);
+                const interestRate = parseFloat(loan.interest_rate || 0);
+                const totalWithInterest = loanAmount + (loanAmount * interestRate / 100);
+                const loanDate = new Date(loan.loan_date).toLocaleDateString('pt-BR');
+                const dueDate = new Date(loan.due_date).toLocaleDateString('pt-BR');
+                
+                // Calcular quanto já foi pago
+                const loanPayments = clientPayments.filter(p => p.loan_id === loan.id);
+                const paidForLoan = loanPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+                const remaining = totalWithInterest - paidForLoan;
+                
+                const status = getLoanStatus(loan.due_date, loan.status);
+                const statusText = getStatusText(status);
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`Emprestimo ID: ${loan.id.substring(0, 8)}...`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                doc.setFont(undefined, 'normal');
+                doc.text(`Data: ${loanDate}`, margin, yPosition);
+                doc.text(`Vencimento: ${dueDate}`, margin + 70, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Valor: R$ ${loanAmount.toFixed(2)}`, margin, yPosition);
+                doc.text(`Juros: ${interestRate}%`, margin + 70, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Total com Juros: R$ ${totalWithInterest.toFixed(2)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Valor Pago: R$ ${paidForLoan.toFixed(2)}`, margin, yPosition);
+                doc.text(`Restante: R$ ${remaining.toFixed(2)}`, margin + 70, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Status: ${statusText}`, margin, yPosition);
+                yPosition += 8;
+            }
+        }
+
+        // Empréstimos Quitados
+        if (paidLoans && paidLoans.length > 0) {
+            checkPageBreak();
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('EMPRESTIMOS QUITADOS', margin, yPosition);
+            yPosition += 10;
+
+            doc.setFontSize(10);
+            
+            for (const paidLoan of paidLoans) {
+                checkPageBreak(40);
+                
+                const originalAmount = parseFloat(paidLoan.original_amount || 0);
+                const interestRate = parseFloat(paidLoan.interest_rate || 0);
+                const totalWithInterest = originalAmount + (originalAmount * interestRate / 100);
+                const paidDate = new Date(paidLoan.paid_date).toLocaleDateString('pt-BR');
+                const totalPaidAmount = parseFloat(paidLoan.total_paid || 0);
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`Emprestimo Quitado - ID: ${paidLoan.loan_id?.substring(0, 8) || paidLoan.id.substring(0, 8)}...`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                doc.setFont(undefined, 'normal');
+                doc.text(`Data de Quitacao: ${paidDate}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Valor Original: R$ ${originalAmount.toFixed(2)}`, margin, yPosition);
+                doc.text(`Juros: ${interestRate}%`, margin + 70, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Total com Juros: R$ ${totalWithInterest.toFixed(2)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Total Pago: R$ ${totalPaidAmount.toFixed(2)}`, margin, yPosition);
+                yPosition += 8;
+            }
+        }
+
+        // Histórico de Pagamentos
+        if (clientPayments && clientPayments.length > 0) {
+            checkPageBreak();
+            doc.setFontSize(16);
+            doc.setFont(undefined, 'bold');
+            doc.text('HISTORICO DE PAGAMENTOS', margin, yPosition);
+            yPosition += 10;
+
+            doc.setFontSize(9);
+            
+            // Ordenar pagamentos por data
+            const sortedPayments = [...clientPayments].sort((a, b) => 
+                new Date(b.payment_date) - new Date(a.payment_date)
+            );
+            
+            for (const payment of sortedPayments) {
+                checkPageBreak(25);
+                
+                const paymentDate = new Date(payment.payment_date).toLocaleDateString('pt-BR');
+                const amount = parseFloat(payment.amount || 0);
+                const fineAmount = parseFloat(payment.fine_amount || 0);
+                const paymentType = getPaymentTypeText(payment.payment_type);
+                
+                doc.setFont(undefined, 'normal');
+                doc.text(`Data: ${paymentDate}`, margin, yPosition);
+                doc.text(`Valor: R$ ${amount.toFixed(2)}`, margin + 50, yPosition);
+                yPosition += lineHeight;
+                
+                if (fineAmount > 0) {
+                    doc.text(`Multa: R$ ${fineAmount.toFixed(2)}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                
+                doc.text(`Tipo: ${paymentType}`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                if (payment.notes) {
+                    doc.text(`Notas: ${payment.notes}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                
+                yPosition += 3;
+            }
+        }
+
+        // Rodapé com data de geração
+        const currentDate = new Date().toLocaleDateString('pt-BR');
+        const currentTime = new Date().toLocaleTimeString('pt-BR');
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'italic');
+        doc.text(`Relatorio gerado em ${currentDate} as ${currentTime}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+        // Salvar PDF
+        const fileName = `Relatorio_${client.name.replace(/\s+/g, '_')}_${currentDate.replace(/\//g, '-')}.pdf`;
+        doc.save(fileName);
+
+        showInfoMessage('PDF gerado com sucesso!');
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
