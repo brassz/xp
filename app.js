@@ -356,6 +356,84 @@ function setupEventListeners() {
         generateCommissionsPDFBtn.addEventListener('click', generateCommissionsPDF);
     }
 
+    // Event listeners para o backup completo
+    const completeBackupBtn = document.getElementById('completeBackupBtn');
+    if (completeBackupBtn) {
+        completeBackupBtn.addEventListener('click', () => {
+            showModal(document.getElementById('backupModal'));
+        });
+    }
+
+    const closeBackupModal = document.getElementById('closeBackupModal');
+    if (closeBackupModal) {
+        closeBackupModal.addEventListener('click', () => {
+            hideModal(document.getElementById('backupModal'));
+        });
+    }
+
+    const cancelBackupBtn = document.getElementById('cancelBackupBtn');
+    if (cancelBackupBtn) {
+        cancelBackupBtn.addEventListener('click', () => {
+            hideModal(document.getElementById('backupModal'));
+        });
+    }
+
+    const selectAllBackup = document.getElementById('selectAllBackup');
+    if (selectAllBackup) {
+        selectAllBackup.addEventListener('click', () => {
+            const checkboxes = [
+                'backupClients',
+                'backupLoans',
+                'backupInstallments',
+                'backupPayments',
+                'backupCapitalRaising',
+                'backupExpenses'
+            ];
+            
+            // Verificar se todos estão marcados
+            const allChecked = checkboxes.every(id => document.getElementById(id).checked);
+            
+            // Se todos estão marcados, desmarcar todos; caso contrário, marcar todos
+            checkboxes.forEach(id => {
+                document.getElementById(id).checked = !allChecked;
+            });
+            
+            // Atualizar o texto do botão
+            selectAllBackup.textContent = allChecked ? 'Selecionar Todos' : 'Desmarcar Todos';
+        });
+    }
+
+    const generateBackupBtn = document.getElementById('generateBackupBtn');
+    if (generateBackupBtn) {
+        generateBackupBtn.addEventListener('click', async () => {
+            const options = {
+                clients: document.getElementById('backupClients').checked,
+                loans: document.getElementById('backupLoans').checked,
+                installments: document.getElementById('backupInstallments').checked,
+                payments: document.getElementById('backupPayments').checked,
+                capitalRaising: document.getElementById('backupCapitalRaising').checked,
+                expenses: document.getElementById('backupExpenses').checked
+            };
+            
+            // Verificar se pelo menos uma opção foi selecionada
+            const hasSelection = Object.values(options).some(value => value === true);
+            
+            if (!hasSelection) {
+                showInfoMessage('Por favor, selecione pelo menos uma opção de backup.');
+                return;
+            }
+            
+            // Fechar modal e gerar backup
+            hideModal(document.getElementById('backupModal'));
+            
+            // Mostrar mensagem de processamento
+            showInfoMessage('Gerando backup... Isso pode levar alguns instantes.');
+            
+            // Gerar o backup
+            await generateCompleteBackupPDF(options);
+        });
+    }
+
     // Event listener para mudança de semana
     const weekSelector = document.getElementById('weekSelector');
     if (weekSelector) {
@@ -13246,6 +13324,395 @@ async function generateMonthlyReportPDF() {
     } catch (error) {
         console.error('Erro ao gerar PDF do relatório mensal:', error);
         showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// =====================================================
+// FUNÇÃO DE BACKUP COMPLETO
+// =====================================================
+
+// Função para gerar backup completo do sistema
+async function generateCompleteBackupPDF(options) {
+    try {
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configurar empresa atual
+        const companyName = COMPANIES_CONFIG[currentCompany]?.name || 'Sistema';
+        
+        let yPosition = 20;
+        const lineHeight = 6;
+        const margin = 20;
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+        const maxWidth = pageWidth - (margin * 2);
+        
+        // Função auxiliar para adicionar nova página quando necessário
+        function checkPageBreak(requiredSpace = 20) {
+            if (yPosition + requiredSpace > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+                return true;
+            }
+            return false;
+        }
+        
+        // Função auxiliar para formatar valores monetários
+        function formatCurrency(value) {
+            return `R$ ${parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
+        }
+        
+        // Cabeçalho do documento
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 10;
+        
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'normal');
+        doc.text(companyName, pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 10;
+        
+        doc.setFontSize(10);
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 10;
+        
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 10;
+        
+        // ===== CLIENTES =====
+        if (options.clients && clients && clients.length > 0) {
+            checkPageBreak(30);
+            
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text('CLIENTES', margin, yPosition);
+            yPosition += 8;
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Total de clientes: ${clients.length}`, margin, yPosition);
+            yPosition += 8;
+            
+            // Listar cada cliente
+            for (let i = 0; i < clients.length; i++) {
+                const client = clients[i];
+                checkPageBreak(25);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${i + 1}. ${client.name}`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`   CPF: ${client.cpf || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`   Telefone: ${client.phone || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`   Endereço: ${client.address || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                if (client.email) {
+                    doc.text(`   Email: ${client.email}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                
+                yPosition += 2; // Espaço entre clientes
+            }
+            
+            yPosition += 10;
+        }
+        
+        // ===== EMPRÉSTIMOS =====
+        if (options.loans && loans && loans.length > 0) {
+            checkPageBreak(30);
+            
+            doc.setFontSize(16);
+            doc.setFont('helvetica', 'bold');
+            doc.text('EMPRÉSTIMOS', margin, yPosition);
+            yPosition += 8;
+            
+            // Separar empréstimos por status
+            const activeLoans = loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'active');
+            const overdueLoans = loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'overdue');
+            const paidLoans = loans.filter(loan => loan.status === 'paid');
+            const today = new Date().toISOString().split('T')[0];
+            const dueTodayLoans = loans.filter(loan => loan.due_date === today && loan.status !== 'paid');
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Total de empréstimos: ${loans.length}`, margin, yPosition);
+            yPosition += lineHeight;
+            doc.text(`Empréstimos ativos: ${activeLoans.length}`, margin, yPosition);
+            yPosition += lineHeight;
+            doc.text(`Empréstimos vencidos: ${overdueLoans.length}`, margin, yPosition);
+            yPosition += lineHeight;
+            doc.text(`Vencem hoje: ${dueTodayLoans.length}`, margin, yPosition);
+            yPosition += lineHeight;
+            doc.text(`Empréstimos quitados: ${paidLoans.length}`, margin, yPosition);
+            yPosition += 10;
+            
+            // Empréstimos Ativos
+            if (activeLoans.length > 0) {
+                checkPageBreak(20);
+                doc.setFont('helvetica', 'bold');
+                doc.text('EMPRÉSTIMOS ATIVOS', margin, yPosition);
+                yPosition += 8;
+                
+                for (const loan of activeLoans) {
+                    checkPageBreak(25);
+                    const client = clients.find(c => c.id === loan.client_id);
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`Cliente: ${client?.name || 'N/A'}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Valor: ${formatCurrency(loan.amount)} | Juros: ${loan.interest_rate}% | Vencimento: ${formatDate(loan.due_date)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Restante: ${formatCurrency(loan.remaining_amount || loan.amount)}`, margin + 5, yPosition);
+                    yPosition += lineHeight + 2;
+                }
+                yPosition += 5;
+            }
+            
+            // Empréstimos Vencidos
+            if (overdueLoans.length > 0) {
+                checkPageBreak(20);
+                doc.setFont('helvetica', 'bold');
+                doc.text('EMPRÉSTIMOS VENCIDOS', margin, yPosition);
+                yPosition += 8;
+                
+                for (const loan of overdueLoans) {
+                    checkPageBreak(25);
+                    const client = clients.find(c => c.id === loan.client_id);
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`Cliente: ${client?.name || 'N/A'}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Valor: ${formatCurrency(loan.amount)} | Juros: ${loan.interest_rate}% | Vencimento: ${formatDate(loan.due_date)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Restante: ${formatCurrency(loan.remaining_amount || loan.amount)}`, margin + 5, yPosition);
+                    yPosition += lineHeight + 2;
+                }
+                yPosition += 5;
+            }
+            
+            // Vencem Hoje
+            if (dueTodayLoans.length > 0) {
+                checkPageBreak(20);
+                doc.setFont('helvetica', 'bold');
+                doc.text('VENCEM HOJE', margin, yPosition);
+                yPosition += 8;
+                
+                for (const loan of dueTodayLoans) {
+                    checkPageBreak(25);
+                    const client = clients.find(c => c.id === loan.client_id);
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`Cliente: ${client?.name || 'N/A'}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Valor: ${formatCurrency(loan.amount)} | Juros: ${loan.interest_rate}%`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Restante: ${formatCurrency(loan.remaining_amount || loan.amount)}`, margin + 5, yPosition);
+                    yPosition += lineHeight + 2;
+                }
+                yPosition += 5;
+            }
+            
+            yPosition += 10;
+        }
+        
+        // ===== PARCELAMENTOS =====
+        if (options.installments) {
+            checkPageBreak(30);
+            
+            // Buscar parcelamentos
+            const { data: installmentsData, error: installmentsError } = await supabase
+                .from('installments')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (!installmentsError && installmentsData && installmentsData.length > 0) {
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text('PARCELAMENTOS', margin, yPosition);
+                yPosition += 8;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de parcelamentos: ${installmentsData.length}`, margin, yPosition);
+                yPosition += 8;
+                
+                for (const installment of installmentsData) {
+                    checkPageBreak(30);
+                    const client = clients.find(c => c.id === installment.client_id);
+                    
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(`Cliente: ${client?.name || 'N/A'}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`Valor Total: ${formatCurrency(installment.total_amount)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Total de Parcelas: ${installment.total_installments} | Pagas: ${installment.paid_installments || 0}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Valor Pago: ${formatCurrency(installment.paid_amount || 0)} | Restante: ${formatCurrency(installment.remaining_amount || installment.total_amount)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Status: ${installment.status === 'active' ? 'Ativo' : installment.status === 'paid' ? 'Quitado' : 'Cancelado'}`, margin + 5, yPosition);
+                    yPosition += lineHeight + 3;
+                }
+                
+                yPosition += 10;
+            }
+        }
+        
+        // ===== PAGAMENTOS =====
+        if (options.payments) {
+            checkPageBreak(30);
+            
+            // Buscar pagamentos
+            const { data: paymentsData, error: paymentsError } = await supabase
+                .from('payments')
+                .select('*')
+                .order('payment_date', { ascending: false })
+                .limit(100); // Limitar a 100 pagamentos mais recentes
+            
+            if (!paymentsError && paymentsData && paymentsData.length > 0) {
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text('PAGAMENTOS RECENTES', margin, yPosition);
+                yPosition += 8;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de pagamentos (últimos 100): ${paymentsData.length}`, margin, yPosition);
+                yPosition += 8;
+                
+                const totalPayments = paymentsData.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+                doc.text(`Valor total: ${formatCurrency(totalPayments)}`, margin, yPosition);
+                yPosition += 10;
+                
+                for (const payment of paymentsData.slice(0, 50)) { // Mostrar apenas 50 no PDF
+                    checkPageBreak(20);
+                    const loan = loans.find(l => l.id === payment.loan_id);
+                    const client = clients.find(c => c.id === loan?.client_id);
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`${formatDate(payment.payment_date)} - ${client?.name || 'N/A'} - ${formatCurrency(payment.amount)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    
+                    if (payment.fine_amount && parseFloat(payment.fine_amount) > 0) {
+                        doc.text(`   Multa: ${formatCurrency(payment.fine_amount)}`, margin + 5, yPosition);
+                        yPosition += lineHeight;
+                    }
+                }
+                
+                yPosition += 10;
+            }
+        }
+        
+        // ===== LEVANTAMENTOS DE CAPITAL =====
+        if (options.capitalRaising) {
+            checkPageBreak(30);
+            
+            // Buscar levantamentos
+            const { data: capitalData, error: capitalError } = await supabase
+                .from('capital_raising')
+                .select('*')
+                .order('created_at', { ascending: false });
+            
+            if (!capitalError && capitalData && capitalData.length > 0) {
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text('LEVANTAMENTOS DE CAPITAL', margin, yPosition);
+                yPosition += 8;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de levantamentos: ${capitalData.length}`, margin, yPosition);
+                yPosition += 8;
+                
+                const totalCapital = capitalData.reduce((sum, c) => sum + parseFloat(c.total_amount || 0), 0);
+                doc.text(`Valor total levantado: ${formatCurrency(totalCapital)}`, margin, yPosition);
+                yPosition += 10;
+                
+                for (const capital of capitalData) {
+                    checkPageBreak(25);
+                    
+                    doc.setFont('helvetica', 'bold');
+                    doc.text(`${capital.name}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`Valor Total: ${formatCurrency(capital.total_amount)} | Meta: ${formatCurrency(capital.target_amount || 0)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Data de Início: ${formatDate(capital.start_date)} | Status: ${capital.status || 'Ativo'}`, margin + 5, yPosition);
+                    yPosition += lineHeight + 3;
+                }
+                
+                yPosition += 10;
+            }
+        }
+        
+        // ===== DESPESAS =====
+        if (options.expenses) {
+            checkPageBreak(30);
+            
+            // Buscar despesas
+            const { data: expensesData, error: expensesError } = await supabase
+                .from('expenses')
+                .select('*')
+                .order('expense_date', { ascending: false })
+                .limit(100);
+            
+            if (!expensesError && expensesData && expensesData.length > 0) {
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text('DESPESAS RECENTES', margin, yPosition);
+                yPosition += 8;
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de despesas (últimas 100): ${expensesData.length}`, margin, yPosition);
+                yPosition += 8;
+                
+                const totalExpenses = expensesData.reduce((sum, e) => sum + parseFloat(e.amount || 0), 0);
+                doc.text(`Valor total: ${formatCurrency(totalExpenses)}`, margin, yPosition);
+                yPosition += 10;
+                
+                for (const expense of expensesData.slice(0, 50)) { // Mostrar apenas 50 no PDF
+                    checkPageBreak(15);
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`${formatDate(expense.expense_date)} - ${expense.description || 'N/A'} - ${formatCurrency(expense.amount)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    
+                    if (expense.category) {
+                        doc.text(`   Categoria: ${expense.category}`, margin + 5, yPosition);
+                        yPosition += lineHeight;
+                    }
+                }
+                
+                yPosition += 10;
+            }
+        }
+        
+        // Rodapé final
+        checkPageBreak(20);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 8;
+        doc.setFontSize(8);
+        doc.setFont('helvetica', 'italic');
+        doc.text(`Backup gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPosition, { align: 'center' });
+        
+        // Salvar PDF
+        const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
+        const fileName = `backup_${companyName.replace(/\s/g, '_')}_${timestamp}.pdf`;
+        doc.save(fileName);
+        
+        showInfoMessage('Backup gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar backup:', error);
+        showInfoMessage('Erro ao gerar backup: ' + error.message);
     }
 }
 
