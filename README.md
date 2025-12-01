@@ -23,6 +23,7 @@ Sistema completo de gestão financeira para controle de clientes, empréstimos e
 - Controle de status (Ativo, Pago, Vencido, Cancelado)
 - Cálculo automático de valores totais
 - Seleção de clientes existentes
+- **📑 Geração de PDF individual** por empréstimo com endereço do cliente
 
 ### 📊 Parcelamento
 - **Gestão de empréstimos vencidos**
@@ -36,6 +37,19 @@ Sistema completo de gestão financeira para controle de clientes, empréstimos e
 - Gráficos interativos
 - Resumo financeiro por períodos
 - Estatísticas de crescimento
+
+### 📄 Geração de PDFs
+- **PDF Individual do Empréstimo** (📑): Comprovante detalhado de um empréstimo específico
+  - Dados completos do cliente incluindo endereço
+  - Informações do empréstimo e avalistas
+  - Histórico de pagamentos do empréstimo
+  - Acesso direto pela aba de Empréstimos
+- **PDF Completo do Cliente**: Relatório consolidado de todas as operações
+  - Histórico completo de empréstimos (ativos + quitados)
+  - Todos os pagamentos realizados
+  - Avalistas e contatos de emergência
+  - Resumo financeiro total
+  - Acesso pela aba Histórico Completo
 
 ## Funcionalidades de Edição e Exclusão
 

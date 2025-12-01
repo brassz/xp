@@ -1989,6 +1989,7 @@ async function renderLoansTable() {
                     <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
                     <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
                     <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
+                    <button class="text-red-500 hover:text-red-400 mr-3" onclick="generateLoanPDF('${loan.id}')" title="Gerar PDF do Empréstimo">📑</button>
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
                     <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="contactGuarantorOrEmergency('${loan.id}')" title="Contatar Avalista ou Emergência">👥</button>
@@ -16218,6 +16219,286 @@ async function generateClientCompletePDF() {
 
     } catch (error) {
         console.error('Erro ao gerar PDF:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
+    }
+}
+
+// =====================================================
+// FUNÇÃO PARA GERAR PDF DE UM EMPRÉSTIMO ESPECÍFICO
+// =====================================================
+
+async function generateLoanPDF(loanId) {
+    try {
+        showInfoMessage('Gerando PDF do empréstimo... Por favor, aguarde.');
+
+        // Buscar dados do empréstimo
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            showInfoMessage('Empréstimo não encontrado');
+            return;
+        }
+
+        // Buscar dados completos do cliente
+        const { data: clientData, error: clientError } = await supabase
+            .from('clients')
+            .select('*')
+            .eq('id', loan.client_id)
+            .single();
+        
+        if (clientError) throw clientError;
+
+        // Buscar pagamentos deste empréstimo
+        const { data: loanPayments, error: paymentsError } = await supabase
+            .from('payments')
+            .select('*')
+            .eq('loan_id', loanId)
+            .order('payment_date', { ascending: false });
+        
+        if (paymentsError) throw paymentsError;
+
+        // Buscar avalistas do cliente
+        const { data: clientGuarantors, error: guarantorsError } = await supabase
+            .from('guarantors')
+            .select('*')
+            .eq('client_id', loan.client_id);
+        
+        if (guarantorsError) throw guarantorsError;
+
+        // Calcular valores
+        const loanAmount = parseFloat(loan.amount || 0);
+        const interestRate = parseFloat(loan.interest_rate || 0);
+        const totalWithInterest = loanAmount + (loanAmount * interestRate / 100);
+        const totalPaid = (loanPayments || []).reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+        const remaining = totalWithInterest - totalPaid;
+        const status = getLoanStatus(loan.due_date, loan.status);
+
+        // Gerar PDF usando jsPDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+
+        let yPosition = 20;
+        const pageHeight = doc.internal.pageSize.height;
+        const pageWidth = doc.internal.pageSize.width;
+        const margin = 20;
+        const lineHeight = 7;
+
+        // Função auxiliar para adicionar nova página se necessário
+        function checkPageBreak(additionalHeight = 10) {
+            if (yPosition + additionalHeight > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+                return true;
+            }
+            return false;
+        }
+
+        // Título do documento
+        doc.setFontSize(18);
+        doc.setFont(undefined, 'bold');
+        doc.text('COMPROVANTE DE EMPRESTIMO', pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 12;
+
+        // ID do empréstimo
+        doc.setFontSize(9);
+        doc.setFont(undefined, 'italic');
+        doc.text(`ID: ${loanId}`, pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 12;
+
+        // Informações do Cliente
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('DADOS DO CLIENTE', margin, yPosition);
+        yPosition += 8;
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Nome: ${clientData.name || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`CPF: ${clientData.cpf || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        
+        if (clientData.rg) {
+            doc.text(`RG: ${clientData.rg}`, margin, yPosition);
+            yPosition += lineHeight;
+        }
+        
+        doc.text(`Telefone: ${clientData.phone || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        
+        if (clientData.email) {
+            doc.text(`Email: ${clientData.email}`, margin, yPosition);
+            yPosition += lineHeight;
+        }
+        
+        if (clientData.address) {
+            // Dividir endereço em linhas se for muito longo
+            const addressLines = doc.splitTextToSize(`Endereco: ${clientData.address}`, pageWidth - 2 * margin);
+            addressLines.forEach(line => {
+                doc.text(line, margin, yPosition);
+                yPosition += lineHeight;
+            });
+        }
+        
+        if (clientData.birth_date) {
+            const birthDate = new Date(clientData.birth_date).toLocaleDateString('pt-BR');
+            doc.text(`Data de Nascimento: ${birthDate}`, margin, yPosition);
+            yPosition += lineHeight;
+        }
+
+        yPosition += 5;
+        checkPageBreak();
+
+        // Avalistas (se houver)
+        if (clientGuarantors && clientGuarantors.length > 0) {
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.text('AVALISTA(S)', margin, yPosition);
+            yPosition += 8;
+
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'normal');
+            
+            for (const guarantor of clientGuarantors) {
+                checkPageBreak(30);
+                doc.text(`Nome: ${guarantor.name || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`CPF: ${guarantor.cpf || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`Telefone: ${guarantor.phone || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                if (guarantor.relationship) {
+                    doc.text(`Relacionamento: ${getRelationshipText(guarantor.relationship)}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                
+                yPosition += 3;
+            }
+
+            yPosition += 5;
+        }
+
+        // Linha separadora
+        checkPageBreak(15);
+        doc.setDrawColor(100, 100, 100);
+        doc.line(margin, yPosition, pageWidth - margin, yPosition);
+        yPosition += 8;
+
+        // Informações do Empréstimo
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('DETALHES DO EMPRESTIMO', margin, yPosition);
+        yPosition += 8;
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        
+        const loanDate = new Date(loan.loan_date).toLocaleDateString('pt-BR');
+        const dueDate = new Date(loan.due_date).toLocaleDateString('pt-BR');
+        
+        doc.text(`Data do Emprestimo: ${loanDate}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Data de Vencimento: ${dueDate}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Valor Principal: R$ ${loanAmount.toFixed(2)}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Taxa de Juros: ${interestRate}%`, margin, yPosition);
+        yPosition += lineHeight;
+        
+        doc.setFont(undefined, 'bold');
+        doc.text(`Valor Total (com juros): R$ ${totalWithInterest.toFixed(2)}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.setFont(undefined, 'normal');
+        
+        doc.text(`Status: ${getStatusText(status)}`, margin, yPosition);
+        yPosition += 10;
+
+        // Resumo de Pagamentos
+        checkPageBreak();
+        doc.setFontSize(14);
+        doc.setFont(undefined, 'bold');
+        doc.text('RESUMO DE PAGAMENTOS', margin, yPosition);
+        yPosition += 8;
+
+        doc.setFontSize(10);
+        doc.setFont(undefined, 'normal');
+        doc.text(`Total Pago: R$ ${totalPaid.toFixed(2)}`, margin, yPosition);
+        yPosition += lineHeight;
+        
+        doc.setFont(undefined, 'bold');
+        const remainingColor = remaining > 0 ? [220, 38, 38] : [34, 197, 94];
+        doc.setTextColor(...remainingColor);
+        doc.text(`Valor Restante: R$ ${remaining.toFixed(2)}`, margin, yPosition);
+        doc.setTextColor(0, 0, 0); // Resetar cor
+        yPosition += 10;
+
+        // Histórico de Pagamentos
+        if (loanPayments && loanPayments.length > 0) {
+            checkPageBreak();
+            doc.setFontSize(14);
+            doc.setFont(undefined, 'bold');
+            doc.text('HISTORICO DE PAGAMENTOS', margin, yPosition);
+            yPosition += 8;
+
+            doc.setFontSize(9);
+            
+            for (const payment of loanPayments) {
+                checkPageBreak(22);
+                
+                const paymentDate = new Date(payment.payment_date).toLocaleDateString('pt-BR');
+                const amount = parseFloat(payment.amount || 0);
+                const fineAmount = parseFloat(payment.fine_amount || 0);
+                const paymentType = getPaymentTypeText(payment.payment_type);
+                
+                doc.setFont(undefined, 'bold');
+                doc.text(`${paymentDate}`, margin, yPosition);
+                doc.text(`R$ ${amount.toFixed(2)}`, margin + 70, yPosition);
+                yPosition += lineHeight;
+                
+                doc.setFont(undefined, 'normal');
+                doc.text(`Tipo: ${paymentType}`, margin + 5, yPosition);
+                
+                if (fineAmount > 0) {
+                    doc.text(`Multa: R$ ${fineAmount.toFixed(2)}`, margin + 70, yPosition);
+                }
+                yPosition += lineHeight;
+                
+                if (payment.notes) {
+                    const notesText = `Obs: ${payment.notes}`;
+                    const notesLines = doc.splitTextToSize(notesText, pageWidth - 2 * margin - 10);
+                    notesLines.forEach(line => {
+                        doc.text(line, margin + 5, yPosition);
+                        yPosition += lineHeight - 1;
+                    });
+                }
+                
+                yPosition += 3;
+            }
+        } else {
+            doc.setFontSize(10);
+            doc.setFont(undefined, 'italic');
+            doc.setTextColor(100, 100, 100);
+            doc.text('Nenhum pagamento registrado ate o momento', margin, yPosition);
+            doc.setTextColor(0, 0, 0);
+            yPosition += 10;
+        }
+
+        // Rodapé com data de geração
+        const currentDate = new Date().toLocaleDateString('pt-BR');
+        const currentTime = new Date().toLocaleTimeString('pt-BR');
+        doc.setFontSize(8);
+        doc.setFont(undefined, 'italic');
+        doc.setTextColor(100, 100, 100);
+        doc.text(`Documento gerado em ${currentDate} as ${currentTime}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+
+        // Salvar PDF
+        const fileName = `Emprestimo_${clientData.name.replace(/\s+/g, '_')}_${loanDate.replace(/\//g, '-')}.pdf`;
+        doc.save(fileName);
+
+        showInfoMessage('PDF do empréstimo gerado com sucesso!');
+
+    } catch (error) {
+        console.error('Erro ao gerar PDF do empréstimo:', error);
         showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
 }
