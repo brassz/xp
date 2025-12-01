@@ -146,14 +146,31 @@ SELECT
     '' as separador,
     '========== EMPRÉSTIMOS VENCIDOS POR PERÍODO ==========' as titulo;
 
+WITH vencidos_periodo AS (
+    SELECT 
+        CASE 
+            WHEN CURRENT_DATE - due_date <= 30 THEN '1-30 dias'
+            WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
+            WHEN CURRENT_DATE - due_date <= 90 THEN '61-90 dias'
+            WHEN CURRENT_DATE - due_date <= 180 THEN '91-180 dias'
+            ELSE 'Mais de 180 dias'
+        END as periodo_vencimento,
+        CASE 
+            WHEN CURRENT_DATE - due_date <= 30 THEN 1
+            WHEN CURRENT_DATE - due_date <= 60 THEN 2
+            WHEN CURRENT_DATE - due_date <= 90 THEN 3
+            WHEN CURRENT_DATE - due_date <= 180 THEN 4
+            ELSE 5
+        END as ordem,
+        amount,
+        total_amount,
+        id as loan_id
+    FROM loans
+    WHERE due_date < CURRENT_DATE 
+        AND status IN ('active', 'overdue', 'partial_paid')
+)
 SELECT 
-    CASE 
-        WHEN CURRENT_DATE - due_date <= 30 THEN '1-30 dias'
-        WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
-        WHEN CURRENT_DATE - due_date <= 90 THEN '61-90 dias'
-        WHEN CURRENT_DATE - due_date <= 180 THEN '91-180 dias'
-        ELSE 'Mais de 180 dias'
-    END as periodo_vencimento,
+    periodo_vencimento,
     COUNT(*) as quantidade,
     SUM(amount) as valor_emprestado,
     SUM(total_amount) as valor_total,
@@ -161,29 +178,13 @@ SELECT
         COALESCE(
             (SELECT SUM(p.amount) 
              FROM payments p 
-             WHERE p.loan_id = loans.id), 
+             WHERE p.loan_id = vencidos_periodo.loan_id), 
             0
         )
     ) as saldo_devedor
-FROM loans
-WHERE due_date < CURRENT_DATE 
-    AND status IN ('active', 'overdue', 'partial_paid')
-GROUP BY 
-    CASE 
-        WHEN CURRENT_DATE - due_date <= 30 THEN '1-30 dias'
-        WHEN CURRENT_DATE - due_date <= 60 THEN '31-60 dias'
-        WHEN CURRENT_DATE - due_date <= 90 THEN '61-90 dias'
-        WHEN CURRENT_DATE - due_date <= 180 THEN '91-180 dias'
-        ELSE 'Mais de 180 dias'
-    END
-ORDER BY 
-    CASE 
-        WHEN CURRENT_DATE - due_date <= 30 THEN 1
-        WHEN CURRENT_DATE - due_date <= 60 THEN 2
-        WHEN CURRENT_DATE - due_date <= 90 THEN 3
-        WHEN CURRENT_DATE - due_date <= 180 THEN 4
-        ELSE 5
-    END;
+FROM vencidos_periodo
+GROUP BY periodo_vencimento, ordem
+ORDER BY ordem;
 
 -- =============================================================================
 -- EMPRÉSTIMOS QUITADOS
