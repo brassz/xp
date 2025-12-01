@@ -713,6 +713,16 @@
                             </div>
                         </div>
                     </div>
+
+                    <!-- Backup Button -->
+                    <div class="mt-8 flex justify-center">
+                        <button id="completeBackupBtn" class="bg-gradient-to-r from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 px-8 py-4 rounded-xl font-bold text-white text-lg shadow-xl hover:shadow-2xl transform hover:scale-105 transition-all duration-200 flex items-center space-x-3">
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 7H5a2 2 0 00-2 2v9a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-3m-1 4l-3 3m0 0l-3-3m3 3V4"></path>
+                            </svg>
+                            <span>Backup Completo</span>
+                        </button>
+                    </div>
                 </div>
 
                 <!-- Clients Section -->
@@ -3842,6 +3852,88 @@
                         </button>
                         <button id="confirmDeleteBtn" class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
                             Excluir
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Backup Modal -->
+    <div id="backupModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-2xl p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Backup Completo do Sistema</h3>
+                    <button id="closeBackupModal" class="text-gray-400 hover:text-white">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <p class="text-gray-400 mb-6">Selecione os dados que deseja incluir no backup em PDF:</p>
+                
+                <div class="space-y-3 mb-6">
+                    <label class="flex items-center p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 cursor-pointer transition-colors">
+                        <input type="checkbox" id="backupClients" class="mr-3 rounded w-5 h-5" checked>
+                        <div class="flex-1">
+                            <span class="text-white font-medium">Clientes</span>
+                            <p class="text-sm text-gray-400">Nome, CPF, endereço e telefone de todos os clientes</p>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-center p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 cursor-pointer transition-colors">
+                        <input type="checkbox" id="backupLoans" class="mr-3 rounded w-5 h-5" checked>
+                        <div class="flex-1">
+                            <span class="text-white font-medium">Empréstimos</span>
+                            <p class="text-sm text-gray-400">Todos os empréstimos (ativos, vencidos, vencem hoje e quitados)</p>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-center p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 cursor-pointer transition-colors">
+                        <input type="checkbox" id="backupInstallments" class="mr-3 rounded w-5 h-5" checked>
+                        <div class="flex-1">
+                            <span class="text-white font-medium">Parcelamentos</span>
+                            <p class="text-sm text-gray-400">Todos os parcelamentos e suas parcelas pagas</p>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-center p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 cursor-pointer transition-colors">
+                        <input type="checkbox" id="backupPayments" class="mr-3 rounded w-5 h-5" checked>
+                        <div class="flex-1">
+                            <span class="text-white font-medium">Pagamentos</span>
+                            <p class="text-sm text-gray-400">Histórico completo de todos os pagamentos</p>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-center p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 cursor-pointer transition-colors">
+                        <input type="checkbox" id="backupCapitalRaising" class="mr-3 rounded w-5 h-5" checked>
+                        <div class="flex-1">
+                            <span class="text-white font-medium">Levantamentos de Capital</span>
+                            <p class="text-sm text-gray-400">Todos os levantamentos de capital registrados</p>
+                        </div>
+                    </label>
+                    
+                    <label class="flex items-center p-4 bg-gray-800 rounded-lg border border-gray-700 hover:border-blue-500 cursor-pointer transition-colors">
+                        <input type="checkbox" id="backupExpenses" class="mr-3 rounded w-5 h-5" checked>
+                        <div class="flex-1">
+                            <span class="text-white font-medium">Despesas</span>
+                            <p class="text-sm text-gray-400">Todas as despesas cadastradas no sistema</p>
+                        </div>
+                    </label>
+                </div>
+                
+                <div class="flex items-center justify-between pt-4 border-t border-gray-700">
+                    <button id="selectAllBackup" class="text-blue-400 hover:text-blue-300 font-medium">
+                        Selecionar Todos
+                    </button>
+                    <div class="flex space-x-3">
+                        <button id="cancelBackupBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
+                            Cancelar
+                        </button>
+                        <button id="generateBackupBtn" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
+                            Gerar Backup
                         </button>
                     </div>
                 </div>
