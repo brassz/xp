@@ -13517,6 +13517,30 @@ async function generateCompleteBackupPDF(options) {
                 yPosition += 5;
             }
             
+            // Empréstimos Quitados
+            if (paidLoans.length > 0) {
+                checkPageBreak(20);
+                doc.setFont('helvetica', 'bold');
+                doc.text('EMPRÉSTIMOS QUITADOS', margin, yPosition);
+                yPosition += 8;
+                
+                for (const loan of paidLoans) {
+                    checkPageBreak(25);
+                    const client = clients.find(c => c.id === loan.client_id);
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`Cliente: ${client?.name || 'N/A'}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Valor: ${formatCurrency(loan.amount)} | Juros: ${loan.interest_rate}% | Vencimento: ${formatDate(loan.due_date)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    
+                    const totalWithInterest = parseFloat(loan.amount) * (1 + parseFloat(loan.interest_rate) / 100);
+                    doc.text(`Total com juros: ${formatCurrency(totalWithInterest)} | Data quitação: ${loan.paid_date ? formatDate(loan.paid_date) : 'N/A'}`, margin + 5, yPosition);
+                    yPosition += lineHeight + 2;
+                }
+                yPosition += 5;
+            }
+            
             yPosition += 10;
         }
         
