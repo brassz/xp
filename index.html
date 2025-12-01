@@ -1785,7 +1785,18 @@
                     
                     <!-- Resumo do Cliente -->
                     <div id="clientSummary" class="glass-card p-6 rounded-xl mb-6 hidden">
-                        <h3 class="text-lg font-semibold text-white mb-4">Resumo do Cliente</h3>
+                        <div class="flex justify-between items-center mb-4">
+                            <h3 class="text-lg font-semibold text-white">Resumo do Cliente</h3>
+                            <button 
+                                id="generateClientPdfBtn" 
+                                class="bg-red-600 hover:bg-red-700 px-6 py-2 rounded-lg font-semibold text-white transition-colors flex items-center space-x-2"
+                                onclick="generateClientCompletePDF()">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                                </svg>
+                                <span>Gerar PDF Completo</span>
+                            </button>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-4 gap-6">
                             <div class="text-center">
                                 <p class="text-sm text-blue-300 mb-2">Total de Empréstimos</p>
