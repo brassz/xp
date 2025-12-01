@@ -13362,33 +13362,39 @@ async function generateCompleteBackupPDF(options) {
             return `R$ ${parseFloat(value).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
         }
         
-        // Cabeçalho do documento
+        // Cabeçalho do documento com fundo azul
+        doc.setFillColor(41, 128, 185); // Azul
+        doc.rect(0, 0, pageWidth, 35, 'F');
+        
+        doc.setTextColor(255, 255, 255); // Branco
         doc.setFontSize(20);
         doc.setFont('helvetica', 'bold');
-        doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, yPosition, { align: 'center' });
-        yPosition += 10;
+        doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, 15, { align: 'center' });
         
         doc.setFontSize(14);
         doc.setFont('helvetica', 'normal');
-        doc.text(companyName, pageWidth / 2, yPosition, { align: 'center' });
-        yPosition += 10;
+        doc.text(companyName, pageWidth / 2, 23, { align: 'center' });
         
-        doc.setFontSize(10);
-        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPosition, { align: 'center' });
-        yPosition += 10;
+        doc.setFontSize(9);
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')} - ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, 30, { align: 'center' });
         
-        doc.line(margin, yPosition, pageWidth - margin, yPosition);
-        yPosition += 10;
+        yPosition = 45;
+        doc.setTextColor(0, 0, 0); // Voltar para preto
         
         // ===== CLIENTES =====
         if (options.clients && clients && clients.length > 0) {
             checkPageBreak(30);
             
+            // Título com fundo verde
+            doc.setFillColor(46, 204, 113); // Verde
+            doc.rect(margin - 5, yPosition - 6, pageWidth - (margin * 2) + 10, 10, 'F');
+            doc.setTextColor(255, 255, 255);
             doc.setFontSize(16);
             doc.setFont('helvetica', 'bold');
             doc.text('CLIENTES', margin, yPosition);
             yPosition += 8;
             
+            doc.setTextColor(0, 0, 0);
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
             doc.text(`Total de clientes: ${clients.length}`, margin, yPosition);
@@ -13426,10 +13432,16 @@ async function generateCompleteBackupPDF(options) {
         if (options.loans && loans && loans.length > 0) {
             checkPageBreak(30);
             
+            // Título com fundo laranja
+            doc.setFillColor(230, 126, 34); // Laranja
+            doc.rect(margin - 5, yPosition - 6, pageWidth - (margin * 2) + 10, 10, 'F');
+            doc.setTextColor(255, 255, 255);
             doc.setFontSize(16);
             doc.setFont('helvetica', 'bold');
             doc.text('EMPRÉSTIMOS', margin, yPosition);
             yPosition += 8;
+            
+            doc.setTextColor(0, 0, 0);
             
             // Separar empréstimos por status
             const activeLoans = loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'active');
@@ -13454,9 +13466,13 @@ async function generateCompleteBackupPDF(options) {
             // Empréstimos Ativos
             if (activeLoans.length > 0) {
                 checkPageBreak(20);
+                doc.setFillColor(52, 152, 219); // Azul claro
+                doc.rect(margin, yPosition - 5, 60, 7, 'F');
+                doc.setTextColor(255, 255, 255);
                 doc.setFont('helvetica', 'bold');
-                doc.text('EMPRÉSTIMOS ATIVOS', margin, yPosition);
+                doc.text('EMPRÉSTIMOS ATIVOS', margin + 2, yPosition);
                 yPosition += 8;
+                doc.setTextColor(0, 0, 0);
                 
                 for (const loan of activeLoans) {
                     checkPageBreak(25);
@@ -13476,9 +13492,13 @@ async function generateCompleteBackupPDF(options) {
             // Empréstimos Vencidos
             if (overdueLoans.length > 0) {
                 checkPageBreak(20);
+                doc.setFillColor(231, 76, 60); // Vermelho
+                doc.rect(margin, yPosition - 5, 65, 7, 'F');
+                doc.setTextColor(255, 255, 255);
                 doc.setFont('helvetica', 'bold');
-                doc.text('EMPRÉSTIMOS VENCIDOS', margin, yPosition);
+                doc.text('EMPRÉSTIMOS VENCIDOS', margin + 2, yPosition);
                 yPosition += 8;
+                doc.setTextColor(0, 0, 0);
                 
                 for (const loan of overdueLoans) {
                     checkPageBreak(25);
@@ -13498,8 +13518,11 @@ async function generateCompleteBackupPDF(options) {
             // Vencem Hoje
             if (dueTodayLoans.length > 0) {
                 checkPageBreak(20);
+                doc.setFillColor(241, 196, 15); // Amarelo
+                doc.rect(margin, yPosition - 5, 40, 7, 'F');
+                doc.setTextColor(0, 0, 0);
                 doc.setFont('helvetica', 'bold');
-                doc.text('VENCEM HOJE', margin, yPosition);
+                doc.text('VENCEM HOJE', margin + 2, yPosition);
                 yPosition += 8;
                 
                 for (const loan of dueTodayLoans) {
@@ -13520,9 +13543,13 @@ async function generateCompleteBackupPDF(options) {
             // Empréstimos Quitados
             if (paidLoans.length > 0) {
                 checkPageBreak(20);
+                doc.setFillColor(39, 174, 96); // Verde escuro
+                doc.rect(margin, yPosition - 5, 70, 7, 'F');
+                doc.setTextColor(255, 255, 255);
                 doc.setFont('helvetica', 'bold');
-                doc.text('EMPRÉSTIMOS QUITADOS', margin, yPosition);
+                doc.text('EMPRÉSTIMOS QUITADOS', margin + 2, yPosition);
                 yPosition += 8;
+                doc.setTextColor(0, 0, 0);
                 
                 for (const loan of paidLoans) {
                     checkPageBreak(25);
@@ -13555,10 +13582,15 @@ async function generateCompleteBackupPDF(options) {
                 .order('created_at', { ascending: false });
             
             if (!installmentsError && installmentsData && installmentsData.length > 0) {
+                // Título com fundo roxo
+                doc.setFillColor(155, 89, 182); // Roxo
+                doc.rect(margin - 5, yPosition - 6, pageWidth - (margin * 2) + 10, 10, 'F');
+                doc.setTextColor(255, 255, 255);
                 doc.setFontSize(16);
                 doc.setFont('helvetica', 'bold');
                 doc.text('PARCELAMENTOS', margin, yPosition);
                 yPosition += 8;
+                doc.setTextColor(0, 0, 0);
                 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
@@ -13600,10 +13632,15 @@ async function generateCompleteBackupPDF(options) {
                 .limit(100); // Limitar a 100 pagamentos mais recentes
             
             if (!paymentsError && paymentsData && paymentsData.length > 0) {
+                // Título com fundo verde água
+                doc.setFillColor(26, 188, 156); // Verde água
+                doc.rect(margin - 5, yPosition - 6, pageWidth - (margin * 2) + 10, 10, 'F');
+                doc.setTextColor(255, 255, 255);
                 doc.setFontSize(16);
                 doc.setFont('helvetica', 'bold');
                 doc.text('PAGAMENTOS RECENTES', margin, yPosition);
                 yPosition += 8;
+                doc.setTextColor(0, 0, 0);
                 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
@@ -13644,10 +13681,15 @@ async function generateCompleteBackupPDF(options) {
                 .order('created_at', { ascending: false });
             
             if (!capitalError && capitalData && capitalData.length > 0) {
+                // Título com fundo azul escuro
+                doc.setFillColor(52, 73, 94); // Azul escuro
+                doc.rect(margin - 5, yPosition - 6, pageWidth - (margin * 2) + 10, 10, 'F');
+                doc.setTextColor(255, 255, 255);
                 doc.setFontSize(16);
                 doc.setFont('helvetica', 'bold');
                 doc.text('LEVANTAMENTOS DE CAPITAL', margin, yPosition);
                 yPosition += 8;
+                doc.setTextColor(0, 0, 0);
                 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
@@ -13688,10 +13730,15 @@ async function generateCompleteBackupPDF(options) {
                 .limit(100);
             
             if (!expensesError && expensesData && expensesData.length > 0) {
+                // Título com fundo vermelho escuro
+                doc.setFillColor(192, 57, 43); // Vermelho escuro
+                doc.rect(margin - 5, yPosition - 6, pageWidth - (margin * 2) + 10, 10, 'F');
+                doc.setTextColor(255, 255, 255);
                 doc.setFontSize(16);
                 doc.setFont('helvetica', 'bold');
                 doc.text('DESPESAS RECENTES', margin, yPosition);
                 yPosition += 8;
+                doc.setTextColor(0, 0, 0);
                 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
@@ -13721,11 +13768,13 @@ async function generateCompleteBackupPDF(options) {
         
         // Rodapé final
         checkPageBreak(20);
-        doc.line(margin, yPosition, pageWidth - margin, yPosition);
-        yPosition += 8;
+        doc.setFillColor(52, 73, 94); // Azul escuro
+        doc.rect(0, yPosition - 5, pageWidth, 15, 'F');
+        doc.setTextColor(255, 255, 255);
         doc.setFontSize(8);
         doc.setFont('helvetica', 'italic');
-        doc.text(`Backup gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPosition, { align: 'center' });
+        doc.text(`Backup gerado em ${new Date().toLocaleDateString('pt-BR')} às ${new Date().toLocaleTimeString('pt-BR')}`, pageWidth / 2, yPosition + 4, { align: 'center' });
+        doc.setTextColor(0, 0, 0);
         
         // Salvar PDF
         const timestamp = new Date().toISOString().replace(/[:.]/g, '-').split('T')[0];
