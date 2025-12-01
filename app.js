@@ -3852,35 +3852,89 @@ function calculateNextDueDateKeepingOriginalDay(loanDate, currentDueDate) {
 async function updateDashboard() {
     document.getElementById('totalClients').textContent = clients.length;
     
-    // Calcular total emprestado incluindo empréstimos ativos e quitados
-    let totalLoaned = loans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
+    // Calcular total emprestado incluindo empréstimos ativos, quitados e cancelados
+    // Usar original_amount ao invés de amount, pois amount pode ser reduzido por pagamentos de capital
+    let totalLoaned = loans.reduce((sum, loan) => {
+        const originalAmount = parseFloat(loan.original_amount || loan.amount);
+        return sum + originalAmount;
+    }, 0);
+    let activeLoansTotal = totalLoaned;
+    let activeLoansCount = loans.length;
     
-    // Calcular total de juros dos empréstimos ativos
+    // Calcular total de juros dos empréstimos ativos (usar original_amount)
     let totalInterest = loans.reduce((sum, loan) => {
-        return sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+        const originalAmount = parseFloat(loan.original_amount || loan.amount);
+        const interestRate = parseFloat(loan.interest_rate);
+        return sum + (originalAmount * interestRate / 100);
     }, 0);
     
     // Buscar empréstimos quitados da tabela paid_loans e somar aos totais
     let paidLoansCount = 0;
+    let paidLoansTotal = 0;
     try {
         const { data: paidLoans, error } = await supabase
             .from('paid_loans')
-            .select('amount, interest_rate');
+            .select('original_amount, interest_rate');
         
         if (!error && paidLoans) {
             paidLoansCount = paidLoans.length;
             
             // Adicionar os valores dos empréstimos quitados ao total emprestado e juros
             paidLoans.forEach(loan => {
-                const amount = parseFloat(loan.amount) || 0;
+                const amount = parseFloat(loan.original_amount) || 0;
                 const interestRate = parseFloat(loan.interest_rate) || 0;
                 totalLoaned += amount;
+                paidLoansTotal += amount;
                 totalInterest += (amount * interestRate / 100);
             });
         }
     } catch (error) {
         console.error('Erro ao buscar empréstimos quitados:', error);
     }
+    
+    // Buscar empréstimos cancelados da tabela cancelled_loans e somar aos totais
+    let cancelledLoansCount = 0;
+    let cancelledLoansTotal = 0;
+    try {
+        const { data: cancelledLoans, error } = await supabase
+            .from('cancelled_loans')
+            .select('original_amount, interest_rate');
+        
+        if (!error && cancelledLoans) {
+            cancelledLoansCount = cancelledLoans.length;
+            
+            // Adicionar os valores dos empréstimos cancelados ao total emprestado e juros
+            cancelledLoans.forEach(loan => {
+                const amount = parseFloat(loan.original_amount) || 0;
+                const interestRate = parseFloat(loan.interest_rate) || 0;
+                totalLoaned += amount;
+                cancelledLoansTotal += amount;
+                totalInterest += (amount * interestRate / 100);
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao buscar empréstimos cancelados:', error);
+    }
+    
+    // Debug log para ajudar a identificar problemas
+    console.log('📊 TOTAL EMPRESTADO - Breakdown:', {
+        'Empréstimos Ativos': {
+            quantidade: activeLoansCount,
+            total: `R$ ${activeLoansTotal.toFixed(2)}`
+        },
+        'Empréstimos Quitados': {
+            quantidade: paidLoansCount,
+            total: `R$ ${paidLoansTotal.toFixed(2)}`
+        },
+        'Empréstimos Cancelados': {
+            quantidade: cancelledLoansCount,
+            total: `R$ ${cancelledLoansTotal.toFixed(2)}`
+        },
+        'TOTAL GERAL': {
+            quantidade: activeLoansCount + paidLoansCount + cancelledLoansCount,
+            total: `R$ ${totalLoaned.toFixed(2)}`
+        }
+    });
     
     document.getElementById('totalLoaned').textContent = `R$ ${totalLoaned.toFixed(2)}`;
     document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
