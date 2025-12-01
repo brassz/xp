@@ -3892,31 +3892,7 @@ async function updateDashboard() {
         console.error('Erro ao buscar empréstimos quitados:', error);
     }
     
-    // Buscar empréstimos cancelados da tabela cancelled_loans e somar aos totais
-    let cancelledLoansCount = 0;
-    let cancelledLoansTotal = 0;
-    try {
-        const { data: cancelledLoans, error } = await supabase
-            .from('cancelled_loans')
-            .select('original_amount, interest_rate');
-        
-        if (!error && cancelledLoans) {
-            cancelledLoansCount = cancelledLoans.length;
-            
-            // Adicionar os valores dos empréstimos cancelados ao total emprestado e juros
-            cancelledLoans.forEach(loan => {
-                const amount = parseFloat(loan.original_amount) || 0;
-                const interestRate = parseFloat(loan.interest_rate) || 0;
-                totalLoaned += amount;
-                cancelledLoansTotal += amount;
-                totalInterest += (amount * interestRate / 100);
-            });
-        }
-    } catch (error) {
-        console.error('Erro ao buscar empréstimos cancelados:', error);
-    }
-    
-    // Debug log para ajudar a identificar problemas
+    // Debug log para ajudar a identificar problemas (empréstimos cancelados NÃO são incluídos)
     console.log('📊 TOTAL EMPRESTADO - Breakdown:', {
         'Empréstimos Ativos': {
             quantidade: activeLoansCount,
@@ -3926,12 +3902,8 @@ async function updateDashboard() {
             quantidade: paidLoansCount,
             total: `R$ ${paidLoansTotal.toFixed(2)}`
         },
-        'Empréstimos Cancelados': {
-            quantidade: cancelledLoansCount,
-            total: `R$ ${cancelledLoansTotal.toFixed(2)}`
-        },
-        'TOTAL GERAL': {
-            quantidade: activeLoansCount + paidLoansCount + cancelledLoansCount,
+        'TOTAL GERAL (Ativos + Quitados)': {
+            quantidade: activeLoansCount + paidLoansCount,
             total: `R$ ${totalLoaned.toFixed(2)}`
         }
     });
