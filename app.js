@@ -13446,13 +13446,28 @@ async function generateCompleteBackupPDF(options) {
             // Separar empréstimos por status
             const activeLoans = loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'active');
             const overdueLoans = loans.filter(loan => getLoanStatus(loan.due_date, loan.status) === 'overdue');
-            const paidLoans = loans.filter(loan => loan.status === 'paid');
             const today = new Date().toISOString().split('T')[0];
             const dueTodayLoans = loans.filter(loan => loan.due_date === today && loan.status !== 'paid');
             
+            // Buscar empréstimos quitados da tabela paid_loans
+            const { data: paidLoansData, error: paidLoansError } = await supabase
+                .from('paid_loans')
+                .select('*')
+                .order('paid_date', { ascending: false });
+            
+            const paidLoans = paidLoansData || [];
+            
+            // Buscar empréstimos cancelados da tabela cancelled_loans
+            const { data: cancelledLoansData, error: cancelledLoansError } = await supabase
+                .from('cancelled_loans')
+                .select('*')
+                .order('cancelled_date', { ascending: false });
+            
+            const cancelledLoans = cancelledLoansData || [];
+            
             doc.setFontSize(10);
             doc.setFont('helvetica', 'normal');
-            doc.text(`Total de empréstimos: ${loans.length}`, margin, yPosition);
+            doc.text(`Total de empréstimos ativos: ${loans.length}`, margin, yPosition);
             yPosition += lineHeight;
             doc.text(`Empréstimos ativos: ${activeLoans.length}`, margin, yPosition);
             yPosition += lineHeight;
@@ -13461,6 +13476,8 @@ async function generateCompleteBackupPDF(options) {
             doc.text(`Vencem hoje: ${dueTodayLoans.length}`, margin, yPosition);
             yPosition += lineHeight;
             doc.text(`Empréstimos quitados: ${paidLoans.length}`, margin, yPosition);
+            yPosition += lineHeight;
+            doc.text(`Empréstimos cancelados: ${cancelledLoans.length}`, margin, yPosition);
             yPosition += 10;
             
             // Empréstimos Ativos
@@ -13563,6 +13580,32 @@ async function generateCompleteBackupPDF(options) {
                     
                     const totalWithInterest = parseFloat(loan.amount) * (1 + parseFloat(loan.interest_rate) / 100);
                     doc.text(`Total com juros: ${formatCurrency(totalWithInterest)} | Data quitação: ${loan.paid_date ? formatDate(loan.paid_date) : 'N/A'}`, margin + 5, yPosition);
+                    yPosition += lineHeight + 2;
+                }
+                yPosition += 5;
+            }
+            
+            // Empréstimos Cancelados
+            if (cancelledLoans.length > 0) {
+                checkPageBreak(20);
+                doc.setFillColor(149, 165, 166); // Cinza
+                doc.rect(margin, yPosition - 5, 75, 7, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFont('helvetica', 'bold');
+                doc.text('EMPRÉSTIMOS CANCELADOS', margin + 2, yPosition);
+                yPosition += 8;
+                doc.setTextColor(0, 0, 0);
+                
+                for (const loan of cancelledLoans) {
+                    checkPageBreak(25);
+                    const client = clients.find(c => c.id === loan.client_id);
+                    
+                    doc.setFont('helvetica', 'normal');
+                    doc.text(`Cliente: ${client?.name || 'N/A'}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Valor: ${formatCurrency(loan.amount)} | Juros: ${loan.interest_rate}% | Vencimento: ${formatDate(loan.due_date)}`, margin + 5, yPosition);
+                    yPosition += lineHeight;
+                    doc.text(`Motivo: ${loan.cancellation_reason || 'N/A'} | Data cancelamento: ${loan.cancelled_date ? formatDate(loan.cancelled_date) : 'N/A'}`, margin + 5, yPosition);
                     yPosition += lineHeight + 2;
                 }
                 yPosition += 5;
