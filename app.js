@@ -558,6 +558,9 @@ function setupEventListeners() {
     // Botão de carregar histórico
     document.getElementById('loadHistoryBtn').addEventListener('click', () => loadClientHistory());
     
+    // Botão de gerar PDF do cliente
+    document.getElementById('generateClientPdfBtn').addEventListener('click', generateClientLoansPDF);
+    
     // Campo de busca de clientes no histórico
     document.getElementById('historyClientSearch').addEventListener('input', function(e) {
         const searchTerm = e.target.value;
@@ -8490,6 +8493,390 @@ async function loadClientHistory() {
     } catch (error) {
         console.error('Erro ao carregar histórico:', error);
         showInfoMessage('Erro ao carregar histórico: ' + error.message);
+    }
+}
+
+// Função para gerar PDF completo do cliente com todos os empréstimos
+async function generateClientLoansPDF() {
+    const clientId = document.getElementById('historyClientSelect').value;
+    
+    if (!clientId) {
+        showInfoMessage('Por favor, selecione um cliente primeiro');
+        return;
+    }
+    
+    try {
+        // Buscar dados completos do cliente
+        const client = clients.find(c => c.id === clientId);
+        if (!client) {
+            showInfoMessage('Cliente não encontrado');
+            return;
+        }
+        
+        // Buscar avalistas do cliente
+        const clientGuarantors = await loadClientGuarantors(clientId);
+        
+        // Buscar contatos de emergência
+        const { data: emergencyContacts, error: emergencyError } = await supabase
+            .from('emergency_contacts')
+            .select('*')
+            .eq('client_id', clientId);
+        
+        if (emergencyError) throw emergencyError;
+        
+        // Buscar todos os empréstimos ativos do cliente
+        const { data: clientLoans, error: loansError } = await supabase
+            .from('loans')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+        
+        if (loansError) throw loansError;
+        
+        // Buscar empréstimos quitados
+        const { data: paidLoans, error: paidLoansError } = await supabase
+            .from('paid_loans')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('paid_date', { ascending: false });
+        
+        if (paidLoansError) throw paidLoansError;
+        
+        // Buscar todos os pagamentos dos empréstimos ativos
+        const activeLoanIds = (clientLoans || []).map(loan => loan.id);
+        let clientPayments = [];
+        
+        if (activeLoanIds.length > 0) {
+            const { data: payments, error: paymentsError } = await supabase
+                .from('payments')
+                .select('*')
+                .in('loan_id', activeLoanIds)
+                .order('payment_date', { ascending: false });
+            
+            if (paymentsError) throw paymentsError;
+            clientPayments = payments || [];
+        }
+        
+        // Criar documento PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configurações do documento
+        doc.setFont('helvetica');
+        let yPosition = 20;
+        const lineHeight = 6;
+        const margin = 20;
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+        const maxWidth = pageWidth - (margin * 2);
+        
+        // Função para adicionar nova página se necessário
+        function checkPageBreak(neededSpace = 20) {
+            if (yPosition + neededSpace > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+                return true;
+            }
+            return false;
+        }
+        
+        // Função para adicionar texto com quebra de linha
+        function addText(text, fontSize = 11, style = 'normal', align = 'left') {
+            doc.setFontSize(fontSize);
+            doc.setFont('helvetica', style);
+            
+            if (align === 'center') {
+                doc.text(text, pageWidth / 2, yPosition, { align: 'center' });
+            } else {
+                const lines = doc.splitTextToSize(text, maxWidth);
+                doc.text(lines, margin, yPosition);
+                yPosition += (lines.length * lineHeight);
+            }
+        }
+        
+        // Título Principal
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO COMPLETO DO CLIENTE', pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 12;
+        
+        // Data de geração
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Data de Geração: ${formatDate(new Date().toISOString().split('T')[0])}`, pageWidth / 2, yPosition, { align: 'center' });
+        yPosition += 15;
+        
+        // =======================
+        // DADOS DO CLIENTE
+        // =======================
+        checkPageBreak(40);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('DADOS DO CLIENTE', margin, yPosition);
+        yPosition += 8;
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Nome: ${client.name || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`CPF: ${client.cpf || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Email: ${client.email || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Telefone: ${client.phone || 'N/A'}`, margin, yPosition);
+        yPosition += lineHeight;
+        const addressLines = doc.splitTextToSize(`Endereço: ${client.address || 'N/A'}`, maxWidth);
+        doc.text(addressLines, margin, yPosition);
+        yPosition += (addressLines.length * lineHeight) + 10;
+        
+        // =======================
+        // AVALISTAS
+        // =======================
+        if (clientGuarantors && clientGuarantors.length > 0) {
+            checkPageBreak(30);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('AVALISTAS', margin, yPosition);
+            yPosition += 8;
+            
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            
+            clientGuarantors.forEach((guarantor, index) => {
+                checkPageBreak(35);
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Avalista ${index + 1}:`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.setFont('helvetica', 'normal');
+                doc.text(`  Nome: ${guarantor.name || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  CPF: ${guarantor.cpf || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Telefone: ${guarantor.phone || 'N/A'}`, margin, yPosition);
+                yPosition += lineHeight;
+                if (guarantor.address) {
+                    const guarantorAddressLines = doc.splitTextToSize(`  Endereço: ${guarantor.address}`, maxWidth - 5);
+                    doc.text(guarantorAddressLines, margin, yPosition);
+                    yPosition += (guarantorAddressLines.length * lineHeight);
+                }
+                if (guarantor.relationship) {
+                    doc.text(`  Relacionamento: ${guarantor.relationship}`, margin, yPosition);
+                    yPosition += lineHeight;
+                }
+                yPosition += 3;
+            });
+            yPosition += 5;
+        }
+        
+        // =======================
+        // CONTATOS DE EMERGÊNCIA
+        // =======================
+        if (emergencyContacts && emergencyContacts.length > 0) {
+            checkPageBreak(25);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('CONTATOS DE EMERGÊNCIA', margin, yPosition);
+            yPosition += 8;
+            
+            doc.setFontSize(11);
+            doc.setFont('helvetica', 'normal');
+            
+            emergencyContacts.forEach((contact, index) => {
+                checkPageBreak(15);
+                doc.text(`${index + 1}. ${contact.name} - ${contact.phone}`, margin, yPosition);
+                yPosition += lineHeight;
+            });
+            yPosition += 8;
+        }
+        
+        // =======================
+        // RESUMO FINANCEIRO
+        // =======================
+        checkPageBreak(50);
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO FINANCEIRO', margin, yPosition);
+        yPosition += 8;
+        
+        // Calcular totais
+        const totalActiveLoans = (clientLoans || []).length;
+        const totalPaidLoans = (paidLoans || []).length;
+        const totalLoans = totalActiveLoans + totalPaidLoans;
+        
+        const totalActiveAmount = (clientLoans || []).reduce((sum, loan) => sum + parseFloat(loan.amount || 0), 0);
+        const totalPaidAmount = (paidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
+        const totalAmount = totalActiveAmount + totalPaidAmount;
+        
+        const totalPaidFromActive = clientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        const totalPaidFromSettled = (paidLoans || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
+        const totalPaid = totalPaidFromActive + totalPaidFromSettled;
+        
+        const clientLoanIds = (clientLoans || []).map(loan => loan.id);
+        const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(clientLoanIds);
+        const totalRemaining = clientRemainingAmounts.reduce((sum, amount) => sum + amount, 0);
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de Empréstimos: ${totalLoans} (${totalActiveLoans} ativos, ${totalPaidLoans} quitados)`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Valor Total Emprestado: R$ ${totalAmount.toFixed(2)}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Total Pago: R$ ${totalPaid.toFixed(2)}`, margin, yPosition);
+        yPosition += lineHeight;
+        doc.text(`Valor Restante: R$ ${totalRemaining.toFixed(2)}`, margin, yPosition);
+        yPosition += 12;
+        
+        // =======================
+        // EMPRÉSTIMOS ATIVOS
+        // =======================
+        if (clientLoans && clientLoans.length > 0) {
+            checkPageBreak(30);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('EMPRÉSTIMOS ATIVOS', margin, yPosition);
+            yPosition += 8;
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            
+            for (let i = 0; i < clientLoans.length; i++) {
+                const loan = clientLoans[i];
+                checkPageBreak(40);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Empréstimo ${i + 1}:`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                doc.setFont('helvetica', 'normal');
+                const loanAmount = parseFloat(loan.amount || 0);
+                const interestRate = parseFloat(loan.interest_rate || 0);
+                const totalWithInterest = loanAmount + (loanAmount * interestRate / 100);
+                
+                // Calcular valor restante
+                const loanPayments = clientPayments.filter(p => p.loan_id === loan.id);
+                const paidAmount = loanPayments.reduce((sum, p) => sum + parseFloat(p.amount || 0), 0);
+                const remainingAmount = Math.max(0, totalWithInterest - paidAmount);
+                
+                doc.text(`  Valor Principal: R$ ${loanAmount.toFixed(2)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Taxa de Juros: ${interestRate}%`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Valor Total (com juros): R$ ${totalWithInterest.toFixed(2)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Data do Empréstimo: ${formatDate(loan.loan_date)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Data de Vencimento: ${formatDate(loan.due_date)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Status: ${getStatusText(getLoanStatus(loan.due_date, loan.status))}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Valor Pago: R$ ${paidAmount.toFixed(2)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Valor Restante: R$ ${remainingAmount.toFixed(2)}`, margin, yPosition);
+                yPosition += 8;
+            }
+        }
+        
+        // =======================
+        // EMPRÉSTIMOS QUITADOS
+        // =======================
+        if (paidLoans && paidLoans.length > 0) {
+            checkPageBreak(30);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('EMPRÉSTIMOS QUITADOS', margin, yPosition);
+            yPosition += 8;
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            
+            for (let i = 0; i < paidLoans.length; i++) {
+                const loan = paidLoans[i];
+                checkPageBreak(35);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Empréstimo Quitado ${i + 1}:`, margin, yPosition);
+                yPosition += lineHeight;
+                
+                doc.setFont('helvetica', 'normal');
+                const loanAmount = parseFloat(loan.original_amount || 0);
+                const interestRate = parseFloat(loan.interest_rate || 0);
+                const totalWithInterest = loanAmount + (loanAmount * interestRate / 100);
+                const totalPaid = parseFloat(loan.total_paid || 0);
+                
+                doc.text(`  Valor Principal: R$ ${loanAmount.toFixed(2)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Taxa de Juros: ${interestRate}%`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Valor Total (com juros): R$ ${totalWithInterest.toFixed(2)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Data do Empréstimo: ${formatDate(loan.original_loan_date)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Data de Quitação: ${formatDate(loan.paid_date)}`, margin, yPosition);
+                yPosition += lineHeight;
+                doc.text(`  Total Pago: R$ ${totalPaid.toFixed(2)}`, margin, yPosition);
+                yPosition += 8;
+            }
+        }
+        
+        // =======================
+        // HISTÓRICO DE PAGAMENTOS
+        // =======================
+        if (clientPayments && clientPayments.length > 0) {
+            checkPageBreak(30);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text('HISTÓRICO DE PAGAMENTOS', margin, yPosition);
+            yPosition += 8;
+            
+            doc.setFontSize(10);
+            doc.setFont('helvetica', 'normal');
+            
+            for (let i = 0; i < clientPayments.length; i++) {
+                const payment = clientPayments[i];
+                checkPageBreak(20);
+                
+                const paymentAmount = parseFloat(payment.amount || 0);
+                const fineAmount = parseFloat(payment.fine || 0);
+                const totalPayment = paymentAmount + fineAmount;
+                
+                doc.text(`${i + 1}. Data: ${formatDate(payment.payment_date)} | Valor: R$ ${totalPayment.toFixed(2)}`, margin, yPosition);
+                yPosition += lineHeight - 1;
+                if (fineAmount > 0) {
+                    doc.text(`   (Pagamento: R$ ${paymentAmount.toFixed(2)} + Multa: R$ ${fineAmount.toFixed(2)})`, margin + 5, yPosition);
+                    yPosition += lineHeight - 1;
+                }
+                if (payment.payment_type) {
+                    doc.text(`   Tipo: ${payment.payment_type}`, margin + 5, yPosition);
+                    yPosition += lineHeight - 1;
+                }
+                if (payment.notes) {
+                    const notesLines = doc.splitTextToSize(`   Obs: ${payment.notes}`, maxWidth - 10);
+                    doc.text(notesLines, margin + 5, yPosition);
+                    yPosition += (notesLines.length * (lineHeight - 1));
+                }
+                yPosition += 2;
+            }
+        }
+        
+        // Rodapé em todas as páginas
+        const totalPages = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= totalPages; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${totalPages}`, pageWidth / 2, pageHeight - 10, { align: 'center' });
+            doc.text('Nexus Gestão Financeira', margin, pageHeight - 10);
+        }
+        
+        // Salvar o PDF
+        const fileName = `Cliente_${client.name.replace(/\s+/g, '_')}_${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+        
+        showSuccessMessage('PDF gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
 }
 
