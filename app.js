@@ -3852,12 +3852,37 @@ function calculateNextDueDateKeepingOriginalDay(loanDate, currentDueDate) {
 async function updateDashboard() {
     document.getElementById('totalClients').textContent = clients.length;
     
-    const totalLoaned = loans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
-    document.getElementById('totalLoaned').textContent = `R$ ${totalLoaned.toFixed(2)}`;
+    // Calcular total emprestado incluindo empréstimos ativos e quitados
+    let totalLoaned = loans.reduce((sum, loan) => sum + parseFloat(loan.amount), 0);
     
-    const totalInterest = loans.reduce((sum, loan) => {
+    // Calcular total de juros dos empréstimos ativos
+    let totalInterest = loans.reduce((sum, loan) => {
         return sum + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
     }, 0);
+    
+    // Buscar empréstimos quitados da tabela paid_loans e somar aos totais
+    let paidLoansCount = 0;
+    try {
+        const { data: paidLoans, error } = await supabase
+            .from('paid_loans')
+            .select('amount, interest_rate');
+        
+        if (!error && paidLoans) {
+            paidLoansCount = paidLoans.length;
+            
+            // Adicionar os valores dos empréstimos quitados ao total emprestado e juros
+            paidLoans.forEach(loan => {
+                const amount = parseFloat(loan.amount) || 0;
+                const interestRate = parseFloat(loan.interest_rate) || 0;
+                totalLoaned += amount;
+                totalInterest += (amount * interestRate / 100);
+            });
+        }
+    } catch (error) {
+        console.error('Erro ao buscar empréstimos quitados:', error);
+    }
+    
+    document.getElementById('totalLoaned').textContent = `R$ ${totalLoaned.toFixed(2)}`;
     document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
     
     // Calcular valores restantes de todos os empréstimos em lote
@@ -3871,19 +3896,6 @@ async function updateDashboard() {
     const activeLoans = loans.filter(loan => loan.status !== 'paid').length;
     document.getElementById('activeLoans').textContent = activeLoans;
     
-    // Contar empréstimos quitados da tabela paid_loans
-    let paidLoansCount = 0;
-    try {
-        const { count, error } = await supabase
-            .from('paid_loans')
-            .select('*', { count: 'exact', head: true });
-        
-        if (!error) {
-            paidLoansCount = count || 0;
-        }
-    } catch (error) {
-        console.error('Erro ao contar empréstimos quitados:', error);
-    }
     document.getElementById('paidLoans').textContent = paidLoansCount;
     
     // Calcular total em caixa
