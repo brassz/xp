@@ -1,0 +1,23 @@
+{
+  "name": "workspace",
+  "version": "1.0.0",
+  "description": "Sistema completo de gestão financeira para controle de clientes, empréstimos e parcelamentos.",
+  "main": "app.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/brassz/xp.git"
+  },
+  "keywords": [],
+  "author": "",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/brassz/xp/issues"
+  },
+  "homepage": "https://github.com/brassz/xp#readme",
+  "dependencies": {
+    "@supabase/supabase-js": "^2.86.0"
+  }
+}
