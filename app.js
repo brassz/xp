@@ -1968,6 +1968,10 @@ async function renderLoansTable() {
         const remainingAmount = remainingAmounts[i];
         const status = getLoanStatus(loan.due_date, loan.status);
         
+        // Determinar a classe CSS para a data de vencimento
+        const dueDateClass = loan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
+        const dueDateTitle = loan.due_date_manually_changed ? 'Data de vencimento alterada manualmente' : '';
+        
         tableHTML += `
             <tr class="table-row">
                 <td class="px-6 py-4 whitespace-nowrap">
@@ -1977,7 +1981,7 @@ async function renderLoansTable() {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.due_date)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateClass}" title="${dueDateTitle}">${formatDate(loan.due_date)}${loan.due_date_manually_changed ? ' ⚠️' : ''}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                     <div>Original: R$ ${originalTotal.toFixed(2)}</div>
                     <div class="text-blue-300">Restante: R$ ${remainingAmount.toFixed(2)}</div>
@@ -2094,6 +2098,10 @@ async function renderPaidLoansTable() {
                     }
                 };
                 
+                // Determinar a classe CSS para a data de vencimento
+                const dueDateClass = paidLoan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
+                const dueDateTitle = paidLoan.due_date_manually_changed ? 'Data de vencimento alterada manualmente' : '';
+                
                 tableHTML += `
                     <tr class="table-row">
                         <td class="px-6 py-4 whitespace-nowrap">
@@ -2103,7 +2111,7 @@ async function renderPaidLoansTable() {
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(paidLoan.original_amount)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paidLoan.interest_rate || 0}%</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(paidLoan.loan_date)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(paidLoan.due_date)}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateClass}" title="${dueDateTitle}">${safeFormatDate(paidLoan.due_date)}${paidLoan.due_date_manually_changed ? ' ⚠️' : ''}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-300">
                             R$ ${safeFormatNumber(paidLoan.total_paid)}
                         </td>
@@ -2994,13 +3002,21 @@ async function handleEditLoan(e) {
     e.preventDefault();
     
     const loanId = document.getElementById('editLoanId').value;
+    const dueDateElement = document.getElementById('editLoanDueDate');
+    const originalDueDate = dueDateElement.getAttribute('data-original-due-date');
+    const newDueDate = dueDateElement.value;
+    
+    // Detectar se a data de vencimento foi alterada manualmente
+    const dueDateManuallyChanged = originalDueDate !== newDueDate;
+    
     const formData = {
         client_id: document.getElementById('editLoanClient').value,
         amount: parseFloat(document.getElementById('editLoanAmount').value),
         interest_rate: parseFloat(document.getElementById('editLoanInterest').value),
         loan_date: document.getElementById('editLoanDate').value,
-        due_date: document.getElementById('editLoanDueDate').value,
+        due_date: newDueDate,
         status: document.getElementById('editLoanStatus').value,
+        due_date_manually_changed: dueDateManuallyChanged,
         updated_at: new Date().toISOString()
     };
     
@@ -3025,7 +3041,14 @@ async function handleEditLoan(e) {
         const clientName = client ? client.name : 'Cliente não encontrado';
         const total = formData.amount + (formData.amount * formData.interest_rate / 100);
         
-        showSuccessMessage(`Empréstimo de "${clientName}" atualizado com sucesso! Valor: R$ ${formData.amount.toFixed(2)}, Total: R$ ${total.toFixed(2)}`);
+        let successMessage = `Empréstimo de "${clientName}" atualizado com sucesso! Valor: R$ ${formData.amount.toFixed(2)}, Total: R$ ${total.toFixed(2)}`;
+        
+        // Adicionar informação sobre alteração manual da data de vencimento
+        if (dueDateManuallyChanged) {
+            successMessage += `\n\n⚠️ A data de vencimento foi alterada manualmente e será destacada em AMARELO na lista.`;
+        }
+        
+        showSuccessMessage(successMessage);
         
     } catch (error) {
         alert('Erro ao atualizar empréstimo: ' + error.message);
@@ -4717,6 +4740,9 @@ function editLoan(loanId) {
     document.getElementById('editLoanDate').value = loan.loan_date;
     document.getElementById('editLoanDueDate').value = loan.due_date;
     document.getElementById('editLoanStatus').value = loan.status || 'active';
+    
+    // Armazenar a data de vencimento original para detectar alterações manuais
+    document.getElementById('editLoanDueDate').setAttribute('data-original-due-date', loan.due_date);
     
     // Preencher o select de clientes
     populateEditLoanClientSelect(loan.client_id);
