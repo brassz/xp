@@ -26,7 +26,10 @@ function getEnvVar(name, fallback = '') {
         'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA4': 'CONFIGURE_UPLOADCARE_KEY_HERE',
         'NEXT_PUBLIC_SUPABASE_URL_EMPRESA5': 'https://eppzphzwwpvpoocospxy.supabase.co',
         'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA5': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcHpwaHp3d3B2cG9vY29zcHh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NTc1MDEsImV4cCI6MjA3NTAzMzUwMX0.QwiFlP-h3sk0-pDBmrOMkQmhWZtewD2wDMPYbXAATXI',
-        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA5': 'CONFIGURE_UPLOADCARE_KEY_HERE'
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA5': 'CONFIGURE_UPLOADCARE_KEY_HERE',
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA6': 'https://pebwoerzslfzhjptyjwh.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA6': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlYndvZXJ6c2xmemhqcHR5andoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5NjgyODQsImV4cCI6MjA4MDU0NDI4NH0.WaQQtJzhvV9rIiosiQ9kftYRa24jVSxCgPWAy3ZMzvY',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA6': 'CONFIGURE_UPLOADCARE_KEY_HERE'
     };
     
     return fallbacks[name] || fallback;
@@ -82,6 +85,16 @@ const COMPANIES_CONFIG = {
         },
         uploadcare: {
             publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA5')
+        }
+    },
+    brunoassoni: {
+        name: 'BRUNO ASSONI SYSTEM',
+        supabase: {
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA6'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA6')
+        },
+        uploadcare: {
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA6')
         }
     }
 };
