@@ -393,6 +393,7 @@
                         <option value="mogiana">MOGIANA CRED</option>
                         <option value="erechim">ERECHIM</option>
                         <option value="imperatriz">IMPERATRIZ CRED</option>
+                        <option value="brunoassoni" style="display:none;">FRANCA PRIVATE</option>
                     </select>
                 </div>
                 <div>
@@ -409,7 +410,7 @@
             </form>
             
                          <div class="mt-6 text-center">
-                 <p class="text-sm text-blue-300">Desenvolvido por Bruno Assoni</p>
+                 <p class="text-sm text-blue-300">Desenvolvido por <span id="brunoAssoniBtn" class="cursor-pointer hover:text-blue-100 transition-colors">Bruno Assoni</span></p>
              </div>
         </div>
     </div>
@@ -4085,6 +4086,88 @@
         </div>
     </div>
 
+    <script>
+        // 3-Click Detection for Bruno Assoni Button
+        (function() {
+            let clickCount = 0;
+            let clickTimer = null;
+            const CLICK_TIMEOUT = 2000; // 2 seconds window for 3 clicks
+            
+            document.addEventListener('DOMContentLoaded', function() {
+                const brunoBtn = document.getElementById('brunoAssoniBtn');
+                
+                if (brunoBtn) {
+                    brunoBtn.addEventListener('click', function(e) {
+                        e.preventDefault();
+                        clickCount++;
+                        
+                        // Clear previous timer
+                        if (clickTimer) {
+                            clearTimeout(clickTimer);
+                        }
+                        
+                        // Check if 3 clicks reached
+                        if (clickCount === 3) {
+                            clickCount = 0;
+                            activateBrunoAssoniSystem();
+                        } else {
+                            // Reset counter after timeout
+                            clickTimer = setTimeout(function() {
+                                clickCount = 0;
+                            }, CLICK_TIMEOUT);
+                        }
+                    });
+                }
+            });
+            
+            function activateBrunoAssoniSystem() {
+                // Store special flag and company selection
+                localStorage.setItem('selectedCompany', 'brunoassoni');
+                localStorage.setItem('brunoAssoniActivated', 'true');
+                
+                // Show visual feedback
+                const brunoBtn = document.getElementById('brunoAssoniBtn');
+                if (brunoBtn) {
+                    brunoBtn.style.color = '#60a5fa';
+                    brunoBtn.textContent = '✓ Franca Private Ativado';
+                }
+                
+                // Auto-select the company and focus on email field
+                setTimeout(function() {
+                    const companySelect = document.getElementById('companySelect');
+                    const companySelectDiv = companySelect?.parentElement;
+                    
+                    // Set company value to avoid form validation error
+                    if (companySelect) {
+                        companySelect.value = 'brunoassoni';
+                        companySelect.removeAttribute('required');
+                    }
+                    
+                    // Hide company select since it's pre-selected
+                    if (companySelectDiv) {
+                        companySelectDiv.style.display = 'none';
+                    }
+                    
+                    // Focus on email field
+                    const emailField = document.getElementById('loginEmail');
+                    if (emailField) {
+                        emailField.focus();
+                    }
+                    
+                    // Show success message
+                    const loginForm = document.getElementById('loginForm');
+                    if (loginForm && !document.getElementById('francaPrivateMessage')) {
+                        const message = document.createElement('div');
+                        message.id = 'francaPrivateMessage';
+                        message.className = 'text-center p-3 mb-4 bg-blue-600 bg-opacity-20 border border-blue-500 rounded-lg';
+                        message.innerHTML = '<p class="text-blue-300 text-sm font-semibold">🔒 Sistema Franca Private Ativado</p>';
+                        loginForm.insertBefore(message, loginForm.firstChild);
+                    }
+                }, 100);
+            }
+        })();
+    </script>
+    
     <script src="app.js"></script>
 </body>
 </html> 

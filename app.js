@@ -26,7 +26,10 @@ function getEnvVar(name, fallback = '') {
         'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA4': 'CONFIGURE_UPLOADCARE_KEY_HERE',
         'NEXT_PUBLIC_SUPABASE_URL_EMPRESA5': 'https://eppzphzwwpvpoocospxy.supabase.co',
         'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA5': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVwcHpwaHp3d3B2cG9vY29zcHh5Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3NTk0NTc1MDEsImV4cCI6MjA3NTAzMzUwMX0.QwiFlP-h3sk0-pDBmrOMkQmhWZtewD2wDMPYbXAATXI',
-        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA5': 'CONFIGURE_UPLOADCARE_KEY_HERE'
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA5': 'CONFIGURE_UPLOADCARE_KEY_HERE',
+        'NEXT_PUBLIC_SUPABASE_URL_EMPRESA6': 'https://pebwoerzslfzhjptyjwh.supabase.co',
+        'NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA6': 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBlYndvZXJ6c2xmemhqcHR5andoIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NjQ5NjgyODQsImV4cCI6MjA4MDU0NDI4NH0.WaQQtJzhvV9rIiosiQ9kftYRa24jVSxCgPWAy3ZMzvY',
+        'NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA6': 'CONFIGURE_UPLOADCARE_KEY_HERE'
     };
     
     return fallbacks[name] || fallback;
@@ -82,6 +85,16 @@ const COMPANIES_CONFIG = {
         },
         uploadcare: {
             publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA5')
+        }
+    },
+    brunoassoni: {
+        name: 'FRANCA PRIVATE',
+        supabase: {
+            url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA6'),
+            key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA6')
+        },
+        uploadcare: {
+            publicKey: getEnvVar('NEXT_PUBLIC_UPLOADCARE_PUBLIC_KEY_EMPRESA6')
         }
     }
 };
@@ -824,7 +837,17 @@ function setupUploadcare() {
 async function handleLogin(e) {
     e.preventDefault();
     
-    const companyId = document.getElementById('companySelect').value;
+    // Verificar se Franca Private está ativado
+    const francaPrivateActivated = localStorage.getItem('brunoAssoniActivated');
+    const savedCompany = localStorage.getItem('selectedCompany');
+    
+    let companyId = document.getElementById('companySelect').value;
+    
+    // Se Franca Private está ativado, usar automaticamente
+    if (francaPrivateActivated === 'true' && savedCompany === 'brunoassoni') {
+        companyId = 'brunoassoni';
+    }
+    
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     
@@ -886,6 +909,7 @@ async function handleLogout() {
     supabase = null;
     localStorage.removeItem('nexusUser');
     localStorage.removeItem('selectedCompany');
+    localStorage.removeItem('brunoAssoniActivated'); // Limpar ativação do Franca Private
     showLogin();
 }
 
@@ -9127,16 +9151,12 @@ async function handleNewExpense(e) {
 
         
         const expenseData = {
-            title: description,
             description: description,
-            category_id: category, // Este será o ID da categoria
+            category: category, // Nome da categoria (texto)
             amount: amount,
             date: date,
             notes: notes,
-            payment_method: 'cash', // valor padrão
-            status: 'pending',
-            user_id: currentUser.id,
-            created_by: currentUser.id
+            user_id: currentUser.id
         };
         
         // Inserir no banco de dados
@@ -9170,13 +9190,9 @@ async function handleNewExpense(e) {
 // Carregar despesas
 async function loadExpenses() {
     try {
-        // First, get the expenses with user information
+        // Carregar despesas sem join - mais simples e confiável
         let expensesQuery = supabase.from('expenses')
-            .select(`
-                *,
-                users!expenses_user_id_fkey(full_name, email, role),
-                created_by_user:users!expenses_created_by_fkey(full_name, email, role)
-            `);
+            .select('*');
         
         // Se não for admin ou manager, filtrar apenas despesas próprias
         if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
@@ -9188,24 +9204,28 @@ async function loadExpenses() {
             
         if (expensesError) throw expensesError;
         
-        // Then, get all categories
+        // Carregar categorias
         const { data: categoriesData, error: categoriesError } = await supabase
             .from('expense_categories')
             .select('id, name, color, icon')
             .eq('is_active', true);
             
-        if (categoriesError) throw categoriesError;
+        if (categoriesError) {
+            console.warn('Erro ao carregar categorias:', categoriesError);
+            // Continuar mesmo sem categorias
+        }
         
-        // Create a map of categories for quick lookup
+        // Criar mapa de categorias por nome
         const categoriesMap = {};
         (categoriesData || []).forEach(category => {
-            categoriesMap[category.id] = category;
+            categoriesMap[category.name] = category;
         });
         
-        // Join expenses with categories
+        // Processar despesas
         expenses = (expensesData || []).map(expense => ({
             ...expense,
-            expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null
+            // A categoria vem como nome (texto) na coluna 'category'
+            expense_categories: expense.category ? categoriesMap[expense.category] : null
         }));
         
         displayExpenses();
@@ -9242,7 +9262,7 @@ function displayExpenses() {
         <tr class="table-row">
             <td class="px-6 py-4">
                 <div>
-                    <p class="text-white font-medium">${expense.title || expense.description}</p>
+                    <p class="text-white font-medium">${expense.description}</p>
                     ${expense.notes ? `<p class="text-gray-400 text-sm">${expense.notes}</p>` : ''}
                 </div>
             </td>
@@ -9259,8 +9279,8 @@ function displayExpenses() {
             </td>
             <td class="px-6 py-4">
                 <div>
-                    <p class="text-white text-sm">${expense.users?.full_name || expense.created_by_user?.full_name || 'N/A'}</p>
-                    <p class="text-gray-400 text-xs">${expense.users?.email || expense.created_by_user?.email || ''}</p>
+                    <p class="text-white text-sm">${currentUser?.full_name || 'Sistema'}</p>
+                    <p class="text-gray-400 text-xs">${formatDate(expense.created_at)}</p>
                 </div>
             </td>
             <td class="px-6 py-4">
@@ -10618,7 +10638,7 @@ function updateExpenseCategorySelect() {
     expenseCategories.forEach(category => {
         console.log('➕ Adicionando categoria:', category.name, '(ID:', category.id, ')');
         const option = document.createElement('option');
-        option.value = category.id;
+        option.value = category.name; // Usar nome ao invés de ID
         option.textContent = category.name;
         select.appendChild(option);
     });
@@ -13834,7 +13854,7 @@ async function generateCompleteBackupPDF(options) {
             const { data: expensesData, error: expensesError } = await supabase
                 .from('expenses')
                 .select('*')
-                .order('expense_date', { ascending: false })
+                .order('date', { ascending: false })
                 .limit(100);
             
             if (!expensesError && expensesData && expensesData.length > 0) {
@@ -13861,7 +13881,7 @@ async function generateCompleteBackupPDF(options) {
                     checkPageBreak(15);
                     
                     doc.setFont('helvetica', 'normal');
-                    doc.text(`${formatDate(expense.expense_date)} - ${expense.description || 'N/A'} - ${formatCurrency(expense.amount)}`, margin + 5, yPosition);
+                    doc.text(`${formatDate(expense.date)} - ${expense.description || 'N/A'} - ${formatCurrency(expense.amount)}`, margin + 5, yPosition);
                     yPosition += lineHeight;
                     
                     if (expense.category) {
