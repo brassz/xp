@@ -10538,6 +10538,7 @@ async function generateCommissionsPDF() {
         // Verificar tipo de empresa
         const isErechim = currentCompany === 'erechim';
         const isImperatriz = currentCompany === 'imperatriz';
+        const isFrancaPrivate = currentCompany === 'brunoassoni';
         
         // Resumo das comissões
         doc.setFontSize(14);
@@ -10559,6 +10560,10 @@ async function generateCommissionsPDF() {
             doc.text(`Comissão Vinicius (50%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
             doc.text(`Comissão Alex (50%): R$ ${commissionsData.summary.totalAlexCommission.toFixed(2)}`, 20, 81);
             doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 89);
+        } else if (isFrancaPrivate) {
+            // FRANCA PRIVATE: Mostrar apenas 1 comissão (Vinicius 100%)
+            doc.text(`Comissão Vinicius (100%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
+            doc.text(`Total de Pagamentos Processados: ${commissionsData.summary.totalPayments}`, 20, 81);
         } else {
             // Outras empresas: Mostrar 2 comissões (Vinicius e Douglas)
             doc.text(`Comissão Vinicius (66,6%): R$ ${commissionsData.summary.totalViniciusCommission.toFixed(2)}`, 20, 73);
@@ -10568,18 +10573,18 @@ async function generateCommissionsPDF() {
 
         // Linha separadora
         doc.setLineWidth(0.5);
-        const separatorY = isErechim ? 103 : 95;
+        const separatorY = isErechim ? 103 : (isFrancaPrivate ? 87 : 95);
         doc.line(20, separatorY, 190, separatorY);
 
         // Cabeçalho da tabela
         doc.setFontSize(12);
         doc.setFont('helvetica', 'bold');
-        const tableHeaderY = isErechim ? 113 : 105;
+        const tableHeaderY = isErechim ? 113 : (isFrancaPrivate ? 97 : 105);
         doc.text('DETALHAMENTO POR PAGAMENTO', 20, tableHeaderY);
 
         // Cabeçalhos das colunas
         doc.setFontSize(9);
-        let yPos = isErechim ? 123 : 115;
+        let yPos = isErechim ? 123 : (isFrancaPrivate ? 107 : 115);
         doc.text('Cliente', 20, yPos);
         doc.text('Data', 60, yPos);
         doc.text('Pago', 85, yPos);
@@ -10594,6 +10599,9 @@ async function generateCommissionsPDF() {
             // IMPERATRIZ CRED: 2 colunas de comissão (Vinicius e Alex)
             doc.text('Vinicius (50%)', 155, yPos);
             doc.text('Alex (50%)', 180, yPos);
+        } else if (isFrancaPrivate) {
+            // FRANCA PRIVATE: 1 coluna de comissão (Vinicius 100%)
+            doc.text('Vinicius (100%)', 170, yPos);
         } else {
             // Outras empresas: 2 colunas de comissão (Vinicius e Douglas)
             doc.text('Vinicius (66%)', 155, yPos);
@@ -10632,6 +10640,8 @@ async function generateCommissionsPDF() {
                 } else if (isImperatriz) {
                     doc.text('Vinicius (50%)', 155, yPos);
                     doc.text('Alex (50%)', 180, yPos);
+                } else if (isFrancaPrivate) {
+                    doc.text('Vinicius (100%)', 170, yPos);
                 } else {
                     doc.text('Vinicius (66%)', 155, yPos);
                     doc.text('Douglas (33%)', 180, yPos);
@@ -10665,6 +10675,9 @@ async function generateCommissionsPDF() {
                 // IMPERATRIZ CRED: Mostrar 2 comissões (Vinicius e Alex)
                 doc.text(`${item.viniciusCommission.toFixed(2)}`, 155, yPos);
                 doc.text(`${item.alexCommission.toFixed(2)}`, 180, yPos);
+            } else if (isFrancaPrivate) {
+                // FRANCA PRIVATE: Mostrar apenas 1 comissão (Vinicius 100%)
+                doc.text(`${item.viniciusCommission.toFixed(2)}`, 170, yPos);
             } else {
                 // Outras empresas: Mostrar 2 comissões (Vinicius e Douglas)
                 doc.text(`${item.viniciusCommission.toFixed(2)}`, 155, yPos);
@@ -15134,6 +15147,7 @@ function initializeCommissionsSection() {
     // Configurar visibilidade dos cards baseado na empresa
     const isErechim = currentCompany === 'erechim';
     const isImperatriz = currentCompany === 'imperatriz';
+    const isFrancaPrivate = currentCompany === 'brunoassoni';
     const brunoCard = document.getElementById('brunoCommissionCard');
     const alexCard = document.getElementById('alexCommissionCard');
     const douglasCard = document.querySelector('.glass-card p#douglasCommission')?.closest('.glass-card');
@@ -15170,6 +15184,18 @@ function initializeCommissionsSection() {
         if (alexLabel) alexLabel.textContent = 'Comissão Alex (50%)';
         brunoColumns.forEach(col => col.style.display = 'none');
         alexColumns.forEach(col => col.style.display = '');
+        douglasColumns.forEach(col => col.style.display = 'none');
+    } else if (isFrancaPrivate) {
+        // FRANCA PRIVATE: Mostrar apenas Vinicius (100%), esconder Douglas, Bruno e Alex
+        if (brunoCard) brunoCard.style.display = 'none';
+        if (alexCard) alexCard.style.display = 'none';
+        if (douglasCard) douglasCard.style.display = 'none';
+        if (commissionsGrid) {
+            commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6';
+        }
+        if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (100%)';
+        brunoColumns.forEach(col => col.style.display = 'none');
+        alexColumns.forEach(col => col.style.display = 'none');
         douglasColumns.forEach(col => col.style.display = 'none');
     } else {
         // OUTRAS EMPRESAS: Mostrar Vinicius (66,6%) e Douglas (33,3%)
@@ -15607,6 +15633,7 @@ function calculateCommissionsFromPayments(payments) {
     // Verificar o tipo de empresa para dividir comissões
     const isErechim = currentCompany === 'erechim';
     const isImperatriz = currentCompany === 'imperatriz';
+    const isFrancaPrivate = currentCompany === 'brunoassoni';
     
     payments.forEach(payment => {
         const commissionableAmount = parseFloat(payment.commissionable_amount || 0);
@@ -15625,6 +15652,12 @@ function calculateCommissionsFromPayments(payments) {
             alexCommission = commissionableAmount * 0.5;
             douglasCommission = 0;
             brunoCommission = 0;
+        } else if (isFrancaPrivate) {
+            // FRANCA PRIVATE: 100% Vinicius
+            viniciusCommission = commissionableAmount;
+            douglasCommission = 0;
+            brunoCommission = 0;
+            alexCommission = 0;
         } else {
             // Outras empresas: 66,6% Vinicius, 33,3% Douglas
             viniciusCommission = commissionableAmount * 0.666;
@@ -15668,6 +15701,12 @@ function calculateCommissionsFromPayments(payments) {
         totalAlexCommission = totalCommissionableAmount * 0.5;
         totalDouglasCommission = 0;
         totalBrunoCommission = 0;
+    } else if (isFrancaPrivate) {
+        // FRANCA PRIVATE: 100% Vinicius
+        totalViniciusCommission = totalCommissionableAmount;
+        totalDouglasCommission = 0;
+        totalBrunoCommission = 0;
+        totalAlexCommission = 0;
     } else {
         // Outras empresas
         totalViniciusCommission = totalCommissionableAmount * 0.666;
@@ -15693,6 +15732,7 @@ function calculateCommissionsFromPayments(payments) {
 function updateCommissionsSummary(summary) {
     const isErechim = currentCompany === 'erechim';
     const isImperatriz = currentCompany === 'imperatriz';
+    const isFrancaPrivate = currentCompany === 'brunoassoni';
     
     // Atualizar valor total de juros
     document.getElementById('totalInterest').textContent = `R$ ${summary.totalInterest.toFixed(2)}`;
@@ -15740,6 +15780,15 @@ function updateCommissionsSummary(summary) {
         if (commissionsGrid) {
             commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-3 gap-4 mb-6';
         }
+    } else if (isFrancaPrivate) {
+        // FRANCA PRIVATE: Mostrar apenas Vinicius (100%), esconder Douglas, Bruno e Alex
+        if (brunoCard) brunoCard.style.display = 'none';
+        if (alexCard) alexCard.style.display = 'none';
+        if (douglasCard) douglasCard.style.display = 'none';
+        if (viniciusLabel) viniciusLabel.textContent = 'Comissão Vinicius (100%)';
+        if (commissionsGrid) {
+            commissionsGrid.className = 'grid grid-cols-1 md:grid-cols-2 gap-4 mb-6';
+        }
     } else {
         // OUTRAS EMPRESAS: Mostrar Vinicius (66,6%) e Douglas (33,3%)
         if (brunoCard) brunoCard.style.display = 'none';
@@ -15758,6 +15807,7 @@ function renderCommissionsTable(commissionsDetails) {
     const tableBody = document.getElementById('commissionsTableBody');
     const isErechim = currentCompany === 'erechim';
     const isImperatriz = currentCompany === 'imperatriz';
+    const isFrancaPrivate = currentCompany === 'brunoassoni';
     
     // Mostrar/esconder colunas baseado na empresa
     const brunoColumns = document.querySelectorAll('.bruno-column');
@@ -15773,7 +15823,7 @@ function renderCommissionsTable(commissionsDetails) {
     });
     
     douglasColumns.forEach(col => {
-        col.style.display = isImperatriz ? 'none' : '';
+        col.style.display = (isImperatriz || isFrancaPrivate) ? 'none' : '';
     });
     
     if (commissionsDetails.length === 0) {
