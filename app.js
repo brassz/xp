@@ -9194,13 +9194,9 @@ async function handleNewExpense(e) {
 // Carregar despesas
 async function loadExpenses() {
     try {
-        // First, get the expenses with user information
+        // Carregar despesas sem join - mais simples e confiável
         let expensesQuery = supabase.from('expenses')
-            .select(`
-                *,
-                users!expenses_user_id_fkey(full_name, email, role),
-                created_by_user:users!expenses_created_by_fkey(full_name, email, role)
-            `);
+            .select('*');
         
         // Se não for admin ou manager, filtrar apenas despesas próprias
         if (currentUser.role !== 'admin' && currentUser.role !== 'manager') {
@@ -9212,21 +9208,24 @@ async function loadExpenses() {
             
         if (expensesError) throw expensesError;
         
-        // Then, get all categories
+        // Carregar categorias
         const { data: categoriesData, error: categoriesError } = await supabase
             .from('expense_categories')
             .select('id, name, color, icon')
             .eq('is_active', true);
             
-        if (categoriesError) throw categoriesError;
+        if (categoriesError) {
+            console.warn('Erro ao carregar categorias:', categoriesError);
+            // Continuar mesmo sem categorias
+        }
         
-        // Create a map of categories for quick lookup
+        // Criar mapa de categorias
         const categoriesMap = {};
         (categoriesData || []).forEach(category => {
             categoriesMap[category.id] = category;
         });
         
-        // Join expenses with categories
+        // Processar despesas
         expenses = (expensesData || []).map(expense => ({
             ...expense,
             expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null
@@ -13858,7 +13857,7 @@ async function generateCompleteBackupPDF(options) {
             const { data: expensesData, error: expensesError } = await supabase
                 .from('expenses')
                 .select('*')
-                .order('expense_date', { ascending: false })
+                .order('date', { ascending: false })
                 .limit(100);
             
             if (!expensesError && expensesData && expensesData.length > 0) {
@@ -13885,7 +13884,7 @@ async function generateCompleteBackupPDF(options) {
                     checkPageBreak(15);
                     
                     doc.setFont('helvetica', 'normal');
-                    doc.text(`${formatDate(expense.expense_date)} - ${expense.description || 'N/A'} - ${formatCurrency(expense.amount)}`, margin + 5, yPosition);
+                    doc.text(`${formatDate(expense.date)} - ${expense.description || 'N/A'} - ${formatCurrency(expense.amount)}`, margin + 5, yPosition);
                     yPosition += lineHeight;
                     
                     if (expense.category) {
