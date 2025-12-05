@@ -88,7 +88,7 @@ const COMPANIES_CONFIG = {
         }
     },
     brunoassoni: {
-        name: 'BRUNO ASSONI SYSTEM',
+        name: 'FRANCA PRIVATE',
         supabase: {
             url: getEnvVar('NEXT_PUBLIC_SUPABASE_URL_EMPRESA6'),
             key: getEnvVar('NEXT_PUBLIC_SUPABASE_ANON_KEY_EMPRESA6')

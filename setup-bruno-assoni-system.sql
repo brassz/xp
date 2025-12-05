@@ -1,5 +1,5 @@
 -- =====================================================
--- CONFIGURAÇÃO DO BANCO DE DADOS BRUNO ASSONI SYSTEM
+-- CONFIGURAÇÃO DO BANCO DE DADOS FRANCA PRIVATE
 -- =====================================================
 -- Sistema de Gestão Financeira Nexus
 -- Execute estes comandos no SQL Editor do Supabase
@@ -672,20 +672,20 @@ BEGIN
     -- Inserir usuário admin padrão
     INSERT INTO users (email, password_hash, full_name, role, is_active)
     VALUES (
-        'admin@brunoassoni.com',
+        'admin@francaprivate.com',
         '1020',
-        'Administrador Bruno Assoni',
+        'Administrador Franca Private',
         'admin',
         true
     )
     ON CONFLICT (email) DO NOTHING;
     
-    -- Inserir usuário Bruno Assoni
+    -- Inserir usuário Franca Private
     INSERT INTO users (email, password_hash, full_name, role, is_active)
     VALUES (
-        'bruno@assoni.com',
+        'contato@francaprivate.com',
         '1020',
-        'Bruno Assoni',
+        'Franca Private',
         'admin',
         true
     )
@@ -705,14 +705,14 @@ SELECT create_initial_admin();
 -- Inserir clientes de exemplo
 INSERT INTO clients (name, cpf, email, phone, address, created_by) VALUES
 ('Cliente Exemplo 1', '123.456.789-00', 'cliente1@email.com', '(11) 99999-9999', 'Rua Exemplo, 123', 
- (SELECT id FROM users WHERE email = 'admin@brunoassoni.com' LIMIT 1)),
+ (SELECT id FROM users WHERE email = 'admin@francaprivate.com' LIMIT 1)),
 ('Cliente Exemplo 2', '987.654.321-00', 'cliente2@email.com', '(11) 88888-8888', 'Av. Exemplo, 456',
- (SELECT id FROM users WHERE email = 'admin@brunoassoni.com' LIMIT 1))
+ (SELECT id FROM users WHERE email = 'admin@francaprivate.com' LIMIT 1))
 ON CONFLICT (cpf) DO NOTHING;
 
 -- Inserir chave PIX de exemplo
 INSERT INTO pix_keys (bank_name, key_type, pix_key, account_holder) VALUES
-('Banco Exemplo', 'email', 'contato@brunoassoni.com', 'Bruno Assoni System')
+('Banco Exemplo', 'email', 'contato@francaprivate.com', 'Franca Private')
 ON CONFLICT DO NOTHING;
 
 -- =====================================================
@@ -751,7 +751,7 @@ UNION ALL
 SELECT 'pix_keys', COUNT(*) FROM pix_keys;
 
 -- =====================================================
--- FIM DA CONFIGURAÇÃO - BRUNO ASSONI SYSTEM
+-- FIM DA CONFIGURAÇÃO - FRANCA PRIVATE
 -- =====================================================
 -- 
 -- INSTRUÇÕES DE USO:
@@ -763,12 +763,12 @@ SELECT 'pix_keys', COUNT(*) FROM pix_keys;
 -- 6. Confirme que as tabelas foram criadas
 --
 -- USUÁRIOS ADMIN CRIADOS:
--- Email: admin@brunoassoni.com | Senha: 1020
--- Email: bruno@assoni.com | Senha: 1020
+-- Email: admin@francaprivate.com | Senha: 1020
+-- Email: contato@francaprivate.com | Senha: 1020
 --
 -- COMO ACESSAR O SISTEMA:
 -- 1. Abra a aplicação Nexus
 -- 2. Clique 3 vezes em "Bruno Assoni" na tela de login
--- 3. Ou selecione "BRUNO ASSONI SYSTEM" no dropdown de empresas
+-- 3. Ou selecione "FRANCA PRIVATE" no dropdown de empresas
 -- 4. Faça login com um dos usuários acima
 -- =====================================================
