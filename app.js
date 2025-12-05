@@ -9151,16 +9151,12 @@ async function handleNewExpense(e) {
 
         
         const expenseData = {
-            title: description,
             description: description,
-            category_id: category, // Este será o ID da categoria
+            category: category, // Nome da categoria (texto)
             amount: amount,
             date: date,
             notes: notes,
-            payment_method: 'cash', // valor padrão
-            status: 'pending',
-            user_id: currentUser.id,
-            created_by: currentUser.id
+            user_id: currentUser.id
         };
         
         // Inserir no banco de dados
@@ -9219,16 +9215,17 @@ async function loadExpenses() {
             // Continuar mesmo sem categorias
         }
         
-        // Criar mapa de categorias
+        // Criar mapa de categorias por nome
         const categoriesMap = {};
         (categoriesData || []).forEach(category => {
-            categoriesMap[category.id] = category;
+            categoriesMap[category.name] = category;
         });
         
         // Processar despesas
         expenses = (expensesData || []).map(expense => ({
             ...expense,
-            expense_categories: expense.category_id ? categoriesMap[expense.category_id] : null
+            // A categoria vem como nome (texto) na coluna 'category'
+            expense_categories: expense.category ? categoriesMap[expense.category] : null
         }));
         
         displayExpenses();
@@ -9265,7 +9262,7 @@ function displayExpenses() {
         <tr class="table-row">
             <td class="px-6 py-4">
                 <div>
-                    <p class="text-white font-medium">${expense.title || expense.description}</p>
+                    <p class="text-white font-medium">${expense.description}</p>
                     ${expense.notes ? `<p class="text-gray-400 text-sm">${expense.notes}</p>` : ''}
                 </div>
             </td>
@@ -9282,8 +9279,8 @@ function displayExpenses() {
             </td>
             <td class="px-6 py-4">
                 <div>
-                    <p class="text-white text-sm">${expense.users?.full_name || expense.created_by_user?.full_name || 'N/A'}</p>
-                    <p class="text-gray-400 text-xs">${expense.users?.email || expense.created_by_user?.email || ''}</p>
+                    <p class="text-white text-sm">${currentUser?.full_name || 'Sistema'}</p>
+                    <p class="text-gray-400 text-xs">${formatDate(expense.created_at)}</p>
                 </div>
             </td>
             <td class="px-6 py-4">
@@ -10641,7 +10638,7 @@ function updateExpenseCategorySelect() {
     expenseCategories.forEach(category => {
         console.log('➕ Adicionando categoria:', category.name, '(ID:', category.id, ')');
         const option = document.createElement('option');
-        option.value = category.id;
+        option.value = category.name; // Usar nome ao invés de ID
         option.textContent = category.name;
         select.appendChild(option);
     });
