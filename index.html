@@ -393,7 +393,6 @@
                         <option value="mogiana">MOGIANA CRED</option>
                         <option value="erechim">ERECHIM</option>
                         <option value="imperatriz">IMPERATRIZ CRED</option>
-                        <option value="brunoassoni">FRANCA PRIVATE</option>
                     </select>
                 </div>
                 <div>
@@ -4121,20 +4120,41 @@
             });
             
             function activateBrunoAssoniSystem() {
-                // Show confirmation
-                const confirmed = confirm('Ativar sistema Franca Private?');
+                // Store special flag and company selection
+                localStorage.setItem('selectedCompany', 'brunoassoni');
+                localStorage.setItem('brunoAssoniActivated', 'true');
                 
-                if (confirmed) {
-                    // Store special flag and company selection
-                    localStorage.setItem('selectedCompany', 'brunoassoni');
-                    localStorage.setItem('brunoAssoniActivated', 'true');
+                // Show visual feedback
+                const brunoBtn = document.getElementById('brunoAssoniBtn');
+                if (brunoBtn) {
+                    brunoBtn.style.color = '#60a5fa';
+                    brunoBtn.textContent = '✓ Franca Private Ativado';
+                }
+                
+                // Auto-select the company and focus on email field
+                setTimeout(function() {
+                    // Hide company select since it's pre-selected
+                    const companySelectDiv = document.getElementById('companySelect')?.parentElement;
+                    if (companySelectDiv) {
+                        companySelectDiv.style.display = 'none';
+                    }
+                    
+                    // Focus on email field
+                    const emailField = document.getElementById('loginEmail');
+                    if (emailField) {
+                        emailField.focus();
+                    }
                     
                     // Show success message
-                    alert('Sistema Franca Private ativado! Redirecionando...');
-                    
-                    // Reload page to activate the new system
-                    window.location.reload();
-                }
+                    const loginForm = document.getElementById('loginForm');
+                    if (loginForm && !document.getElementById('francaPrivateMessage')) {
+                        const message = document.createElement('div');
+                        message.id = 'francaPrivateMessage';
+                        message.className = 'text-center p-3 mb-4 bg-blue-600 bg-opacity-20 border border-blue-500 rounded-lg';
+                        message.innerHTML = '<p class="text-blue-300 text-sm font-semibold">🔒 Sistema Franca Private Ativado</p>';
+                        loginForm.insertBefore(message, loginForm.firstChild);
+                    }
+                }, 100);
             }
         })();
     </script>

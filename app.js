@@ -837,7 +837,17 @@ function setupUploadcare() {
 async function handleLogin(e) {
     e.preventDefault();
     
-    const companyId = document.getElementById('companySelect').value;
+    // Verificar se Franca Private está ativado
+    const francaPrivateActivated = localStorage.getItem('brunoAssoniActivated');
+    const savedCompany = localStorage.getItem('selectedCompany');
+    
+    let companyId = document.getElementById('companySelect').value;
+    
+    // Se Franca Private está ativado, usar automaticamente
+    if (francaPrivateActivated === 'true' && savedCompany === 'brunoassoni') {
+        companyId = 'brunoassoni';
+    }
+    
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     
@@ -899,6 +909,7 @@ async function handleLogout() {
     supabase = null;
     localStorage.removeItem('nexusUser');
     localStorage.removeItem('selectedCompany');
+    localStorage.removeItem('brunoAssoniActivated'); // Limpar ativação do Franca Private
     showLogin();
 }
 

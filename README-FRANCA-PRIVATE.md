@@ -16,19 +16,28 @@ Foi implementado um sistema especial **FRANCA PRIVATE** que pode ser acessado at
 
 ## Como Acessar o Sistema
 
-### Método 1: Botão Secreto de 3 Cliques
-1. Abra a tela de login da aplicação Nexus
-2. Localize o texto "Desenvolvido por **Bruno Assoni**" no rodapé
-3. Clique **3 vezes** no nome "Bruno Assoni" (dentro de 2 segundos)
-4. Uma confirmação aparecerá: "Ativar sistema Franca Private?"
-5. Clique em "OK"
-6. O sistema será ativado e a página recarregará
-7. Faça login com um dos usuários admin acima
+### 🔒 Acesso Exclusivo via Botão Secreto de 3 Cliques
 
-### Método 2: Seleção Direta no Dropdown
-1. Abra a tela de login
-2. No campo "Empresa", selecione **FRANCA PRIVATE**
-3. Faça login com um dos usuários admin
+**IMPORTANTE**: O sistema FRANCA PRIVATE **NÃO** aparece na lista de empresas. É um sistema secreto que só pode ser acessado através do botão de 3 cliques.
+
+#### Passos para Ativar:
+1. Abra a tela de login da aplicação Nexus
+2. Localize o texto "Desenvolvido por **Bruno Assoni**" no rodapé da tela
+3. Clique **3 vezes** rapidamente no nome "Bruno Assoni" (dentro de 2 segundos)
+4. O sistema será ativado automaticamente e você verá:
+   - Texto "✓ Franca Private Ativado" no lugar de "Bruno Assoni"
+   - Uma mensagem "🔒 Sistema Franca Private Ativado" no topo do formulário
+   - O campo de seleção de empresa será ocultado automaticamente
+5. Digite suas credenciais de login nos campos de email e senha
+6. Clique em "Entrar"
+7. Você será conectado ao sistema FRANCA PRIVATE
+
+#### Observações Importantes:
+- ⚠️ O sistema permanece ativado até você fazer **logout**
+- ⚠️ Ao fazer logout, você precisará clicar 3 vezes novamente para reativar
+- ⚠️ O campo de seleção de empresa fica oculto quando o sistema está ativado
+- ✅ A ativação é automática, sem necessidade de confirmação
+- ✅ Feedback visual imediato ao ativar
 
 ## Configuração do Banco de Dados
 
@@ -81,6 +90,20 @@ O sistema possui as mesmas tabelas dos outros sistemas Nexus:
 - ✅ Avalistas
 - ✅ Chaves PIX para cobranças
 - ✅ Relatórios e dashboards
+
+## Comportamento do Sistema
+
+### Ativação e Desativação
+- **Ativação**: 3 cliques no nome "Bruno Assoni"
+- **Desativação**: Automática ao fazer logout
+- **Persistência**: Salvo no localStorage durante a sessão
+- **Isolamento**: Completamente separado das outras empresas
+
+### Interface Durante Ativação
+- Campo de empresa: **Oculto automaticamente**
+- Mensagem visual: **"🔒 Sistema Franca Private Ativado"**
+- Texto confirmação: **"✓ Franca Private Ativado"**
+- Foco automático: **Campo de email**
 
 ## Recursos Técnicos
 
