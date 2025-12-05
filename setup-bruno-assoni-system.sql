@@ -297,7 +297,7 @@ COMMENT ON TABLE installment_payments IS 'Tabela para armazenar pagamentos de pa
 -- =====================================================
 CREATE TABLE IF NOT EXISTS expenses (
     id BIGSERIAL PRIMARY KEY,
-    user_id UUID REFERENCES users(id) ON DELETE CASCADE,
+    user_id UUID,
     description TEXT NOT NULL,
     category VARCHAR(50) NOT NULL,
     amount DECIMAL(10, 2) NOT NULL,
@@ -305,7 +305,9 @@ CREATE TABLE IF NOT EXISTS expenses (
     notes TEXT,
     signature TEXT,
     created_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
-    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL
+    updated_at TIMESTAMP WITH TIME ZONE DEFAULT timezone('utc'::text, now()) NOT NULL,
+    CONSTRAINT expenses_user_id_fkey FOREIGN KEY (user_id) 
+        REFERENCES users(id) ON DELETE CASCADE
 );
 
 COMMENT ON TABLE expenses IS 'Tabela para armazenar despesas da empresa';
