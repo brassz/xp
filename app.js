@@ -145,6 +145,8 @@ let clientsLastLoaded = null; // Timestamp do último carregamento
 const CACHE_DURATION = 30000; // Cache por 30 segundos
 let loans = [];
 let filteredLoans = [];
+let currentLoansPage = 1;
+const loansPerPage = 50; // Limitar a 50 empréstimos por página
 let expenses = [];
 let expenseCategories = [];
 let installments = [];
@@ -1565,6 +1567,9 @@ function restoreLoanFilters() {
 function applyFiltersAndSort() {
     let result = [...loans];
     
+    // Resetar página para 1 ao aplicar filtros
+    currentLoansPage = 1;
+    
     // Se não há empréstimos, não continuar
     if (result.length === 0) {
         filteredLoans = result;
@@ -1978,16 +1983,22 @@ async function renderLoansTable() {
                 </td>
             </tr>
         `;
+        updateLoansPaginationControls(0);
         return;
     }
     
+    // Calcular índices para paginação
+    const startIndex = (currentLoansPage - 1) * loansPerPage;
+    const endIndex = Math.min(startIndex + loansPerPage, activeLoans.length);
+    const loansToDisplay = activeLoans.slice(startIndex, endIndex);
+    
     // Renderizar linhas com valores atualizados usando cálculo em lote
-    const loanIds = activeLoans.map(loan => loan.id);
+    const loanIds = loansToDisplay.map(loan => loan.id);
     const remainingAmounts = await calculateBatchLoanRemainingAmounts(loanIds);
     
     let tableHTML = '';
-    for (let i = 0; i < activeLoans.length; i++) {
-        const loan = activeLoans[i];
+    for (let i = 0; i < loansToDisplay.length; i++) {
+        const loan = loansToDisplay[i];
         const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
         const remainingAmount = remainingAmounts[i];
         const status = getLoanStatus(loan.due_date, loan.status);
@@ -2028,9 +2039,118 @@ async function renderLoansTable() {
     }
     
     tbody.innerHTML = tableHTML;
+    
+    // Atualizar controles de paginação
+    updateLoansPaginationControls(activeLoans.length);
 }
 
+// Função para atualizar controles de paginação dos empréstimos
+function updateLoansPaginationControls(totalItems) {
+    const totalPages = Math.ceil(totalItems / loansPerPage);
+    const paginationContainer = document.getElementById('loansPagination');
+    
+    if (!paginationContainer) return;
+    
+    if (totalPages <= 1) {
+        paginationContainer.classList.add('hidden');
+        return;
+    }
+    
+    paginationContainer.classList.remove('hidden');
+    
+    const startItem = totalItems === 0 ? 0 : (currentLoansPage - 1) * loansPerPage + 1;
+    const endItem = Math.min(currentLoansPage * loansPerPage, totalItems);
+    
+    paginationContainer.innerHTML = `
+        <div class="flex items-center justify-between">
+            <div class="text-sm text-gray-400">
+                Mostrando ${startItem} a ${endItem} de ${totalItems} empréstimos
+            </div>
+            <div class="flex items-center space-x-2">
+                <button 
+                    onclick="changeLoanPage(1)" 
+                    class="px-3 py-1 rounded ${currentLoansPage === 1 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-700 text-white hover:bg-gray-600'}"
+                    ${currentLoansPage === 1 ? 'disabled' : ''}
+                >
+                    ««
+                </button>
+                <button 
+                    onclick="changeLoanPage(${currentLoansPage - 1})" 
+                    class="px-3 py-1 rounded ${currentLoansPage === 1 ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-700 text-white hover:bg-gray-600'}"
+                    ${currentLoansPage === 1 ? 'disabled' : ''}
+                >
+                    «
+                </button>
+                ${generateLoanPageNumbers(totalPages)}
+                <button 
+                    onclick="changeLoanPage(${currentLoansPage + 1})" 
+                    class="px-3 py-1 rounded ${currentLoansPage === totalPages ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-700 text-white hover:bg-gray-600'}"
+                    ${currentLoansPage === totalPages ? 'disabled' : ''}
+                >
+                    »
+                </button>
+                <button 
+                    onclick="changeLoanPage(${totalPages})" 
+                    class="px-3 py-1 rounded ${currentLoansPage === totalPages ? 'bg-gray-700 text-gray-500 cursor-not-allowed' : 'bg-gray-700 text-white hover:bg-gray-600'}"
+                    ${currentLoansPage === totalPages ? 'disabled' : ''}
+                >
+                    »»
+                </button>
+            </div>
+        </div>
+    `;
+}
 
+// Função para gerar números de página dos empréstimos
+function generateLoanPageNumbers(totalPages) {
+    const pages = [];
+    const maxPagesToShow = 5;
+    
+    let startPage = Math.max(1, currentLoansPage - Math.floor(maxPagesToShow / 2));
+    let endPage = Math.min(totalPages, startPage + maxPagesToShow - 1);
+    
+    if (endPage - startPage + 1 < maxPagesToShow) {
+        startPage = Math.max(1, endPage - maxPagesToShow + 1);
+    }
+    
+    for (let i = startPage; i <= endPage; i++) {
+        const isActive = i === currentLoansPage;
+        pages.push(`
+            <button 
+                onclick="changeLoanPage(${i})" 
+                class="px-3 py-1 rounded ${isActive ? 'bg-blue-600 text-white' : 'bg-gray-700 text-white hover:bg-gray-600'}"
+            >
+                ${i}
+            </button>
+        `);
+    }
+    
+    return pages.join('');
+}
+
+// Função para mudar página dos empréstimos
+function changeLoanPage(newPage) {
+    const searchInput = document.getElementById('loanSearchInput');
+    const creationDateFrom = document.getElementById('creationDateFrom');
+    const creationDateTo = document.getElementById('creationDateTo');
+    const dueDateFrom = document.getElementById('dueDateFrom');
+    const dueDateTo = document.getElementById('dueDateTo');
+    
+    const hasActiveFilters = (searchInput && searchInput.value.trim() !== '') ||
+                           (creationDateFrom && creationDateFrom.value !== '') ||
+                           (creationDateTo && creationDateTo.value !== '') ||
+                           (dueDateFrom && dueDateFrom.value !== '') ||
+                           (dueDateTo && dueDateTo.value !== '');
+    
+    const loansToShow = hasActiveFilters ? filteredLoans : loans;
+    const activeLoans = loansToShow.filter(loan => loan.status !== 'paid');
+    const totalPages = Math.ceil(activeLoans.length / loansPerPage);
+    
+    if (newPage < 1 || newPage > totalPages) return;
+    
+    currentLoansPage = newPage;
+    renderLoansTable();
+}
 
 // Renderizar tabela de empréstimos quitados
 async function renderPaidLoansTable() {
