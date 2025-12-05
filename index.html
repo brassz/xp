@@ -393,6 +393,7 @@
                         <option value="mogiana">MOGIANA CRED</option>
                         <option value="erechim">ERECHIM</option>
                         <option value="imperatriz">IMPERATRIZ CRED</option>
+                        <option value="brunoassoni" style="display:none;">FRANCA PRIVATE</option>
                     </select>
                 </div>
                 <div>
@@ -4133,8 +4134,16 @@
                 
                 // Auto-select the company and focus on email field
                 setTimeout(function() {
+                    const companySelect = document.getElementById('companySelect');
+                    const companySelectDiv = companySelect?.parentElement;
+                    
+                    // Set company value to avoid form validation error
+                    if (companySelect) {
+                        companySelect.value = 'brunoassoni';
+                        companySelect.removeAttribute('required');
+                    }
+                    
                     // Hide company select since it's pre-selected
-                    const companySelectDiv = document.getElementById('companySelect')?.parentElement;
                     if (companySelectDiv) {
                         companySelectDiv.style.display = 'none';
                     }
