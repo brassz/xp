@@ -5774,6 +5774,11 @@ async function loadPixKeys() {
 
 // Função para obter o label do tipo de chave PIX
 function getPixKeyTypeLabel(type) {
+    // Verificar se o type existe antes de processar
+    if (!type) {
+        return 'N/A';
+    }
+    
     const labels = {
         'cpf': 'CPF',
         'cnpj': 'CNPJ', 
@@ -5781,18 +5786,30 @@ function getPixKeyTypeLabel(type) {
         'phone': 'Telefone',
         'random': 'Aleatória'
     };
-    return labels[type] || type.toUpperCase();
+    return labels[type] || (typeof type === 'string' ? type.toUpperCase() : 'N/A');
 }
 
 // Função para mascarar a chave PIX para exibição
 function maskPixKey(key, type) {
+    // Verificar se key e type existem
+    if (!key) {
+        return 'N/A';
+    }
+    
+    if (!type) {
+        return key;
+    }
+    
     if (type === 'cpf') {
         return key.replace(/(\d{3})(\d{3})(\d{3})(\d{2})/, '$1.***.**$4');
     } else if (type === 'cnpj') {
         return key.replace(/(\d{2})(\d{3})(\d{3})(\d{4})(\d{2})/, '$1.***.***/$4-$5');
     } else if (type === 'email') {
         const [local, domain] = key.split('@');
-        return `${local.substring(0, 2)}***@${domain}`;
+        if (local && domain) {
+            return `${local.substring(0, 2)}***@${domain}`;
+        }
+        return key;
     } else if (type === 'phone') {
         return key.replace(/(\d{2})(\d{5})(\d{4})/, '($1) $2-****');
     } else if (type === 'random') {
