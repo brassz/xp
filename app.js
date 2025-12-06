@@ -2457,6 +2457,17 @@ async function handleNewClient(e) {
 async function handleNewLoan(e) {
     e.preventDefault();
     
+    // Mostrar loading
+    const loadingOverlay = document.getElementById('loanLoadingOverlay');
+    const submitBtn = document.getElementById('submitLoanBtn');
+    const cancelBtn = document.getElementById('cancelLoanBtn');
+    
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('hidden');
+        if (submitBtn) submitBtn.disabled = true;
+        if (cancelBtn) cancelBtn.disabled = true;
+    }
+    
     const loanAmount = parseFloat(document.getElementById('loanAmount').value);
     
     const formData = {
@@ -2479,12 +2490,20 @@ async function handleNewLoan(e) {
         
         if (error) throw error;
         
-        hideModal(newLoanModal);
-        newLoanForm.reset();
-        
+        // Invalidar cache e recarregar dados para garantir consistência
         invalidateLoanRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
+        
+        // Ocultar loading apenas após salvar no banco e recarregar dados
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            if (submitBtn) submitBtn.disabled = false;
+            if (cancelBtn) cancelBtn.disabled = false;
+        }
+        
+        hideModal(newLoanModal);
+        newLoanForm.reset();
         
         // Perguntar se deseja gerar contrato
         const generateContractNow = confirm('Empréstimo criado com sucesso! Deseja gerar o contrato agora?');
@@ -2501,6 +2520,12 @@ async function handleNewLoan(e) {
         }
         
     } catch (error) {
+        // Ocultar loading em caso de erro
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            if (submitBtn) submitBtn.disabled = false;
+            if (cancelBtn) cancelBtn.disabled = false;
+        }
         alert('Erro ao criar empréstimo: ' + error.message);
     }
 }
@@ -2668,6 +2693,11 @@ async function openRenewalOptionsModal() {
 
 // Função para lidar com renovação com pagamento
 async function handleNewRenewalPayment(paymentOption) {
+    // Mostrar loading
+    const loadingOverlay = document.getElementById('paymentLoadingOverlay');
+    const cancelBtn = document.getElementById('cancelPaymentBtn');
+    const renewalBtn = document.getElementById('openRenewalModalBtn');
+    
     try {
         const loanId = document.getElementById('paymentForm').dataset.loanId;
         const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
@@ -2711,6 +2741,13 @@ async function handleNewRenewalPayment(paymentOption) {
         const confirmMsg = `Confirmar renovação do empréstimo por +30 dias?\n\nTipo: ${paymentDescription}\nValor do pagamento: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDateToAdd30Days(loan.due_date, loan.loan_date)}`;
         if (!confirm(confirmMsg)) {
             return;
+        }
+        
+        // Mostrar loading após confirmação
+        if (loadingOverlay) {
+            loadingOverlay.classList.remove('hidden');
+            if (cancelBtn) cancelBtn.disabled = true;
+            if (renewalBtn) renewalBtn.disabled = true;
         }
         
         // Registrar o pagamento
@@ -2761,15 +2798,22 @@ async function handleNewRenewalPayment(paymentOption) {
                 fine_amount: 0
             });
         
-        // Fechar modais e atualizar interface
-        hideModal(renewalOptionsModal);
-        hideModal(paymentModal);
-        document.getElementById('paymentForm').reset();
-        
-        // Invalidar cache e recarregar dados
+        // Invalidar cache e recarregar dados ANTES de fechar os modais
         invalidateLoanRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
+        
+        // Ocultar loading apenas após salvar no banco e recarregar dados
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (renewalBtn) renewalBtn.disabled = false;
+        }
+        
+        // Fechar modais após recarregar
+        hideModal(renewalOptionsModal);
+        hideModal(paymentModal);
+        document.getElementById('paymentForm').reset();
         
         // Preparar informações do pagamento para o modal de mensagens
         const paymentInfo = {
@@ -2791,6 +2835,12 @@ async function handleNewRenewalPayment(paymentOption) {
         await showPaymentMessageModal(loanId, paymentInfo);
         
     } catch (error) {
+        // Ocultar loading em caso de erro
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (renewalBtn) renewalBtn.disabled = false;
+        }
         console.error('Erro ao renovar empréstimo:', error);
         alert('Erro ao renovar empréstimo: ' + error.message);
     }
@@ -2801,6 +2851,17 @@ async function handleNewRenewalPayment(paymentOption) {
 /*
 async function handlePayment(e) {
     e.preventDefault();
+    
+    // Mostrar loading
+    const loadingOverlay = document.getElementById('paymentLoadingOverlay');
+    const cancelBtn = document.getElementById('cancelPaymentBtn');
+    const renewalBtn = document.getElementById('openRenewalModalBtn');
+    
+    if (loadingOverlay) {
+        loadingOverlay.classList.remove('hidden');
+        if (cancelBtn) cancelBtn.disabled = true;
+        if (renewalBtn) renewalBtn.disabled = true;
+    }
     
     const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
     const paymentDate = document.getElementById('paymentDate').value;
@@ -3007,17 +3068,24 @@ async function handlePayment(e) {
             if (loanError) throw loanError;
         }
         
-        // Fechar o modal imediatamente
+        // Invalidar cache e recarregar dados ANTES de fechar o modal
+        invalidateLoanRemainingAmountsCache();
+        await loadLoans();
+        await updateDashboard();
+        
+        // Ocultar loading apenas após salvar no banco e recarregar dados
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (renewalBtn) renewalBtn.disabled = false;
+        }
+        
+        // Fechar o modal após recarregar
         hideModal(paymentModal);
         paymentForm.reset();
         
         // Limpar dataset do formulário
         delete paymentForm.dataset.paymentId;
-        
-        // Invalidar cache e recarregar dados APÓS fechar o modal
-        invalidateLoanRemainingAmountsCache();
-        await loadLoans();
-        await updateDashboard();
         
         // Se o modal de histórico estiver aberto, recarregar os dados
         if (!paymentHistoryModal.classList.contains('hidden')) {
@@ -3092,6 +3160,12 @@ async function handlePayment(e) {
         await showPaymentMessageModal(loanId, paymentInfo);
         
     } catch (error) {
+        // Ocultar loading em caso de erro
+        if (loadingOverlay) {
+            loadingOverlay.classList.add('hidden');
+            if (cancelBtn) cancelBtn.disabled = false;
+            if (renewalBtn) renewalBtn.disabled = false;
+        }
         alert('Erro ao registrar pagamento: ' + error.message);
     }
 }

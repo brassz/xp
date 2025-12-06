@@ -2215,7 +2215,7 @@
     <!-- New Loan Modal -->
     <div id="newLoanModal" class="modal-overlay fixed inset-0 z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-2xl p-6">
+            <div class="modal-content w-full max-w-2xl p-6 relative">
                 <div class="flex items-center justify-between mb-6">
                     <h3 class="text-xl font-semibold text-white">Novo Empréstimo</h3>
                     <button id="closeLoanModal" class="text-gray-400 hover:text-white">
@@ -2305,9 +2305,18 @@
                         <button type="button" id="cancelLoanBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
                             Cancelar
                         </button>
-                        <button type="submit" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
+                        <button type="submit" id="submitLoanBtn" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
                             Criar Empréstimo
                         </button>
+                    </div>
+                    
+                    <!-- Loading Overlay -->
+                    <div id="loanLoadingOverlay" class="hidden absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center rounded-lg z-50">
+                        <div class="text-center">
+                            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
+                            <p class="text-white text-lg font-semibold">Salvando empréstimo...</p>
+                            <p class="text-gray-300 text-sm mt-2">Aguarde enquanto os dados são salvos no banco</p>
+                        </div>
                     </div>
                 </form>
             </div>
@@ -2317,7 +2326,7 @@
     <!-- Payment Modal -->
     <div id="paymentModal" class="modal-overlay fixed inset-0 z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-2 sm:p-4">
-            <div class="modal-content w-full max-w-2xl max-h-[95vh] overflow-y-auto p-3 sm:p-4">
+            <div class="modal-content w-full max-w-2xl max-h-[95vh] overflow-y-auto p-3 sm:p-4 relative">
                 <div class="flex items-center justify-between mb-3">
                     <h3 class="text-lg font-semibold text-white">Registrar Pagamento</h3>
                     <button id="closePaymentModal" class="text-gray-400 hover:text-white">
@@ -2460,6 +2469,15 @@
                                 <span class="text-lg mr-2">🔄</span>
                                 RENOVAR 30+
                             </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Loading Overlay -->
+                    <div id="paymentLoadingOverlay" class="hidden absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center rounded-lg z-50">
+                        <div class="text-center">
+                            <div class="animate-spin rounded-full h-16 w-16 border-b-4 border-blue-500 mx-auto mb-4"></div>
+                            <p class="text-white text-lg font-semibold">Salvando pagamento...</p>
+                            <p class="text-gray-300 text-sm mt-2">Aguarde enquanto os dados são salvos no banco</p>
                         </div>
                     </div>
                 </form>
