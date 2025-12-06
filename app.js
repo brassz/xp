@@ -2483,17 +2483,31 @@ async function handleNewLoan(e) {
     };
     
     try {
+        console.log('🔄 Iniciando criação de empréstimo...', formData);
+        
         const { data, error } = await supabase
             .from('loans')
             .insert([formData])
             .select();
         
-        if (error) throw error;
+        if (error) {
+            console.error('❌ Erro do Supabase ao inserir empréstimo:', error);
+            throw error;
+        }
+        
+        if (!data || data.length === 0) {
+            console.error('❌ Empréstimo não retornou dados após inserção');
+            throw new Error('Empréstimo não foi salvo corretamente. Por favor, tente novamente.');
+        }
+        
+        console.log('✅ Empréstimo salvo no banco:', data[0].id);
         
         // Invalidar cache e recarregar dados para garantir consistência
+        console.log('🔄 Invalidando cache e recarregando dados...');
         invalidateLoanRemainingAmountsCache();
         await loadLoans();
         await updateDashboard();
+        console.log('✅ Dados recarregados com sucesso');
         
         // Ocultar loading apenas após salvar no banco e recarregar dados
         if (loadingOverlay) {
@@ -2520,13 +2534,29 @@ async function handleNewLoan(e) {
         }
         
     } catch (error) {
+        console.error('❌ ERRO ao criar empréstimo:', error);
+        
         // Ocultar loading em caso de erro
         if (loadingOverlay) {
             loadingOverlay.classList.add('hidden');
             if (submitBtn) submitBtn.disabled = false;
             if (cancelBtn) cancelBtn.disabled = false;
         }
-        alert('Erro ao criar empréstimo: ' + error.message);
+        
+        // Mensagem de erro mais detalhada
+        let errorMessage = 'Erro ao criar empréstimo: ';
+        
+        if (error.message.includes('violates foreign key constraint')) {
+            errorMessage += 'Cliente selecionado é inválido. Por favor, selecione um cliente válido.';
+        } else if (error.message.includes('network')) {
+            errorMessage += 'Problema de conexão com o banco de dados. Verifique sua internet e tente novamente.';
+        } else if (error.message.includes('permission denied')) {
+            errorMessage += 'Sem permissão para criar empréstimos. Entre em contato com o administrador.';
+        } else {
+            errorMessage += error.message;
+        }
+        
+        alert(errorMessage + '\n\n⚠️ O empréstimo NÃO foi salvo. Por favor, tente novamente.');
     }
 }
 
@@ -2835,14 +2865,29 @@ async function handleNewRenewalPayment(paymentOption) {
         await showPaymentMessageModal(loanId, paymentInfo);
         
     } catch (error) {
+        console.error('❌ ERRO ao renovar empréstimo:', error);
+        
         // Ocultar loading em caso de erro
         if (loadingOverlay) {
             loadingOverlay.classList.add('hidden');
             if (cancelBtn) cancelBtn.disabled = false;
             if (renewalBtn) renewalBtn.disabled = false;
         }
-        console.error('Erro ao renovar empréstimo:', error);
-        alert('Erro ao renovar empréstimo: ' + error.message);
+        
+        // Mensagem de erro mais detalhada
+        let errorMessage = 'Erro ao renovar empréstimo: ';
+        
+        if (error.message.includes('violates foreign key constraint')) {
+            errorMessage += 'Empréstimo não encontrado ou inválido.';
+        } else if (error.message.includes('network')) {
+            errorMessage += 'Problema de conexão com o banco de dados. Verifique sua internet e tente novamente.';
+        } else if (error.message.includes('permission denied')) {
+            errorMessage += 'Sem permissão para renovar empréstimos. Entre em contato com o administrador.';
+        } else {
+            errorMessage += error.message;
+        }
+        
+        alert(errorMessage + '\n\n⚠️ A renovação NÃO foi processada. Por favor, tente novamente.');
     }
 }
 
@@ -2938,6 +2983,7 @@ async function handlePayment(e) {
         let paymentError;
         if (paymentId) {
             // Editar pagamento existente
+            console.log('🔄 Editando pagamento existente:', paymentId);
             const { error } = await supabase
                 .from('payments')
                 .update({
@@ -2950,8 +2996,10 @@ async function handlePayment(e) {
                 })
                 .eq('id', paymentId);
             paymentError = error;
+            if (!error) console.log('✅ Pagamento editado com sucesso');
         } else {
             // Criar novo pagamento
+            console.log('🔄 Criando novo pagamento para empréstimo:', loanId);
             const { error } = await supabase
                 .from('payments')
                 .insert([{
@@ -2965,9 +3013,13 @@ async function handlePayment(e) {
                     created_at: new Date().toISOString()
                 }]);
             paymentError = error;
+            if (!error) console.log('✅ Pagamento registrado com sucesso');
         }
         
-        if (paymentError) throw paymentError;
+        if (paymentError) {
+            console.error('❌ Erro ao salvar pagamento:', paymentError);
+            throw paymentError;
+        }
         
         // Declarar updateData no escopo da função para uso posterior
         let updateData = null;
@@ -3160,13 +3212,29 @@ async function handlePayment(e) {
         await showPaymentMessageModal(loanId, paymentInfo);
         
     } catch (error) {
+        console.error('❌ ERRO ao registrar pagamento:', error);
+        
         // Ocultar loading em caso de erro
         if (loadingOverlay) {
             loadingOverlay.classList.add('hidden');
             if (cancelBtn) cancelBtn.disabled = false;
             if (renewalBtn) renewalBtn.disabled = false;
         }
-        alert('Erro ao registrar pagamento: ' + error.message);
+        
+        // Mensagem de erro mais detalhada
+        let errorMessage = 'Erro ao registrar pagamento: ';
+        
+        if (error.message.includes('violates foreign key constraint')) {
+            errorMessage += 'Empréstimo não encontrado ou inválido.';
+        } else if (error.message.includes('network')) {
+            errorMessage += 'Problema de conexão com o banco de dados. Verifique sua internet e tente novamente.';
+        } else if (error.message.includes('permission denied')) {
+            errorMessage += 'Sem permissão para registrar pagamentos. Entre em contato com o administrador.';
+        } else {
+            errorMessage += error.message;
+        }
+        
+        alert(errorMessage + '\n\n⚠️ O pagamento NÃO foi registrado. Por favor, tente novamente.');
     }
 }
 */
