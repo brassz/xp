@@ -273,6 +273,8 @@ async function initializeApp() {
                 await loadData();
                 // Inicializar sistema de PDFs semanais automáticos
                 initializeWeeklyPDFCheck();
+                // Inicializar sistema de notificações
+                initNotifications();
             }, 100);
         } catch (error) {
             localStorage.removeItem('nexusUser');
@@ -16877,3 +16879,327 @@ async function generateLoanPDF(loanId) {
         showInfoMessage('Erro ao gerar PDF: ' + error.message);
     }
 }
+
+// ===== SISTEMA DE NOTIFICAÇÕES =====
+
+// Variável global para armazenar as notificações
+let notifications = [];
+
+// Alternar visibilidade do dropdown de notificações
+function toggleNotifications() {
+    const dropdown = document.getElementById('notificationsDropdown');
+    const isHidden = dropdown.classList.contains('hidden');
+    
+    if (isHidden) {
+        dropdown.classList.remove('hidden');
+        loadNotifications();
+    } else {
+        dropdown.classList.add('hidden');
+    }
+}
+
+// Fechar dropdown ao clicar fora
+document.addEventListener('click', function(event) {
+    const dropdown = document.getElementById('notificationsDropdown');
+    const btn = document.getElementById('notificationsBtn');
+    
+    if (dropdown && btn && !dropdown.contains(event.target) && !btn.contains(event.target)) {
+        dropdown.classList.add('hidden');
+    }
+});
+
+// Carregar todas as notificações
+async function loadNotifications() {
+    try {
+        const notificationsList = document.getElementById('notificationsList');
+        notificationsList.innerHTML = '<div class="text-center text-gray-400 py-4">Carregando...</div>';
+        
+        // Buscar parcelamentos vencidos e empréstimos que vencem hoje em paralelo
+        const [overdueInstallments, loansDueToday] = await Promise.all([
+            getOverdueInstallments(),
+            getLoansDueToday()
+        ]);
+        
+        notifications = [
+            ...overdueInstallments.map(item => ({
+                type: 'overdue_installment',
+                data: item,
+                title: 'Parcelamento Vencido',
+                message: `${item.clientName} - Parcela vencida em ${formatDate(item.dueDate)}`,
+                amount: item.amount,
+                dueDate: item.dueDate
+            })),
+            ...loansDueToday.map(item => ({
+                type: 'loan_due_today',
+                data: item,
+                title: 'Empréstimo Vence Hoje',
+                message: `${item.clientName} - Vencimento hoje`,
+                amount: item.remainingAmount,
+                dueDate: item.dueDate
+            }))
+        ];
+        
+        // Ordenar por data de vencimento (mais antigas primeiro)
+        notifications.sort((a, b) => new Date(a.dueDate) - new Date(b.dueDate));
+        
+        // Atualizar badge
+        updateNotificationsBadge(notifications.length);
+        
+        // Renderizar notificações
+        renderNotifications();
+        
+    } catch (error) {
+        console.error('Erro ao carregar notificações:', error);
+        const notificationsList = document.getElementById('notificationsList');
+        notificationsList.innerHTML = '<div class="text-center text-red-400 py-4">Erro ao carregar notificações</div>';
+    }
+}
+
+// Buscar parcelamentos com pagamentos vencidos
+async function getOverdueInstallments() {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        
+        const { data, error } = await supabase
+            .from('installments')
+            .select(`
+                id,
+                total_amount,
+                installment_amount,
+                clients (name),
+                installment_payments (
+                    id,
+                    installment_number,
+                    due_date,
+                    amount,
+                    status
+                )
+            `)
+            .eq('status', 'active');
+        
+        if (error) throw error;
+        
+        const overdueList = [];
+        
+        // Filtrar apenas os pagamentos vencidos
+        (data || []).forEach(installment => {
+            const overduePmts = (installment.installment_payments || []).filter(payment => {
+                if (payment.status !== 'pending') return false;
+                const dueDate = new Date(payment.due_date);
+                return dueDate < today;
+            });
+            
+            overduePmts.forEach(payment => {
+                overdueList.push({
+                    installmentId: installment.id,
+                    paymentId: payment.id,
+                    clientName: installment.clients?.name || 'Cliente desconhecido',
+                    amount: payment.amount,
+                    dueDate: payment.due_date,
+                    installmentNumber: payment.installment_number
+                });
+            });
+        });
+        
+        return overdueList;
+        
+    } catch (error) {
+        console.error('Erro ao buscar parcelamentos vencidos:', error);
+        return [];
+    }
+}
+
+// Buscar empréstimos que vencem hoje
+async function getLoansDueToday() {
+    try {
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const todayStr = today.toISOString().split('T')[0];
+        
+        const { data, error } = await supabase
+            .from('loans')
+            .select(`
+                id,
+                amount,
+                interest_rate,
+                due_date,
+                status,
+                clients (name)
+            `)
+            .eq('due_date', todayStr)
+            .neq('status', 'paid');
+        
+        if (error) throw error;
+        
+        if (!data || data.length === 0) return [];
+        
+        // Calcular valores restantes em lote usando a função existente
+        const loanIds = data.map(loan => loan.id);
+        const remainingAmounts = await calculateBatchLoanRemainingAmounts(loanIds);
+        
+        // Mapear os resultados
+        const loansWithRemaining = data.map((loan, index) => ({
+            loanId: loan.id,
+            clientName: loan.clients?.name || 'Cliente desconhecido',
+            remainingAmount: remainingAmounts[index] || 0,
+            dueDate: loan.due_date
+        }));
+        
+        return loansWithRemaining;
+        
+    } catch (error) {
+        console.error('Erro ao buscar empréstimos que vencem hoje:', error);
+        return [];
+    }
+}
+
+// Renderizar lista de notificações
+function renderNotifications() {
+    const notificationsList = document.getElementById('notificationsList');
+    
+    if (notifications.length === 0) {
+        notificationsList.innerHTML = `
+            <div class="text-center py-8">
+                <div class="text-gray-400 mb-2">
+                    <svg class="w-16 h-16 mx-auto mb-3 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                    </svg>
+                </div>
+                <p class="text-gray-400">Sem notificações no momento</p>
+                <p class="text-sm text-gray-500 mt-1">Tudo em dia! 🎉</p>
+            </div>
+        `;
+        return;
+    }
+    
+    const html = notifications.map(notification => {
+        const icon = notification.type === 'overdue_installment' ? '⚠️' : '📅';
+        const bgColor = notification.type === 'overdue_installment' ? 'bg-red-900/30' : 'bg-yellow-900/30';
+        const borderColor = notification.type === 'overdue_installment' ? 'border-red-700' : 'border-yellow-700';
+        const textColor = notification.type === 'overdue_installment' ? 'text-red-300' : 'text-yellow-300';
+        
+        // Calcular dias de atraso
+        const today = new Date();
+        today.setHours(0, 0, 0, 0);
+        const dueDate = new Date(notification.dueDate);
+        const diffTime = today - dueDate;
+        const diffDays = Math.floor(diffTime / (1000 * 60 * 60 * 24));
+        
+        let dateInfo = '';
+        if (notification.type === 'overdue_installment') {
+            dateInfo = diffDays === 0 ? 'Vence hoje' : `${diffDays} dia${diffDays > 1 ? 's' : ''} em atraso`;
+        } else {
+            dateInfo = 'Vence hoje';
+        }
+        
+        return `
+            <div class="mb-3 p-4 ${bgColor} border ${borderColor} rounded-lg hover:bg-opacity-50 transition-all cursor-pointer" onclick="handleNotificationClick('${notification.type}', '${notification.type === 'overdue_installment' ? notification.data.installmentId : notification.data.loanId}')">
+                <div class="flex items-start">
+                    <div class="text-2xl mr-3">${icon}</div>
+                    <div class="flex-1">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="font-semibold ${textColor}">${notification.title}</span>
+                            <span class="text-xs text-gray-400">${dateInfo}</span>
+                        </div>
+                        <p class="text-sm text-gray-300 mb-2">${notification.message}</p>
+                        <div class="flex items-center justify-between text-xs">
+                            <span class="text-gray-400">Valor: <span class="font-semibold text-white">R$ ${notification.amount.toFixed(2)}</span></span>
+                            ${notification.type === 'overdue_installment' ? `<span class="text-gray-400">Parcela ${notification.data.installmentNumber}</span>` : ''}
+                        </div>
+                    </div>
+                </div>
+            </div>
+        `;
+    }).join('');
+    
+    notificationsList.innerHTML = html;
+}
+
+// Atualizar badge de notificações
+function updateNotificationsBadge(count) {
+    const badge = document.getElementById('notificationsBadge');
+    
+    if (count > 0) {
+        badge.textContent = count > 99 ? '99+' : count;
+        badge.classList.remove('hidden');
+    } else {
+        badge.classList.add('hidden');
+    }
+}
+
+// Lidar com clique em notificação
+function handleNotificationClick(type, id) {
+    // Fechar dropdown
+    document.getElementById('notificationsDropdown').classList.add('hidden');
+    
+    if (type === 'overdue_installment') {
+        // Navegar para a aba de parcelamentos e abrir detalhes
+        navigateToSection('installments');
+        setTimeout(() => {
+            viewInstallmentDetails(id);
+        }, 500);
+    } else if (type === 'loan_due_today') {
+        // Navegar para a aba de empréstimos e mostrar histórico de pagamento
+        navigateToSection('loans');
+        setTimeout(() => {
+            showPaymentHistory(id);
+        }, 500);
+    }
+}
+
+// Função auxiliar para navegar para uma seção programaticamente
+function navigateToSection(sectionId) {
+    // Remover active de todos os links
+    const navLinks = document.querySelectorAll('.nav-link');
+    navLinks.forEach(link => link.classList.remove('active'));
+    
+    const submenuLinks = document.querySelectorAll('.submenu-item');
+    submenuLinks.forEach(link => link.classList.remove('active'));
+    
+    // Adicionar active ao link correspondente
+    const targetLink = document.querySelector(`a[href="#${sectionId}"]`);
+    if (targetLink) {
+        targetLink.classList.add('active');
+    }
+    
+    // Esconder todas as seções
+    const contentSections = document.querySelectorAll('.content-section');
+    contentSections.forEach(section => {
+        section.classList.add('hidden');
+    });
+    
+    // Mostrar a seção alvo
+    const targetSection = document.getElementById(sectionId);
+    if (targetSection) {
+        targetSection.classList.remove('hidden');
+        targetSection.classList.add('fade-in');
+        
+        // Carregar dados específicos da seção se necessário
+        if (sectionId === 'installments') {
+            loadInstallments();
+        } else if (sectionId === 'loans') {
+            // Os dados de loans já devem estar carregados
+        }
+    }
+}
+
+// Carregar notificações automaticamente quando o app inicializa
+async function initNotifications() {
+    try {
+        // Carregar notificações silenciosamente
+        const [overdueInstallments, loansDueToday] = await Promise.all([
+            getOverdueInstallments(),
+            getLoansDueToday()
+        ]);
+        
+        const totalNotifications = overdueInstallments.length + loansDueToday.length;
+        updateNotificationsBadge(totalNotifications);
+        
+    } catch (error) {
+        console.error('Erro ao inicializar notificações:', error);
+    }
+}
+
+// Atualizar notificações periodicamente (a cada 5 minutos)
+setInterval(initNotifications, 5 * 60 * 1000);
