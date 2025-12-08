@@ -228,6 +228,38 @@
             border: 1px solid rgba(239, 68, 68, 0.3);
         }
 
+        /* Estilos para o dropdown de notificações */
+        #notificationsDropdown {
+            scrollbar-width: thin;
+            scrollbar-color: rgba(59, 130, 246, 0.5) transparent;
+        }
+        
+        #notificationsDropdown::-webkit-scrollbar {
+            width: 6px;
+        }
+        
+        #notificationsDropdown::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        
+        #notificationsDropdown::-webkit-scrollbar-thumb {
+            background-color: rgba(59, 130, 246, 0.5);
+            border-radius: 3px;
+        }
+        
+        #notificationsBadge {
+            animation: pulse 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+        }
+        
+        @keyframes pulse {
+            0%, 100% {
+                opacity: 1;
+            }
+            50% {
+                opacity: .8;
+            }
+        }
+
         .status-pending {
             background: rgba(245, 158, 11, 0.2);
             color: #f59e0b;
@@ -565,6 +597,26 @@
                         </div>
                     </div>
                     <div class="flex items-center space-x-4">
+                        <!-- Botão de Notificações -->
+                        <div class="relative">
+                            <button id="notificationsBtn" onclick="toggleNotifications()" class="relative p-2 text-gray-300 hover:text-white transition-colors">
+                                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9"></path>
+                                </svg>
+                                <span id="notificationsBadge" class="hidden absolute top-0 right-0 bg-red-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center font-bold">0</span>
+                            </button>
+                            
+                            <!-- Dropdown de Notificações -->
+                            <div id="notificationsDropdown" class="hidden absolute right-0 mt-2 w-96 bg-gray-800 border border-gray-700 rounded-lg shadow-lg z-50 max-h-96 overflow-y-auto">
+                                <div class="p-4 border-b border-gray-700">
+                                    <h3 class="text-lg font-bold text-white">Notificações</h3>
+                                </div>
+                                <div id="notificationsList" class="p-4">
+                                    <div class="text-center text-gray-400 py-4">Carregando notificações...</div>
+                                </div>
+                            </div>
+                        </div>
+                        
                         <span class="text-gray-300">Bem-vindo, <span id="userName">Admin</span></span>
                         <div class="w-8 h-8 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-full flex items-center justify-center">
                             <span class="text-white text-sm font-semibold" id="userInitial">A</span>
