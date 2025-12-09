@@ -343,9 +343,44 @@ Após implementação completa:
 | Dez 2025 | Análise e identificação da causa | ✅ Concluído |
 | Dez 2025 | Criação de scripts de correção | ✅ Concluído |
 | Dez 2025 | Criação de documentação | ✅ Concluído |
+| Dez 2025 | **Erro de permissões reportado** | ✅ Concluído |
+| Dez 2025 | **Scripts de correção de permissões criados** | ✅ Concluído |
 | Dez 2025 | **Aplicação na IMPERATRIZ CRED** | ⏳ Pendente |
 | Dez 2025 | Verificação das demais empresas | ⏳ Pendente |
 | Dez 2025 | Validação completa | ⏳ Pendente |
+
+---
+
+## 🆕 Atualização: Correção de Permissões (Dez 2025)
+
+### Novo Problema Identificado
+**Erro:** `permission denied for table paid_loans`  
+**Causa:** Políticas RLS muito restritivas ou mal configuradas
+
+### Novos Scripts Criados
+
+**1. `fix-paid-loans-permissions.sql`** (Solução Principal)
+- Reconfigura completamente as permissões RLS
+- Remove políticas antigas problemáticas
+- Cria políticas super permissivas
+- Testa inserção automaticamente
+- ✅ Mantém RLS ativado (mais seguro)
+
+**2. `fix-paid-loans-desabilitar-rls.sql`** (Última Alternativa)
+- Desabilita completamente o RLS
+- Remove todas as políticas
+- Concede todas as permissões
+- ⚠️ Usar apenas se a solução principal não funcionar
+
+**3. `SOLUCAO-URGENTE-PERMISSOES.md`**
+- Guia passo a passo de solução
+- Explicação do problema
+- Múltiplas alternativas
+- Troubleshooting completo
+
+### Arquivos Atualizados
+- `CHANGELOG-fix-paid-loans.md` - Timeline atualizada
+- `SOLUCAO-URGENTE-PERMISSOES.md` - Incluída solução alternativa 3
 
 ---
 

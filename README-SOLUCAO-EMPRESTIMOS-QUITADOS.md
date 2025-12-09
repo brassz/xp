@@ -11,6 +11,22 @@ Este documento consolida a solução para o problema de empréstimos não salvar
 
 ---
 
+## 🚨 ERRO "permission denied"?
+
+Se você está vendo o erro:
+```
+Erro ao marcar empréstimo como quitado: permission denied for table paid_loans
+```
+
+**👉 SOLUÇÃO RÁPIDA:**
+1. Execute o script `fix-paid-loans-permissions.sql` no Supabase
+2. Faça LOGOUT e LOGIN novamente
+3. Teste marcar como quitado
+
+**📖 Guia completo:** `SOLUCAO-URGENTE-PERMISSOES.md`
+
+---
+
 ## 🎯 Guia Rápido
 
 ### Para Verificar se Sua Empresa Tem o Problema
@@ -59,6 +75,23 @@ Este documento consolida a solução para o problema de empréstimos não salvar
 - Verifica triggers
 - Mostra relatório completo
 
+#### `fix-paid-loans-permissions.sql` 🆕
+**Script de correção de permissões** (para erro "permission denied")
+
+- Remove políticas RLS problemáticas
+- Reconfigura permissões completamente
+- Cria políticas super permissivas
+- Testa inserção automaticamente
+- **USE ESTE se der erro de permissão**
+
+#### `fix-paid-loans-desabilitar-rls.sql` 🆕
+**Script emergencial** (última alternativa)
+
+- Desabilita completamente o RLS
+- Remove todas as políticas
+- Concede todas as permissões
+- ⚠️ Usar apenas se outras soluções não funcionarem
+
 ### 2. Documentação
 
 #### `README-fix-imperatriz-quitacao.md`
@@ -88,6 +121,15 @@ Este documento consolida a solução para o problema de empréstimos não salvar
 - Guia rápido
 - Links para todos os recursos
 - Instruções por empresa
+
+#### `SOLUCAO-URGENTE-PERMISSOES.md` 🆕
+**Guia para erro de permissões**
+
+- Solução para "permission denied"
+- Passo a passo de correção
+- Múltiplas alternativas
+- Troubleshooting completo
+- **LEIA ESTE se tiver erro de permissão**
 
 ---
 
