@@ -10955,20 +10955,6 @@ window.reloadCategories = async function() {
 async function testCategoriesConnection() {
     console.log('🧪 Testando conectividade com tabela expense_categories...');
     try {
-        // Primeiro, verificar se a tabela existe
-        const { data: tables, error: tablesError } = await supabase
-            .from('information_schema.tables')
-            .select('table_name')
-            .eq('table_schema', 'public')
-            .eq('table_name', 'expense_categories');
-            
-        if (tablesError) {
-            console.error('❌ Erro ao verificar tabelas:', tablesError);
-            return false;
-        }
-        
-        console.log('📋 Verificação de tabela:', tables);
-        
         // Tentar consultar todas as categorias (sem filtro is_active)
         const { data: allCategories, error: allError } = await supabase
             .from('expense_categories')
