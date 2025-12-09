@@ -3922,7 +3922,15 @@
     <!-- Confirmation Modal (moved to end for higher z-index priority) -->
     <div id="confirmationModal" class="modal-overlay fixed inset-0 z-[100] hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-md p-6">
+            <div class="modal-content w-full max-w-md p-6 relative">
+                <!-- Loading Overlay -->
+                <div id="confirmationLoadingOverlay" class="absolute inset-0 bg-gray-900 bg-opacity-90 rounded-lg flex items-center justify-center hidden z-10">
+                    <div class="text-center">
+                        <div class="animate-spin rounded-full h-16 w-16 border-b-2 border-green-500 mx-auto"></div>
+                        <p class="text-white mt-4 font-medium">Processando...</p>
+                    </div>
+                </div>
+                
                 <div class="text-center">
                     <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-red-100 mb-4">
                         <svg class="h-6 w-6 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
