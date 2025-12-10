@@ -1,4 +1,4 @@
-# ⚠️ NOTA IMPORTANTE: Use o Script v2
+# ⚠️ NOTA IMPORTANTE: Use o Script v3 (VERSÃO FINAL)
 
 ## 🔄 O que mudou?
 
