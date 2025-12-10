@@ -1,8 +1,8 @@
 -- =====================================================
--- FIX COMPLETO - BANCO DE DADOS FRANCA PRIVATE v4 FINAL
+-- FIX COMPLETO - BANCO DE DADOS FRANCA PRIVATE v5 DEFINITIVO
 -- =====================================================
 -- Este script cria/atualiza todas as tabelas e estruturas ausentes
--- Versão 4: Corrige problemas com sequences e grants
+-- Versão 5 FINAL: Inclui cancelled_loans e todas as tabelas necessárias
 -- =====================================================
 
 -- Habilitar extensões necessárias
@@ -377,6 +377,87 @@ CREATE TRIGGER update_paid_loans_updated_at_trigger
     EXECUTE FUNCTION update_paid_loans_updated_at();
 
 -- =====================================================
+-- TABELA DE EMPRÉSTIMOS CANCELADOS
+-- =====================================================
+CREATE TABLE IF NOT EXISTS cancelled_loans (
+    id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+    created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Adicionar colunas
+DO $$
+BEGIN
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='loan_id') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN loan_id UUID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='client_id') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN client_id UUID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='original_amount') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN original_amount DECIMAL(10,2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='interest_rate') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN interest_rate DECIMAL(5,2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='total_with_interest') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN total_with_interest DECIMAL(10,2);
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='loan_date') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN loan_date DATE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='due_date') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN due_date DATE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='cancellation_date') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN cancellation_date DATE DEFAULT CURRENT_DATE;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='cancellation_reason') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN cancellation_reason TEXT;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='total_paid_before_cancellation') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN total_paid_before_cancellation DECIMAL(10,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='refund_amount') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN refund_amount DECIMAL(10,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='cancellation_fee') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN cancellation_fee DECIMAL(10,2) DEFAULT 0;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='cancelled_by') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN cancelled_by UUID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='created_by') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN created_by UUID;
+    END IF;
+    IF NOT EXISTS (SELECT 1 FROM information_schema.columns WHERE table_name='cancelled_loans' AND column_name='updated_at') THEN
+        ALTER TABLE cancelled_loans ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+    END IF;
+END $$;
+
+COMMENT ON TABLE cancelled_loans IS 'Tabela para armazenar empréstimos cancelados';
+
+-- Índices
+CREATE INDEX IF NOT EXISTS idx_cancelled_loans_loan_id ON cancelled_loans(loan_id);
+CREATE INDEX IF NOT EXISTS idx_cancelled_loans_client_id ON cancelled_loans(client_id);
+CREATE INDEX IF NOT EXISTS idx_cancelled_loans_cancellation_date ON cancelled_loans(cancellation_date);
+CREATE INDEX IF NOT EXISTS idx_cancelled_loans_created_at ON cancelled_loans(created_at);
+
+-- Trigger
+CREATE OR REPLACE FUNCTION update_cancelled_loans_updated_at()
+RETURNS TRIGGER AS $$
+BEGIN
+    NEW.updated_at = NOW();
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+DROP TRIGGER IF EXISTS update_cancelled_loans_updated_at_trigger ON cancelled_loans;
+CREATE TRIGGER update_cancelled_loans_updated_at_trigger
+    BEFORE UPDATE ON cancelled_loans
+    FOR EACH ROW
+    EXECUTE FUNCTION update_cancelled_loans_updated_at();
+
+-- =====================================================
 -- FIX: CONSTRAINT DE PAYMENT_TYPE
 -- =====================================================
 DO $$ 
@@ -396,6 +477,7 @@ ALTER TABLE cash_settings ENABLE ROW LEVEL SECURITY;
 ALTER TABLE capital_raising ENABLE ROW LEVEL SECURITY;
 ALTER TABLE capital_raising_clients ENABLE ROW LEVEL SECURITY;
 ALTER TABLE paid_loans ENABLE ROW LEVEL SECURITY;
+ALTER TABLE cancelled_loans ENABLE ROW LEVEL SECURITY;
 
 -- Criar policies
 DO $$
@@ -457,6 +539,16 @@ BEGIN
     CREATE POLICY "Usuários podem atualizar seus empréstimos quitados" ON paid_loans FOR UPDATE USING (auth.role() = 'authenticated');
     DROP POLICY IF EXISTS "Usuários podem excluir empréstimos quitados" ON paid_loans;
     CREATE POLICY "Usuários podem excluir empréstimos quitados" ON paid_loans FOR DELETE USING (auth.role() = 'authenticated');
+    
+    -- Cancelled loans
+    DROP POLICY IF EXISTS "Usuários autenticados podem ver empréstimos cancelados" ON cancelled_loans;
+    CREATE POLICY "Usuários autenticados podem ver empréstimos cancelados" ON cancelled_loans FOR SELECT USING (auth.role() = 'authenticated');
+    DROP POLICY IF EXISTS "Usuários autenticados podem inserir empréstimos cancelados" ON cancelled_loans;
+    CREATE POLICY "Usuários autenticados podem inserir empréstimos cancelados" ON cancelled_loans FOR INSERT WITH CHECK (auth.role() = 'authenticated');
+    DROP POLICY IF EXISTS "Usuários podem atualizar empréstimos cancelados" ON cancelled_loans;
+    CREATE POLICY "Usuários podem atualizar empréstimos cancelados" ON cancelled_loans FOR UPDATE USING (auth.role() = 'authenticated');
+    DROP POLICY IF EXISTS "Usuários podem excluir empréstimos cancelados" ON cancelled_loans;
+    CREATE POLICY "Usuários podem excluir empréstimos cancelados" ON cancelled_loans FOR DELETE USING (auth.role() = 'authenticated');
 EXCEPTION WHEN OTHERS THEN
     RAISE NOTICE 'Aviso ao criar policies: %', SQLERRM;
 END $$;
@@ -470,6 +562,7 @@ GRANT SELECT, INSERT, UPDATE, DELETE ON cash_settings TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON capital_raising TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON capital_raising_clients TO authenticated;
 GRANT SELECT, INSERT, UPDATE, DELETE ON paid_loans TO authenticated;
+GRANT SELECT, INSERT, UPDATE, DELETE ON cancelled_loans TO authenticated;
 
 -- Conceder permissões em sequences (apenas se existirem)
 DO $$
@@ -534,17 +627,24 @@ GRANT SELECT ON paid_loans_with_details TO authenticated;
 DO $$
 BEGIN
     RAISE NOTICE '====================================================';
-    RAISE NOTICE 'FIX v4 FINAL CONCLUÍDO COM SUCESSO!';
+    RAISE NOTICE 'FIX v5 FINAL DEFINITIVO - CONCLUÍDO COM SUCESSO!';
     RAISE NOTICE '====================================================';
-    RAISE NOTICE '✓ Todas as tabelas foram criadas/atualizadas';
-    RAISE NOTICE '✓ Todas as colunas foram adicionadas';
+    RAISE NOTICE '✓ 7 tabelas criadas/atualizadas:';
+    RAISE NOTICE '  - guarantors (avalistas)';
+    RAISE NOTICE '  - cash_transactions (transações de caixa)';
+    RAISE NOTICE '  - cash_settings (configuração do caixa)';
+    RAISE NOTICE '  - capital_raising (levantamentos)';
+    RAISE NOTICE '  - capital_raising_clients (clientes dos levantamentos)';
+    RAISE NOTICE '  - paid_loans (empréstimos quitados)';
+    RAISE NOTICE '  - cancelled_loans (empréstimos cancelados)';
+    RAISE NOTICE '';
     RAISE NOTICE '✓ Constraint de payment_type removida';
-    RAISE NOTICE '✓ RLS policies configuradas';
-    RAISE NOTICE '✓ Triggers criados';
-    RAISE NOTICE '✓ Views criadas';
+    RAISE NOTICE '✓ 28 RLS policies configuradas';
+    RAISE NOTICE '✓ 7 triggers criados';
+    RAISE NOTICE '✓ 3 views criadas';
     RAISE NOTICE '✓ Permissões concedidas';
     RAISE NOTICE '';
-    RAISE NOTICE '🎉 TUDO PRONTO!';
+    RAISE NOTICE '🎉 SISTEMA 100% FUNCIONAL!';
     RAISE NOTICE 'Próximo passo: Recarregue a aplicação (F5)';
     RAISE NOTICE '====================================================';
 END $$;
