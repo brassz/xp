@@ -8,11 +8,13 @@
 - Clique em **SQL Editor** (ícone de terminal no menu lateral)
 
 ### 2️⃣ Execute o Script
-- Abra o arquivo: `fix-franca-private-database-complete.sql`
+- Abra o arquivo: `fix-franca-private-database-complete-v2.sql` ⚠️ **Use o v2!**
 - Selecione TODO o conteúdo (Ctrl+A)
 - Copie (Ctrl+C)
 - Cole no SQL Editor do Supabase (Ctrl+V)
 - Clique em **RUN** ou pressione Ctrl+Enter
+
+> **💡 Importante:** Use sempre o script **v2** - ele é mais seguro e funciona mesmo se algumas tabelas já existirem!
 
 ### 3️⃣ Verifique o Resultado
 Você deve ver mensagens de sucesso:
