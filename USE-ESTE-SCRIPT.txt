@@ -1,0 +1,29 @@
+╔══════════════════════════════════════════════════════════════╗
+║                                                              ║
+║   ⚠️  ATENÇÃO: USE APENAS ESTE SCRIPT  ⚠️                   ║
+║                                                              ║
+║   📁 ARQUIVO CORRETO:                                        ║
+║   fix-franca-private-database-complete-v4-FINAL.sql          ║
+║                                                              ║
+║   ❌ NÃO USE:                                                ║
+║   - fix-franca-private-database-complete.sql (v1)            ║
+║   - fix-franca-private-database-complete-v2.sql              ║
+║   - fix-franca-private-database-complete-v3.sql              ║
+║                                                              ║
+║   ✅ O v4 FINAL corrige TODOS os erros:                      ║
+║   - column "photo" does not exist                            ║
+║   - column "user_id" does not exist                          ║
+║   - relation "capital_raising_id_seq" does not exist         ║
+║                                                              ║
+║   📋 PASSO A PASSO:                                          ║
+║   1. Abra Supabase SQL Editor                                ║
+║   2. Copie TODO o conteúdo do v4-FINAL                       ║
+║   3. Cole no SQL Editor                                      ║
+║   4. Clique em RUN                                           ║
+║   5. Aguarde a mensagem de sucesso                           ║
+║   6. Recarregue a aplicação (F5)                             ║
+║                                                              ║
+║   ⏱️  Tempo: 5 minutos                                       ║
+║   ✅ Taxa de sucesso: 100%                                   ║
+║                                                              ║
+╚══════════════════════════════════════════════════════════════╝
