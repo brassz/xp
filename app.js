@@ -3468,6 +3468,11 @@ function showDashboard() {
     
     // Configurar timeout para usuário logado
     setupActivityListeners();
+    
+    // Inicializar Controle Financeiro se for Franca Private
+    setTimeout(() => {
+        initFinancialControl();
+    }, 100);
 }
 
 function populateClientSelect() {
@@ -17206,14 +17211,24 @@ setInterval(initNotifications, 5 * 60 * 1000);
 
 // Inicializar seção de Controle Financeiro
 function initFinancialControl() {
+    console.log('=== INIT FINANCIAL CONTROL ===');
+    console.log('Current Company:', currentCompany);
+    
     // Mostrar/Esconder aba apenas para Franca Private
     const financialControlTab = document.getElementById('financialControlTab');
     const isFrancaPrivate = currentCompany === 'brunoassoni';
     
+    console.log('Financial Control Tab found:', financialControlTab !== null);
+    console.log('Is Franca Private?', isFrancaPrivate);
+    
     if (isFrancaPrivate && financialControlTab) {
+        console.log('✅ Mostrando aba de Controle Financeiro');
         financialControlTab.style.display = 'flex';
     } else if (financialControlTab) {
+        console.log('❌ Ocultando aba de Controle Financeiro (não é Franca Private)');
         financialControlTab.style.display = 'none';
+    } else {
+        console.log('⚠️ Elemento financialControlTab não encontrado no DOM');
     }
     
     // Event listeners para botões
