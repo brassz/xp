@@ -1086,8 +1086,12 @@ function handleNavigation(e) {
             // Inicializar seção de controle financeiro quando for exibida
             if (target === 'financialControl') {
                 console.log('Seção de controle financeiro ativada, inicializando...');
-                initializeFinancialControl();
-                loadFinancialExpenses();
+                try {
+                    initializeFinancialControl();
+                    loadFinancialExpenses();
+                } catch (error) {
+                    console.error('Erro ao inicializar controle financeiro:', error);
+                }
             }
 
         }
@@ -3462,9 +3466,13 @@ function showDashboard() {
         companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
     }
     
-    // Inicializar controle financeiro se for Franca Private
+    // Inicializar controle financeiro se for Franca Private (com try-catch para não quebrar o login)
     if (currentCompany === 'brunoassoni') {
-        initializeFinancialControl();
+        try {
+            initializeFinancialControl();
+        } catch (error) {
+            console.error('Erro ao inicializar controle financeiro:', error);
+        }
     }
     
     // Configurar timeout para usuário logado
@@ -17205,6 +17213,10 @@ setInterval(initNotifications, 5 * 60 * 1000);
 // FINANCIAL CONTROL - CONTROLE FINANCEIRO (FRANCA PRIVATE ONLY)
 // ============================================================================
 
+// Constantes para controle financeiro
+const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
 // Function to fetch commissions from ALL companies
 async function fetchAllCompaniesCommissions(startDate, endDate) {
     const allCommissions = [];
@@ -17358,9 +17370,7 @@ async function loadAllCommissions() {
         document.getElementById('totalCommissionsCash').textContent = `R$ ${totalCommissions.toFixed(2).replace('.', ',')}`;
         
         // Update month label
-        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
-                           'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        const currentMonth = monthNames[now.getMonth()];
+        const currentMonth = MONTH_NAMES[now.getMonth()];
         const currentYear = now.getFullYear();
         document.getElementById('currentMonthLabel').textContent = `${currentMonth} ${currentYear} - Todas as empresas`;
         
@@ -17407,9 +17417,7 @@ async function loadAllCommissions() {
             loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Caixa (Mês Atual)</span>';
         }
         
-        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
-                           'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
-        const currentMonth = monthNames[now.getMonth()];
+        // Use currentMonth variable already declared above
         showSuccessMessage(`Caixa de ${currentMonth} atualizado com sucesso!`);
         
     } catch (error) {
@@ -17558,6 +17566,8 @@ async function deleteFinancialExpense(expenseId) {
 }
 
 // Initialize Financial Control section
+let financialControlInitialized = false;
+
 function initializeFinancialControl() {
     // Check if user is in Franca Private
     const isFrancaPrivate = currentCompany === 'brunoassoni';
@@ -17571,6 +17581,12 @@ function initializeFinancialControl() {
     if (financialControlLink) {
         financialControlLink.style.display = 'flex';
     }
+    
+    // Prevent duplicate event listeners
+    if (financialControlInitialized) {
+        return;
+    }
+    financialControlInitialized = true;
     
     // Event listener for load commissions button
     const loadBtn = document.getElementById('loadAllCommissionsBtn');
