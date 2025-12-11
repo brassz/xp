@@ -17254,8 +17254,23 @@ async function fetchAllCompaniesCommissions(startDate, endDate) {
             
             console.log(`${companyConfig.name}: Found ${payments ? payments.length : 0} payments`);
             
-            // Calculate commissions for this company
+            // Calculate VINICIUS commission for this company
             let companyTotal = 0;
+            let viniciusPercentage = 0.666; // Default: 66.6%
+            
+            // Determine Vinicius percentage based on company
+            if (companyKey === 'erechim') {
+                viniciusPercentage = 1/3; // 33.3%
+            } else if (companyKey === 'imperatriz') {
+                viniciusPercentage = 0.5; // 50%
+            } else if (companyKey === 'brunoassoni') {
+                viniciusPercentage = 1.0; // 100%
+            } else {
+                viniciusPercentage = 0.666; // 66.6% (Franca Cred, Litoral, Mogiana)
+            }
+            
+            console.log(`${companyConfig.name}: Vinicius gets ${(viniciusPercentage * 100).toFixed(1)}% of commissions`);
+            
             if (payments && payments.length > 0) {
                 payments.forEach(payment => {
                     if (payment.loans) {
@@ -17263,7 +17278,7 @@ async function fetchAllCompaniesCommissions(startDate, endDate) {
                         const loanAmount = parseFloat(payment.loans.amount || 0);
                         const interestRate = parseFloat(payment.loans.interest_rate || 0);
                         
-                        // Extract interest from payment
+                        // Extract interest from payment (commissionable amount)
                         const paidInterest = extractPaidInterestFromNotes(
                             payment.notes, 
                             paymentAmount, 
@@ -17271,7 +17286,9 @@ async function fetchAllCompaniesCommissions(startDate, endDate) {
                             interestRate
                         );
                         
-                        companyTotal += paidInterest;
+                        // Calculate ONLY Vinicius commission
+                        const viniciusCommission = paidInterest * viniciusPercentage;
+                        companyTotal += viniciusCommission;
                     }
                 });
             }
@@ -17297,11 +17314,16 @@ async function fetchAllCompaniesCommissions(startDate, endDate) {
         }
     }
     
-    console.log('=== SUMMARY OF ALL COMPANIES ===');
+    console.log('=== SUMMARY - VINICIUS COMMISSIONS FROM ALL COMPANIES ===');
     const totalAll = allCommissions.reduce((sum, c) => sum + c.total, 0);
-    console.log(`Total from all companies: R$ ${totalAll.toFixed(2)}`);
+    console.log(`Total VINICIUS commission from all companies: R$ ${totalAll.toFixed(2)}`);
     allCommissions.forEach(c => {
-        console.log(`  - ${c.company}: R$ ${c.total.toFixed(2)} (${c.paymentsCount} payments)`);
+        let percentage = '66.6%';
+        if (c.companyKey === 'erechim') percentage = '33.3%';
+        else if (c.companyKey === 'imperatriz') percentage = '50%';
+        else if (c.companyKey === 'brunoassoni') percentage = '100%';
+        
+        console.log(`  - ${c.company} (${percentage}): R$ ${c.total.toFixed(2)} (${c.paymentsCount} payments)`);
     });
     
     return allCommissions;
@@ -17338,6 +17360,16 @@ async function loadAllCommissions() {
         companyContainer.innerHTML = '';
         
         commissionsData.forEach(company => {
+            // Calculate percentage for display
+            let percentage = '66.6%';
+            if (company.companyKey === 'erechim') {
+                percentage = '33.3%';
+            } else if (company.companyKey === 'imperatriz') {
+                percentage = '50%';
+            } else if (company.companyKey === 'brunoassoni') {
+                percentage = '100%';
+            }
+            
             const card = document.createElement('div');
             card.className = 'glass-card p-4 rounded-lg';
             card.innerHTML = `
@@ -17346,6 +17378,7 @@ async function loadAllCommissions() {
                         <p class="text-xs font-medium text-gray-400">${company.company}</p>
                         <p class="text-lg font-bold text-white">R$ ${company.total.toFixed(2).replace('.', ',')}</p>
                         <p class="text-xs text-gray-500">${company.paymentsCount} pagamentos</p>
+                        <p class="text-xs text-green-400 mt-1">Vinicius: ${percentage}</p>
                     </div>
                     <div class="w-10 h-10 bg-blue-500 bg-opacity-20 rounded-lg flex items-center justify-center">
                         <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
