@@ -17338,13 +17338,15 @@ async function loadAllCommissions() {
             loadBtn.innerHTML = '<svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Carregando...</span>';
         }
         
-        // Get date range - last 12 months
-        const endDate = new Date();
-        const startDate = new Date();
-        startDate.setMonth(startDate.getMonth() - 12);
+        // Get date range - CURRENT MONTH ONLY
+        const now = new Date();
+        const startDate = new Date(now.getFullYear(), now.getMonth(), 1); // Primeiro dia do mês
+        const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Último dia do mês
         
         const startDateStr = startDate.toISOString().split('T')[0];
         const endDateStr = endDate.toISOString().split('T')[0];
+        
+        console.log(`Buscando comissões do mês atual: ${startDateStr} até ${endDateStr}`);
         
         // Fetch commissions from all companies
         const commissionsData = await fetchAllCompaniesCommissions(startDateStr, endDateStr);
@@ -17354,6 +17356,13 @@ async function loadAllCommissions() {
         
         // Update total commissions card
         document.getElementById('totalCommissionsCash').textContent = `R$ ${totalCommissions.toFixed(2).replace('.', ',')}`;
+        
+        // Update month label
+        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                           'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const currentMonth = monthNames[now.getMonth()];
+        const currentYear = now.getFullYear();
+        document.getElementById('currentMonthLabel').textContent = `${currentMonth} ${currentYear} - Todas as empresas`;
         
         // Update commissions by company section
         const companyContainer = document.getElementById('commissionsByCompany');
@@ -17395,10 +17404,13 @@ async function loadAllCommissions() {
         
         if (loadBtn) {
             loadBtn.disabled = false;
-            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Caixa</span>';
+            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Caixa (Mês Atual)</span>';
         }
         
-        showSuccessMessage('Caixa atualizado com sucesso!');
+        const monthNames = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                           'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+        const currentMonth = monthNames[now.getMonth()];
+        showSuccessMessage(`Caixa de ${currentMonth} atualizado com sucesso!`);
         
     } catch (error) {
         console.error('Error loading commissions:', error);
@@ -17407,7 +17419,7 @@ async function loadAllCommissions() {
         const loadBtn = document.getElementById('loadAllCommissionsBtn');
         if (loadBtn) {
             loadBtn.disabled = false;
-            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Caixa</span>';
+            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Caixa (Mês Atual)</span>';
         }
     }
 }
