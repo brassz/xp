@@ -1089,6 +1089,8 @@ function handleNavigation(e) {
                 try {
                     initializeFinancialControl();
                     loadFinancialExpenses();
+                    // Carregar comissões automaticamente
+                    loadAllCommissions();
                 } catch (error) {
                     console.error('Erro ao inicializar controle financeiro:', error);
                 }
@@ -17414,11 +17416,20 @@ async function loadAllCommissions() {
         
         if (loadBtn) {
             loadBtn.disabled = false;
-            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Caixa (Mês Atual)</span>';
+            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Agora</span>';
         }
         
         // Use currentMonth variable already declared above
         showSuccessMessage(`Caixa de ${currentMonth} atualizado com sucesso!`);
+        
+        // Update last update time
+        const lastUpdateElement = document.getElementById('lastUpdateTime');
+        if (lastUpdateElement) {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            lastUpdateElement.textContent = `${hours}:${minutes}`;
+        }
         
     } catch (error) {
         console.error('Error loading commissions:', error);
@@ -17427,7 +17438,7 @@ async function loadAllCommissions() {
         const loadBtn = document.getElementById('loadAllCommissionsBtn');
         if (loadBtn) {
             loadBtn.disabled = false;
-            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Caixa (Mês Atual)</span>';
+            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Agora</span>';
         }
     }
 }
@@ -17567,6 +17578,7 @@ async function deleteFinancialExpense(expenseId) {
 
 // Initialize Financial Control section
 let financialControlInitialized = false;
+let financialControlAutoUpdateInterval = null;
 
 function initializeFinancialControl() {
     // Check if user is in Franca Private
@@ -17593,6 +17605,22 @@ function initializeFinancialControl() {
     if (loadBtn) {
         loadBtn.addEventListener('click', loadAllCommissions);
     }
+    
+    // Setup auto-update interval (every 5 minutes)
+    if (financialControlAutoUpdateInterval) {
+        clearInterval(financialControlAutoUpdateInterval);
+    }
+    
+    financialControlAutoUpdateInterval = setInterval(() => {
+        // Only update if the Financial Control tab is visible
+        const financialControlSection = document.getElementById('financialControl');
+        if (financialControlSection && !financialControlSection.classList.contains('hidden')) {
+            console.log('Auto-atualizando comissões...');
+            loadAllCommissions();
+        }
+    }, 5 * 60 * 1000); // 5 minutos
+    
+    console.log('Auto-atualização de comissões ativada (a cada 5 minutos)');
     
     // Event listener for new expense button
     const newExpenseBtn = document.getElementById('newFinancialExpenseBtn');
