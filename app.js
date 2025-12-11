@@ -275,6 +275,8 @@ async function initializeApp() {
                 initializeWeeklyPDFCheck();
                 // Inicializar sistema de notificações
                 initNotifications();
+                // Inicializar Controle Financeiro (Franca Private)
+                initFinancialControl();
             }, 100);
         } catch (error) {
             localStorage.removeItem('nexusUser');
@@ -1062,6 +1064,14 @@ function handleNavigation(e) {
                 console.log('Seção de histórico ativada, atualizando lista de clientes...');
                 setTimeout(() => {
                     populateHistoryClientSelect();
+                }, 100);
+            }
+            
+            // Carregar dados do controle financeiro quando a seção for exibida
+            if (target === 'financialControl') {
+                console.log('Seção de controle financeiro ativada, carregando dados...');
+                setTimeout(() => {
+                    loadFinancialControlData();
                 }, 100);
             }
             
@@ -17189,3 +17199,525 @@ async function initNotifications() {
 
 // Atualizar notificações periodicamente (a cada 5 minutos)
 setInterval(initNotifications, 5 * 60 * 1000);
+
+// =====================================================
+// CONTROLE FINANCEIRO - FRANCA PRIVATE
+// =====================================================
+
+// Inicializar seção de Controle Financeiro
+function initFinancialControl() {
+    // Mostrar/Esconder aba apenas para Franca Private
+    const financialControlTab = document.getElementById('financialControlTab');
+    const isFrancaPrivate = currentCompany === 'brunoassoni';
+    
+    if (isFrancaPrivate && financialControlTab) {
+        financialControlTab.style.display = 'flex';
+    } else if (financialControlTab) {
+        financialControlTab.style.display = 'none';
+    }
+    
+    // Event listeners para botões
+    const btnAddCommissionEntry = document.getElementById('btnAddCommissionEntry');
+    const btnAddExpense = document.getElementById('btnAddExpense');
+    const btnGenerateFinancialReport = document.getElementById('btnGenerateFinancialReport');
+    
+    if (btnAddCommissionEntry) {
+        btnAddCommissionEntry.addEventListener('click', openAddCommissionEntryModal);
+    }
+    
+    if (btnAddExpense) {
+        btnAddExpense.addEventListener('click', openAddExpenseModal);
+    }
+    
+    if (btnGenerateFinancialReport) {
+        btnGenerateFinancialReport.addEventListener('click', generateFinancialControlPDF);
+    }
+    
+    // Event listeners para formulários
+    const addCommissionEntryForm = document.getElementById('addCommissionEntryForm');
+    const addExpenseForm = document.getElementById('addExpenseForm');
+    
+    if (addCommissionEntryForm) {
+        addCommissionEntryForm.addEventListener('submit', handleAddCommissionEntry);
+    }
+    
+    if (addExpenseForm) {
+        addExpenseForm.addEventListener('submit', handleAddExpense);
+    }
+    
+    // Event listener para selecionar empresa customizada
+    const commissionCompanyCode = document.getElementById('commissionCompanyCode');
+    if (commissionCompanyCode) {
+        commissionCompanyCode.addEventListener('change', function() {
+            const customDiv = document.getElementById('customCompanyNameDiv');
+            if (this.value === 'other') {
+                customDiv.style.display = 'block';
+                document.getElementById('customCompanyName').required = true;
+            } else {
+                customDiv.style.display = 'none';
+                document.getElementById('customCompanyName').required = false;
+            }
+        });
+    }
+    
+    // Carregar dados iniciais
+    if (isFrancaPrivate) {
+        loadFinancialControlData();
+    }
+}
+
+// Carregar dados do Controle Financeiro
+async function loadFinancialControlData() {
+    try {
+        showLoadingMessage();
+        
+        // Buscar todas as entradas e despesas
+        const [entriesResult, expensesResult] = await Promise.all([
+            supabase
+                .from('financial_control_entries')
+                .select('*')
+                .order('entry_date', { ascending: false }),
+            supabase
+                .from('financial_control_expenses')
+                .select('*')
+                .order('expense_date', { ascending: false })
+        ]);
+        
+        if (entriesResult.error) throw entriesResult.error;
+        if (expensesResult.error) throw expensesResult.error;
+        
+        const entries = entriesResult.data || [];
+        const expenses = expensesResult.data || [];
+        
+        // Calcular totais
+        const totalEntries = entries.reduce((sum, entry) => sum + parseFloat(entry.commission_amount || 0), 0);
+        const totalExpenses = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0);
+        const currentBalance = totalEntries - totalExpenses;
+        const reinvestmentAmount = currentBalance * 0.15;
+        
+        // Atualizar cards de resumo
+        document.getElementById('fcTotalBalance').textContent = `R$ ${currentBalance.toFixed(2)}`;
+        document.getElementById('fcTotalEntries').textContent = `R$ ${totalEntries.toFixed(2)}`;
+        document.getElementById('fcTotalExpenses').textContent = `R$ ${totalExpenses.toFixed(2)}`;
+        document.getElementById('fcReinvestment').textContent = `R$ ${reinvestmentAmount.toFixed(2)}`;
+        
+        // Renderizar tabelas
+        renderEntriesTable(entries);
+        renderExpensesTable(expenses);
+        renderExpensesByCategory(expenses);
+        
+        hideLoadingMessage();
+        
+    } catch (error) {
+        console.error('Erro ao carregar dados do controle financeiro:', error);
+        showErrorMessage('Erro ao carregar dados: ' + error.message);
+        hideLoadingMessage();
+    }
+}
+
+// Renderizar tabela de entradas
+function renderEntriesTable(entries) {
+    const tableBody = document.getElementById('fcEntriesTableBody');
+    const entriesCount = document.getElementById('entriesCount');
+    
+    if (!entries || entries.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="3" class="px-3 py-6 text-center text-gray-400 text-sm">
+                    Nenhuma entrada registrada
+                </td>
+            </tr>
+        `;
+        entriesCount.textContent = '0 entradas';
+        return;
+    }
+    
+    entriesCount.textContent = `${entries.length} entrada${entries.length !== 1 ? 's' : ''}`;
+    
+    const html = entries.map(entry => {
+        const entryDate = new Date(entry.entry_date).toLocaleDateString('pt-BR');
+        return `
+            <tr class="hover:bg-gray-700 transition-colors">
+                <td class="px-3 py-3 text-sm text-gray-300">${entry.company_name}</td>
+                <td class="px-3 py-3 text-sm font-semibold text-green-400">R$ ${parseFloat(entry.commission_amount).toFixed(2)}</td>
+                <td class="px-3 py-3 text-sm text-gray-400">${entryDate}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    tableBody.innerHTML = html;
+}
+
+// Renderizar tabela de despesas
+function renderExpensesTable(expenses) {
+    const tableBody = document.getElementById('fcExpensesTableBody');
+    const expensesCount = document.getElementById('expensesCount');
+    
+    if (!expenses || expenses.length === 0) {
+        tableBody.innerHTML = `
+            <tr>
+                <td colspan="3" class="px-3 py-6 text-center text-gray-400 text-sm">
+                    Nenhuma despesa registrada
+                </td>
+            </tr>
+        `;
+        expensesCount.textContent = '0 despesas';
+        return;
+    }
+    
+    expensesCount.textContent = `${expenses.length} despesa${expenses.length !== 1 ? 's' : ''}`;
+    
+    const html = expenses.map(expense => {
+        const expenseDate = new Date(expense.expense_date).toLocaleDateString('pt-BR');
+        return `
+            <tr class="hover:bg-gray-700 transition-colors">
+                <td class="px-3 py-3 text-sm text-gray-300">
+                    ${expense.description}
+                    <span class="block text-xs text-gray-500">${expense.category}</span>
+                </td>
+                <td class="px-3 py-3 text-sm font-semibold text-red-400">R$ ${parseFloat(expense.amount).toFixed(2)}</td>
+                <td class="px-3 py-3 text-sm text-gray-400">${expenseDate}</td>
+            </tr>
+        `;
+    }).join('');
+    
+    tableBody.innerHTML = html;
+}
+
+// Renderizar relatório de despesas por categoria
+function renderExpensesByCategory(expenses) {
+    const container = document.getElementById('expensesByCategoryContainer');
+    
+    if (!expenses || expenses.length === 0) {
+        container.innerHTML = `
+            <div class="text-center text-gray-400 py-4">
+                Adicione despesas para ver o relatório por categoria
+            </div>
+        `;
+        return;
+    }
+    
+    // Agrupar por categoria
+    const byCategory = {};
+    expenses.forEach(expense => {
+        const category = expense.category || 'Outros';
+        if (!byCategory[category]) {
+            byCategory[category] = {
+                total: 0,
+                count: 0
+            };
+        }
+        byCategory[category].total += parseFloat(expense.amount || 0);
+        byCategory[category].count += 1;
+    });
+    
+    // Ordenar por total
+    const sortedCategories = Object.entries(byCategory).sort((a, b) => b[1].total - a[1].total);
+    
+    const html = `
+        <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+            ${sortedCategories.map(([category, data]) => `
+                <div class="bg-gray-700 rounded-lg p-4">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="font-semibold text-white">${category}</h4>
+                        <span class="text-xs text-gray-400">${data.count} ${data.count === 1 ? 'despesa' : 'despesas'}</span>
+                    </div>
+                    <p class="text-2xl font-bold text-red-400">R$ ${data.total.toFixed(2)}</p>
+                </div>
+            `).join('')}
+        </div>
+    `;
+    
+    container.innerHTML = html;
+}
+
+// Abrir modal de adicionar entrada de comissão
+function openAddCommissionEntryModal() {
+    const modal = document.getElementById('addCommissionEntryModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Definir data padrão (hoje)
+        const today = new Date().toISOString().split('T')[0];
+        document.getElementById('commissionPeriodEnd').value = today;
+        // Data inicial padrão (30 dias atrás)
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        document.getElementById('commissionPeriodStart').value = thirtyDaysAgo.toISOString().split('T')[0];
+    }
+}
+
+// Fechar modal de adicionar entrada de comissão
+function closeAddCommissionEntryModal() {
+    const modal = document.getElementById('addCommissionEntryModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.getElementById('addCommissionEntryForm').reset();
+    }
+}
+
+// Abrir modal de adicionar despesa
+function openAddExpenseModal() {
+    const modal = document.getElementById('addExpenseModal');
+    if (modal) {
+        modal.classList.remove('hidden');
+        // Definir data padrão (hoje)
+        document.getElementById('expenseDate').value = new Date().toISOString().split('T')[0];
+    }
+}
+
+// Fechar modal de adicionar despesa
+function closeAddExpenseModal() {
+    const modal = document.getElementById('addExpenseModal');
+    if (modal) {
+        modal.classList.add('hidden');
+        document.getElementById('addExpenseForm').reset();
+    }
+}
+
+// Lidar com adição de entrada de comissão
+async function handleAddCommissionEntry(e) {
+    e.preventDefault();
+    
+    try {
+        const companyCode = document.getElementById('commissionCompanyCode').value;
+        let companyName = '';
+        
+        if (companyCode === 'other') {
+            companyName = document.getElementById('customCompanyName').value;
+        } else {
+            const companyNames = {
+                'erechim': 'ERECHIM',
+                'imperatriz': 'IMPERATRIZ CRED',
+                'brunoassoni': 'FRANCA PRIVATE'
+            };
+            companyName = companyNames[companyCode] || companyCode;
+        }
+        
+        const amount = parseFloat(document.getElementById('commissionAmount').value);
+        const periodStart = document.getElementById('commissionPeriodStart').value;
+        const periodEnd = document.getElementById('commissionPeriodEnd').value;
+        const description = document.getElementById('commissionDescription').value;
+        
+        // Validações
+        if (!companyName || amount <= 0) {
+            showErrorMessage('Preencha todos os campos obrigatórios');
+            return;
+        }
+        
+        // Inserir no banco
+        const { data, error } = await supabase
+            .from('financial_control_entries')
+            .insert([{
+                company_name: companyName,
+                company_code: companyCode,
+                commission_amount: amount,
+                period_start: periodStart,
+                period_end: periodEnd,
+                description: description || null,
+                entry_date: new Date().toISOString().split('T')[0],
+                created_by: currentUser.id
+            }])
+            .select();
+        
+        if (error) throw error;
+        
+        showSuccessMessage(`Entrada de R$ ${amount.toFixed(2)} adicionada com sucesso!`);
+        closeAddCommissionEntryModal();
+        loadFinancialControlData();
+        
+    } catch (error) {
+        console.error('Erro ao adicionar entrada:', error);
+        showErrorMessage('Erro ao adicionar entrada: ' + error.message);
+    }
+}
+
+// Lidar com adição de despesa
+async function handleAddExpense(e) {
+    e.preventDefault();
+    
+    try {
+        const description = document.getElementById('expenseDescription').value;
+        const category = document.getElementById('expenseCategory').value;
+        const amount = parseFloat(document.getElementById('expenseAmount').value);
+        const expenseDate = document.getElementById('expenseDate').value;
+        const notes = document.getElementById('expenseNotes').value;
+        
+        // Validações
+        if (!description || !category || amount <= 0) {
+            showErrorMessage('Preencha todos os campos obrigatórios');
+            return;
+        }
+        
+        // Inserir no banco
+        const { data, error } = await supabase
+            .from('financial_control_expenses')
+            .insert([{
+                description: description,
+                category: category,
+                amount: amount,
+                expense_date: expenseDate,
+                notes: notes || null,
+                created_by: currentUser.id
+            }])
+            .select();
+        
+        if (error) throw error;
+        
+        showSuccessMessage(`Despesa de R$ ${amount.toFixed(2)} registrada com sucesso!`);
+        closeAddExpenseModal();
+        loadFinancialControlData();
+        
+    } catch (error) {
+        console.error('Erro ao adicionar despesa:', error);
+        showErrorMessage('Erro ao adicionar despesa: ' + error.message);
+    }
+}
+
+// Gerar PDF do Relatório Financeiro
+async function generateFinancialControlPDF() {
+    try {
+        showLoadingMessage('Gerando relatório...');
+        
+        // Buscar dados
+        const [entriesResult, expensesResult] = await Promise.all([
+            supabase
+                .from('financial_control_entries')
+                .select('*')
+                .order('entry_date', { ascending: false }),
+            supabase
+                .from('financial_control_expenses')
+                .select('*')
+                .order('expense_date', { ascending: false })
+        ]);
+        
+        if (entriesResult.error) throw entriesResult.error;
+        if (expensesResult.error) throw expensesResult.error;
+        
+        const entries = entriesResult.data || [];
+        const expenses = expensesResult.data || [];
+        
+        // Calcular totais
+        const totalEntries = entries.reduce((sum, entry) => sum + parseFloat(entry.commission_amount || 0), 0);
+        const totalExpenses = expenses.reduce((sum, expense) => sum + parseFloat(expense.amount || 0), 0);
+        const currentBalance = totalEntries - totalExpenses;
+        const reinvestmentAmount = currentBalance * 0.15;
+        
+        // Agrupar despesas por categoria
+        const byCategory = {};
+        expenses.forEach(expense => {
+            const category = expense.category || 'Outros';
+            if (!byCategory[category]) {
+                byCategory[category] = 0;
+            }
+            byCategory[category] += parseFloat(expense.amount || 0);
+        });
+        
+        // Criar PDF
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        
+        // Configurações
+        doc.setFont('helvetica');
+        
+        // Título
+        doc.setFontSize(18);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RELATÓRIO DE CONTROLE FINANCEIRO', 105, 20, { align: 'center' });
+        
+        // Subtítulo
+        doc.setFontSize(12);
+        doc.setFont('helvetica', 'normal');
+        doc.text('FRANCA PRIVATE', 105, 28, { align: 'center' });
+        doc.text(`Data: ${new Date().toLocaleDateString('pt-BR')}`, 105, 35, { align: 'center' });
+        
+        // Resumo Financeiro
+        doc.setFontSize(14);
+        doc.setFont('helvetica', 'bold');
+        doc.text('RESUMO FINANCEIRO', 20, 50);
+        
+        doc.setFontSize(11);
+        doc.setFont('helvetica', 'normal');
+        doc.text(`Total de Entradas (Comissões): R$ ${totalEntries.toFixed(2)}`, 20, 58);
+        doc.text(`Total de Despesas: R$ ${totalExpenses.toFixed(2)}`, 20, 65);
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Saldo Atual: R$ ${currentBalance.toFixed(2)}`, 20, 72);
+        doc.setTextColor(255, 165, 0); // Orange
+        doc.text(`Reinvestimento Recomendado (15%): R$ ${reinvestmentAmount.toFixed(2)}`, 20, 79);
+        doc.setTextColor(0, 0, 0); // Reset to black
+        
+        // Gastos por Categoria
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.text('GASTOS POR CATEGORIA', 20, 95);
+        
+        let yPos = 103;
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        const sortedCategories = Object.entries(byCategory).sort((a, b) => b[1] - a[1]);
+        sortedCategories.forEach(([category, total]) => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            doc.text(`• ${category}: R$ ${total.toFixed(2)}`, 25, yPos);
+            yPos += 7;
+        });
+        
+        // Detalhamento de Despesas
+        yPos += 10;
+        if (yPos > 250) {
+            doc.addPage();
+            yPos = 20;
+        }
+        
+        doc.setFont('helvetica', 'bold');
+        doc.setFontSize(14);
+        doc.text('DETALHAMENTO DAS DESPESAS', 20, yPos);
+        yPos += 8;
+        
+        doc.setFontSize(9);
+        doc.setFont('helvetica', 'normal');
+        
+        expenses.forEach(expense => {
+            if (yPos > 270) {
+                doc.addPage();
+                yPos = 20;
+            }
+            
+            const expenseDate = new Date(expense.expense_date).toLocaleDateString('pt-BR');
+            doc.text(`${expenseDate} - ${expense.description}`, 20, yPos);
+            doc.text(`R$ ${parseFloat(expense.amount).toFixed(2)}`, 150, yPos);
+            doc.text(`(${expense.category})`, 175, yPos);
+            yPos += 6;
+        });
+        
+        // Rodapé
+        const pageCount = doc.internal.getNumberOfPages();
+        for (let i = 1; i <= pageCount; i++) {
+            doc.setPage(i);
+            doc.setFontSize(8);
+            doc.setFont('helvetica', 'normal');
+            doc.text(`Página ${i} de ${pageCount}`, 105, 285, { align: 'center' });
+            doc.text('FRANCA PRIVATE - Controle Financeiro', 105, 290, { align: 'center' });
+        }
+        
+        // Salvar
+        const fileName = `controle-financeiro-${new Date().toISOString().split('T')[0]}.pdf`;
+        doc.save(fileName);
+        
+        hideLoadingMessage();
+        showSuccessMessage('Relatório PDF gerado com sucesso!');
+        
+    } catch (error) {
+        console.error('Erro ao gerar PDF:', error);
+        showErrorMessage('Erro ao gerar PDF: ' + error.message);
+        hideLoadingMessage();
+    }
+}
+
+// Tornar funções globais para uso nos modals
+window.openAddCommissionEntryModal = openAddCommissionEntryModal;
+window.closeAddCommissionEntryModal = closeAddCommissionEntryModal;
+window.openAddExpenseModal = openAddExpenseModal;
+window.closeAddExpenseModal = closeAddExpenseModal;

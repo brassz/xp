@@ -571,6 +571,14 @@
                     </svg>
                     <span>Comissões</span>
                 </a>
+                
+                <!-- Controle Financeiro - Only for Franca Private -->
+                <a href="#financialControl" id="financialControlTab" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all" style="display: none;">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 7h6m0 10v-3m-3 3h.01M9 17h.01M9 14h.01M12 14h.01M15 11h.01M12 11h.01M9 11h.01M7 21h10a2 2 0 002-2V5a2 2 0 00-2-2H7a2 2 0 00-2 2v14a2 2 0 002 2z"></path>
+                    </svg>
+                    <span>Controle Financeiro</span>
+                </a>
 
 
             </nav>
@@ -2083,6 +2091,162 @@
                             </table>
                         </div>
                     </div>
+                    </div>
+                </div>
+
+                <!-- Financial Control Section - Only for Franca Private -->
+                <div id="financialControl" class="content-section hidden">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold text-white mb-2">Controle Financeiro</h2>
+                        <p class="text-gray-400">Gestão de caixa com comissões e despesas</p>
+                    </div>
+                    
+                    <!-- Summary Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div class="glass-card p-6 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-blue-300 mb-1">Total em Caixa</p>
+                                    <p id="fcTotalBalance" class="text-2xl font-bold text-white">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-blue-500 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17 9V7a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2m2 4h10a2 2 0 002-2v-6a2 2 0 00-2-2H9a2 2 0 00-2 2v6a2 2 0 002 2zm7-5a2 2 0 11-4 0 2 2 0 014 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-6 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-green-300 mb-1">Total de Entradas</p>
+                                    <p id="fcTotalEntries" class="text-2xl font-bold text-green-400">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-6 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-red-300 mb-1">Total de Despesas</p>
+                                    <p id="fcTotalExpenses" class="text-2xl font-bold text-red-400">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-red-500 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-6 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-yellow-300 mb-1">Reinvestir (15%)</p>
+                                    <p id="fcReinvestment" class="text-2xl font-bold text-yellow-400">R$ 0,00</p>
+                                </div>
+                                <div class="w-12 h-12 bg-yellow-500 rounded-lg flex items-center justify-center">
+                                    <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M13 7h8m0 0v8m0-8l-8 8-4-4-6 6"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Action Buttons -->
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                        <button id="btnAddCommissionEntry" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white flex items-center justify-center space-x-2">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+                            </svg>
+                            <span>Adicionar Comissões ao Caixa</span>
+                        </button>
+                        
+                        <button id="btnAddExpense" class="bg-orange-600 hover:bg-orange-700 px-6 py-3 rounded-lg font-semibold text-white flex items-center justify-center space-x-2 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M20 12H4"></path>
+                            </svg>
+                            <span>Adicionar Despesa</span>
+                        </button>
+                        
+                        <button id="btnGenerateFinancialReport" class="bg-green-600 hover:bg-green-700 px-6 py-3 rounded-lg font-semibold text-white flex items-center justify-center space-x-2 transition-colors">
+                            <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"></path>
+                            </svg>
+                            <span>Gerar Relatório PDF</span>
+                        </button>
+                    </div>
+                    
+                    <!-- Tabelas lado a lado -->
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
+                        <!-- Entradas (Comissões) -->
+                        <div class="table-container">
+                            <div class="table-header px-4 py-3 flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-white">Entradas de Comissões</h3>
+                                <span id="entriesCount" class="text-sm text-gray-400">0 entradas</span>
+                            </div>
+                            <div class="overflow-x-auto max-h-96">
+                                <table class="w-full">
+                                    <thead class="table-header sticky top-0">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-blue-300 uppercase">Empresa</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-blue-300 uppercase">Valor</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-blue-300 uppercase">Data</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="fcEntriesTableBody" class="divide-y divide-gray-700">
+                                        <tr>
+                                            <td colspan="3" class="px-3 py-6 text-center text-gray-400 text-sm">
+                                                Nenhuma entrada registrada
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                        
+                        <!-- Despesas -->
+                        <div class="table-container">
+                            <div class="table-header px-4 py-3 flex items-center justify-between">
+                                <h3 class="text-lg font-semibold text-white">Despesas</h3>
+                                <span id="expensesCount" class="text-sm text-gray-400">0 despesas</span>
+                            </div>
+                            <div class="overflow-x-auto max-h-96">
+                                <table class="w-full">
+                                    <thead class="table-header sticky top-0">
+                                        <tr>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-blue-300 uppercase">Descrição</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-blue-300 uppercase">Valor</th>
+                                            <th class="px-3 py-2 text-left text-xs font-medium text-blue-300 uppercase">Data</th>
+                                        </tr>
+                                    </thead>
+                                    <tbody id="fcExpensesTableBody" class="divide-y divide-gray-700">
+                                        <tr>
+                                            <td colspan="3" class="px-3 py-6 text-center text-gray-400 text-sm">
+                                                Nenhuma despesa registrada
+                                            </td>
+                                        </tr>
+                                    </tbody>
+                                </table>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Relatório de Gastos -->
+                    <div class="glass-card p-6 rounded-lg">
+                        <h3 class="text-xl font-bold text-white mb-4">Relatório de Gastos por Categoria</h3>
+                        <div id="expensesByCategoryContainer">
+                            <div class="text-center text-gray-400 py-4">
+                                Adicione despesas para ver o relatório por categoria
+                            </div>
+                        </div>
                     </div>
                 </div>
 
@@ -4153,6 +4317,141 @@
                     <button type="submit" 
                             class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
                         Salvar Chave PIX
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Entrada de Comissão -->
+    <div id="addCommissionEntryModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="glass-card rounded-lg p-6 w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-white">Adicionar Comissões ao Caixa</h3>
+                <button onclick="closeAddCommissionEntryModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            
+            <form id="addCommissionEntryForm" class="space-y-4">
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Empresa de Origem</label>
+                    <select id="commissionCompanyCode" required
+                            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                        <option value="">Selecione a empresa</option>
+                        <option value="erechim">ERECHIM</option>
+                        <option value="imperatriz">IMPERATRIZ CRED</option>
+                        <option value="brunoassoni">FRANCA PRIVATE</option>
+                        <option value="other">Outra Empresa</option>
+                    </select>
+                </div>
+                
+                <div id="customCompanyNameDiv" style="display: none;">
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Nome da Empresa</label>
+                    <input type="text" id="customCompanyName"
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                           placeholder="Digite o nome da empresa">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Valor das Comissões</label>
+                    <input type="number" id="commissionAmount" required step="0.01" min="0"
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                           placeholder="R$ 0,00">
+                </div>
+                
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Período Inicial</label>
+                        <input type="date" id="commissionPeriodStart" required
+                               class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                    <div>
+                        <label class="block text-gray-300 text-sm font-medium mb-2">Período Final</label>
+                        <input type="date" id="commissionPeriodEnd" required
+                               class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                    </div>
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Descrição (opcional)</label>
+                    <textarea id="commissionDescription" rows="3"
+                              class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                              placeholder="Observações sobre esta entrada..."></textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeAddCommissionEntryModal()" 
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors">
+                        Adicionar ao Caixa
+                    </button>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- Modal para Adicionar Despesa -->
+    <div id="addExpenseModal" class="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 hidden">
+        <div class="glass-card rounded-lg p-6 w-full max-w-md mx-4">
+            <div class="flex justify-between items-center mb-6">
+                <h3 class="text-xl font-semibold text-white">Adicionar Despesa</h3>
+                <button onclick="closeAddExpenseModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
+            </div>
+            
+            <form id="addExpenseForm" class="space-y-4">
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Descrição da Despesa</label>
+                    <input type="text" id="expenseDescription" required
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                           placeholder="Ex: Água, Luz, Internet...">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Categoria</label>
+                    <select id="expenseCategory" required
+                            class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                        <option value="">Selecione a categoria</option>
+                        <option value="Serviços Públicos">Serviços Públicos (Água, Luz, Internet)</option>
+                        <option value="Aluguel">Aluguel</option>
+                        <option value="Salários">Salários</option>
+                        <option value="Materiais">Materiais de Escritório</option>
+                        <option value="Marketing">Marketing</option>
+                        <option value="Manutenção">Manutenção</option>
+                        <option value="Impostos">Impostos e Taxas</option>
+                        <option value="Outros">Outros</option>
+                    </select>
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Valor da Despesa</label>
+                    <input type="number" id="expenseAmount" required step="0.01" min="0.01"
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                           placeholder="R$ 0,00">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Data da Despesa</label>
+                    <input type="date" id="expenseDate" required
+                           class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500">
+                </div>
+                
+                <div>
+                    <label class="block text-gray-300 text-sm font-medium mb-2">Observações (opcional)</label>
+                    <textarea id="expenseNotes" rows="3"
+                              class="w-full px-3 py-2 bg-gray-700 border border-gray-600 rounded-lg text-white focus:outline-none focus:border-blue-500"
+                              placeholder="Detalhes adicionais sobre a despesa..."></textarea>
+                </div>
+                
+                <div class="flex justify-end space-x-3 mt-6">
+                    <button type="button" onclick="closeAddExpenseModal()" 
+                            class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
+                        Cancelar
+                    </button>
+                    <button type="submit" 
+                            class="px-4 py-2 bg-orange-600 text-white rounded-lg hover:bg-orange-700 transition-colors">
+                        Registrar Despesa
                     </button>
                 </div>
             </form>
