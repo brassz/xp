@@ -1083,6 +1083,18 @@ function handleNavigation(e) {
                 initializeCommissionsSection();
             }
             
+            // Inicializar seção de controle financeiro quando for exibida
+            if (target === 'financialControl') {
+                console.log('Seção de controle financeiro ativada, inicializando...');
+                try {
+                    initializeFinancialControl();
+                    loadFinancialExpenses();
+                    // Carregar comissões automaticamente
+                    loadAllCommissions();
+                } catch (error) {
+                    console.error('Erro ao inicializar controle financeiro:', error);
+                }
+            }
 
         }
     });
@@ -3454,6 +3466,15 @@ function showDashboard() {
     if (companyIndicator && currentCompany) {
         const config = getCurrentCompanyConfig();
         companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
+    }
+    
+    // Inicializar controle financeiro se for Franca Private (com try-catch para não quebrar o login)
+    if (currentCompany === 'brunoassoni') {
+        try {
+            initializeFinancialControl();
+        } catch (error) {
+            console.error('Erro ao inicializar controle financeiro:', error);
+        }
     }
     
     // Configurar timeout para usuário logado
@@ -17189,3 +17210,494 @@ async function initNotifications() {
 
 // Atualizar notificações periodicamente (a cada 5 minutos)
 setInterval(initNotifications, 5 * 60 * 1000);
+
+// ============================================================================
+// FINANCIAL CONTROL - CONTROLE FINANCEIRO (FRANCA PRIVATE ONLY)
+// ============================================================================
+
+// Constantes para controle financeiro
+const MONTH_NAMES = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 
+                     'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+
+// Function to fetch commissions from ALL companies
+async function fetchAllCompaniesCommissions(startDate, endDate) {
+    const allCommissions = [];
+    
+    console.log('Fetching commissions from ALL companies...');
+    console.log(`Period: ${startDate} to ${endDate}`);
+    
+    // Loop through all companies
+    for (const [companyKey, companyConfig] of Object.entries(COMPANIES_CONFIG)) {
+        try {
+            console.log(`Fetching commissions from: ${companyConfig.name}`);
+            
+            // Create a NEW Supabase client for this company using the global createClient
+            const tempClient = window.supabase.createClient(
+                companyConfig.supabase.url,
+                companyConfig.supabase.key
+            );
+            
+            // Fetch payments from this company
+            const { data: payments, error } = await tempClient
+                .from('payments')
+                .select(`
+                    *,
+                    loans (
+                        id,
+                        amount,
+                        interest_rate,
+                        clients (name)
+                    )
+                `)
+                .gte('payment_date', startDate)
+                .lte('payment_date', endDate)
+                .limit(5000);
+            
+            if (error) {
+                console.error(`Error fetching from ${companyConfig.name}:`, error);
+                // Continue even with error
+                allCommissions.push({
+                    company: companyConfig.name,
+                    companyKey: companyKey,
+                    total: 0,
+                    paymentsCount: 0,
+                    error: error.message
+                });
+                continue;
+            }
+            
+            console.log(`${companyConfig.name}: Found ${payments ? payments.length : 0} payments`);
+            
+            // Calculate VINICIUS commission for this company
+            let companyTotal = 0;
+            let viniciusPercentage = 0.666; // Default: 66.6%
+            
+            // Determine Vinicius percentage based on company
+            if (companyKey === 'erechim') {
+                viniciusPercentage = 1/3; // 33.3%
+            } else if (companyKey === 'imperatriz') {
+                viniciusPercentage = 0.5; // 50%
+            } else if (companyKey === 'brunoassoni') {
+                viniciusPercentage = 1.0; // 100%
+            } else {
+                viniciusPercentage = 0.666; // 66.6% (Franca Cred, Litoral, Mogiana)
+            }
+            
+            console.log(`${companyConfig.name}: Vinicius gets ${(viniciusPercentage * 100).toFixed(1)}% of commissions`);
+            
+            if (payments && payments.length > 0) {
+                payments.forEach(payment => {
+                    if (payment.loans) {
+                        const paymentAmount = parseFloat(payment.amount || 0);
+                        const loanAmount = parseFloat(payment.loans.amount || 0);
+                        const interestRate = parseFloat(payment.loans.interest_rate || 0);
+                        
+                        // Extract interest from payment (commissionable amount)
+                        const paidInterest = extractPaidInterestFromNotes(
+                            payment.notes, 
+                            paymentAmount, 
+                            loanAmount, 
+                            interestRate
+                        );
+                        
+                        // Calculate ONLY Vinicius commission
+                        const viniciusCommission = paidInterest * viniciusPercentage;
+                        companyTotal += viniciusCommission;
+                    }
+                });
+            }
+            
+            allCommissions.push({
+                company: companyConfig.name,
+                companyKey: companyKey,
+                total: companyTotal,
+                paymentsCount: payments ? payments.length : 0
+            });
+            
+            console.log(`${companyConfig.name}: R$ ${companyTotal.toFixed(2)} (${payments ? payments.length : 0} payments)`);
+            
+        } catch (error) {
+            console.error(`Error processing ${companyConfig.name}:`, error);
+            allCommissions.push({
+                company: companyConfig.name,
+                companyKey: companyKey,
+                total: 0,
+                paymentsCount: 0,
+                error: error.message
+            });
+        }
+    }
+    
+    console.log('=== SUMMARY - VINICIUS COMMISSIONS FROM ALL COMPANIES ===');
+    const totalAll = allCommissions.reduce((sum, c) => sum + c.total, 0);
+    console.log(`Total VINICIUS commission from all companies: R$ ${totalAll.toFixed(2)}`);
+    allCommissions.forEach(c => {
+        let percentage = '66.6%';
+        if (c.companyKey === 'erechim') percentage = '33.3%';
+        else if (c.companyKey === 'imperatriz') percentage = '50%';
+        else if (c.companyKey === 'brunoassoni') percentage = '100%';
+        
+        console.log(`  - ${c.company} (${percentage}): R$ ${c.total.toFixed(2)} (${c.paymentsCount} payments)`);
+    });
+    
+    return allCommissions;
+}
+
+// Load all commissions and update the Financial Control dashboard
+async function loadAllCommissions() {
+    try {
+        const loadBtn = document.getElementById('loadAllCommissionsBtn');
+        if (loadBtn) {
+            loadBtn.disabled = true;
+            loadBtn.innerHTML = '<svg class="w-5 h-5 animate-spin" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Carregando...</span>';
+        }
+        
+        // Get date range - CURRENT MONTH ONLY
+        const now = new Date();
+        const startDate = new Date(now.getFullYear(), now.getMonth(), 1); // Primeiro dia do mês
+        const endDate = new Date(now.getFullYear(), now.getMonth() + 1, 0); // Último dia do mês
+        
+        const startDateStr = startDate.toISOString().split('T')[0];
+        const endDateStr = endDate.toISOString().split('T')[0];
+        
+        console.log(`Buscando comissões do mês atual: ${startDateStr} até ${endDateStr}`);
+        
+        // Fetch commissions from all companies
+        const commissionsData = await fetchAllCompaniesCommissions(startDateStr, endDateStr);
+        
+        // Calculate total
+        const totalCommissions = commissionsData.reduce((sum, company) => sum + company.total, 0);
+        
+        // Update total commissions card
+        document.getElementById('totalCommissionsCash').textContent = `R$ ${totalCommissions.toFixed(2).replace('.', ',')}`;
+        
+        // Update month label
+        const currentMonth = MONTH_NAMES[now.getMonth()];
+        const currentYear = now.getFullYear();
+        document.getElementById('currentMonthLabel').textContent = `${currentMonth} ${currentYear} - Todas as empresas`;
+        
+        // Update commissions by company section
+        const companyContainer = document.getElementById('commissionsByCompany');
+        companyContainer.innerHTML = '';
+        
+        commissionsData.forEach(company => {
+            // Calculate percentage for display
+            let percentage = '66.6%';
+            if (company.companyKey === 'erechim') {
+                percentage = '33.3%';
+            } else if (company.companyKey === 'imperatriz') {
+                percentage = '50%';
+            } else if (company.companyKey === 'brunoassoni') {
+                percentage = '100%';
+            }
+            
+            const card = document.createElement('div');
+            card.className = 'glass-card p-4 rounded-lg';
+            card.innerHTML = `
+                <div class="flex items-center justify-between">
+                    <div>
+                        <p class="text-xs font-medium text-gray-400">${company.company}</p>
+                        <p class="text-lg font-bold text-white">R$ ${company.total.toFixed(2).replace('.', ',')}</p>
+                        <p class="text-xs text-gray-500">${company.paymentsCount} pagamentos</p>
+                        <p class="text-xs text-green-400 mt-1">Vinicius: ${percentage}</p>
+                    </div>
+                    <div class="w-10 h-10 bg-blue-500 bg-opacity-20 rounded-lg flex items-center justify-center">
+                        <svg class="w-5 h-5 text-blue-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1"></path>
+                        </svg>
+                    </div>
+                </div>
+            `;
+            companyContainer.appendChild(card);
+        });
+        
+        // Load expenses and update report
+        await loadFinancialExpenses();
+        
+        if (loadBtn) {
+            loadBtn.disabled = false;
+            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Agora</span>';
+        }
+        
+        // Use currentMonth variable already declared above
+        showSuccessMessage(`Caixa de ${currentMonth} atualizado com sucesso!`);
+        
+        // Update last update time
+        const lastUpdateElement = document.getElementById('lastUpdateTime');
+        if (lastUpdateElement) {
+            const now = new Date();
+            const hours = String(now.getHours()).padStart(2, '0');
+            const minutes = String(now.getMinutes()).padStart(2, '0');
+            lastUpdateElement.textContent = `${hours}:${minutes}`;
+        }
+        
+    } catch (error) {
+        console.error('Error loading commissions:', error);
+        showErrorMessage('Erro ao carregar comissões: ' + error.message);
+        
+        const loadBtn = document.getElementById('loadAllCommissionsBtn');
+        if (loadBtn) {
+            loadBtn.disabled = false;
+            loadBtn.innerHTML = '<svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path></svg><span>Atualizar Agora</span>';
+        }
+    }
+}
+
+// Load financial expenses
+async function loadFinancialExpenses() {
+    try {
+        const { data: expenses, error } = await supabase
+            .from('financial_expenses')
+            .select('*')
+            .order('expense_date', { ascending: false });
+        
+        if (error) {
+            console.error('Error loading financial expenses:', error);
+            return;
+        }
+        
+        // Calculate total expenses
+        const totalExpenses = expenses.reduce((sum, exp) => sum + parseFloat(exp.amount || 0), 0);
+        
+        // Update total expenses card
+        document.getElementById('totalFinancialExpenses').textContent = `R$ ${totalExpenses.toFixed(2).replace('.', ',')}`;
+        
+        // Calculate financial report
+        updateFinancialReport();
+        
+        // Populate expenses table
+        const tbody = document.getElementById('financialExpensesTableBody');
+        tbody.innerHTML = '';
+        
+        if (expenses.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                        Nenhuma despesa registrada
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        expenses.forEach(expense => {
+            const tr = document.createElement('tr');
+            tr.className = 'table-row';
+            tr.innerHTML = `
+                <td class="px-6 py-4 text-sm text-gray-300">${expense.description}</td>
+                <td class="px-6 py-4 text-sm text-gray-300">${getCategoryLabel(expense.category)}</td>
+                <td class="px-6 py-4 text-sm font-semibold text-red-400">R$ ${parseFloat(expense.amount).toFixed(2).replace('.', ',')}</td>
+                <td class="px-6 py-4 text-sm text-gray-300">${formatDate(expense.expense_date)}</td>
+                <td class="px-6 py-4 text-sm">
+                    <button onclick="deleteFinancialExpense('${expense.id}')" class="text-red-400 hover:text-red-300">
+                        <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path>
+                        </svg>
+                    </button>
+                </td>
+            `;
+            tbody.appendChild(tr);
+        });
+        
+    } catch (error) {
+        console.error('Error loading financial expenses:', error);
+    }
+}
+
+// Get category label
+function getCategoryLabel(category) {
+    const labels = {
+        'agua': 'Água',
+        'luz': 'Luz/Energia',
+        'internet': 'Internet',
+        'aluguel': 'Aluguel',
+        'salarios': 'Salários',
+        'materiais': 'Materiais',
+        'marketing': 'Marketing',
+        'manutencao': 'Manutenção',
+        'impostos': 'Impostos',
+        'outros': 'Outros'
+    };
+    return labels[category] || category;
+}
+
+// Update financial report
+function updateFinancialReport() {
+    const totalCash = parseFloat(document.getElementById('totalCommissionsCash').textContent.replace('R$ ', '').replace('.', '').replace(',', '.')) || 0;
+    const totalExpenses = parseFloat(document.getElementById('totalFinancialExpenses').textContent.replace('R$ ', '').replace('.', '').replace(',', '.')) || 0;
+    
+    const remaining = totalCash - totalExpenses;
+    const reinvestment = remaining * 0.15;
+    
+    document.getElementById('remainingBalance').textContent = `R$ ${remaining.toFixed(2).replace('.', ',')}`;
+    document.getElementById('reinvestmentAmount').textContent = `R$ ${reinvestment.toFixed(2).replace('.', ',')}`;
+}
+
+// Add new financial expense
+async function addFinancialExpense(expenseData) {
+    try {
+        const { data, error } = await supabase
+            .from('financial_expenses')
+            .insert([expenseData])
+            .select();
+        
+        if (error) throw error;
+        
+        showSuccessMessage('Despesa registrada com sucesso!');
+        await loadFinancialExpenses();
+        
+        return data;
+    } catch (error) {
+        console.error('Error adding financial expense:', error);
+        throw error;
+    }
+}
+
+// Delete financial expense
+async function deleteFinancialExpense(expenseId) {
+    if (!confirm('Tem certeza que deseja excluir esta despesa?')) {
+        return;
+    }
+    
+    try {
+        const { error } = await supabase
+            .from('financial_expenses')
+            .delete()
+            .eq('id', expenseId);
+        
+        if (error) throw error;
+        
+        showSuccessMessage('Despesa excluída com sucesso!');
+        await loadFinancialExpenses();
+        
+    } catch (error) {
+        console.error('Error deleting financial expense:', error);
+        showErrorMessage('Erro ao excluir despesa: ' + error.message);
+    }
+}
+
+// Initialize Financial Control section
+let financialControlInitialized = false;
+let financialControlAutoUpdateInterval = null;
+
+function initializeFinancialControl() {
+    // Check if user is in Franca Private
+    const isFrancaPrivate = currentCompany === 'brunoassoni';
+    
+    if (!isFrancaPrivate) {
+        return;
+    }
+    
+    // Show financial control link
+    const financialControlLink = document.getElementById('financialControlLink');
+    if (financialControlLink) {
+        financialControlLink.style.display = 'flex';
+    }
+    
+    // Prevent duplicate event listeners
+    if (financialControlInitialized) {
+        return;
+    }
+    financialControlInitialized = true;
+    
+    // Event listener for load commissions button
+    const loadBtn = document.getElementById('loadAllCommissionsBtn');
+    if (loadBtn) {
+        loadBtn.addEventListener('click', loadAllCommissions);
+    }
+    
+    // Setup auto-update interval (every 5 minutes)
+    if (financialControlAutoUpdateInterval) {
+        clearInterval(financialControlAutoUpdateInterval);
+    }
+    
+    financialControlAutoUpdateInterval = setInterval(() => {
+        // Only update if the Financial Control tab is visible
+        const financialControlSection = document.getElementById('financialControl');
+        if (financialControlSection && !financialControlSection.classList.contains('hidden')) {
+            console.log('Auto-atualizando comissões...');
+            loadAllCommissions();
+        }
+    }, 5 * 60 * 1000); // 5 minutos
+    
+    console.log('Auto-atualização de comissões ativada (a cada 5 minutos)');
+    
+    // Event listener for new expense button
+    const newExpenseBtn = document.getElementById('newFinancialExpenseBtn');
+    if (newExpenseBtn) {
+        newExpenseBtn.addEventListener('click', () => {
+            document.getElementById('newFinancialExpenseModal').classList.remove('hidden');
+            // Set today's date as default
+            document.getElementById('financialExpenseDate').valueAsDate = new Date();
+        });
+    }
+    
+    // Event listeners for modal close buttons
+    const closeModalBtn = document.getElementById('closeFinancialExpenseModal');
+    const cancelBtn = document.getElementById('cancelFinancialExpense');
+    
+    if (closeModalBtn) {
+        closeModalBtn.addEventListener('click', () => {
+            document.getElementById('newFinancialExpenseModal').classList.add('hidden');
+        });
+    }
+    
+    if (cancelBtn) {
+        cancelBtn.addEventListener('click', () => {
+            document.getElementById('newFinancialExpenseModal').classList.add('hidden');
+        });
+    }
+    
+    // Event listener for form submission
+    const form = document.getElementById('newFinancialExpenseForm');
+    if (form) {
+        form.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const expenseData = {
+                description: document.getElementById('financialExpenseDescription').value,
+                category: document.getElementById('financialExpenseCategory').value,
+                amount: parseFloat(document.getElementById('financialExpenseAmount').value),
+                expense_date: document.getElementById('financialExpenseDate').value,
+                notes: document.getElementById('financialExpenseNotes').value || null,
+                created_at: new Date().toISOString()
+            };
+            
+            try {
+                await addFinancialExpense(expenseData);
+                document.getElementById('newFinancialExpenseModal').classList.add('hidden');
+                form.reset();
+            } catch (error) {
+                showErrorMessage('Erro ao registrar despesa: ' + error.message);
+            }
+        });
+    }
+    
+    // Search functionality
+    const searchInput = document.getElementById('financialExpenseSearchInput');
+    if (searchInput) {
+        searchInput.addEventListener('input', (e) => {
+            const searchTerm = e.target.value.toLowerCase();
+            const rows = document.querySelectorAll('#financialExpensesTableBody tr');
+            
+            rows.forEach(row => {
+                const text = row.textContent.toLowerCase();
+                row.style.display = text.includes(searchTerm) ? '' : 'none';
+            });
+        });
+    }
+}
+
+// Call initialization when switching companies
+const originalSwitchCompany = window.switchCompany;
+window.switchCompany = function(companyKey) {
+    if (originalSwitchCompany) {
+        originalSwitchCompany(companyKey);
+    }
+    
+    // Show/hide financial control link based on company
+    const financialControlLink = document.getElementById('financialControlLink');
+    if (financialControlLink) {
+        financialControlLink.style.display = (companyKey === 'brunoassoni') ? 'flex' : 'none';
+    }
+};
