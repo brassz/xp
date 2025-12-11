@@ -350,9 +350,10 @@
         }
 
         @media (max-width: 1024px) {
+            /* Manter margem da sidebar em todas as resoluções */
             .ml-64 {
-                margin-left: 0 !important;
-                width: 100% !important;
+                margin-left: 256px !important;
+                width: calc(100% - 256px) !important;
             }
             
             #commissions {
