@@ -17210,14 +17210,15 @@ async function fetchAllCompaniesCommissions(startDate, endDate) {
     const allCommissions = [];
     
     console.log('Fetching commissions from ALL companies...');
+    console.log(`Period: ${startDate} to ${endDate}`);
     
     // Loop through all companies
     for (const [companyKey, companyConfig] of Object.entries(COMPANIES_CONFIG)) {
         try {
             console.log(`Fetching commissions from: ${companyConfig.name}`);
             
-            // Create a temporary Supabase client for this company
-            const tempClient = supabase.createClient(
+            // Create a NEW Supabase client for this company using the global createClient
+            const tempClient = window.supabase.createClient(
                 companyConfig.supabase.url,
                 companyConfig.supabase.key
             );
@@ -17240,8 +17241,18 @@ async function fetchAllCompaniesCommissions(startDate, endDate) {
             
             if (error) {
                 console.error(`Error fetching from ${companyConfig.name}:`, error);
+                // Continue even with error
+                allCommissions.push({
+                    company: companyConfig.name,
+                    companyKey: companyKey,
+                    total: 0,
+                    paymentsCount: 0,
+                    error: error.message
+                });
                 continue;
             }
+            
+            console.log(`${companyConfig.name}: Found ${payments ? payments.length : 0} payments`);
             
             // Calculate commissions for this company
             let companyTotal = 0;
@@ -17276,8 +17287,22 @@ async function fetchAllCompaniesCommissions(startDate, endDate) {
             
         } catch (error) {
             console.error(`Error processing ${companyConfig.name}:`, error);
+            allCommissions.push({
+                company: companyConfig.name,
+                companyKey: companyKey,
+                total: 0,
+                paymentsCount: 0,
+                error: error.message
+            });
         }
     }
+    
+    console.log('=== SUMMARY OF ALL COMPANIES ===');
+    const totalAll = allCommissions.reduce((sum, c) => sum + c.total, 0);
+    console.log(`Total from all companies: R$ ${totalAll.toFixed(2)}`);
+    allCommissions.forEach(c => {
+        console.log(`  - ${c.company}: R$ ${c.total.toFixed(2)} (${c.paymentsCount} payments)`);
+    });
     
     return allCommissions;
 }
