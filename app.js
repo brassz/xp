@@ -1071,7 +1071,9 @@ function handleNavigation(e) {
             if (target === 'financialControl') {
                 console.log('Seção de controle financeiro ativada, carregando dados...');
                 setTimeout(() => {
-                    loadFinancialControlData();
+                    loadFinancialControlData().catch(err => {
+                        console.error('Erro ao carregar dados:', err);
+                    });
                 }, 100);
             }
             
@@ -17277,14 +17279,19 @@ function initFinancialControl() {
     
     // Carregar dados iniciais
     if (isFrancaPrivate) {
-        loadFinancialControlData();
+        // Usar setTimeout para não bloquear a renderização
+        setTimeout(() => {
+            loadFinancialControlData().catch(err => {
+                console.error('Erro ao carregar dados iniciais:', err);
+            });
+        }, 500);
     }
 }
 
 // Carregar dados do Controle Financeiro
 async function loadFinancialControlData() {
     try {
-        showLoadingMessage();
+        console.log('Carregando dados do controle financeiro...');
         
         // Buscar todas as entradas e despesas
         const [entriesResult, expensesResult] = await Promise.all([
@@ -17321,12 +17328,11 @@ async function loadFinancialControlData() {
         renderExpensesTable(expenses);
         renderExpensesByCategory(expenses);
         
-        hideLoadingMessage();
+        console.log('✅ Dados carregados com sucesso');
         
     } catch (error) {
         console.error('Erro ao carregar dados do controle financeiro:', error);
         showErrorMessage('Erro ao carregar dados: ' + error.message);
-        hideLoadingMessage();
     }
 }
 
@@ -17591,7 +17597,8 @@ async function handleAddExpense(e) {
 // Gerar PDF do Relatório Financeiro
 async function generateFinancialControlPDF() {
     try {
-        showLoadingMessage('Gerando relatório...');
+        console.log('Gerando relatório PDF...');
+        showInfoMessage('Gerando relatório PDF...');
         
         // Buscar dados
         const [entriesResult, expensesResult] = await Promise.all([
@@ -17721,13 +17728,12 @@ async function generateFinancialControlPDF() {
         const fileName = `controle-financeiro-${new Date().toISOString().split('T')[0]}.pdf`;
         doc.save(fileName);
         
-        hideLoadingMessage();
+        console.log('✅ PDF gerado com sucesso');
         showSuccessMessage('Relatório PDF gerado com sucesso!');
         
     } catch (error) {
         console.error('Erro ao gerar PDF:', error);
         showErrorMessage('Erro ao gerar PDF: ' + error.message);
-        hideLoadingMessage();
     }
 }
 
