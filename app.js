@@ -1,3 +1,11 @@
+// Prevenir conflitos de declaração - usar apenas se não existir
+console.log('=== INICIALIZANDO APP.JS ===');
+console.log('Supabase SDK disponível?', typeof window.supabase !== 'undefined');
+
+// Declaração condicional de supabase para evitar erro "already declared"
+// Este é o cliente Supabase da aplicação (não confundir com window.supabase que é o SDK)
+var supabase;
+
 // Função para obter variáveis de ambiente (compatível com Vercel)
 function getEnvVar(name, fallback = '') {
     // Tentar process.env primeiro (Node.js/Vercel)
@@ -101,29 +109,60 @@ const COMPANIES_CONFIG = {
 
 // Variáveis globais para configuração atual
 let currentCompany = null;
-let supabase = null;
+
+// NOTA: supabase é criado dinamicamente em initializeCompany()
+// Não declaramos aqui para evitar conflitos com o SDK do Supabase
 
 // Função para inicializar empresa
 function initializeCompany(companyId) {
+    console.log('=== initializeCompany chamado ===');
+    console.log('Company ID:', companyId);
+    console.log('window.supabase existe?', !!window.supabase);
+    
     if (!COMPANIES_CONFIG[companyId]) {
-        throw new Error(`Empresa ${companyId} não encontrada na configuração`);
+        const error = `Empresa ${companyId} não encontrada na configuração`;
+        console.error(error);
+        throw new Error(error);
     }
     
     currentCompany = companyId;
     const config = COMPANIES_CONFIG[companyId];
     
+    console.log('Configuração da empresa:', {
+        name: config.name,
+        hasSupabaseUrl: !!config.supabase.url,
+        hasSupabaseKey: !!config.supabase.key
+    });
+    
+    // Verificar se Supabase está disponível
+    if (!window.supabase) {
+        const error = 'Biblioteca Supabase não carregada! Verifique se o script está incluído no HTML.';
+        console.error(error);
+        alert(error);
+        throw new Error(error);
+    }
+    
     // Inicializar Supabase para a empresa selecionada
-    supabase = window.supabase.createClient(config.supabase.url, config.supabase.key);
+    try {
+        supabase = window.supabase.createClient(config.supabase.url, config.supabase.key);
+        console.log('Cliente Supabase criado com sucesso');
+    } catch (supabaseError) {
+        console.error('Erro ao criar cliente Supabase:', supabaseError);
+        throw supabaseError;
+    }
     
     // Atualizar configuração do Uploadcare
     if (window.uploadcare) {
         window.uploadcare.publicKey = config.uploadcare.publicKey;
+        console.log('Uploadcare configurado');
+    } else {
+        console.warn('Uploadcare não disponível');
     }
     
     // Salvar empresa selecionada no localStorage
     localStorage.setItem('selectedCompany', companyId);
     
-    console.log(`Empresa inicializada: ${config.name}`);
+    console.log(`✓ Empresa inicializada com sucesso: ${config.name}`);
     return config;
 }
 
@@ -245,57 +284,149 @@ const newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
 const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 
+// TESTE: Função de login simplificada para debug
+window.testLogin = function() {
+    console.log('=== TESTE DE LOGIN MANUAL ===');
+    console.log('loginPage existe?', !!loginPage);
+    console.log('dashboard existe?', !!dashboard);
+    
+    if (loginPage && dashboard) {
+        console.log('Escondendo loginPage...');
+        loginPage.classList.add('hidden');
+        console.log('Mostrando dashboard...');
+        dashboard.classList.remove('hidden');
+        console.log('✓ Dashboard exibido com sucesso!');
+    } else {
+        console.error('✗ Elementos não encontrados');
+    }
+};
+
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('=== DOM CONTENT LOADED ===');
+    console.log('Timestamp:', new Date().toISOString());
+    console.log('loginPage existe?', !!loginPage);
+    console.log('dashboard existe?', !!dashboard);
+    console.log('loginForm existe?', !!loginForm);
+    console.log('window.supabase existe?', !!window.supabase);
+    
+    if (!loginPage) {
+        console.error('ERRO CRÍTICO: loginPage não encontrado no DOM');
+    }
+    if (!dashboard) {
+        console.error('ERRO CRÍTICO: dashboard não encontrado no DOM');
+    }
+    if (!loginForm) {
+        console.error('ERRO CRÍTICO: loginForm não encontrado no DOM');
+    }
+    
+    console.log('Iniciando initializeApp...');
     initializeApp();
+    
+    console.log('Iniciando setupEventListeners...');
     setupEventListeners();
+    
+    console.log('Iniciando setupUploadcare...');
     setupUploadcare();
+    
+    console.log('=== INICIALIZAÇÃO CONCLUÍDA ===');
+    console.log('Para testar a transição de tela manualmente, digite no console: testLogin()');
 });
 
 // Inicializar aplicação
 async function initializeApp() {
+    console.log('initializeApp chamado');
     // Verificar se há usuário logado no localStorage
     const savedUser = localStorage.getItem('nexusUser');
     const savedCompany = localStorage.getItem('selectedCompany');
     
+    console.log('Usuário salvo no localStorage:', savedUser ? 'Sim' : 'Não');
+    console.log('Empresa salva no localStorage:', savedCompany);
+    
     if (savedUser && savedCompany) {
         try {
+            console.log('Restaurando sessão anterior...');
             // Restaurar empresa selecionada
             initializeCompany(savedCompany);
             
             currentUser = JSON.parse(savedUser);
+            console.log('Usuário restaurado:', currentUser);
+            
+            console.log('Mostrando dashboard...');
             showDashboard();
+            
+            console.log('Criando tabelas se necessário...');
             // Verificar e criar tabelas se necessário
             await createTablesIfNotExist();
             
+            console.log('Aguardando para carregar dados...');
             // Aguardar um pouco para garantir que o DOM esteja pronto
             setTimeout(async () => {
+                console.log('Carregando dados da sessão anterior...');
                 await loadData();
                 // Inicializar sistema de PDFs semanais automáticos
                 initializeWeeklyPDFCheck();
                 // Inicializar sistema de notificações
                 initNotifications();
+                console.log('Sessão restaurada com sucesso!');
             }, 100);
         } catch (error) {
+            console.error('Erro ao restaurar sessão:', error);
             localStorage.removeItem('nexusUser');
             localStorage.removeItem('selectedCompany');
             showLogin();
         }
     } else {
+        console.log('Nenhuma sessão anterior encontrada, mostrando tela de login');
         showLogin();
     }
 }
 
+// Flag para evitar múltiplos setups
+let eventListenersSetup = false;
+
 // Configurar event listeners
 function setupEventListeners() {
-    // Login
-    loginForm.addEventListener('submit', handleLogin);
-    logoutBtn.addEventListener('click', handleLogout);
+    if (eventListenersSetup) {
+        console.log('Event listeners já configurados, pulando...');
+        return;
+    }
+    
+    console.log('Configurando event listeners...');
+    
+    // Login - verificar se elementos existem
+    if (loginForm) {
+        // Remover qualquer listener anterior (se existir)
+        loginForm.removeEventListener('submit', handleLogin);
+        
+        // Adicionar novo listener com capturing
+        loginForm.addEventListener('submit', function(e) {
+            console.log('=== SUBMIT EVENT CAPTURED ===');
+            console.log('Event:', e);
+            console.log('Prevenindo default...');
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Chamando handleLogin...');
+            handleLogin(e);
+        }, false);
+        
+        console.log('✓ Event listener adicionado ao loginForm com wrapper');
+    } else {
+        console.error('✗ loginForm não encontrado no DOM');
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+        console.log('Event listener adicionado ao logoutBtn');
+    }
     
     // Navegação
-    navLinks.forEach(link => {
-        link.addEventListener('click', handleNavigation);
-    });
+    if (navLinks) {
+        navLinks.forEach(link => {
+            link.addEventListener('click', handleNavigation);
+        });
+        console.log(`Event listeners adicionados a ${navLinks.length} links de navegação`);
+    }
 
     // Navegação do submenu
     const submenuLinks = document.querySelectorAll('.submenu-item');
@@ -304,12 +435,18 @@ function setupEventListeners() {
     });
     
     // Botões
-    newClientBtn.addEventListener('click', () => showModal(newClientModal));
-    newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
-    newExpenseBtn.addEventListener('click', () => {
-        showModal(newExpenseModal);
-        setDefaultExpenseDate();
-    });
+    if (newClientBtn) {
+        newClientBtn.addEventListener('click', () => showModal(newClientModal));
+    }
+    if (newLoanBtn) {
+        newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
+    }
+    if (newExpenseBtn) {
+        newExpenseBtn.addEventListener('click', () => {
+            showModal(newExpenseModal);
+            setDefaultExpenseDate();
+        });
+    }
     
     if (newCapitalRaisingBtn) {
         newCapitalRaisingBtn.addEventListener('click', () => showModal(newCapitalRaisingModal));
@@ -741,7 +878,9 @@ function setupEventListeners() {
     // Validação do valor de pagamento - REMOVIDO: Agora usa apenas RENOVAR 30+
     // document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
     
-
+    // Marcar como configurado
+    eventListenersSetup = true;
+    console.log('Event listeners configurados com sucesso!');
 }
 
 // Configurar Uploadcare
@@ -840,30 +979,77 @@ function setupUploadcare() {
 // Handlers de autenticação
 async function handleLogin(e) {
     e.preventDefault();
+    console.log('=== INICIANDO HANDLELOGIN ===');
+    console.log('Event:', e);
+    console.log('Event type:', e.type);
+    console.log('Timestamp:', new Date().toISOString());
     
     // Verificar se Franca Private está ativado
     const francaPrivateActivated = localStorage.getItem('brunoAssoniActivated');
     const savedCompany = localStorage.getItem('selectedCompany');
     
-    let companyId = document.getElementById('companySelect').value;
+    const companySelectEl = document.getElementById('companySelect');
+    if (!companySelectEl) {
+        console.error('✗ Elemento companySelect não encontrado');
+        alert('Erro: Formulário de login não está configurado corretamente');
+        return;
+    }
+    console.log('✓ companySelectEl encontrado');
+    
+    let companyId = companySelectEl.value;
     
     // Se Franca Private está ativado, usar automaticamente
     if (francaPrivateActivated === 'true' && savedCompany === 'brunoassoni') {
         companyId = 'brunoassoni';
+        console.log('Usando Franca Private automaticamente');
     }
     
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
+    const emailEl = document.getElementById('loginEmail');
+    const passwordEl = document.getElementById('loginPassword');
+    
+    if (!emailEl || !passwordEl) {
+        console.error('✗ Elementos de email ou senha não encontrados');
+        alert('Erro: Formulário de login não está configurado corretamente');
+        return;
+    }
+    console.log('✓ Elementos de email e senha encontrados');
+    
+    const email = emailEl.value;
+    const password = passwordEl.value;
+    
+    console.log('Dados do formulário:', {
+        companyId: companyId,
+        email: email,
+        hasPassword: !!password
+    });
     
     if (!companyId) {
+        console.error('✗ Empresa não selecionada');
         alert('Por favor, selecione uma empresa');
         return;
     }
     
+    if (!email || !password) {
+        console.error('✗ Email ou senha vazios');
+        alert('Por favor, preencha email e senha');
+        return;
+    }
+    
+    console.log('✓ Validações básicas passaram');
+    
     try {
+        console.log('>>> PASSO 1: Inicializando empresa...');
         // Inicializar empresa selecionada
-        initializeCompany(companyId);
+        const config = initializeCompany(companyId);
+        console.log('✓ Empresa inicializada:', config.name);
         
+        if (!supabase) {
+            console.error('✗ Supabase não foi inicializado!');
+            throw new Error('Falha ao inicializar conexão com o banco de dados');
+        }
+        console.log('✓ Supabase inicializado');
+        
+        console.log('>>> PASSO 2: Verificando usuário no banco de dados...');
         // Primeiro, verificar se o usuário existe na nossa tabela
         const { data: userData, error: userError } = await supabase
             .from('users')
@@ -872,35 +1058,101 @@ async function handleLogin(e) {
             .eq('is_active', true)
             .single();
         
-        if (userError || !userData) {
-            throw new Error('Usuário não encontrado ou inativo');
+        if (userError) {
+            console.error('✗ Erro do Supabase:', userError);
+            console.error('Código:', userError.code);
+            console.error('Mensagem:', userError.message);
+            console.error('Detalhes:', userError.details);
         }
         
+        if (userError || !userData) {
+            console.error('✗ Usuário não encontrado ou erro na consulta');
+            throw new Error('Usuário não encontrado ou inativo. Detalhes: ' + (userError?.message || 'Nenhum usuário retornado'));
+        }
+        
+        console.log('✓ Usuário encontrado:', {
+            id: userData.id,
+            email: userData.email,
+            role: userData.role,
+            is_active: userData.is_active
+        });
+        
+        console.log('>>> PASSO 3: Verificando senha...');
         // Verificar senha contra o banco de dados
         // Em produção, implementar hash de senha (bcrypt)
         if (password === userData.password_hash) {
+            console.log('✓ Senha correta!');
             currentUser = userData;
             
+            console.log('>>> PASSO 4: Salvando no localStorage...');
             // Salvar usuário no localStorage
-            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+            try {
+                localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+                localStorage.setItem('selectedCompany', companyId);
+                console.log('✓ Dados salvos no localStorage');
+            } catch (storageError) {
+                console.error('✗ Erro ao salvar no localStorage:', storageError);
+            }
+            
+            console.log('>>> PASSO 5: Mostrando dashboard...');
+            console.log('loginPage classes antes:', loginPage?.className);
+            console.log('dashboard classes antes:', dashboard?.className);
             
             showDashboard();
-            await loadData();
-            // Inicializar sistema de PDFs semanais automáticos
-            initializeWeeklyPDFCheck();
             
-            // Atualizar último login
-            await supabase
-                .from('users')
-                .update({ last_login: new Date().toISOString() })
-                .eq('id', currentUser.id);
+            console.log('loginPage classes depois:', loginPage?.className);
+            console.log('dashboard classes depois:', dashboard?.className);
+            console.log('✓ showDashboard() executado');
+            
+            console.log('>>> PASSO 6: Carregando dados...');
+            try {
+                await loadData();
+                console.log('✓ Dados carregados com sucesso');
+            } catch (loadError) {
+                console.error('⚠ Erro ao carregar dados (não crítico):', loadError);
+                alert('Dashboard aberto, mas houve um erro ao carregar alguns dados: ' + loadError.message);
+                // Não impedir o login se houver erro ao carregar dados
+            }
+            
+            console.log('>>> PASSO 7: Inicializando sistema de PDFs...');
+            try {
+                // Inicializar sistema de PDFs semanais automáticos
+                initializeWeeklyPDFCheck();
+                console.log('✓ Sistema de PDFs inicializado');
+            } catch (pdfError) {
+                console.error('⚠ Erro ao inicializar PDFs (não crítico):', pdfError);
+                // Não impedir o login se houver erro ao inicializar PDFs
+            }
+            
+            console.log('>>> PASSO 8: Atualizando último login...');
+            try {
+                // Atualizar último login
+                await supabase
+                    .from('users')
+                    .update({ last_login: new Date().toISOString() })
+                    .eq('id', currentUser.id);
+                console.log('✓ Último login atualizado');
+            } catch (updateError) {
+                console.error('⚠ Erro ao atualizar último login (não crítico):', updateError);
+                // Não impedir o login se houver erro ao atualizar
+            }
+            
+            console.log('=== ✓✓✓ LOGIN CONCLUÍDO COM SUCESSO! ✓✓✓ ===');
                 
         } else {
+            console.error('✗ Senha incorreta');
+            console.log('Senha fornecida:', password);
+            console.log('Senha esperada (hash):', userData.password_hash);
             throw new Error('Senha incorreta');
         }
         
     } catch (error) {
-        alert('Erro no login: ' + error.message);
+        console.error('=== ✗✗✗ ERRO NO LOGIN ✗✗✗ ===');
+        console.error('Tipo do erro:', error.constructor.name);
+        console.error('Mensagem:', error.message);
+        console.error('Stack trace:', error.stack);
+        alert('Erro no login: ' + error.message + '\n\nVerifique o console (F12) para mais detalhes.');
+        // Não recarregar a página, apenas mostrar o erro
     }
 }
 
@@ -3437,8 +3689,20 @@ function hideModal(modal) {
 }
 
 function showLogin() {
+    console.log('showLogin chamado');
+    if (!loginPage) {
+        console.error('loginPage não encontrado no DOM!');
+        return;
+    }
+    if (!dashboard) {
+        console.error('dashboard não encontrado no DOM!');
+        return;
+    }
+    
     loginPage.classList.remove('hidden');
     dashboard.classList.add('hidden');
+    
+    console.log('Tela de login exibida');
     
     // Limpar timeout do usuário e remover listeners
     clearUserTimeout();
@@ -3446,14 +3710,27 @@ function showLogin() {
 }
 
 function showDashboard() {
+    console.log('showDashboard chamado');
+    if (!loginPage) {
+        console.error('loginPage não encontrado no DOM!');
+        return;
+    }
+    if (!dashboard) {
+        console.error('dashboard não encontrado no DOM!');
+        return;
+    }
+    
     loginPage.classList.add('hidden');
     dashboard.classList.remove('hidden');
+    
+    console.log('Dashboard exibido');
     
     // Atualizar indicador da empresa
     const companyIndicator = document.getElementById('companyIndicator');
     if (companyIndicator && currentCompany) {
         const config = getCurrentCompanyConfig();
         companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
+        console.log('Indicador de empresa atualizado:', config ? config.name : 'Não identificada');
     }
     
     // Configurar timeout para usuário logado
