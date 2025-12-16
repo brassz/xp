@@ -388,11 +388,21 @@ function setupEventListeners() {
     if (loginForm) {
         // Remover qualquer listener anterior (se existir)
         loginForm.removeEventListener('submit', handleLogin);
-        // Adicionar novo listener
-        loginForm.addEventListener('submit', handleLogin);
-        console.log('Event listener adicionado ao loginForm');
+        
+        // Adicionar novo listener com capturing
+        loginForm.addEventListener('submit', function(e) {
+            console.log('=== SUBMIT EVENT CAPTURED ===');
+            console.log('Event:', e);
+            console.log('Prevenindo default...');
+            e.preventDefault();
+            e.stopPropagation();
+            console.log('Chamando handleLogin...');
+            handleLogin(e);
+        }, false);
+        
+        console.log('✓ Event listener adicionado ao loginForm com wrapper');
     } else {
-        console.error('loginForm não encontrado no DOM');
+        console.error('✗ loginForm não encontrado no DOM');
     }
     
     if (logoutBtn) {
@@ -959,7 +969,10 @@ function setupUploadcare() {
 // Handlers de autenticação
 async function handleLogin(e) {
     e.preventDefault();
-    console.log('handleLogin chamado');
+    console.log('=== INICIANDO HANDLELOGIN ===');
+    console.log('Event:', e);
+    console.log('Event type:', e.type);
+    console.log('Timestamp:', new Date().toISOString());
     
     // Verificar se Franca Private está ativado
     const francaPrivateActivated = localStorage.getItem('brunoAssoniActivated');
@@ -967,54 +980,66 @@ async function handleLogin(e) {
     
     const companySelectEl = document.getElementById('companySelect');
     if (!companySelectEl) {
-        console.error('Elemento companySelect não encontrado');
+        console.error('✗ Elemento companySelect não encontrado');
         alert('Erro: Formulário de login não está configurado corretamente');
         return;
     }
+    console.log('✓ companySelectEl encontrado');
     
     let companyId = companySelectEl.value;
     
     // Se Franca Private está ativado, usar automaticamente
     if (francaPrivateActivated === 'true' && savedCompany === 'brunoassoni') {
         companyId = 'brunoassoni';
+        console.log('Usando Franca Private automaticamente');
     }
     
     const emailEl = document.getElementById('loginEmail');
     const passwordEl = document.getElementById('loginPassword');
     
     if (!emailEl || !passwordEl) {
-        console.error('Elementos de email ou senha não encontrados');
+        console.error('✗ Elementos de email ou senha não encontrados');
         alert('Erro: Formulário de login não está configurado corretamente');
         return;
     }
+    console.log('✓ Elementos de email e senha encontrados');
     
     const email = emailEl.value;
     const password = passwordEl.value;
     
-    console.log('Company ID:', companyId);
-    console.log('Email:', email);
+    console.log('Dados do formulário:', {
+        companyId: companyId,
+        email: email,
+        hasPassword: !!password
+    });
     
     if (!companyId) {
+        console.error('✗ Empresa não selecionada');
         alert('Por favor, selecione uma empresa');
         return;
     }
     
     if (!email || !password) {
+        console.error('✗ Email ou senha vazios');
         alert('Por favor, preencha email e senha');
         return;
     }
     
+    console.log('✓ Validações básicas passaram');
+    
     try {
-        console.log('Inicializando empresa...');
+        console.log('>>> PASSO 1: Inicializando empresa...');
         // Inicializar empresa selecionada
         const config = initializeCompany(companyId);
-        console.log('Empresa inicializada:', config.name);
+        console.log('✓ Empresa inicializada:', config.name);
         
         if (!supabase) {
+            console.error('✗ Supabase não foi inicializado!');
             throw new Error('Falha ao inicializar conexão com o banco de dados');
         }
+        console.log('✓ Supabase inicializado');
         
-        console.log('Verificando usuário no banco de dados...');
+        console.log('>>> PASSO 2: Verificando usuário no banco de dados...');
         // Primeiro, verificar se o usuário existe na nossa tabela
         const { data: userData, error: userError } = await supabase
             .from('users')
@@ -1023,71 +1048,100 @@ async function handleLogin(e) {
             .eq('is_active', true)
             .single();
         
-        if (userError || !userData) {
-            console.error('Erro ao buscar usuário:', userError);
-            throw new Error('Usuário não encontrado ou inativo');
+        if (userError) {
+            console.error('✗ Erro do Supabase:', userError);
+            console.error('Código:', userError.code);
+            console.error('Mensagem:', userError.message);
+            console.error('Detalhes:', userError.details);
         }
         
-        console.log('Usuário encontrado:', { id: userData.id, email: userData.email, role: userData.role });
+        if (userError || !userData) {
+            console.error('✗ Usuário não encontrado ou erro na consulta');
+            throw new Error('Usuário não encontrado ou inativo. Detalhes: ' + (userError?.message || 'Nenhum usuário retornado'));
+        }
         
+        console.log('✓ Usuário encontrado:', {
+            id: userData.id,
+            email: userData.email,
+            role: userData.role,
+            is_active: userData.is_active
+        });
+        
+        console.log('>>> PASSO 3: Verificando senha...');
         // Verificar senha contra o banco de dados
         // Em produção, implementar hash de senha (bcrypt)
         if (password === userData.password_hash) {
-            console.log('Senha correta, fazendo login...');
+            console.log('✓ Senha correta!');
             currentUser = userData;
             
+            console.log('>>> PASSO 4: Salvando no localStorage...');
             // Salvar usuário no localStorage
             try {
                 localStorage.setItem('nexusUser', JSON.stringify(currentUser));
-                console.log('Usuário salvo no localStorage');
+                localStorage.setItem('selectedCompany', companyId);
+                console.log('✓ Dados salvos no localStorage');
             } catch (storageError) {
-                console.error('Erro ao salvar no localStorage:', storageError);
+                console.error('✗ Erro ao salvar no localStorage:', storageError);
             }
             
-            console.log('Mostrando dashboard...');
+            console.log('>>> PASSO 5: Mostrando dashboard...');
+            console.log('loginPage classes antes:', loginPage?.className);
+            console.log('dashboard classes antes:', dashboard?.className);
+            
             showDashboard();
             
-            console.log('Carregando dados...');
+            console.log('loginPage classes depois:', loginPage?.className);
+            console.log('dashboard classes depois:', dashboard?.className);
+            console.log('✓ showDashboard() executado');
+            
+            console.log('>>> PASSO 6: Carregando dados...');
             try {
                 await loadData();
-                console.log('Dados carregados com sucesso');
+                console.log('✓ Dados carregados com sucesso');
             } catch (loadError) {
-                console.error('Erro ao carregar dados:', loadError);
+                console.error('⚠ Erro ao carregar dados (não crítico):', loadError);
+                alert('Dashboard aberto, mas houve um erro ao carregar alguns dados: ' + loadError.message);
                 // Não impedir o login se houver erro ao carregar dados
             }
             
-            console.log('Inicializando sistema de PDFs...');
+            console.log('>>> PASSO 7: Inicializando sistema de PDFs...');
             try {
                 // Inicializar sistema de PDFs semanais automáticos
                 initializeWeeklyPDFCheck();
+                console.log('✓ Sistema de PDFs inicializado');
             } catch (pdfError) {
-                console.error('Erro ao inicializar PDFs:', pdfError);
+                console.error('⚠ Erro ao inicializar PDFs (não crítico):', pdfError);
                 // Não impedir o login se houver erro ao inicializar PDFs
             }
             
-            console.log('Atualizando último login...');
+            console.log('>>> PASSO 8: Atualizando último login...');
             try {
                 // Atualizar último login
                 await supabase
                     .from('users')
                     .update({ last_login: new Date().toISOString() })
                     .eq('id', currentUser.id);
+                console.log('✓ Último login atualizado');
             } catch (updateError) {
-                console.error('Erro ao atualizar último login:', updateError);
+                console.error('⚠ Erro ao atualizar último login (não crítico):', updateError);
                 // Não impedir o login se houver erro ao atualizar
             }
             
-            console.log('Login concluído com sucesso!');
+            console.log('=== ✓✓✓ LOGIN CONCLUÍDO COM SUCESSO! ✓✓✓ ===');
                 
         } else {
-            console.error('Senha incorreta');
+            console.error('✗ Senha incorreta');
+            console.log('Senha fornecida:', password);
+            console.log('Senha esperada (hash):', userData.password_hash);
             throw new Error('Senha incorreta');
         }
         
     } catch (error) {
-        console.error('Erro no login:', error);
+        console.error('=== ✗✗✗ ERRO NO LOGIN ✗✗✗ ===');
+        console.error('Tipo do erro:', error.constructor.name);
+        console.error('Mensagem:', error.message);
         console.error('Stack trace:', error.stack);
-        alert('Erro no login: ' + error.message);
+        alert('Erro no login: ' + error.message + '\n\nVerifique o console (F12) para mais detalhes.');
         // Não recarregar a página, apenas mostrar o erro
     }
 }

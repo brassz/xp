@@ -1,5 +1,14 @@
 # Guia de Debug - Problema de Login
 
+## ATUALIZAÇÃO: Melhorias Aplicadas
+
+O sistema agora possui:
+- ✅ Logs extremamente detalhados em cada etapa do login
+- ✅ Prevenção de reload de página com `onsubmit="return false;"`
+- ✅ Wrapper no event listener com preventDefault e stopPropagation
+- ✅ Tratamento de erros melhorado com alertas informativos
+- ✅ Verificação da biblioteca Supabase na inicialização
+
 ## Passo a Passo para Identificar o Problema
 
 ### 1. Abrir o Console do Navegador
