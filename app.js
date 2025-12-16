@@ -1,3 +1,10 @@
+// Guard para evitar execução dupla do script
+if (window.appJsLoaded) {
+    console.warn('app.js já foi carregado. Evitando duplicação.');
+    throw new Error('Script already loaded');
+}
+window.appJsLoaded = true;
+
 // Função para obter variáveis de ambiente (compatível com Vercel)
 function getEnvVar(name, fallback = '') {
     // Tentar process.env primeiro (Node.js/Vercel)
@@ -191,11 +198,11 @@ let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
 
-// Elementos DOM
-const loginPage = document.getElementById('loginPage');
-const dashboard = document.getElementById('dashboard');
-const loginForm = document.getElementById('loginForm');
-const logoutBtn = document.getElementById('logoutBtn');
+// Elementos DOM (serão inicializados após o DOM estar pronto)
+let loginPage = null;
+let dashboard = null;
+let loginForm = null;
+let logoutBtn = null;
 
 // Navegação
 const navLinks = document.querySelectorAll('.nav-link');
@@ -247,6 +254,27 @@ const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM totalmente carregado');
+    
+    // Inicializar elementos DOM
+    loginPage = document.getElementById('loginPage');
+    dashboard = document.getElementById('dashboard');
+    loginForm = document.getElementById('loginForm');
+    logoutBtn = document.getElementById('logoutBtn');
+    
+    console.log('Elementos DOM inicializados:', {
+        loginPage: !!loginPage,
+        dashboard: !!dashboard,
+        loginForm: !!loginForm,
+        logoutBtn: !!logoutBtn
+    });
+    
+    if (!loginPage || !dashboard || !loginForm || !logoutBtn) {
+        console.error('ERRO CRÍTICO: Elementos essenciais do DOM não foram encontrados!');
+        alert('Erro ao carregar a aplicação. Por favor, recarregue a página.');
+        return;
+    }
+    
     initializeApp();
     setupEventListeners();
     setupUploadcare();
@@ -861,10 +889,18 @@ async function handleLogin(e) {
     }
     
     try {
+        console.log('Iniciando processo de login...');
+        
         // Inicializar empresa selecionada
         initializeCompany(companyId);
+        console.log('Empresa inicializada:', companyId);
+        
+        if (!supabase) {
+            throw new Error('Erro ao conectar com o servidor. Tente recarregar a página.');
+        }
         
         // Primeiro, verificar se o usuário existe na nossa tabela
+        console.log('Buscando usuário no banco de dados...');
         const { data: userData, error: userError } = await supabase
             .from('users')
             .select('*')
@@ -873,13 +909,17 @@ async function handleLogin(e) {
             .single();
         
         if (userError || !userData) {
+            console.error('Erro ao buscar usuário:', userError);
             throw new Error('Usuário não encontrado ou inativo');
         }
+        
+        console.log('Usuário encontrado:', userData.email);
         
         // Verificar senha contra o banco de dados
         // Em produção, implementar hash de senha (bcrypt)
         if (password === userData.password_hash) {
             currentUser = userData;
+            console.log('Login bem-sucedido!');
             
             // Salvar usuário no localStorage
             localStorage.setItem('nexusUser', JSON.stringify(currentUser));
@@ -900,6 +940,7 @@ async function handleLogin(e) {
         }
         
     } catch (error) {
+        console.error('Erro detalhado no login:', error);
         alert('Erro no login: ' + error.message);
     }
 }
@@ -3446,8 +3487,20 @@ function showLogin() {
 }
 
 function showDashboard() {
+    console.log('showDashboard called');
+    console.log('loginPage element:', loginPage);
+    console.log('dashboard element:', dashboard);
+    
+    if (!loginPage || !dashboard) {
+        console.error('ERRO: Elementos do DOM não encontrados!');
+        alert('Erro ao carregar o sistema. Por favor, recarregue a página.');
+        return;
+    }
+    
     loginPage.classList.add('hidden');
     dashboard.classList.remove('hidden');
+    
+    console.log('Dashboard mostrado com sucesso');
     
     // Atualizar indicador da empresa
     const companyIndicator = document.getElementById('companyIndicator');
