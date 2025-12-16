@@ -123,6 +123,11 @@ function initializeCompany(companyId) {
     // Salvar empresa selecionada no localStorage
     localStorage.setItem('selectedCompany', companyId);
     
+    // Toggle Financial Control navigation visibility
+    if (typeof toggleFinancialControlNav === 'function') {
+        toggleFinancialControlNav();
+    }
+    
     console.log(`Empresa inicializada: ${config.name}`);
     return config;
 }
@@ -17189,3 +17194,565 @@ async function initNotifications() {
 
 // Atualizar notificações periodicamente (a cada 5 minutos)
 setInterval(initNotifications, 5 * 60 * 1000);
+
+// ==========================================
+// FINANCIAL CONTROL FUNCTIONS (FRANCA PRIVATE)
+// ==========================================
+
+// Show/Hide Financial Control navigation for Franca Private only
+function toggleFinancialControlNav() {
+    const financialControlNav = document.getElementById('financialControlNav');
+    if (currentCompany === 'brunoassoni') {
+        financialControlNav.style.display = 'flex';
+    } else {
+        financialControlNav.style.display = 'none';
+    }
+}
+
+// Initialize Financial Control when navigating to the tab
+async function initFinancialControl() {
+    try {
+        await loadFinancialControlData();
+        await fetchAllCompaniesCommissions();
+        await loadTransactionsHistory();
+    } catch (error) {
+        console.error('Erro ao inicializar Controle Financeiro:', error);
+        alert('Erro ao carregar dados do Controle Financeiro');
+    }
+}
+
+// Load financial control data (cash balance, dates, etc.)
+async function loadFinancialControlData() {
+    try {
+        const { data, error } = await supabase
+            .from('financial_control')
+            .select('*')
+            .single();
+        
+        if (error && error.code !== 'PGRST116') { // PGRST116 = no rows found
+            throw error;
+        }
+        
+        if (data) {
+            // Update cash balance
+            document.getElementById('cashBalance').textContent = `R$ ${data.cash_balance.toFixed(2)}`;
+            
+            // Update last update date
+            const lastUpdate = new Date(data.updated_at);
+            document.getElementById('lastUpdateDate').textContent = lastUpdate.toLocaleDateString('pt-BR');
+            
+            // Calculate and display next commission date
+            const nextDate = new Date(data.next_commission_date);
+            document.getElementById('nextCommissionDate').textContent = nextDate.toLocaleDateString('pt-BR');
+        } else {
+            // Initialize if no record exists
+            await initializeFinancialControl();
+        }
+    } catch (error) {
+        console.error('Erro ao carregar dados financeiros:', error);
+    }
+}
+
+// Initialize financial control record if it doesn't exist
+async function initializeFinancialControl() {
+    try {
+        const nextCommissionDate = new Date();
+        nextCommissionDate.setDate(nextCommissionDate.getDate() + 7);
+        
+        const { error } = await supabase
+            .from('financial_control')
+            .insert({
+                cash_balance: 0,
+                last_commission_date: new Date().toISOString(),
+                next_commission_date: nextCommissionDate.toISOString()
+            });
+        
+        if (error) throw error;
+        
+        await loadFinancialControlData();
+    } catch (error) {
+        console.error('Erro ao inicializar controle financeiro:', error);
+    }
+}
+
+// Fetch Vinicius commissions from ALL companies
+async function fetchAllCompaniesCommissions() {
+    const companies = ['nexus', 'litoral', 'mogiana', 'erechim', 'imperatriz', 'brunoassoni'];
+    const commissions = [];
+    
+    // Calculate last month date range
+    const endDate = new Date();
+    const startDate = new Date();
+    startDate.setMonth(startDate.getMonth() - 1);
+    
+    const grid = document.getElementById('allCompaniesCommissionsGrid');
+    grid.innerHTML = '<div class="col-span-full text-center text-gray-400">Carregando comissões...</div>';
+    
+    for (const companyKey of companies) {
+        try {
+            const config = COMPANIES_CONFIG[companyKey];
+            const companySupabase = supabase.createClient(
+                config.supabase.url,
+                config.supabase.key
+            );
+            
+            // Fetch payments from this company
+            const { data: payments, error } = await companySupabase
+                .from('payments')
+                .select(`
+                    *,
+                    loan:loans(*)
+                `)
+                .gte('payment_date', startDate.toISOString())
+                .lte('payment_date', endDate.toISOString());
+            
+            if (!error && payments && payments.length > 0) {
+                // Calculate Vinicius commission based on company
+                let totalCommission = 0;
+                
+                for (const payment of payments) {
+                    if (payment.loan) {
+                        const loanAmount = parseFloat(payment.loan.loan_amount || 0);
+                        const paidAmount = parseFloat(payment.amount_paid || 0);
+                        const interestRate = parseFloat(payment.loan.interest_rate || 0) / 100;
+                        
+                        const paidInterest = paidAmount - loanAmount;
+                        
+                        if (paidInterest > 0) {
+                            let viniciusPercentage = 0.666; // Default 66.6%
+                            
+                            if (companyKey === 'erechim') {
+                                viniciusPercentage = 0.333; // 33.3%
+                            } else if (companyKey === 'imperatriz') {
+                                viniciusPercentage = 0.5; // 50%
+                            } else if (companyKey === 'brunoassoni') {
+                                viniciusPercentage = 1.0; // 100%
+                            }
+                            
+                            totalCommission += paidInterest * viniciusPercentage;
+                        }
+                    }
+                }
+                
+                commissions.push({
+                    company: config.name,
+                    companyKey: companyKey,
+                    amount: totalCommission
+                });
+            } else {
+                commissions.push({
+                    company: config.name,
+                    companyKey: companyKey,
+                    amount: 0
+                });
+            }
+        } catch (error) {
+            console.error(`Erro ao buscar comissões da ${companyKey}:`, error);
+            commissions.push({
+                company: COMPANIES_CONFIG[companyKey].name,
+                companyKey: companyKey,
+                amount: 0
+            });
+        }
+    }
+    
+    // Display commissions cards
+    displayCommissionsCards(commissions);
+    
+    // Save to database
+    await saveCollectedCommissions(commissions, startDate, endDate);
+}
+
+// Display commissions cards
+function displayCommissionsCards(commissions) {
+    const grid = document.getElementById('allCompaniesCommissionsGrid');
+    
+    const html = commissions.map(comm => `
+        <div class="glass-card p-4 rounded-lg">
+            <p class="text-xs text-gray-400 mb-1">${comm.company}</p>
+            <p class="text-lg font-bold ${comm.amount > 0 ? 'text-green-400' : 'text-gray-500'}">
+                R$ ${comm.amount.toFixed(2)}
+            </p>
+        </div>
+    `).join('');
+    
+    grid.innerHTML = html;
+}
+
+// Save collected commissions to database
+async function saveCollectedCommissions(commissions, startDate, endDate) {
+    try {
+        for (const comm of commissions) {
+            if (comm.amount > 0) {
+                const { error } = await supabase
+                    .from('collected_commissions')
+                    .insert({
+                        company_name: comm.company,
+                        commission_amount: comm.amount,
+                        period_start: startDate.toISOString().split('T')[0],
+                        period_end: endDate.toISOString().split('T')[0],
+                        added_to_cash: false
+                    });
+                
+                if (error && error.code !== '23505') { // Ignore duplicate key errors
+                    console.error('Erro ao salvar comissão:', error);
+                }
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao salvar comissões coletadas:', error);
+    }
+}
+
+// Add commissions to cash (manual trigger)
+async function addCommissionsToCash() {
+    try {
+        // Get pending commissions
+        const { data: pendingCommissions, error: fetchError } = await supabase
+            .from('collected_commissions')
+            .select('*')
+            .eq('added_to_cash', false);
+        
+        if (fetchError) throw fetchError;
+        
+        if (!pendingCommissions || pendingCommissions.length === 0) {
+            alert('Não há comissões pendentes para adicionar ao caixa');
+            return;
+        }
+        
+        const totalToAdd = pendingCommissions.reduce((sum, comm) => sum + parseFloat(comm.commission_amount), 0);
+        
+        // Confirm with user
+        if (!confirm(`Adicionar R$ ${totalToAdd.toFixed(2)} ao caixa?`)) {
+            return;
+        }
+        
+        // Get current balance
+        const { data: control, error: controlError } = await supabase
+            .from('financial_control')
+            .select('*')
+            .single();
+        
+        if (controlError) throw controlError;
+        
+        const newBalance = parseFloat(control.cash_balance) + totalToAdd;
+        const nextCommissionDate = new Date();
+        nextCommissionDate.setDate(nextCommissionDate.getDate() + 7);
+        
+        // Update financial control
+        const { error: updateError } = await supabase
+            .from('financial_control')
+            .update({
+                cash_balance: newBalance,
+                last_commission_date: new Date().toISOString(),
+                next_commission_date: nextCommissionDate.toISOString()
+            })
+            .eq('id', control.id);
+        
+        if (updateError) throw updateError;
+        
+        // Mark commissions as added
+        const commissionIds = pendingCommissions.map(c => c.id);
+        const { error: markError } = await supabase
+            .from('collected_commissions')
+            .update({
+                added_to_cash: true,
+                added_to_cash_date: new Date().toISOString()
+            })
+            .in('id', commissionIds);
+        
+        if (markError) throw markError;
+        
+        // Add transaction record
+        await addTransaction('commission', `Adição de comissões (${pendingCommissions.length} empresas)`, totalToAdd, newBalance);
+        
+        // Reload data
+        await loadFinancialControlData();
+        await loadTransactionsHistory();
+        
+        alert('Comissões adicionadas ao caixa com sucesso!');
+    } catch (error) {
+        console.error('Erro ao adicionar comissões ao caixa:', error);
+        alert('Erro ao adicionar comissões ao caixa');
+    }
+}
+
+// Add transaction record
+async function addTransaction(type, description, amount, balanceAfter, category = null, notes = null) {
+    try {
+        const { error } = await supabase
+            .from('financial_transactions')
+            .insert({
+                transaction_type: type,
+                description: description,
+                amount: amount,
+                balance_after: balanceAfter,
+                category: category,
+                notes: notes
+            });
+        
+        if (error) throw error;
+    } catch (error) {
+        console.error('Erro ao adicionar transação:', error);
+    }
+}
+
+// Load transactions history
+async function loadTransactionsHistory() {
+    try {
+        const { data: transactions, error } = await supabase
+            .from('financial_transactions')
+            .select('*')
+            .order('transaction_date', { ascending: false })
+            .limit(50);
+        
+        if (error) throw error;
+        
+        const tbody = document.getElementById('transactionsTableBody');
+        
+        if (!transactions || transactions.length === 0) {
+            tbody.innerHTML = `
+                <tr>
+                    <td colspan="5" class="px-4 py-8 text-center text-gray-400">
+                        Nenhuma transação registrada
+                    </td>
+                </tr>
+            `;
+            return;
+        }
+        
+        const html = transactions.map(t => {
+            const date = new Date(t.transaction_date);
+            const typeColors = {
+                'commission': 'text-green-400',
+                'expense': 'text-red-400',
+                'reinvestment': 'text-purple-400'
+            };
+            const typeLabels = {
+                'commission': 'Comissão',
+                'expense': 'Despesa',
+                'reinvestment': 'Reinvestimento'
+            };
+            
+            return `
+                <tr class="hover:bg-gray-800 transition-colors">
+                    <td class="px-4 py-3 text-sm text-gray-300">${date.toLocaleDateString('pt-BR')}</td>
+                    <td class="px-4 py-3">
+                        <span class="px-2 py-1 rounded text-xs font-semibold ${typeColors[t.transaction_type]}">
+                            ${typeLabels[t.transaction_type]}
+                        </span>
+                    </td>
+                    <td class="px-4 py-3 text-sm text-gray-300">${t.description}</td>
+                    <td class="px-4 py-3 text-sm text-right ${t.transaction_type === 'expense' || t.transaction_type === 'reinvestment' ? 'text-red-400' : 'text-green-400'}">
+                        ${t.transaction_type === 'expense' || t.transaction_type === 'reinvestment' ? '-' : '+'} R$ ${Math.abs(t.amount).toFixed(2)}
+                    </td>
+                    <td class="px-4 py-3 text-sm text-right text-gray-300">R$ ${t.balance_after.toFixed(2)}</td>
+                </tr>
+            `;
+        }).join('');
+        
+        tbody.innerHTML = html;
+    } catch (error) {
+        console.error('Erro ao carregar histórico de transações:', error);
+    }
+}
+
+// Handle expense form submission
+async function handleExpenseSubmit(e) {
+    e.preventDefault();
+    
+    try {
+        const description = document.getElementById('expenseDescription').value;
+        const amount = parseFloat(document.getElementById('expenseAmount').value);
+        const date = document.getElementById('expenseDate').value;
+        const category = document.getElementById('expenseCategory').value;
+        const notes = document.getElementById('expenseNotes').value;
+        
+        if (!description || amount <= 0) {
+            alert('Por favor, preencha todos os campos obrigatórios');
+            return;
+        }
+        
+        // Get current balance
+        const { data: control, error: controlError } = await supabase
+            .from('financial_control')
+            .select('*')
+            .single();
+        
+        if (controlError) throw controlError;
+        
+        const currentBalance = parseFloat(control.cash_balance);
+        
+        if (amount > currentBalance) {
+            if (!confirm('O valor da despesa é maior que o saldo em caixa. Deseja continuar?')) {
+                return;
+            }
+        }
+        
+        const newBalance = currentBalance - amount;
+        
+        // Update balance
+        const { error: updateError } = await supabase
+            .from('financial_control')
+            .update({ cash_balance: newBalance })
+            .eq('id', control.id);
+        
+        if (updateError) throw updateError;
+        
+        // Add transaction
+        await addTransaction('expense', description, -amount, newBalance, category, notes);
+        
+        // Close modal and reload data
+        closeFinancialExpenseModal();
+        await loadFinancialControlData();
+        await loadTransactionsHistory();
+        
+        alert('Despesa registrada com sucesso!');
+        
+        // Reset form
+        document.getElementById('financialExpenseForm').reset();
+    } catch (error) {
+        console.error('Erro ao registrar despesa:', error);
+        alert('Erro ao registrar despesa');
+    }
+}
+
+// Handle reinvestment form submission
+async function handleReinvestmentSubmit(e) {
+    e.preventDefault();
+    
+    try {
+        const description = document.getElementById('reinvestmentDescription').value;
+        const amount = parseFloat(document.getElementById('reinvestmentAmount').value);
+        const date = document.getElementById('reinvestmentDate').value;
+        const type = document.getElementById('reinvestmentType').value;
+        const notes = document.getElementById('reinvestmentNotes').value;
+        
+        if (!description || amount <= 0) {
+            alert('Por favor, preencha todos os campos obrigatórios');
+            return;
+        }
+        
+        // Get current balance
+        const { data: control, error: controlError } = await supabase
+            .from('financial_control')
+            .select('*')
+            .single();
+        
+        if (controlError) throw controlError;
+        
+        const currentBalance = parseFloat(control.cash_balance);
+        
+        if (amount > currentBalance) {
+            if (!confirm('O valor do reinvestimento é maior que o saldo em caixa. Deseja continuar?')) {
+                return;
+            }
+        }
+        
+        const newBalance = currentBalance - amount;
+        
+        // Update balance
+        const { error: updateError } = await supabase
+            .from('financial_control')
+            .update({ cash_balance: newBalance })
+            .eq('id', control.id);
+        
+        if (updateError) throw updateError;
+        
+        // Add transaction
+        await addTransaction('reinvestment', description, -amount, newBalance, type, notes);
+        
+        // Close modal and reload data
+        closeFinancialReinvestmentModal();
+        await loadFinancialControlData();
+        await loadTransactionsHistory();
+        
+        alert('Reinvestimento registrado com sucesso!');
+        
+        // Reset form
+        document.getElementById('financialReinvestmentForm').reset();
+    } catch (error) {
+        console.error('Erro ao registrar reinvestimento:', error);
+        alert('Erro ao registrar reinvestimento');
+    }
+}
+
+// Modal functions
+function openFinancialExpenseModal() {
+    document.getElementById('financialExpenseModal').classList.remove('hidden');
+    document.getElementById('expenseDate').valueAsDate = new Date();
+}
+
+function closeFinancialExpenseModal() {
+    document.getElementById('financialExpenseModal').classList.add('hidden');
+}
+
+function openFinancialReinvestmentModal() {
+    document.getElementById('financialReinvestmentModal').classList.remove('hidden');
+    document.getElementById('reinvestmentDate').valueAsDate = new Date();
+}
+
+function closeFinancialReinvestmentModal() {
+    document.getElementById('financialReinvestmentModal').classList.add('hidden');
+}
+
+// Event Listeners for Financial Control
+document.addEventListener('DOMContentLoaded', function() {
+    // Expense modal
+    const addExpenseBtn = document.getElementById('addExpenseBtn');
+    if (addExpenseBtn) {
+        addExpenseBtn.addEventListener('click', openFinancialExpenseModal);
+    }
+    
+    const closeExpenseBtn = document.getElementById('closeFinancialExpenseModal');
+    if (closeExpenseBtn) {
+        closeExpenseBtn.addEventListener('click', closeFinancialExpenseModal);
+    }
+    
+    const cancelExpenseBtn = document.getElementById('cancelExpenseBtn');
+    if (cancelExpenseBtn) {
+        cancelExpenseBtn.addEventListener('click', closeFinancialExpenseModal);
+    }
+    
+    const expenseForm = document.getElementById('financialExpenseForm');
+    if (expenseForm) {
+        expenseForm.addEventListener('submit', handleExpenseSubmit);
+    }
+    
+    // Reinvestment modal
+    const addReinvestmentBtn = document.getElementById('addReinvestmentBtn');
+    if (addReinvestmentBtn) {
+        addReinvestmentBtn.addEventListener('click', openFinancialReinvestmentModal);
+    }
+    
+    const closeReinvestmentBtn = document.getElementById('closeFinancialReinvestmentModal');
+    if (closeReinvestmentBtn) {
+        closeReinvestmentBtn.addEventListener('click', closeFinancialReinvestmentModal);
+    }
+    
+    const cancelReinvestmentBtn = document.getElementById('cancelReinvestmentBtn');
+    if (cancelReinvestmentBtn) {
+        cancelReinvestmentBtn.addEventListener('click', closeFinancialReinvestmentModal);
+    }
+    
+    const reinvestmentForm = document.getElementById('financialReinvestmentForm');
+    if (reinvestmentForm) {
+        reinvestmentForm.addEventListener('submit', handleReinvestmentSubmit);
+    }
+    
+    // Add commissions to cash button
+    const addCommissionsToCashBtn = document.getElementById('addCommissionsToCashBtn');
+    if (addCommissionsToCashBtn) {
+        addCommissionsToCashBtn.addEventListener('click', addCommissionsToCash);
+    }
+    
+    // Financial control navigation
+    const financialControlLink = document.querySelector('a[href="#financialControl"]');
+    if (financialControlLink) {
+        financialControlLink.addEventListener('click', function(e) {
+            e.preventDefault();
+            navigateToSection('financialControl');
+            initFinancialControl();
+        });
+    }
+});
