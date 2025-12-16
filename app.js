@@ -205,68 +205,115 @@ let loginForm = null;
 let logoutBtn = null;
 
 // Navegação
-const navLinks = document.querySelectorAll('.nav-link');
-const contentSections = document.querySelectorAll('.content-section');
+let navLinks = null;
+let contentSections = null;
 
 // Modais
-const newClientModal = document.getElementById('newClientModal');
-const newLoanModal = document.getElementById('newLoanModal');
-const paymentModal = document.getElementById('paymentModal');
-const paymentMessageModal = document.getElementById('paymentMessageModal');
-const editClientModal = document.getElementById('editClientModal');
-const editLoanModal = document.getElementById('editLoanModal');
-const confirmationModal = document.getElementById('confirmationModal');
-const paymentHistoryModal = document.getElementById('paymentHistoryModal');
-const paidLoanDetailsModal = document.getElementById('paidLoanDetailsModal');
-const newExpenseModal = document.getElementById('newExpenseModal');
-const newInstallmentModal = document.getElementById('newInstallmentModal');
-const installmentDetailsModal = document.getElementById('installmentDetailsModal');
-const installmentPaymentModal = document.getElementById('installmentPaymentModal');
-const newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
-const capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
-const addCapitalClientModal = document.getElementById('addCapitalClientModal');
-const guarantorModal = document.getElementById('guarantorModal');
-const emergencyContactModal = document.getElementById('emergencyContactModal');
-const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
-const renewalOptionsModal = document.getElementById('renewalOptionsModal');
-
+let newClientModal = null;
+let newLoanModal = null;
+let paymentModal = null;
+let paymentMessageModal = null;
+let editClientModal = null;
+let editLoanModal = null;
+let confirmationModal = null;
+let paymentHistoryModal = null;
+let paidLoanDetailsModal = null;
+let newExpenseModal = null;
+let newInstallmentModal = null;
+let installmentDetailsModal = null;
+let installmentPaymentModal = null;
+let newCapitalRaisingModal = null;
+let capitalRaisingDetailsModal = null;
+let addCapitalClientModal = null;
+let guarantorModal = null;
+let emergencyContactModal = null;
+let whatsappSummaryModal = null;
+let renewalOptionsModal = null;
 
 // Botões
-const newClientBtn = document.getElementById('newClientBtn');
-const newLoanBtn = document.getElementById('newLoanBtn');
-const newExpenseBtn = document.getElementById('newExpenseBtn');
-const newCapitalRaisingBtn = document.getElementById('newCapitalRaisingBtn');
+let newClientBtn = null;
+let newLoanBtn = null;
+let newExpenseBtn = null;
+let newCapitalRaisingBtn = null;
 
-const generatePdfBtn = document.getElementById('generatePdfBtn');
-const generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
-const generateTotalPDFBtn = document.getElementById('generateTotalPDFBtn');
-const generateWeeklyPDFBtn = document.getElementById('generateWeeklyPDFBtn');
-const generateMonthlyPDFBtn = document.getElementById('generateMonthlyPDFBtn');
+let generatePdfBtn = null;
+let generateExpensesPDFBtn = null;
+let generateTotalPDFBtn = null;
+let generateWeeklyPDFBtn = null;
+let generateMonthlyPDFBtn = null;
 
 // Formulários
-const newClientForm = document.getElementById('newClientForm');
-const newLoanForm = document.getElementById('newLoanForm');
-const paymentForm = document.getElementById('paymentForm');
-const newExpenseForm = document.getElementById('newExpenseForm');
-const newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
-const addCapitalClientForm = document.getElementById('addCapitalClientForm');
+let newClientForm = null;
+let newLoanForm = null;
+let paymentForm = null;
+let newExpenseForm = null;
+let newCapitalRaisingForm = null;
+let addCapitalClientForm = null;
 
 
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
     console.log('DOM totalmente carregado');
     
-    // Inicializar elementos DOM
+    // Inicializar elementos DOM essenciais
     loginPage = document.getElementById('loginPage');
     dashboard = document.getElementById('dashboard');
     loginForm = document.getElementById('loginForm');
     logoutBtn = document.getElementById('logoutBtn');
     
+    // Inicializar navegação
+    navLinks = document.querySelectorAll('.nav-link');
+    contentSections = document.querySelectorAll('.content-section');
+    
+    // Inicializar modais
+    newClientModal = document.getElementById('newClientModal');
+    newLoanModal = document.getElementById('newLoanModal');
+    paymentModal = document.getElementById('paymentModal');
+    paymentMessageModal = document.getElementById('paymentMessageModal');
+    editClientModal = document.getElementById('editClientModal');
+    editLoanModal = document.getElementById('editLoanModal');
+    confirmationModal = document.getElementById('confirmationModal');
+    paymentHistoryModal = document.getElementById('paymentHistoryModal');
+    paidLoanDetailsModal = document.getElementById('paidLoanDetailsModal');
+    newExpenseModal = document.getElementById('newExpenseModal');
+    newInstallmentModal = document.getElementById('newInstallmentModal');
+    installmentDetailsModal = document.getElementById('installmentDetailsModal');
+    installmentPaymentModal = document.getElementById('installmentPaymentModal');
+    newCapitalRaisingModal = document.getElementById('newCapitalRaisingModal');
+    capitalRaisingDetailsModal = document.getElementById('capitalRaisingDetailsModal');
+    addCapitalClientModal = document.getElementById('addCapitalClientModal');
+    guarantorModal = document.getElementById('guarantorModal');
+    emergencyContactModal = document.getElementById('emergencyContactModal');
+    whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
+    renewalOptionsModal = document.getElementById('renewalOptionsModal');
+    
+    // Inicializar botões
+    newClientBtn = document.getElementById('newClientBtn');
+    newLoanBtn = document.getElementById('newLoanBtn');
+    newExpenseBtn = document.getElementById('newExpenseBtn');
+    newCapitalRaisingBtn = document.getElementById('newCapitalRaisingBtn');
+    generatePdfBtn = document.getElementById('generatePdfBtn');
+    generateExpensesPDFBtn = document.getElementById('generateExpensesPDFBtn');
+    generateTotalPDFBtn = document.getElementById('generateTotalPDFBtn');
+    generateWeeklyPDFBtn = document.getElementById('generateWeeklyPDFBtn');
+    generateMonthlyPDFBtn = document.getElementById('generateMonthlyPDFBtn');
+    
+    // Inicializar formulários
+    newClientForm = document.getElementById('newClientForm');
+    newLoanForm = document.getElementById('newLoanForm');
+    paymentForm = document.getElementById('paymentForm');
+    newExpenseForm = document.getElementById('newExpenseForm');
+    newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
+    addCapitalClientForm = document.getElementById('addCapitalClientForm');
+    
     console.log('Elementos DOM inicializados:', {
         loginPage: !!loginPage,
         dashboard: !!dashboard,
         loginForm: !!loginForm,
-        logoutBtn: !!logoutBtn
+        logoutBtn: !!logoutBtn,
+        navLinks: navLinks.length,
+        newClientBtn: !!newClientBtn,
+        newLoanBtn: !!newLoanBtn
     });
     
     if (!loginPage || !dashboard || !loginForm || !logoutBtn) {
@@ -275,8 +322,20 @@ document.addEventListener('DOMContentLoaded', function() {
         return;
     }
     
+    console.log('Iniciando setupEventListeners...');
+    try {
+        setupEventListeners();
+        console.log('setupEventListeners concluído com sucesso');
+    } catch (error) {
+        console.error('Erro ao configurar event listeners:', error);
+        alert('Erro ao configurar a aplicação: ' + error.message);
+        return;
+    }
+    
+    console.log('Iniciando initializeApp...');
     initializeApp();
-    setupEventListeners();
+    
+    console.log('Iniciando setupUploadcare...');
     setupUploadcare();
 });
 
@@ -316,34 +375,70 @@ async function initializeApp() {
 
 // Configurar event listeners
 function setupEventListeners() {
+    console.log('Configurando event listeners...');
+    
     // Login
-    loginForm.addEventListener('submit', handleLogin);
-    logoutBtn.addEventListener('click', handleLogout);
+    if (loginForm) {
+        loginForm.addEventListener('submit', handleLogin);
+        console.log('✓ Login form listener adicionado');
+    } else {
+        console.error('✗ loginForm não encontrado!');
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+        console.log('✓ Logout button listener adicionado');
+    } else {
+        console.error('✗ logoutBtn não encontrado!');
+    }
     
     // Navegação
-    navLinks.forEach(link => {
-        link.addEventListener('click', handleNavigation);
-    });
+    if (navLinks && navLinks.length > 0) {
+        navLinks.forEach(link => {
+            link.addEventListener('click', handleNavigation);
+        });
+        console.log(`✓ ${navLinks.length} navigation links configurados`);
+    } else {
+        console.warn('⚠ Nenhum navLink encontrado');
+    }
 
     // Navegação do submenu
     const submenuLinks = document.querySelectorAll('.submenu-item');
-    submenuLinks.forEach(link => {
-        link.addEventListener('click', handleNavigation);
-    });
+    if (submenuLinks && submenuLinks.length > 0) {
+        submenuLinks.forEach(link => {
+            link.addEventListener('click', handleNavigation);
+        });
+        console.log(`✓ ${submenuLinks.length} submenu links configurados`);
+    }
     
     // Botões
-    newClientBtn.addEventListener('click', () => showModal(newClientModal));
-    newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
-    newExpenseBtn.addEventListener('click', () => {
-        showModal(newExpenseModal);
-        setDefaultExpenseDate();
-    });
+    if (newClientBtn) {
+        newClientBtn.addEventListener('click', () => showModal(newClientModal));
+        console.log('✓ New client button configurado');
+    }
+    
+    if (newLoanBtn) {
+        newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
+        console.log('✓ New loan button configurado');
+    }
+    
+    if (newExpenseBtn) {
+        newExpenseBtn.addEventListener('click', () => {
+            showModal(newExpenseModal);
+            setDefaultExpenseDate();
+        });
+        console.log('✓ New expense button configurado');
+    }
     
     if (newCapitalRaisingBtn) {
         newCapitalRaisingBtn.addEventListener('click', () => showModal(newCapitalRaisingModal));
+        console.log('✓ New capital raising button configurado');
     }
 
-    generatePdfBtn.addEventListener('click', generateMonthlyLoansPDF);
+    if (generatePdfBtn) {
+        generatePdfBtn.addEventListener('click', generateMonthlyLoansPDF);
+        console.log('✓ Generate PDF button configurado');
+    }
     
     // Event listener para o botão de PDF de pagamentos semanais
     const generateWeeklyPaymentsPdfBtn = document.getElementById('generateWeeklyPaymentsPdfBtn');
@@ -919,21 +1014,31 @@ async function handleLogin(e) {
         // Em produção, implementar hash de senha (bcrypt)
         if (password === userData.password_hash) {
             currentUser = userData;
-            console.log('Login bem-sucedido!');
+            console.log('✓ Login bem-sucedido! Usuário:', userData.email);
             
             // Salvar usuário no localStorage
             localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+            console.log('✓ Usuário salvo no localStorage');
             
+            console.log('>>> Chamando showDashboard()...');
             showDashboard();
+            console.log('>>> showDashboard() retornou');
+            
+            console.log('>>> Iniciando loadData()...');
             await loadData();
+            console.log('>>> loadData() concluído');
+            
             // Inicializar sistema de PDFs semanais automáticos
+            console.log('>>> Inicializando WeeklyPDFCheck...');
             initializeWeeklyPDFCheck();
             
             // Atualizar último login
+            console.log('>>> Atualizando último login...');
             await supabase
                 .from('users')
                 .update({ last_login: new Date().toISOString() })
                 .eq('id', currentUser.id);
+            console.log('>>> Login completo!');
                 
         } else {
             throw new Error('Senha incorreta');
@@ -3478,8 +3583,18 @@ function hideModal(modal) {
 }
 
 function showLogin() {
+    console.log('showLogin called');
+    console.log('loginPage element:', loginPage);
+    console.log('dashboard element:', dashboard);
+    
+    if (!loginPage || !dashboard) {
+        console.error('ERRO: Elementos não encontrados em showLogin!');
+        return;
+    }
+    
     loginPage.classList.remove('hidden');
     dashboard.classList.add('hidden');
+    console.log('Login page mostrada com sucesso');
     
     // Limpar timeout do usuário e remover listeners
     clearUserTimeout();
