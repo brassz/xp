@@ -1,0 +1,125 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Debug Login</title>
+    <style>
+        body { font-family: Arial, sans-serif; padding: 20px; }
+        .hidden { display: none !important; }
+        #loginPage { background: #f0f0f0; padding: 20px; margin: 10px; border: 2px solid blue; }
+        #dashboard { background: #e0e0e0; padding: 20px; margin: 10px; border: 2px solid green; }
+        button { padding: 10px 20px; margin: 10px; cursor: pointer; }
+        #console-log { background: #000; color: #0f0; padding: 10px; margin: 10px; font-family: monospace; white-space: pre; max-height: 300px; overflow-y: auto; }
+    </style>
+</head>
+<body>
+    <h1>Teste de Debug do Sistema de Login</h1>
+    
+    <div id="console-log">--- Console Log ---</div>
+    
+    <div id="loginPage">
+        <h2>PÁGINA DE LOGIN</h2>
+        <form id="loginForm">
+            <input type="text" id="loginEmail" value="teste@teste.com" placeholder="Email">
+            <input type="password" id="loginPassword" value="senha123" placeholder="Senha">
+            <select id="companySelect">
+                <option value="">Selecione...</option>
+                <option value="nexus">FRANCA CRED</option>
+            </select>
+            <button type="submit">Entrar</button>
+        </form>
+    </div>
+
+    <div id="dashboard" class="hidden">
+        <h2>DASHBOARD (SISTEMA)</h2>
+        <p>Se você está vendo isso, o dashboard abriu corretamente!</p>
+        <button id="logoutBtn">Sair</button>
+        <div id="companyIndicator">Empresa: -</div>
+    </div>
+
+    <hr>
+    <h3>Controles de Teste</h3>
+    <button onclick="testShowLogin()">Testar showLogin()</button>
+    <button onclick="testShowDashboard()">Testar showDashboard()</button>
+    <button onclick="checkElements()">Verificar Elementos</button>
+    <button onclick="clearConsoleLog()">Limpar Console</button>
+
+    <script>
+        // Interceptar console.log
+        const consoleDiv = document.getElementById('console-log');
+        const originalLog = console.log;
+        const originalError = console.error;
+        
+        function addToConsoleLog(type, ...args) {
+            const message = args.map(arg => {
+                if (typeof arg === 'object') {
+                    return JSON.stringify(arg, null, 2);
+                }
+                return String(arg);
+            }).join(' ');
+            
+            const color = type === 'error' ? '#f00' : '#0f0';
+            consoleDiv.innerHTML += `<span style="color: ${color}">[${type}] ${message}</span>\n`;
+            consoleDiv.scrollTop = consoleDiv.scrollHeight;
+        }
+        
+        console.log = function(...args) {
+            originalLog.apply(console, args);
+            addToConsoleLog('log', ...args);
+        };
+        
+        console.error = function(...args) {
+            originalError.apply(console, args);
+            addToConsoleLog('error', ...args);
+        };
+        
+        function clearConsoleLog() {
+            consoleDiv.innerHTML = '--- Console Log ---\n';
+        }
+        
+        function testShowLogin() {
+            console.log('>>> Testando showLogin()');
+            const loginPage = document.getElementById('loginPage');
+            const dashboard = document.getElementById('dashboard');
+            
+            if (loginPage && dashboard) {
+                loginPage.classList.remove('hidden');
+                dashboard.classList.add('hidden');
+                console.log('✓ showLogin() executado com sucesso');
+            } else {
+                console.error('✗ Elementos não encontrados!');
+            }
+        }
+        
+        function testShowDashboard() {
+            console.log('>>> Testando showDashboard()');
+            const loginPage = document.getElementById('loginPage');
+            const dashboard = document.getElementById('dashboard');
+            
+            if (loginPage && dashboard) {
+                loginPage.classList.add('hidden');
+                dashboard.classList.remove('hidden');
+                console.log('✓ showDashboard() executado com sucesso');
+            } else {
+                console.error('✗ Elementos não encontrados!');
+            }
+        }
+        
+        function checkElements() {
+            console.log('>>> Verificando elementos...');
+            console.log('loginPage:', !!document.getElementById('loginPage'));
+            console.log('dashboard:', !!document.getElementById('dashboard'));
+            console.log('loginForm:', !!document.getElementById('loginForm'));
+            console.log('logoutBtn:', !!document.getElementById('logoutBtn'));
+            console.log('loginEmail:', !!document.getElementById('loginEmail'));
+            console.log('loginPassword:', !!document.getElementById('loginPassword'));
+            console.log('companySelect:', !!document.getElementById('companySelect'));
+        }
+        
+        // Auto-check ao carregar
+        console.log('=== Página carregada ===');
+        checkElements();
+    </script>
+</body>
+</html>
