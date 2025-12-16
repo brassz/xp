@@ -191,11 +191,11 @@ let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
 
-// Elementos DOM
-const loginPage = document.getElementById('loginPage');
-const dashboard = document.getElementById('dashboard');
-const loginForm = document.getElementById('loginForm');
-const logoutBtn = document.getElementById('logoutBtn');
+// Elementos DOM - serão inicializados quando o DOM estiver pronto
+let loginPage = null;
+let dashboard = null;
+let loginForm = null;
+let logoutBtn = null;
 
 // Navegação
 const navLinks = document.querySelectorAll('.nav-link');
@@ -247,8 +247,9 @@ const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
-    initializeApp();
+    // Importante: setupEventListeners deve ser chamado primeiro para inicializar os elementos DOM
     setupEventListeners();
+    initializeApp();
     setupUploadcare();
 });
 
@@ -288,6 +289,23 @@ async function initializeApp() {
 
 // Configurar event listeners
 function setupEventListeners() {
+    // Inicializar elementos DOM
+    loginPage = document.getElementById('loginPage');
+    dashboard = document.getElementById('dashboard');
+    loginForm = document.getElementById('loginForm');
+    logoutBtn = document.getElementById('logoutBtn');
+    
+    // Verificar se elementos foram encontrados
+    if (!loginPage || !dashboard || !loginForm || !logoutBtn) {
+        console.error('Elementos DOM críticos não encontrados:', {
+            loginPage: !!loginPage,
+            dashboard: !!dashboard,
+            loginForm: !!loginForm,
+            logoutBtn: !!logoutBtn
+        });
+        return;
+    }
+    
     // Login
     loginForm.addEventListener('submit', handleLogin);
     logoutBtn.addEventListener('click', handleLogout);
@@ -841,6 +859,8 @@ function setupUploadcare() {
 async function handleLogin(e) {
     e.preventDefault();
     
+    console.log('Iniciando processo de login...');
+    
     // Verificar se Franca Private está ativado
     const francaPrivateActivated = localStorage.getItem('brunoAssoniActivated');
     const savedCompany = localStorage.getItem('selectedCompany');
@@ -860,9 +880,13 @@ async function handleLogin(e) {
         return;
     }
     
+    console.log('Empresa selecionada:', companyId);
+    
     try {
         // Inicializar empresa selecionada
         initializeCompany(companyId);
+        
+        console.log('Verificando credenciais...');
         
         // Primeiro, verificar se o usuário existe na nossa tabela
         const { data: userData, error: userError } = await supabase
@@ -876,6 +900,8 @@ async function handleLogin(e) {
             throw new Error('Usuário não encontrado ou inativo');
         }
         
+        console.log('Usuário encontrado:', userData.email);
+        
         // Verificar senha contra o banco de dados
         // Em produção, implementar hash de senha (bcrypt)
         if (password === userData.password_hash) {
@@ -884,8 +910,12 @@ async function handleLogin(e) {
             // Salvar usuário no localStorage
             localStorage.setItem('nexusUser', JSON.stringify(currentUser));
             
+            console.log('Login bem-sucedido! Exibindo dashboard...');
             showDashboard();
+            
+            console.log('Carregando dados...');
             await loadData();
+            
             // Inicializar sistema de PDFs semanais automáticos
             initializeWeeklyPDFCheck();
             
@@ -894,12 +924,15 @@ async function handleLogin(e) {
                 .from('users')
                 .update({ last_login: new Date().toISOString() })
                 .eq('id', currentUser.id);
+            
+            console.log('Login completo!');
                 
         } else {
             throw new Error('Senha incorreta');
         }
         
     } catch (error) {
+        console.error('Erro no login:', error);
         alert('Erro no login: ' + error.message);
     }
 }
@@ -3437,6 +3470,18 @@ function hideModal(modal) {
 }
 
 function showLogin() {
+    if (!loginPage || !dashboard) {
+        console.error('Erro: Elementos loginPage ou dashboard não encontrados');
+        // Tentar recarregar os elementos
+        loginPage = document.getElementById('loginPage');
+        dashboard = document.getElementById('dashboard');
+        
+        if (!loginPage || !dashboard) {
+            console.error('Erro crítico: Não foi possível encontrar elementos após tentativa de recarga');
+            return;
+        }
+    }
+    
     loginPage.classList.remove('hidden');
     dashboard.classList.add('hidden');
     
@@ -3446,8 +3491,23 @@ function showLogin() {
 }
 
 function showDashboard() {
+    if (!loginPage || !dashboard) {
+        console.error('Erro: Elementos loginPage ou dashboard não encontrados');
+        // Tentar recarregar os elementos
+        loginPage = document.getElementById('loginPage');
+        dashboard = document.getElementById('dashboard');
+        
+        if (!loginPage || !dashboard) {
+            console.error('Erro crítico: Não foi possível encontrar elementos após tentativa de recarga');
+            alert('Erro ao carregar dashboard. Por favor, recarregue a página.');
+            return;
+        }
+    }
+    
+    console.log('Mostrando dashboard...');
     loginPage.classList.add('hidden');
     dashboard.classList.remove('hidden');
+    console.log('Dashboard exibido com sucesso');
     
     // Atualizar indicador da empresa
     const companyIndicator = document.getElementById('companyIndicator');
