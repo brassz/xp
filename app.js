@@ -247,6 +247,21 @@ const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
+    console.log('DOM Content Loaded');
+    console.log('loginPage existe?', !!loginPage);
+    console.log('dashboard existe?', !!dashboard);
+    console.log('loginForm existe?', !!loginForm);
+    
+    if (!loginPage) {
+        console.error('ERRO CRÍTICO: loginPage não encontrado no DOM');
+    }
+    if (!dashboard) {
+        console.error('ERRO CRÍTICO: dashboard não encontrado no DOM');
+    }
+    if (!loginForm) {
+        console.error('ERRO CRÍTICO: loginForm não encontrado no DOM');
+    }
+    
     initializeApp();
     setupEventListeners();
     setupUploadcare();
@@ -254,48 +269,88 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Inicializar aplicação
 async function initializeApp() {
+    console.log('initializeApp chamado');
     // Verificar se há usuário logado no localStorage
     const savedUser = localStorage.getItem('nexusUser');
     const savedCompany = localStorage.getItem('selectedCompany');
     
+    console.log('Usuário salvo no localStorage:', savedUser ? 'Sim' : 'Não');
+    console.log('Empresa salva no localStorage:', savedCompany);
+    
     if (savedUser && savedCompany) {
         try {
+            console.log('Restaurando sessão anterior...');
             // Restaurar empresa selecionada
             initializeCompany(savedCompany);
             
             currentUser = JSON.parse(savedUser);
+            console.log('Usuário restaurado:', currentUser);
+            
+            console.log('Mostrando dashboard...');
             showDashboard();
+            
+            console.log('Criando tabelas se necessário...');
             // Verificar e criar tabelas se necessário
             await createTablesIfNotExist();
             
+            console.log('Aguardando para carregar dados...');
             // Aguardar um pouco para garantir que o DOM esteja pronto
             setTimeout(async () => {
+                console.log('Carregando dados da sessão anterior...');
                 await loadData();
                 // Inicializar sistema de PDFs semanais automáticos
                 initializeWeeklyPDFCheck();
                 // Inicializar sistema de notificações
                 initNotifications();
+                console.log('Sessão restaurada com sucesso!');
             }, 100);
         } catch (error) {
+            console.error('Erro ao restaurar sessão:', error);
             localStorage.removeItem('nexusUser');
             localStorage.removeItem('selectedCompany');
             showLogin();
         }
     } else {
+        console.log('Nenhuma sessão anterior encontrada, mostrando tela de login');
         showLogin();
     }
 }
 
+// Flag para evitar múltiplos setups
+let eventListenersSetup = false;
+
 // Configurar event listeners
 function setupEventListeners() {
-    // Login
-    loginForm.addEventListener('submit', handleLogin);
-    logoutBtn.addEventListener('click', handleLogout);
+    if (eventListenersSetup) {
+        console.log('Event listeners já configurados, pulando...');
+        return;
+    }
+    
+    console.log('Configurando event listeners...');
+    
+    // Login - verificar se elementos existem
+    if (loginForm) {
+        // Remover qualquer listener anterior (se existir)
+        loginForm.removeEventListener('submit', handleLogin);
+        // Adicionar novo listener
+        loginForm.addEventListener('submit', handleLogin);
+        console.log('Event listener adicionado ao loginForm');
+    } else {
+        console.error('loginForm não encontrado no DOM');
+    }
+    
+    if (logoutBtn) {
+        logoutBtn.addEventListener('click', handleLogout);
+        console.log('Event listener adicionado ao logoutBtn');
+    }
     
     // Navegação
-    navLinks.forEach(link => {
-        link.addEventListener('click', handleNavigation);
-    });
+    if (navLinks) {
+        navLinks.forEach(link => {
+            link.addEventListener('click', handleNavigation);
+        });
+        console.log(`Event listeners adicionados a ${navLinks.length} links de navegação`);
+    }
 
     // Navegação do submenu
     const submenuLinks = document.querySelectorAll('.submenu-item');
@@ -304,12 +359,18 @@ function setupEventListeners() {
     });
     
     // Botões
-    newClientBtn.addEventListener('click', () => showModal(newClientModal));
-    newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
-    newExpenseBtn.addEventListener('click', () => {
-        showModal(newExpenseModal);
-        setDefaultExpenseDate();
-    });
+    if (newClientBtn) {
+        newClientBtn.addEventListener('click', () => showModal(newClientModal));
+    }
+    if (newLoanBtn) {
+        newLoanBtn.addEventListener('click', () => showModal(newLoanModal));
+    }
+    if (newExpenseBtn) {
+        newExpenseBtn.addEventListener('click', () => {
+            showModal(newExpenseModal);
+            setDefaultExpenseDate();
+        });
+    }
     
     if (newCapitalRaisingBtn) {
         newCapitalRaisingBtn.addEventListener('click', () => showModal(newCapitalRaisingModal));
@@ -741,7 +802,9 @@ function setupEventListeners() {
     // Validação do valor de pagamento - REMOVIDO: Agora usa apenas RENOVAR 30+
     // document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
     
-
+    // Marcar como configurado
+    eventListenersSetup = true;
+    console.log('Event listeners configurados com sucesso!');
 }
 
 // Configurar Uploadcare
@@ -840,30 +903,62 @@ function setupUploadcare() {
 // Handlers de autenticação
 async function handleLogin(e) {
     e.preventDefault();
+    console.log('handleLogin chamado');
     
     // Verificar se Franca Private está ativado
     const francaPrivateActivated = localStorage.getItem('brunoAssoniActivated');
     const savedCompany = localStorage.getItem('selectedCompany');
     
-    let companyId = document.getElementById('companySelect').value;
+    const companySelectEl = document.getElementById('companySelect');
+    if (!companySelectEl) {
+        console.error('Elemento companySelect não encontrado');
+        alert('Erro: Formulário de login não está configurado corretamente');
+        return;
+    }
+    
+    let companyId = companySelectEl.value;
     
     // Se Franca Private está ativado, usar automaticamente
     if (francaPrivateActivated === 'true' && savedCompany === 'brunoassoni') {
         companyId = 'brunoassoni';
     }
     
-    const email = document.getElementById('loginEmail').value;
-    const password = document.getElementById('loginPassword').value;
+    const emailEl = document.getElementById('loginEmail');
+    const passwordEl = document.getElementById('loginPassword');
+    
+    if (!emailEl || !passwordEl) {
+        console.error('Elementos de email ou senha não encontrados');
+        alert('Erro: Formulário de login não está configurado corretamente');
+        return;
+    }
+    
+    const email = emailEl.value;
+    const password = passwordEl.value;
+    
+    console.log('Company ID:', companyId);
+    console.log('Email:', email);
     
     if (!companyId) {
         alert('Por favor, selecione uma empresa');
         return;
     }
     
+    if (!email || !password) {
+        alert('Por favor, preencha email e senha');
+        return;
+    }
+    
     try {
+        console.log('Inicializando empresa...');
         // Inicializar empresa selecionada
-        initializeCompany(companyId);
+        const config = initializeCompany(companyId);
+        console.log('Empresa inicializada:', config.name);
         
+        if (!supabase) {
+            throw new Error('Falha ao inicializar conexão com o banco de dados');
+        }
+        
+        console.log('Verificando usuário no banco de dados...');
         // Primeiro, verificar se o usuário existe na nossa tabela
         const { data: userData, error: userError } = await supabase
             .from('users')
@@ -873,34 +968,71 @@ async function handleLogin(e) {
             .single();
         
         if (userError || !userData) {
+            console.error('Erro ao buscar usuário:', userError);
             throw new Error('Usuário não encontrado ou inativo');
         }
+        
+        console.log('Usuário encontrado:', { id: userData.id, email: userData.email, role: userData.role });
         
         // Verificar senha contra o banco de dados
         // Em produção, implementar hash de senha (bcrypt)
         if (password === userData.password_hash) {
+            console.log('Senha correta, fazendo login...');
             currentUser = userData;
             
             // Salvar usuário no localStorage
-            localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+            try {
+                localStorage.setItem('nexusUser', JSON.stringify(currentUser));
+                console.log('Usuário salvo no localStorage');
+            } catch (storageError) {
+                console.error('Erro ao salvar no localStorage:', storageError);
+            }
             
+            console.log('Mostrando dashboard...');
             showDashboard();
-            await loadData();
-            // Inicializar sistema de PDFs semanais automáticos
-            initializeWeeklyPDFCheck();
             
-            // Atualizar último login
-            await supabase
-                .from('users')
-                .update({ last_login: new Date().toISOString() })
-                .eq('id', currentUser.id);
+            console.log('Carregando dados...');
+            try {
+                await loadData();
+                console.log('Dados carregados com sucesso');
+            } catch (loadError) {
+                console.error('Erro ao carregar dados:', loadError);
+                // Não impedir o login se houver erro ao carregar dados
+            }
+            
+            console.log('Inicializando sistema de PDFs...');
+            try {
+                // Inicializar sistema de PDFs semanais automáticos
+                initializeWeeklyPDFCheck();
+            } catch (pdfError) {
+                console.error('Erro ao inicializar PDFs:', pdfError);
+                // Não impedir o login se houver erro ao inicializar PDFs
+            }
+            
+            console.log('Atualizando último login...');
+            try {
+                // Atualizar último login
+                await supabase
+                    .from('users')
+                    .update({ last_login: new Date().toISOString() })
+                    .eq('id', currentUser.id);
+            } catch (updateError) {
+                console.error('Erro ao atualizar último login:', updateError);
+                // Não impedir o login se houver erro ao atualizar
+            }
+            
+            console.log('Login concluído com sucesso!');
                 
         } else {
+            console.error('Senha incorreta');
             throw new Error('Senha incorreta');
         }
         
     } catch (error) {
+        console.error('Erro no login:', error);
+        console.error('Stack trace:', error.stack);
         alert('Erro no login: ' + error.message);
+        // Não recarregar a página, apenas mostrar o erro
     }
 }
 
@@ -3437,8 +3569,20 @@ function hideModal(modal) {
 }
 
 function showLogin() {
+    console.log('showLogin chamado');
+    if (!loginPage) {
+        console.error('loginPage não encontrado no DOM!');
+        return;
+    }
+    if (!dashboard) {
+        console.error('dashboard não encontrado no DOM!');
+        return;
+    }
+    
     loginPage.classList.remove('hidden');
     dashboard.classList.add('hidden');
+    
+    console.log('Tela de login exibida');
     
     // Limpar timeout do usuário e remover listeners
     clearUserTimeout();
@@ -3446,14 +3590,27 @@ function showLogin() {
 }
 
 function showDashboard() {
+    console.log('showDashboard chamado');
+    if (!loginPage) {
+        console.error('loginPage não encontrado no DOM!');
+        return;
+    }
+    if (!dashboard) {
+        console.error('dashboard não encontrado no DOM!');
+        return;
+    }
+    
     loginPage.classList.add('hidden');
     dashboard.classList.remove('hidden');
+    
+    console.log('Dashboard exibido');
     
     // Atualizar indicador da empresa
     const companyIndicator = document.getElementById('companyIndicator');
     if (companyIndicator && currentCompany) {
         const config = getCurrentCompanyConfig();
         companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
+        console.log('Indicador de empresa atualizado:', config ? config.name : 'Não identificada');
     }
     
     // Configurar timeout para usuário logado
