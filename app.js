@@ -105,25 +105,54 @@ let supabase = null;
 
 // Função para inicializar empresa
 function initializeCompany(companyId) {
+    console.log('=== initializeCompany chamado ===');
+    console.log('Company ID:', companyId);
+    console.log('window.supabase existe?', !!window.supabase);
+    
     if (!COMPANIES_CONFIG[companyId]) {
-        throw new Error(`Empresa ${companyId} não encontrada na configuração`);
+        const error = `Empresa ${companyId} não encontrada na configuração`;
+        console.error(error);
+        throw new Error(error);
     }
     
     currentCompany = companyId;
     const config = COMPANIES_CONFIG[companyId];
     
+    console.log('Configuração da empresa:', {
+        name: config.name,
+        hasSupabaseUrl: !!config.supabase.url,
+        hasSupabaseKey: !!config.supabase.key
+    });
+    
+    // Verificar se Supabase está disponível
+    if (!window.supabase) {
+        const error = 'Biblioteca Supabase não carregada! Verifique se o script está incluído no HTML.';
+        console.error(error);
+        alert(error);
+        throw new Error(error);
+    }
+    
     // Inicializar Supabase para a empresa selecionada
-    supabase = window.supabase.createClient(config.supabase.url, config.supabase.key);
+    try {
+        supabase = window.supabase.createClient(config.supabase.url, config.supabase.key);
+        console.log('Cliente Supabase criado com sucesso');
+    } catch (supabaseError) {
+        console.error('Erro ao criar cliente Supabase:', supabaseError);
+        throw supabaseError;
+    }
     
     // Atualizar configuração do Uploadcare
     if (window.uploadcare) {
         window.uploadcare.publicKey = config.uploadcare.publicKey;
+        console.log('Uploadcare configurado');
+    } else {
+        console.warn('Uploadcare não disponível');
     }
     
     // Salvar empresa selecionada no localStorage
     localStorage.setItem('selectedCompany', companyId);
     
-    console.log(`Empresa inicializada: ${config.name}`);
+    console.log(`✓ Empresa inicializada com sucesso: ${config.name}`);
     return config;
 }
 
@@ -245,12 +274,31 @@ const newCapitalRaisingForm = document.getElementById('newCapitalRaisingForm');
 const addCapitalClientForm = document.getElementById('addCapitalClientForm');
 
 
+// TESTE: Função de login simplificada para debug
+window.testLogin = function() {
+    console.log('=== TESTE DE LOGIN MANUAL ===');
+    console.log('loginPage existe?', !!loginPage);
+    console.log('dashboard existe?', !!dashboard);
+    
+    if (loginPage && dashboard) {
+        console.log('Escondendo loginPage...');
+        loginPage.classList.add('hidden');
+        console.log('Mostrando dashboard...');
+        dashboard.classList.remove('hidden');
+        console.log('✓ Dashboard exibido com sucesso!');
+    } else {
+        console.error('✗ Elementos não encontrados');
+    }
+};
+
 // Inicialização da aplicação
 document.addEventListener('DOMContentLoaded', function() {
-    console.log('DOM Content Loaded');
+    console.log('=== DOM CONTENT LOADED ===');
+    console.log('Timestamp:', new Date().toISOString());
     console.log('loginPage existe?', !!loginPage);
     console.log('dashboard existe?', !!dashboard);
     console.log('loginForm existe?', !!loginForm);
+    console.log('window.supabase existe?', !!window.supabase);
     
     if (!loginPage) {
         console.error('ERRO CRÍTICO: loginPage não encontrado no DOM');
@@ -262,9 +310,17 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('ERRO CRÍTICO: loginForm não encontrado no DOM');
     }
     
+    console.log('Iniciando initializeApp...');
     initializeApp();
+    
+    console.log('Iniciando setupEventListeners...');
     setupEventListeners();
+    
+    console.log('Iniciando setupUploadcare...');
     setupUploadcare();
+    
+    console.log('=== INICIALIZAÇÃO CONCLUÍDA ===');
+    console.log('Para testar a transição de tela manualmente, digite no console: testLogin()');
 });
 
 // Inicializar aplicação

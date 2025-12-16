@@ -4160,6 +4160,36 @@
     </div>
 
     <script>
+        // Capturar erros globais
+        window.addEventListener('error', function(e) {
+            console.error('=== ERRO GLOBAL CAPTURADO ===');
+            console.error('Mensagem:', e.message);
+            console.error('Arquivo:', e.filename);
+            console.error('Linha:', e.lineno);
+            console.error('Coluna:', e.colno);
+            console.error('Erro:', e.error);
+        });
+        
+        window.addEventListener('unhandledrejection', function(e) {
+            console.error('=== PROMISE REJEITADA NÃO TRATADA ===');
+            console.error('Reason:', e.reason);
+            console.error('Promise:', e.promise);
+        });
+        
+        // Debug: Teste de evento de submit do formulário
+        document.addEventListener('DOMContentLoaded', function() {
+            console.log('=== SCRIPT INLINE CARREGADO ===');
+            const loginForm = document.getElementById('loginForm');
+            console.log('loginForm encontrado no script inline?', !!loginForm);
+            
+            if (loginForm) {
+                // Adicionar listener de teste
+                loginForm.addEventListener('submit', function(e) {
+                    console.log('=== FORMULÁRIO SUBMETIDO (teste inline) ===');
+                }, true); // true = capturing phase
+            }
+        });
+        
         // 3-Click Detection for Bruno Assoni Button
         (function() {
             let clickCount = 0;
