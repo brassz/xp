@@ -276,7 +276,11 @@ async function initializeApp() {
                 // Inicializar sistema de notificações
                 initNotifications();
                 // Inicializar controle financeiro (apenas para Franca Private)
-                initializeFinancialControl();
+                try {
+                    initializeFinancialControl();
+                } catch (error) {
+                    console.error('Erro ao inicializar controle financeiro:', error);
+                }
             }, 100);
         } catch (error) {
             localStorage.removeItem('nexusUser');
@@ -890,6 +894,18 @@ async function handleLogin(e) {
             await loadData();
             // Inicializar sistema de PDFs semanais automáticos
             initializeWeeklyPDFCheck();
+            // Inicializar sistema de notificações
+            try {
+                initNotifications();
+            } catch (error) {
+                console.error('Erro ao inicializar notificações:', error);
+            }
+            // Inicializar controle financeiro (apenas para Franca Private)
+            try {
+                initializeFinancialControl();
+            } catch (error) {
+                console.error('Erro ao inicializar controle financeiro:', error);
+            }
             
             // Atualizar último login
             await supabase
@@ -17202,75 +17218,88 @@ let allCompaniesCommissions = {};
 
 // Inicializar controle financeiro (apenas para Franca Private)
 function initializeFinancialControl() {
-    const isFrancaPrivate = currentCompany === 'brunoassoni';
-    const financialControlLink = document.getElementById('financialControlLink');
-    
-    if (isFrancaPrivate && financialControlLink) {
-        // Mostrar link de navegação
-        financialControlLink.style.display = 'flex';
+    try {
+        const isFrancaPrivate = currentCompany === 'brunoassoni';
+        const financialControlLink = document.getElementById('financialControlLink');
         
-        // Adicionar event listeners para botões
-        const addExpenseBtn = document.getElementById('addExpenseFinancialBtn');
-        const addReinvestmentBtn = document.getElementById('addReinvestmentBtn');
-        const refreshDataBtn = document.getElementById('refreshFinancialDataBtn');
-        
-        if (addExpenseBtn) {
-            addExpenseBtn.addEventListener('click', openFinancialExpenseModal);
+        if (!financialControlLink) {
+            console.log('Link de controle financeiro não encontrado no DOM');
+            return;
         }
         
-        if (addReinvestmentBtn) {
-            addReinvestmentBtn.addEventListener('click', openFinancialReinvestmentModal);
+        if (isFrancaPrivate) {
+            // Mostrar link de navegação
+            financialControlLink.style.display = 'flex';
+            
+            // Adicionar event listeners para botões
+            const addExpenseBtn = document.getElementById('addExpenseFinancialBtn');
+            const addReinvestmentBtn = document.getElementById('addReinvestmentBtn');
+            const refreshDataBtn = document.getElementById('refreshFinancialDataBtn');
+            
+            if (addExpenseBtn) {
+                addExpenseBtn.addEventListener('click', openFinancialExpenseModal);
+            }
+            
+            if (addReinvestmentBtn) {
+                addReinvestmentBtn.addEventListener('click', openFinancialReinvestmentModal);
+            }
+            
+            if (refreshDataBtn) {
+                refreshDataBtn.addEventListener('click', loadFinancialControlData);
+            }
+            
+            // Adicionar event listeners para modais
+            setupFinancialControlModals();
+            
+        } else {
+            // Esconder link se não for Franca Private
+            financialControlLink.style.display = 'none';
         }
-        
-        if (refreshDataBtn) {
-            refreshDataBtn.addEventListener('click', loadFinancialControlData);
-        }
-        
-        // Adicionar event listeners para modais
-        setupFinancialControlModals();
-        
-    } else if (financialControlLink) {
-        // Esconder link se não for Franca Private
-        financialControlLink.style.display = 'none';
+    } catch (error) {
+        console.error('Erro em initializeFinancialControl:', error);
     }
 }
 
 // Configurar modais do controle financeiro
 function setupFinancialControlModals() {
-    // Modal de Despesa
-    const expenseModal = document.getElementById('financialExpenseModal');
-    const closeExpenseModal = document.getElementById('closeFinancialExpenseModal');
-    const cancelExpenseBtn = document.getElementById('cancelFinancialExpenseBtn');
-    const expenseForm = document.getElementById('financialExpenseForm');
-    
-    if (closeExpenseModal) {
-        closeExpenseModal.addEventListener('click', closeFinancialExpenseModal);
-    }
-    
-    if (cancelExpenseBtn) {
-        cancelExpenseBtn.addEventListener('click', closeFinancialExpenseModal);
-    }
-    
-    if (expenseForm) {
-        expenseForm.addEventListener('submit', handleFinancialExpenseSubmit);
-    }
-    
-    // Modal de Reinvestimento
-    const reinvestmentModal = document.getElementById('financialReinvestmentModal');
-    const closeReinvestmentModal = document.getElementById('closeFinancialReinvestmentModal');
-    const cancelReinvestmentBtn = document.getElementById('cancelFinancialReinvestmentBtn');
-    const reinvestmentForm = document.getElementById('financialReinvestmentForm');
-    
-    if (closeReinvestmentModal) {
-        closeReinvestmentModal.addEventListener('click', closeFinancialReinvestmentModal);
-    }
-    
-    if (cancelReinvestmentBtn) {
-        cancelReinvestmentBtn.addEventListener('click', closeFinancialReinvestmentModal);
-    }
-    
-    if (reinvestmentForm) {
-        reinvestmentForm.addEventListener('submit', handleFinancialReinvestmentSubmit);
+    try {
+        // Modal de Despesa
+        const expenseModal = document.getElementById('financialExpenseModal');
+        const closeExpenseModal = document.getElementById('closeFinancialExpenseModal');
+        const cancelExpenseBtn = document.getElementById('cancelFinancialExpenseBtn');
+        const expenseForm = document.getElementById('financialExpenseForm');
+        
+        if (closeExpenseModal) {
+            closeExpenseModal.addEventListener('click', closeFinancialExpenseModal);
+        }
+        
+        if (cancelExpenseBtn) {
+            cancelExpenseBtn.addEventListener('click', closeFinancialExpenseModal);
+        }
+        
+        if (expenseForm) {
+            expenseForm.addEventListener('submit', handleFinancialExpenseSubmit);
+        }
+        
+        // Modal de Reinvestimento
+        const reinvestmentModal = document.getElementById('financialReinvestmentModal');
+        const closeReinvestmentModal = document.getElementById('closeFinancialReinvestmentModal');
+        const cancelReinvestmentBtn = document.getElementById('cancelFinancialReinvestmentBtn');
+        const reinvestmentForm = document.getElementById('financialReinvestmentForm');
+        
+        if (closeReinvestmentModal) {
+            closeReinvestmentModal.addEventListener('click', closeFinancialReinvestmentModal);
+        }
+        
+        if (cancelReinvestmentBtn) {
+            cancelReinvestmentBtn.addEventListener('click', closeFinancialReinvestmentModal);
+        }
+        
+        if (reinvestmentForm) {
+            reinvestmentForm.addEventListener('submit', handleFinancialReinvestmentSubmit);
+        }
+    } catch (error) {
+        console.error('Erro ao configurar modais do controle financeiro:', error);
     }
 }
 
