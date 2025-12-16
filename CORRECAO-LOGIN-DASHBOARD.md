@@ -136,19 +136,68 @@ async function handleLogin(e) {
 
 ## Como Testar
 
-1. Abra a aplicação no navegador
+### Teste Principal (index.html)
+
+1. Abra a aplicação no navegador (`index.html`)
 2. Abra o Console do navegador (F12 → Console)
 3. Realize o login com credenciais válidas
 4. Observe os logs no console:
-   - "Iniciando processo de login..."
-   - "Empresa selecionada: [empresa]"
-   - "Verificando credenciais..."
-   - "Usuário encontrado: [email]"
-   - "Login bem-sucedido! Exibindo dashboard..."
-   - "Mostrando dashboard..."
-   - "Dashboard exibido com sucesso"
-   - "Login completo!"
+   - "===== DEBUG: setupEventListeners ====="
+   - "✅ Todos os elementos DOM foram encontrados"
+   - "===== INÍCIO DO PROCESSO DE LOGIN ====="
+   - "🏢 Inicializando empresa: [empresa]"
+   - "✅ Empresa inicializada"
+   - "🔍 Verificando credenciais no banco de dados..."
+   - "✅ Usuário encontrado: [email]"
+   - "🔐 Verificando senha..."
+   - "✅ Senha correta!"
+   - "💾 Usuário salvo no localStorage"
+   - "🚀 Chamando showDashboard()..."
+   - "===== DEBUG: showDashboard INÍCIO ====="
+   - "📋 Classes ANTES das mudanças:"
+   - "🔄 Aplicando mudanças nas classes..."
+   - "📋 Classes DEPOIS das mudanças:"
+   - "🔍 Verificando estilos computados:"
+   - "✅ Dashboard exibido com sucesso"
+   - "===== DEBUG: showDashboard FIM ====="
+   - "✅ showDashboard() executado"
+   - "===== LOGIN COMPLETO COM SUCESSO ====="
 5. O dashboard deve aparecer corretamente
+
+### Teste de Debug (test-login-debug.html)
+
+Para isolar o problema, use o arquivo de teste:
+
+1. Abra `test-login-debug.html` no navegador
+2. Você verá um painel de debug no canto superior direito
+3. Clique em "Verificar Elementos" para confirmar que os elementos foram encontrados
+4. Clique em "Mostrar Dashboard" para testar a transição
+5. Observe o log de eventos no painel de debug
+6. Verifique se:
+   - Os elementos são encontrados
+   - As classes são aplicadas corretamente
+   - O display CSS muda de "none" para "flex" ou "block"
+
+### O Que Procurar nos Logs
+
+**Se o dashboard NÃO aparecer, verifique:**
+
+1. **Console do navegador deve mostrar:**
+   - Se há erros JavaScript (linhas vermelhas)
+   - Se os elementos foram encontrados
+   - Se as classes estão sendo aplicadas
+   - Se o display CSS está mudando
+
+2. **Valores esperados:**
+   - `loginPage display: none` (após mostrar dashboard)
+   - `dashboard display: flex` ou `block` (após mostrar dashboard)
+   - Classes `loginPage.className` deve conter "hidden"
+   - Classes `dashboard.className` NÃO deve conter "hidden"
+
+3. **Erros comuns:**
+   - "Elementos DOM críticos não encontrados" → Script carregou antes do HTML
+   - Display permanece "none" mesmo sem "hidden" → Problema com Tailwind CSS
+   - Elementos são null → IDs incorretos ou HTML não carregado
 
 ## Prevenção de Problemas Futuros
 
