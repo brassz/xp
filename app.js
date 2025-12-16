@@ -100,8 +100,12 @@ const COMPANIES_CONFIG = {
 };
 
 // Variáveis globais para configuração atual
-let currentCompany = null;
-let supabase = null;
+// Usando var ao invés de let para permitir redeclaração sem erro
+var currentCompany = currentCompany || null;
+var supabase = supabase || null;
+
+// Debug: Log para verificar carregamento
+console.log('[APP.JS] Script carregado em:', new Date().toISOString());
 
 // Função para inicializar empresa
 function initializeCompany(companyId) {
@@ -254,16 +258,22 @@ document.addEventListener('DOMContentLoaded', function() {
 
 // Inicializar aplicação
 async function initializeApp() {
+    console.log('[APP.JS] Iniciando aplicação...');
     // Verificar se há usuário logado no localStorage
     const savedUser = localStorage.getItem('nexusUser');
     const savedCompany = localStorage.getItem('selectedCompany');
     
+    console.log('[APP.JS] Usuário salvo:', savedUser ? 'Sim' : 'Não');
+    console.log('[APP.JS] Empresa salva:', savedCompany);
+    
     if (savedUser && savedCompany) {
         try {
+            console.log('[APP.JS] Restaurando sessão...');
             // Restaurar empresa selecionada
             initializeCompany(savedCompany);
             
             currentUser = JSON.parse(savedUser);
+            console.log('[APP.JS] Mostrando dashboard...');
             showDashboard();
             // Verificar e criar tabelas se necessário
             await createTablesIfNotExist();
@@ -277,11 +287,13 @@ async function initializeApp() {
                 initNotifications();
             }, 100);
         } catch (error) {
+            console.error('[APP.JS] Erro ao restaurar sessão:', error);
             localStorage.removeItem('nexusUser');
             localStorage.removeItem('selectedCompany');
             showLogin();
         }
     } else {
+        console.log('[APP.JS] Sem sessão salva, mostrando login');
         showLogin();
     }
 }
@@ -841,6 +853,8 @@ function setupUploadcare() {
 async function handleLogin(e) {
     e.preventDefault();
     
+    console.log('[LOGIN] Iniciando processo de login...');
+    
     // Verificar se Franca Private está ativado
     const francaPrivateActivated = localStorage.getItem('brunoAssoniActivated');
     const savedCompany = localStorage.getItem('selectedCompany');
@@ -850,10 +864,14 @@ async function handleLogin(e) {
     // Se Franca Private está ativado, usar automaticamente
     if (francaPrivateActivated === 'true' && savedCompany === 'brunoassoni') {
         companyId = 'brunoassoni';
+        console.log('[LOGIN] Franca Private ativado, usando brunoassoni');
     }
     
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
+    
+    console.log('[LOGIN] Empresa selecionada:', companyId);
+    console.log('[LOGIN] Email:', email);
     
     if (!companyId) {
         alert('Por favor, selecione uma empresa');
@@ -861,9 +879,11 @@ async function handleLogin(e) {
     }
     
     try {
+        console.log('[LOGIN] Inicializando empresa...');
         // Inicializar empresa selecionada
         initializeCompany(companyId);
         
+        console.log('[LOGIN] Verificando usuário no banco...');
         // Primeiro, verificar se o usuário existe na nossa tabela
         const { data: userData, error: userError } = await supabase
             .from('users')
@@ -873,18 +893,23 @@ async function handleLogin(e) {
             .single();
         
         if (userError || !userData) {
+            console.error('[LOGIN] Usuário não encontrado:', userError);
             throw new Error('Usuário não encontrado ou inativo');
         }
         
+        console.log('[LOGIN] Usuário encontrado, verificando senha...');
         // Verificar senha contra o banco de dados
         // Em produção, implementar hash de senha (bcrypt)
         if (password === userData.password_hash) {
+            console.log('[LOGIN] Senha correta! Salvando sessão...');
             currentUser = userData;
             
             // Salvar usuário no localStorage
             localStorage.setItem('nexusUser', JSON.stringify(currentUser));
             
+            console.log('[LOGIN] Mostrando dashboard...');
             showDashboard();
+            console.log('[LOGIN] Carregando dados...');
             await loadData();
             // Inicializar sistema de PDFs semanais automáticos
             initializeWeeklyPDFCheck();
@@ -3437,8 +3462,12 @@ function hideModal(modal) {
 }
 
 function showLogin() {
-    loginPage.classList.remove('hidden');
-    dashboard.classList.add('hidden');
+    console.log('[UI] Mostrando tela de login');
+    console.log('[UI] loginPage element:', loginPage ? 'Found' : 'Not found');
+    console.log('[UI] dashboard element:', dashboard ? 'Found' : 'Not found');
+    
+    if (loginPage) loginPage.classList.remove('hidden');
+    if (dashboard) dashboard.classList.add('hidden');
     
     // Limpar timeout do usuário e remover listeners
     clearUserTimeout();
@@ -3446,18 +3475,25 @@ function showLogin() {
 }
 
 function showDashboard() {
-    loginPage.classList.add('hidden');
-    dashboard.classList.remove('hidden');
+    console.log('[UI] Mostrando dashboard');
+    console.log('[UI] loginPage element:', loginPage ? 'Found' : 'Not found');
+    console.log('[UI] dashboard element:', dashboard ? 'Found' : 'Not found');
+    console.log('[UI] currentCompany:', currentCompany);
+    
+    if (loginPage) loginPage.classList.add('hidden');
+    if (dashboard) dashboard.classList.remove('hidden');
     
     // Atualizar indicador da empresa
     const companyIndicator = document.getElementById('companyIndicator');
     if (companyIndicator && currentCompany) {
         const config = getCurrentCompanyConfig();
         companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
+        console.log('[UI] Company indicator updated:', config ? config.name : 'Empresa não identificada');
     }
     
     // Configurar timeout para usuário logado
     setupActivityListeners();
+    console.log('[UI] Dashboard mostrado com sucesso');
 }
 
 function populateClientSelect() {
