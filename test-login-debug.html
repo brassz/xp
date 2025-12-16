@@ -1,0 +1,281 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Teste Login/Dashboard - Debug</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            padding: 20px;
+        }
+        
+        .debug-panel {
+            position: fixed;
+            top: 10px;
+            right: 10px;
+            background: white;
+            border: 2px solid #333;
+            padding: 15px;
+            border-radius: 8px;
+            max-width: 400px;
+            max-height: 90vh;
+            overflow-y: auto;
+            z-index: 9999;
+        }
+        
+        .debug-panel h3 {
+            margin: 0 0 10px 0;
+            color: #333;
+        }
+        
+        .debug-log {
+            background: #f5f5f5;
+            padding: 10px;
+            border-radius: 4px;
+            font-size: 12px;
+            color: #333;
+            max-height: 300px;
+            overflow-y: auto;
+            margin-bottom: 10px;
+        }
+        
+        .debug-log div {
+            margin-bottom: 5px;
+            padding: 2px 0;
+            border-bottom: 1px solid #ddd;
+        }
+        
+        .btn {
+            padding: 10px 20px;
+            margin: 5px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            font-weight: bold;
+        }
+        
+        .btn-primary {
+            background: #3b82f6;
+            color: white;
+        }
+        
+        .btn-success {
+            background: #10b981;
+            color: white;
+        }
+        
+        .btn-danger {
+            background: #ef4444;
+            color: white;
+        }
+    </style>
+</head>
+<body>
+    <!-- Debug Panel -->
+    <div class="debug-panel">
+        <h3>🔍 Debug Panel</h3>
+        
+        <div>
+            <strong>Estado dos Elementos:</strong>
+            <div id="elementsStatus" style="margin: 10px 0; padding: 10px; background: #f5f5f5; border-radius: 4px;">
+                Carregando...
+            </div>
+        </div>
+        
+        <div>
+            <strong>Log de Eventos:</strong>
+            <div id="debugLog" class="debug-log">
+                <div>Aguardando ações...</div>
+            </div>
+        </div>
+        
+        <div style="margin-top: 10px;">
+            <button class="btn btn-primary" onclick="testShowDashboard()">Mostrar Dashboard</button>
+            <button class="btn btn-danger" onclick="testShowLogin()">Mostrar Login</button>
+            <button class="btn btn-success" onclick="checkElements()">Verificar Elementos</button>
+        </div>
+    </div>
+
+    <!-- Login Page -->
+    <div id="loginPage" class="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 via-blue-800 to-indigo-900">
+        <div class="bg-white bg-opacity-10 backdrop-blur-lg p-8 rounded-2xl w-full max-w-md">
+            <h1 class="text-3xl font-bold text-white mb-6 text-center">Login</h1>
+            <form id="loginForm" class="space-y-4">
+                <div>
+                    <label class="block text-white mb-2">Email</label>
+                    <input type="email" class="w-full px-4 py-2 rounded" placeholder="seu@email.com" required>
+                </div>
+                <div>
+                    <label class="block text-white mb-2">Senha</label>
+                    <input type="password" class="w-full px-4 py-2 rounded" placeholder="••••••••" required>
+                </div>
+                <button type="button" onclick="simulateLogin()" class="w-full py-3 px-4 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700">
+                    Entrar (Teste)
+                </button>
+            </form>
+        </div>
+    </div>
+
+    <!-- Dashboard -->
+    <div id="dashboard" class="hidden min-h-screen bg-gray-900 text-white p-8">
+        <h1 class="text-4xl font-bold mb-8">Dashboard</h1>
+        <div class="grid grid-cols-1 md:grid-cols-3 gap-6">
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-bold mb-2">Bem-vindo!</h2>
+                <p>Este é o dashboard de teste.</p>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-bold mb-2">Status</h2>
+                <p class="text-green-400">✓ Dashboard carregado com sucesso</p>
+            </div>
+            <div class="bg-gray-800 p-6 rounded-lg">
+                <h2 class="text-xl font-bold mb-2">Ações</h2>
+                <button onclick="testShowLogin()" class="bg-red-600 px-4 py-2 rounded hover:bg-red-700">
+                    Logout
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        let loginPage = null;
+        let dashboard = null;
+        
+        function log(message, type = 'info') {
+            const debugLog = document.getElementById('debugLog');
+            const timestamp = new Date().toLocaleTimeString();
+            const colors = {
+                info: '#3b82f6',
+                success: '#10b981',
+                error: '#ef4444',
+                warning: '#f59e0b'
+            };
+            
+            const logEntry = document.createElement('div');
+            logEntry.style.color = colors[type] || colors.info;
+            logEntry.innerHTML = `<strong>[${timestamp}]</strong> ${message}`;
+            
+            debugLog.appendChild(logEntry);
+            debugLog.scrollTop = debugLog.scrollHeight;
+            
+            console.log(`[${type.toUpperCase()}] ${message}`);
+        }
+        
+        function updateElementsStatus() {
+            const status = document.getElementById('elementsStatus');
+            const loginPageExists = !!loginPage;
+            const dashboardExists = !!dashboard;
+            
+            status.innerHTML = `
+                <div><strong>loginPage:</strong> ${loginPageExists ? '✅ Encontrado' : '❌ Não encontrado'}</div>
+                <div><strong>dashboard:</strong> ${dashboardExists ? '✅ Encontrado' : '❌ Não encontrado'}</div>
+                ${loginPageExists ? `<div><strong>loginPage classes:</strong> ${loginPage.className}</div>` : ''}
+                ${dashboardExists ? `<div><strong>dashboard classes:</strong> ${dashboard.className}</div>` : ''}
+                ${loginPageExists ? `<div><strong>loginPage display:</strong> ${window.getComputedStyle(loginPage).display}</div>` : ''}
+                ${dashboardExists ? `<div><strong>dashboard display:</strong> ${window.getComputedStyle(dashboard).display}</div>` : ''}
+            `;
+        }
+        
+        function checkElements() {
+            log('Verificando elementos DOM...', 'info');
+            
+            loginPage = document.getElementById('loginPage');
+            dashboard = document.getElementById('dashboard');
+            
+            if (loginPage) {
+                log('✅ loginPage encontrado', 'success');
+            } else {
+                log('❌ loginPage NÃO encontrado', 'error');
+            }
+            
+            if (dashboard) {
+                log('✅ dashboard encontrado', 'success');
+            } else {
+                log('❌ dashboard NÃO encontrado', 'error');
+            }
+            
+            updateElementsStatus();
+        }
+        
+        function testShowDashboard() {
+            log('=== TESTE: Mostrando Dashboard ===', 'info');
+            
+            if (!loginPage || !dashboard) {
+                checkElements();
+            }
+            
+            if (!loginPage || !dashboard) {
+                log('❌ Elementos não encontrados, abortando', 'error');
+                alert('Erro: Elementos não encontrados!');
+                return;
+            }
+            
+            log('Classes ANTES:', 'info');
+            log(`  loginPage: ${loginPage.className}`, 'info');
+            log(`  dashboard: ${dashboard.className}`, 'info');
+            
+            loginPage.classList.add('hidden');
+            dashboard.classList.remove('hidden');
+            
+            log('Classes DEPOIS:', 'info');
+            log(`  loginPage: ${loginPage.className}`, 'success');
+            log(`  dashboard: ${dashboard.className}`, 'success');
+            
+            log('Display computado:', 'info');
+            log(`  loginPage: ${window.getComputedStyle(loginPage).display}`, 'info');
+            log(`  dashboard: ${window.getComputedStyle(dashboard).display}`, 'success');
+            
+            updateElementsStatus();
+        }
+        
+        function testShowLogin() {
+            log('=== TESTE: Mostrando Login ===', 'info');
+            
+            if (!loginPage || !dashboard) {
+                checkElements();
+            }
+            
+            if (!loginPage || !dashboard) {
+                log('❌ Elementos não encontrados, abortando', 'error');
+                alert('Erro: Elementos não encontrados!');
+                return;
+            }
+            
+            log('Classes ANTES:', 'info');
+            log(`  loginPage: ${loginPage.className}`, 'info');
+            log(`  dashboard: ${dashboard.className}`, 'info');
+            
+            loginPage.classList.remove('hidden');
+            dashboard.classList.add('hidden');
+            
+            log('Classes DEPOIS:', 'info');
+            log(`  loginPage: ${loginPage.className}`, 'success');
+            log(`  dashboard: ${dashboard.className}`, 'success');
+            
+            log('Display computado:', 'info');
+            log(`  loginPage: ${window.getComputedStyle(loginPage).display}`, 'success');
+            log(`  dashboard: ${window.getComputedStyle(dashboard).display}`, 'info');
+            
+            updateElementsStatus();
+        }
+        
+        function simulateLogin() {
+            log('=== SIMULANDO LOGIN ===', 'warning');
+            testShowDashboard();
+        }
+        
+        // Inicializar quando o DOM estiver pronto
+        document.addEventListener('DOMContentLoaded', function() {
+            log('📄 DOM carregado', 'success');
+            checkElements();
+        });
+        
+        // Também verificar quando a página estiver completamente carregada
+        window.addEventListener('load', function() {
+            log('🚀 Página completamente carregada', 'success');
+        });
+    </script>
+</body>
+</html>
