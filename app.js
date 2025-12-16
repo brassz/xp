@@ -1076,18 +1076,19 @@ async function handleLogin(e) {
             .select('*')
             .eq('email', email)
             .eq('is_active', true)
-            .single();
+            .maybeSingle();
         
         if (userError) {
             console.error('✗ Erro do Supabase:', userError);
             console.error('Código:', userError.code);
             console.error('Mensagem:', userError.message);
             console.error('Detalhes:', userError.details);
+            throw new Error('Erro ao consultar usuário: ' + userError.message);
         }
         
-        if (userError || !userData) {
-            console.error('✗ Usuário não encontrado ou erro na consulta');
-            throw new Error('Usuário não encontrado ou inativo. Detalhes: ' + (userError?.message || 'Nenhum usuário retornado'));
+        if (!userData) {
+            console.error('✗ Usuário não encontrado ou inativo');
+            throw new Error('Usuário não encontrado ou inativo. Verifique seu email e se sua conta está ativa.');
         }
         
         console.log('✓ Usuário encontrado:', {
