@@ -1,3 +1,11 @@
+// Prevenir conflitos de declaração - usar apenas se não existir
+console.log('=== INICIALIZANDO APP.JS ===');
+console.log('Supabase SDK disponível?', typeof window.supabase !== 'undefined');
+
+// Declaração condicional de supabase para evitar erro "already declared"
+// Este é o cliente Supabase da aplicação (não confundir com window.supabase que é o SDK)
+var supabase;
+
 // Função para obter variáveis de ambiente (compatível com Vercel)
 function getEnvVar(name, fallback = '') {
     // Tentar process.env primeiro (Node.js/Vercel)
@@ -101,7 +109,9 @@ const COMPANIES_CONFIG = {
 
 // Variáveis globais para configuração atual
 let currentCompany = null;
-let supabase = null;
+
+// NOTA: supabase é criado dinamicamente em initializeCompany()
+// Não declaramos aqui para evitar conflitos com o SDK do Supabase
 
 // Função para inicializar empresa
 function initializeCompany(companyId) {
