@@ -6,6 +6,23 @@ console.log('Supabase SDK disponível?', typeof window.supabase !== 'undefined')
 // Este é o cliente Supabase da aplicação (não confundir com window.supabase que é o SDK)
 var supabase;
 
+// Função para aguardar o carregamento do Supabase
+function waitForSupabase(callback, maxAttempts = 50) {
+    let attempts = 0;
+    const checkInterval = setInterval(() => {
+        attempts++;
+        if (window.supabase) {
+            clearInterval(checkInterval);
+            console.log('✓ Supabase SDK carregado com sucesso');
+            callback();
+        } else if (attempts >= maxAttempts) {
+            clearInterval(checkInterval);
+            console.error('✗ Timeout ao aguardar carregamento do Supabase SDK');
+            alert('Erro ao carregar biblioteca Supabase. Por favor, recarregue a página.');
+        }
+    }, 100);
+}
+
 // Função para obter variáveis de ambiente (compatível com Vercel)
 function getEnvVar(name, fallback = '') {
     // Tentar process.env primeiro (Node.js/Vercel)
@@ -320,17 +337,20 @@ document.addEventListener('DOMContentLoaded', function() {
         console.error('ERRO CRÍTICO: loginForm não encontrado no DOM');
     }
     
-    console.log('Iniciando initializeApp...');
-    initializeApp();
-    
-    console.log('Iniciando setupEventListeners...');
-    setupEventListeners();
-    
-    console.log('Iniciando setupUploadcare...');
-    setupUploadcare();
-    
-    console.log('=== INICIALIZAÇÃO CONCLUÍDA ===');
-    console.log('Para testar a transição de tela manualmente, digite no console: testLogin()');
+    // Aguardar o carregamento do Supabase antes de inicializar
+    waitForSupabase(function() {
+        console.log('Iniciando initializeApp...');
+        initializeApp();
+        
+        console.log('Iniciando setupEventListeners...');
+        setupEventListeners();
+        
+        console.log('Iniciando setupUploadcare...');
+        setupUploadcare();
+        
+        console.log('=== INICIALIZAÇÃO CONCLUÍDA ===');
+        console.log('Para testar a transição de tela manualmente, digite no console: testLogin()');
+    });
 });
 
 // Inicializar aplicação
