@@ -2,6 +2,11 @@
 console.log('=== INICIALIZANDO APP.JS ===');
 console.log('Supabase SDK disponível?', typeof window.supabase !== 'undefined');
 
+// Se o Supabase não estiver disponível imediatamente, registrar para debug
+if (typeof window.supabase === 'undefined') {
+    console.warn('⚠️ Supabase SDK ainda não está disponível. Aguardando carregamento assíncrono...');
+}
+
 // Declaração condicional de supabase para evitar erro "already declared"
 // Este é o cliente Supabase da aplicação (não confundir com window.supabase que é o SDK)
 var supabase;
@@ -21,6 +26,26 @@ function waitForSupabase(callback, maxAttempts = 50) {
             alert('Erro ao carregar biblioteca Supabase. Por favor, recarregue a página.');
         }
     }, 100);
+}
+
+// Versão Promise da função waitForSupabase
+function waitForSupabaseAsync(maxAttempts = 50) {
+    return new Promise((resolve, reject) => {
+        let attempts = 0;
+        const checkInterval = setInterval(() => {
+            attempts++;
+            if (window.supabase) {
+                clearInterval(checkInterval);
+                console.log('✓ Supabase SDK carregado com sucesso');
+                resolve();
+            } else if (attempts >= maxAttempts) {
+                clearInterval(checkInterval);
+                const error = 'Timeout ao aguardar carregamento do Supabase SDK';
+                console.error('✗', error);
+                reject(new Error(error));
+            }
+        }, 100);
+    });
 }
 
 // Função para obter variáveis de ambiente (compatível com Vercel)
@@ -131,7 +156,7 @@ let currentCompany = null;
 // Não declaramos aqui para evitar conflitos com o SDK do Supabase
 
 // Função para inicializar empresa
-function initializeCompany(companyId) {
+async function initializeCompany(companyId) {
     console.log('=== initializeCompany chamado ===');
     console.log('Company ID:', companyId);
     console.log('window.supabase existe?', !!window.supabase);
@@ -151,12 +176,17 @@ function initializeCompany(companyId) {
         hasSupabaseKey: !!config.supabase.key
     });
     
-    // Verificar se Supabase está disponível
+    // Verificar se Supabase está disponível, aguardar se necessário
     if (!window.supabase) {
-        const error = 'Biblioteca Supabase não carregada! Verifique se o script está incluído no HTML.';
-        console.error(error);
-        alert(error);
-        throw new Error(error);
+        console.log('⏳ Aguardando carregamento do Supabase SDK...');
+        try {
+            await waitForSupabaseAsync();
+        } catch (waitError) {
+            const error = 'Biblioteca Supabase não carregada! Verifique se o script está incluído no HTML.';
+            console.error(error);
+            alert(error + ' Por favor, recarregue a página.');
+            throw new Error(error);
+        }
     }
     
     // Inicializar Supabase para a empresa selecionada
@@ -319,7 +349,7 @@ window.testLogin = function() {
 };
 
 // Inicialização da aplicação
-document.addEventListener('DOMContentLoaded', function() {
+document.addEventListener('DOMContentLoaded', async function() {
     console.log('=== DOM CONTENT LOADED ===');
     console.log('Timestamp:', new Date().toISOString());
     console.log('loginPage existe?', !!loginPage);
@@ -338,9 +368,11 @@ document.addEventListener('DOMContentLoaded', function() {
     }
     
     // Aguardar o carregamento do Supabase antes de inicializar
-    waitForSupabase(function() {
+    try {
+        await waitForSupabaseAsync();
+        
         console.log('Iniciando initializeApp...');
-        initializeApp();
+        await initializeApp();
         
         console.log('Iniciando setupEventListeners...');
         setupEventListeners();
@@ -350,7 +382,10 @@ document.addEventListener('DOMContentLoaded', function() {
         
         console.log('=== INICIALIZAÇÃO CONCLUÍDA ===');
         console.log('Para testar a transição de tela manualmente, digite no console: testLogin()');
-    });
+    } catch (error) {
+        console.error('Erro na inicialização:', error);
+        alert('Erro ao carregar a aplicação. Por favor, recarregue a página.');
+    }
 });
 
 // Inicializar aplicação
@@ -367,7 +402,7 @@ async function initializeApp() {
         try {
             console.log('Restaurando sessão anterior...');
             // Restaurar empresa selecionada
-            initializeCompany(savedCompany);
+            await initializeCompany(savedCompany);
             
             currentUser = JSON.parse(savedUser);
             console.log('Usuário restaurado:', currentUser);
@@ -1060,7 +1095,7 @@ async function handleLogin(e) {
     try {
         console.log('>>> PASSO 1: Inicializando empresa...');
         // Inicializar empresa selecionada
-        const config = initializeCompany(companyId);
+        const config = await initializeCompany(companyId);
         console.log('✓ Empresa inicializada:', config.name);
         
         if (!supabase) {
