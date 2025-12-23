@@ -14618,8 +14618,8 @@ function renderWeeklyPaymentsTable(payments) {
                 </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
-                    ${getPaymentMethodText(payment.payment_method)}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_type)}">
+                    ${getPaymentTypeText(payment.payment_type)}
                 </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
@@ -14659,7 +14659,19 @@ function getPaymentMethodBadgeClass(method) {
         'dinheiro': 'bg-green-100 text-green-800',
         'transferencia': 'bg-blue-100 text-blue-800',
         'cartao': 'bg-yellow-100 text-yellow-800',
-        'cheque': 'bg-gray-100 text-gray-800'
+        'cheque': 'bg-gray-100 text-gray-800',
+        'partial': 'bg-blue-100 text-blue-800',
+        'full': 'bg-green-100 text-green-800',
+        'interest': 'bg-yellow-100 text-yellow-800',
+        'principal': 'bg-blue-100 text-blue-800',
+        'adjustment': 'bg-gray-100 text-gray-800',
+        'renewal': 'bg-purple-100 text-purple-800',
+        'interest_renewal': 'bg-purple-100 text-purple-800',
+        'early_payment_partial_interest': 'bg-blue-100 text-blue-800',
+        'early_payment_interest_renewal': 'bg-purple-100 text-purple-800',
+        'early_payment_capital_reduction': 'bg-green-100 text-green-800',
+        'capital_payment': 'bg-green-100 text-green-800',
+        'partial_interest': 'bg-yellow-100 text-yellow-800'
     };
     return classes[method] || 'bg-gray-100 text-gray-800';
 }
@@ -15112,7 +15124,7 @@ function renderWeekClientsModal(clients, weekData) {
                                 </div>
                                 <div class="text-right">
                                     <p class="text-sm font-semibold text-green-400">R$ ${payment.amount.toFixed(2)}</p>
-                                    <p class="text-xs text-gray-400">${getPaymentMethodText(payment.payment_method)}</p>
+                                    <p class="text-xs text-gray-400">${getPaymentTypeText(payment.payment_type)}</p>
                                 </div>
                             </div>
                         `).join('')}
