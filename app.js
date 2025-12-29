@@ -2342,6 +2342,7 @@ async function renderLoansTable() {
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
                     <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="contactGuarantorOrEmergency('${loan.id}')" title="Contatar Avalista ou Emergência">👥</button>
+                    <button class="text-amber-400 hover:text-amber-300 mr-3" onclick="openAddClientFineModal('${loan.client_id}', '${loan.clients?.name || 'Cliente não encontrado'}')" title="Adicionar Multa ao Cliente">⚠️</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -9135,17 +9136,25 @@ async function loadClientHistory() {
         const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(clientLoanIds);
         const totalRemaining = clientRemainingAmounts.reduce((sum, amount) => sum + amount, 0);
         
+        // Buscar multas do cliente
+        const clientFines = await getClientFinesHistory(clientId);
+        const totalFines = clientFines.reduce((sum, fine) => sum + parseFloat(fine.fine_amount || 0), 0);
+        
         // Atualizar resumo do cliente
         document.getElementById('historyTotalLoans').textContent = totalLoans;
         document.getElementById('historyTotalAmount').textContent = `R$ ${totalAmount.toFixed(2)}`;
         document.getElementById('historyTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
         document.getElementById('historyRemainingAmount').textContent = `R$ ${totalRemaining.toFixed(2)}`;
+        document.getElementById('historyTotalFines').textContent = `R$ ${totalFines.toFixed(2)}`;
         
         // Mostrar resumo do cliente
         document.getElementById('clientSummary').classList.remove('hidden');
         
         // Renderizar tabela de empréstimos (ativos e quitados)
         renderHistoryLoansTable(allClientLoans, paidLoansWithClient || []);
+        
+        // Renderizar tabela de multas
+        renderHistoryFinesTable(clientFines);
         
         // Renderizar tabela de pagamentos
         renderHistoryPaymentsTable(clientPayments, clientLoans || [], paidLoansWithClient || []);
@@ -9226,6 +9235,41 @@ function renderHistoryLoansTable(allClientLoans, paidLoans) {
                         <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')" title="Ver histórico de pagamentos">💰</button>
                     `}
                 </td>
+            </tr>
+        `;
+    }
+    
+    tbody.innerHTML = tableHTML;
+}
+
+// Função para renderizar tabela de multas do histórico
+function renderHistoryFinesTable(clientFines) {
+    const tbody = document.getElementById('historyFinesTableBody');
+    
+    if (!clientFines || clientFines.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="px-6 py-8 text-center text-gray-400">
+                    Nenhuma multa encontrada para este cliente
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    let tableHTML = '';
+    for (const fine of clientFines) {
+        const fineAmount = parseFloat(fine.fine_amount || 0);
+        const fineDate = fine.fine_date ? formatDate(fine.fine_date) : '-';
+        const description = fine.description || '-';
+        const createdBy = fine.users?.name || 'Sistema';
+        
+        tableHTML += `
+            <tr class="table-row hover:bg-gray-700 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${fineDate}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-400">R$ ${fineAmount.toFixed(2)}</td>
+                <td class="px-6 py-4 text-sm text-gray-300">${description}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${createdBy}</td>
             </tr>
         `;
     }
@@ -17522,3 +17566,152 @@ async function initNotifications() {
 
 // Atualizar notificações periodicamente (a cada 5 minutos)
 setInterval(initNotifications, 5 * 60 * 1000);
+
+// =====================================================
+// FUNÇÕES PARA GERENCIAR MULTAS DE CLIENTES
+// =====================================================
+
+// Abrir modal para adicionar multa ao cliente
+function openAddClientFineModal(clientId, clientName) {
+    const modal = document.getElementById('addClientFineModal');
+    const clientIdInput = document.getElementById('fineClientId');
+    const clientNameInput = document.getElementById('fineClientName');
+    const clientNameDisplay = document.getElementById('fineClientNameDisplay');
+    const fineAmountInput = document.getElementById('fineAmount');
+    const fineDescriptionInput = document.getElementById('fineDescription');
+    
+    // Limpar campos
+    clientIdInput.value = clientId;
+    clientNameInput.value = clientName;
+    clientNameDisplay.textContent = clientName;
+    fineAmountInput.value = '';
+    fineDescriptionInput.value = '';
+    
+    // Mostrar modal
+    modal.classList.remove('hidden');
+}
+
+// Fechar modal de multa
+function closeAddClientFineModal() {
+    const modal = document.getElementById('addClientFineModal');
+    modal.classList.add('hidden');
+}
+
+// Salvar multa do cliente
+async function saveClientFine(event) {
+    event.preventDefault();
+    
+    const clientId = document.getElementById('fineClientId').value;
+    const clientName = document.getElementById('fineClientName').value;
+    const fineAmount = parseFloat(document.getElementById('fineAmount').value);
+    const fineDescription = document.getElementById('fineDescription').value;
+    
+    if (!clientId || !fineAmount || fineAmount <= 0) {
+        alert('Por favor, preencha todos os campos obrigatórios corretamente.');
+        return;
+    }
+    
+    try {
+        // Buscar ID do usuário atual
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+            alert('Erro: Usuário não autenticado');
+            return;
+        }
+        
+        // Inserir multa no banco de dados
+        const { data, error } = await supabase
+            .from('client_fines')
+            .insert([
+                {
+                    client_id: clientId,
+                    company_id: currentCompany,
+                    fine_amount: fineAmount,
+                    description: fineDescription || null,
+                    fine_date: new Date().toISOString(),
+                    created_by: user.id
+                }
+            ])
+            .select();
+        
+        if (error) {
+            console.error('Erro ao adicionar multa:', error);
+            alert('Erro ao adicionar multa: ' + error.message);
+            return;
+        }
+        
+        // Fechar modal
+        closeAddClientFineModal();
+        
+        // Mostrar mensagem de sucesso
+        alert(`Multa de R$ ${fineAmount.toFixed(2)} adicionada ao cliente ${clientName} com sucesso!`);
+        
+        // Recarregar dados se estivermos na aba de histórico
+        const historySection = document.getElementById('history');
+        if (historySection && !historySection.classList.contains('hidden')) {
+            await loadClientHistory();
+        }
+        
+    } catch (error) {
+        console.error('Erro ao salvar multa:', error);
+        alert('Erro ao salvar multa: ' + error.message);
+    }
+}
+
+// Buscar total de multas de um cliente
+async function getClientTotalFines(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('client_fines')
+            .select('fine_amount')
+            .eq('client_id', clientId)
+            .eq('company_id', currentCompany);
+        
+        if (error) {
+            console.error('Erro ao buscar multas do cliente:', error);
+            return 0;
+        }
+        
+        const totalFines = data.reduce((sum, fine) => sum + parseFloat(fine.fine_amount), 0);
+        return totalFines;
+        
+    } catch (error) {
+        console.error('Erro ao calcular total de multas:', error);
+        return 0;
+    }
+}
+
+// Buscar histórico de multas de um cliente
+async function getClientFinesHistory(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('client_fines')
+            .select(`
+                *,
+                users:created_by (name)
+            `)
+            .eq('client_id', clientId)
+            .eq('company_id', currentCompany)
+            .order('fine_date', { ascending: false });
+        
+        if (error) {
+            console.error('Erro ao buscar histórico de multas:', error);
+            return [];
+        }
+        
+        return data || [];
+        
+    } catch (error) {
+        console.error('Erro ao buscar histórico de multas:', error);
+        return [];
+    }
+}
+
+// Adicionar event listener ao formulário de multa
+document.addEventListener('DOMContentLoaded', function() {
+    const addClientFineForm = document.getElementById('addClientFineForm');
+    if (addClientFineForm) {
+        addClientFineForm.addEventListener('submit', saveClientFine);
+    }
+});
