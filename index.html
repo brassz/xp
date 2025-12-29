@@ -4194,7 +4194,7 @@
                 <button onclick="closeAddClientFineModal()" class="text-gray-400 hover:text-white text-2xl">&times;</button>
             </div>
             
-            <form id="addClientFineForm" class="space-y-4">
+            <div id="addClientFineForm" class="space-y-4">
                 <input type="hidden" id="fineClientId" value="">
                 <input type="hidden" id="fineClientName" value="">
                 
@@ -4239,12 +4239,12 @@
                             class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors">
                         Cancelar
                     </button>
-                    <button type="submit" 
+                    <button type="button" id="submitFineBtn"
                             class="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors">
                         Adicionar Multa
                     </button>
                 </div>
-            </form>
+            </div>
         </div>
     </div>
 

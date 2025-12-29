@@ -17631,13 +17631,182 @@ function closeAddClientFineModal() {
     modal.classList.add('hidden');
 }
 
-// Salvar multa do cliente
+// Nova função para salvar multa SEM usar form submit
+async function saveClientFineDirectly() {
+    console.log('\n\n');
+    console.log('╔═══════════════════════════════════════════════════════╗');
+    console.log('║  🚀 FUNÇÃO saveClientFineDirectly CHAMADA (NOVA!)   ║');
+    console.log('╚═══════════════════════════════════════════════════════╝');
+    console.log('');
+    
+    // Pausar 100ms para garantir que o valor foi digitado
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 1. CAPTURAR ELEMENTOS DIRETAMENTE
+    console.log('📍 PASSO 1: Capturando elementos do DOM...');
+    const clientIdInput = document.getElementById('fineClientId');
+    const clientNameInput = document.getElementById('fineClientName');
+    const fineAmountInput = document.getElementById('fineAmount');
+    const fineDescriptionInput = document.getElementById('fineDescription');
+    
+    console.log('   - clientIdInput:', clientIdInput ? '✅ Encontrado' : '❌ NULL');
+    console.log('   - clientNameInput:', clientNameInput ? '✅ Encontrado' : '❌ NULL');
+    console.log('   - fineAmountInput:', fineAmountInput ? '✅ Encontrado' : '❌ NULL');
+    console.log('   - fineDescriptionInput:', fineDescriptionInput ? '✅ Encontrado' : '❌ NULL');
+    
+    if (!fineAmountInput) {
+        alert('❌ ERRO: Campo de valor não encontrado!\n\nPor favor, recarregue a página.');
+        console.error('❌ CRÍTICO: fineAmountInput é NULL');
+        return;
+    }
+    
+    // 2. LER VALORES DIRETAMENTE DO DOM
+    console.log('\n📍 PASSO 2: Lendo valores dos campos...');
+    const clientId = clientIdInput ? clientIdInput.value : '';
+    const clientName = clientNameInput ? clientNameInput.value : '';
+    const fineAmountRaw = fineAmountInput.value;
+    const fineDescription = fineDescriptionInput ? fineDescriptionInput.value : '';
+    
+    console.log('   📝 Valores lidos:');
+    console.log('      clientId:', clientId);
+    console.log('      clientName:', clientName);
+    console.log('      fineAmountRaw:', `"${fineAmountRaw}"`);
+    console.log('      fineDescription:', fineDescription || '(vazio)');
+    
+    // 3. VALIDAR CLIENT ID
+    console.log('\n📍 PASSO 3: Validando clientId...');
+    if (!clientId || clientId.trim() === '') {
+        alert('❌ Erro: Cliente não identificado!\n\nPor favor, feche o modal e tente novamente.');
+        console.error('❌ FALHA: clientId está vazio');
+        return;
+    }
+    console.log('   ✅ clientId válido');
+    
+    // 4. VALIDAR VALOR DA MULTA
+    console.log('\n📍 PASSO 4: Validando valor da multa...');
+    console.log('   Valor bruto:', `"${fineAmountRaw}"`);
+    console.log('   Tipo:', typeof fineAmountRaw);
+    console.log('   Length:', fineAmountRaw ? fineAmountRaw.length : 0);
+    
+    if (!fineAmountRaw || fineAmountRaw.trim() === '') {
+        alert('❌ O campo "Valor da Multa" está vazio!\n\nPor favor, digite o valor da multa.\n\nExemplo: 50 ou 50.00 ou 50,00');
+        console.error('❌ FALHA: Campo está vazio');
+        console.error('   Raw value:', fineAmountRaw);
+        console.error('   Input element value:', fineAmountInput.value);
+        fineAmountInput.focus();
+        fineAmountInput.select();
+        return;
+    }
+    
+    // 5. NORMALIZAR E CONVERTER
+    console.log('\n📍 PASSO 5: Normalizando e convertendo valor...');
+    const trimmed = fineAmountRaw.trim();
+    const normalized = trimmed.replace(',', '.');
+    const fineAmount = parseFloat(normalized);
+    
+    console.log('   Trimmed:', `"${trimmed}"`);
+    console.log('   Normalized:', `"${normalized}"`);
+    console.log('   Parsed:', fineAmount);
+    console.log('   isNaN?', isNaN(fineAmount));
+    
+    if (isNaN(fineAmount)) {
+        alert(`❌ Valor inválido!\n\nVocê digitou: "${fineAmountRaw}"\n\nPor favor, digite apenas números.\n\nExemplos válidos:\n- 50\n- 50.00\n- 50,00`);
+        console.error('❌ FALHA: parseFloat retornou NaN');
+        fineAmountInput.focus();
+        fineAmountInput.select();
+        return;
+    }
+    
+    if (fineAmount <= 0) {
+        alert(`❌ O valor deve ser maior que zero!\n\nValor digitado: R$ ${fineAmount.toFixed(2)}\n\nPor favor, digite um valor positivo.`);
+        console.error('❌ FALHA: Valor <= 0');
+        fineAmountInput.focus();
+        fineAmountInput.select();
+        return;
+    }
+    
+    console.log('   ✅ Valor válido: R$', fineAmount.toFixed(2));
+    
+    // 6. SALVAR NO BANCO
+    console.log('\n📍 PASSO 6: Salvando no banco de dados...');
+    
+    try {
+        // Buscar ID do usuário atual
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+            alert('❌ Erro: Usuário não autenticado!\n\nPor favor, faça login novamente.');
+            console.error('❌ FALHA: Usuário não autenticado');
+            return;
+        }
+        
+        console.log('   ✅ Usuário autenticado:', user.id);
+        
+        // Inserir multa
+        console.log('   📤 Enviando para Supabase...');
+        const { data, error } = await supabase
+            .from('client_fines')
+            .insert([
+                {
+                    client_id: clientId,
+                    company_id: currentCompany,
+                    fine_amount: fineAmount,
+                    description: fineDescription || null,
+                    fine_date: new Date().toISOString(),
+                    created_by: user.id
+                }
+            ])
+            .select();
+        
+        if (error) {
+            console.error('❌ Erro do Supabase:', error);
+            alert('❌ Erro ao adicionar multa:\n\n' + error.message + '\n\nVerifique:\n- Tabela client_fines existe?\n- Permissões configuradas?');
+            return;
+        }
+        
+        console.log('   ✅ Multa salva com sucesso!');
+        console.log('   📊 Dados retornados:', data);
+        
+        // Fechar modal
+        closeAddClientFineModal();
+        
+        // Mostrar mensagem de sucesso
+        const successMsg = `✅ Multa adicionada com sucesso!\n\nCliente: ${clientName}\nValor: R$ ${fineAmount.toFixed(2)}`;
+        
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage(successMsg);
+        } else {
+            alert(successMsg);
+        }
+        
+        console.log('\n╔═══════════════════════════════════════════════════════╗');
+        console.log('║              ✅ SUCESSO TOTAL! ✅                    ║');
+        console.log('╚═══════════════════════════════════════════════════════╝\n');
+        
+        // Recarregar histórico se estiver aberto
+        const historySection = document.getElementById('history');
+        if (historySection && !historySection.classList.contains('hidden')) {
+            console.log('🔄 Recarregando histórico do cliente...');
+            await loadClientHistory();
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao salvar multa:', error);
+        console.error('   Stack:', error.stack);
+        alert('❌ Erro ao salvar multa:\n\n' + error.message);
+    }
+}
+
+// Salvar multa do cliente (função antiga mantida para compatibilidade)
 async function saveClientFine(event) {
-    console.log('🚀 === FUNÇÃO saveClientFine CHAMADA ===');
+    console.log('⚠️ === FUNÇÃO ANTIGA saveClientFine CHAMADA ===');
+    console.log('⚠️ Esta função não deveria ser chamada mais!');
     console.log('📋 Evento recebido:', event);
     
-    event.preventDefault();
-    console.log('✅ preventDefault() executado');
+    if (event) {
+        event.preventDefault();
+        console.log('✅ preventDefault() executado');
+    }
     
     // Pegar elementos
     const clientIdInput = document.getElementById('fineClientId');
@@ -17840,11 +18009,27 @@ async function getClientFinesHistory(clientId) {
     }
 }
 
-// Adicionar event listener ao formulário de multa
+// Adicionar event listener ao BOTÃO de multa (não ao form)
 document.addEventListener('DOMContentLoaded', function() {
-    const addClientFineForm = document.getElementById('addClientFineForm');
-    if (addClientFineForm) {
-        addClientFineForm.addEventListener('submit', saveClientFine);
+    console.log('🎬 DOM loaded - Configurando botão de multa...');
+    
+    const submitFineBtn = document.getElementById('submitFineBtn');
+    if (submitFineBtn) {
+        console.log('✅ Botão de multa encontrado!');
+        
+        // Remover listeners antigos se existirem
+        const newButton = submitFineBtn.cloneNode(true);
+        submitFineBtn.parentNode.replaceChild(newButton, submitFineBtn);
+        
+        // Adicionar listener ao botão CLONADO
+        newButton.addEventListener('click', function(e) {
+            console.log('🖱️ BOTÃO CLICADO!');
+            saveClientFineDirectly();
+        });
+        
+        console.log('✅ Event listener adicionado ao botão');
+    } else {
+        console.error('❌ Botão submitFineBtn NÃO encontrado!');
     }
     
     // Adicionar preview do valor da multa enquanto digita
