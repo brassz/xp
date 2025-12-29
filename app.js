@@ -2342,6 +2342,7 @@ async function renderLoansTable() {
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
                     <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="contactGuarantorOrEmergency('${loan.id}')" title="Contatar Avalista ou Emergência">👥</button>
+                    <button class="text-amber-400 hover:text-amber-300 mr-3" data-client-id="${loan.client_id}" data-client-name="${(loan.clients?.name || 'Cliente não encontrado').replace(/"/g, '&quot;')}" onclick="openAddClientFineModalSafe(this)" title="Adicionar Multa ao Cliente">⚠️</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -9135,17 +9136,25 @@ async function loadClientHistory() {
         const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(clientLoanIds);
         const totalRemaining = clientRemainingAmounts.reduce((sum, amount) => sum + amount, 0);
         
+        // Buscar multas do cliente
+        const clientFines = await getClientFinesHistory(clientId);
+        const totalFines = clientFines.reduce((sum, fine) => sum + parseFloat(fine.fine_amount || 0), 0);
+        
         // Atualizar resumo do cliente
         document.getElementById('historyTotalLoans').textContent = totalLoans;
         document.getElementById('historyTotalAmount').textContent = `R$ ${totalAmount.toFixed(2)}`;
         document.getElementById('historyTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
         document.getElementById('historyRemainingAmount').textContent = `R$ ${totalRemaining.toFixed(2)}`;
+        document.getElementById('historyTotalFines').textContent = `R$ ${totalFines.toFixed(2)}`;
         
         // Mostrar resumo do cliente
         document.getElementById('clientSummary').classList.remove('hidden');
         
         // Renderizar tabela de empréstimos (ativos e quitados)
         renderHistoryLoansTable(allClientLoans, paidLoansWithClient || []);
+        
+        // Renderizar tabela de multas
+        renderHistoryFinesTable(clientFines);
         
         // Renderizar tabela de pagamentos
         renderHistoryPaymentsTable(clientPayments, clientLoans || [], paidLoansWithClient || []);
@@ -9226,6 +9235,41 @@ function renderHistoryLoansTable(allClientLoans, paidLoans) {
                         <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')" title="Ver histórico de pagamentos">💰</button>
                     `}
                 </td>
+            </tr>
+        `;
+    }
+    
+    tbody.innerHTML = tableHTML;
+}
+
+// Função para renderizar tabela de multas do histórico
+function renderHistoryFinesTable(clientFines) {
+    const tbody = document.getElementById('historyFinesTableBody');
+    
+    if (!clientFines || clientFines.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="4" class="px-6 py-8 text-center text-gray-400">
+                    Nenhuma multa encontrada para este cliente
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    let tableHTML = '';
+    for (const fine of clientFines) {
+        const fineAmount = parseFloat(fine.fine_amount || 0);
+        const fineDate = fine.fine_date ? formatDate(fine.fine_date) : '-';
+        const description = fine.description || '-';
+        const createdBy = fine.users?.name || 'Sistema';
+        
+        tableHTML += `
+            <tr class="table-row hover:bg-gray-700 transition-colors">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${fineDate}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm font-semibold text-red-400">R$ ${fineAmount.toFixed(2)}</td>
+                <td class="px-6 py-4 text-sm text-gray-300">${description}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${createdBy}</td>
             </tr>
         `;
     }
@@ -17522,3 +17566,517 @@ async function initNotifications() {
 
 // Atualizar notificações periodicamente (a cada 5 minutos)
 setInterval(initNotifications, 5 * 60 * 1000);
+
+// =====================================================
+// FUNÇÕES PARA GERENCIAR MULTAS DE CLIENTES
+// =====================================================
+
+// Função auxiliar para abrir modal de forma segura usando data attributes
+function openAddClientFineModalSafe(button) {
+    const clientId = button.getAttribute('data-client-id');
+    const clientName = button.getAttribute('data-client-name');
+    
+    console.log('=== openAddClientFineModalSafe ===');
+    console.log('clientId:', clientId);
+    console.log('clientName:', clientName);
+    
+    if (!clientId) {
+        alert('Erro: Cliente não identificado. Por favor, recarregue a página e tente novamente.');
+        return;
+    }
+    
+    openAddClientFineModal(clientId, clientName);
+}
+
+// Abrir modal para adicionar multa ao cliente
+function openAddClientFineModal(clientId, clientName) {
+    console.log('=== openAddClientFineModal ===');
+    console.log('clientId:', clientId);
+    console.log('clientName:', clientName);
+    
+    const modal = document.getElementById('addClientFineModal');
+    const clientIdInput = document.getElementById('fineClientId');
+    const clientNameInput = document.getElementById('fineClientName');
+    const clientNameDisplay = document.getElementById('fineClientNameDisplay');
+    const fineAmountInput = document.getElementById('fineAmount');
+    const fineDescriptionInput = document.getElementById('fineDescription');
+    
+    if (!modal || !clientIdInput || !clientNameInput || !clientNameDisplay || !fineAmountInput) {
+        console.error('Elementos do modal não encontrados!');
+        alert('Erro: Modal não encontrado. Por favor, recarregue a página.');
+        return;
+    }
+    
+    // Limpar campos
+    clientIdInput.value = clientId || '';
+    clientNameInput.value = clientName || '';
+    clientNameDisplay.textContent = clientName || 'Cliente';
+    fineAmountInput.value = '';
+    if (fineDescriptionInput) {
+        fineDescriptionInput.value = '';
+    }
+    
+    // Mostrar modal
+    modal.classList.remove('hidden');
+    
+    // Focar no campo de valor
+    setTimeout(() => {
+        fineAmountInput.focus();
+    }, 100);
+}
+
+// Fechar modal de multa
+function closeAddClientFineModal() {
+    const modal = document.getElementById('addClientFineModal');
+    modal.classList.add('hidden');
+}
+
+// Nova função para salvar multa SEM usar form submit
+async function saveClientFineDirectly() {
+    console.log('\n\n');
+    console.log('╔═══════════════════════════════════════════════════════╗');
+    console.log('║  🚀 FUNÇÃO saveClientFineDirectly CHAMADA (NOVA!)   ║');
+    console.log('╚═══════════════════════════════════════════════════════╝');
+    console.log('');
+    
+    // Pausar 100ms para garantir que o valor foi digitado
+    await new Promise(resolve => setTimeout(resolve, 100));
+    
+    // 1. CAPTURAR ELEMENTOS DIRETAMENTE
+    console.log('📍 PASSO 1: Capturando elementos do DOM...');
+    const clientIdInput = document.getElementById('fineClientId');
+    const clientNameInput = document.getElementById('fineClientName');
+    const fineAmountInput = document.getElementById('fineAmount');
+    const fineDescriptionInput = document.getElementById('fineDescription');
+    
+    console.log('   - clientIdInput:', clientIdInput ? '✅ Encontrado' : '❌ NULL');
+    console.log('   - clientNameInput:', clientNameInput ? '✅ Encontrado' : '❌ NULL');
+    console.log('   - fineAmountInput:', fineAmountInput ? '✅ Encontrado' : '❌ NULL');
+    console.log('   - fineDescriptionInput:', fineDescriptionInput ? '✅ Encontrado' : '❌ NULL');
+    
+    if (!fineAmountInput) {
+        alert('❌ ERRO: Campo de valor não encontrado!\n\nPor favor, recarregue a página.');
+        console.error('❌ CRÍTICO: fineAmountInput é NULL');
+        return;
+    }
+    
+    // 2. LER VALORES DIRETAMENTE DO DOM
+    console.log('\n📍 PASSO 2: Lendo valores dos campos...');
+    const clientId = clientIdInput ? clientIdInput.value : '';
+    const clientName = clientNameInput ? clientNameInput.value : '';
+    const fineAmountRaw = fineAmountInput.value;
+    const fineDescription = fineDescriptionInput ? fineDescriptionInput.value : '';
+    
+    console.log('   📝 Valores lidos:');
+    console.log('      clientId:', clientId);
+    console.log('      clientName:', clientName);
+    console.log('      fineAmountRaw:', `"${fineAmountRaw}"`);
+    console.log('      fineDescription:', fineDescription || '(vazio)');
+    
+    // 3. VALIDAR CLIENT ID
+    console.log('\n📍 PASSO 3: Validando clientId...');
+    if (!clientId || clientId.trim() === '') {
+        alert('❌ Erro: Cliente não identificado!\n\nPor favor, feche o modal e tente novamente.');
+        console.error('❌ FALHA: clientId está vazio');
+        return;
+    }
+    console.log('   ✅ clientId válido');
+    
+    // 4. VALIDAR VALOR DA MULTA
+    console.log('\n📍 PASSO 4: Validando valor da multa...');
+    console.log('   Valor bruto:', `"${fineAmountRaw}"`);
+    console.log('   Tipo:', typeof fineAmountRaw);
+    console.log('   Length:', fineAmountRaw ? fineAmountRaw.length : 0);
+    
+    if (!fineAmountRaw || fineAmountRaw.trim() === '') {
+        alert('❌ O campo "Valor da Multa" está vazio!\n\nPor favor, digite o valor da multa.\n\nExemplo: 50 ou 50.00 ou 50,00');
+        console.error('❌ FALHA: Campo está vazio');
+        console.error('   Raw value:', fineAmountRaw);
+        console.error('   Input element value:', fineAmountInput.value);
+        fineAmountInput.focus();
+        fineAmountInput.select();
+        return;
+    }
+    
+    // 5. NORMALIZAR E CONVERTER
+    console.log('\n📍 PASSO 5: Normalizando e convertendo valor...');
+    const trimmed = fineAmountRaw.trim();
+    const normalized = trimmed.replace(',', '.');
+    const fineAmount = parseFloat(normalized);
+    
+    console.log('   Trimmed:', `"${trimmed}"`);
+    console.log('   Normalized:', `"${normalized}"`);
+    console.log('   Parsed:', fineAmount);
+    console.log('   isNaN?', isNaN(fineAmount));
+    
+    if (isNaN(fineAmount)) {
+        alert(`❌ Valor inválido!\n\nVocê digitou: "${fineAmountRaw}"\n\nPor favor, digite apenas números.\n\nExemplos válidos:\n- 50\n- 50.00\n- 50,00`);
+        console.error('❌ FALHA: parseFloat retornou NaN');
+        fineAmountInput.focus();
+        fineAmountInput.select();
+        return;
+    }
+    
+    if (fineAmount <= 0) {
+        alert(`❌ O valor deve ser maior que zero!\n\nValor digitado: R$ ${fineAmount.toFixed(2)}\n\nPor favor, digite um valor positivo.`);
+        console.error('❌ FALHA: Valor <= 0');
+        fineAmountInput.focus();
+        fineAmountInput.select();
+        return;
+    }
+    
+    console.log('   ✅ Valor válido: R$', fineAmount.toFixed(2));
+    
+    // 6. SALVAR NO BANCO
+    console.log('\n📍 PASSO 6: Salvando no banco de dados...');
+    
+    try {
+        // Buscar ID do usuário atual
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+            alert('❌ Erro: Usuário não autenticado!\n\nPor favor, faça login novamente.');
+            console.error('❌ FALHA: Usuário não autenticado');
+            return;
+        }
+        
+        console.log('   ✅ Usuário autenticado:', user.id);
+        
+        // Inserir multa
+        console.log('   📤 Enviando para Supabase...');
+        const { data, error } = await supabase
+            .from('client_fines')
+            .insert([
+                {
+                    client_id: clientId,
+                    company_id: currentCompany,
+                    fine_amount: fineAmount,
+                    description: fineDescription || null,
+                    fine_date: new Date().toISOString(),
+                    created_by: user.id
+                }
+            ])
+            .select();
+        
+        if (error) {
+            console.error('❌ Erro do Supabase:', error);
+            alert('❌ Erro ao adicionar multa:\n\n' + error.message + '\n\nVerifique:\n- Tabela client_fines existe?\n- Permissões configuradas?');
+            return;
+        }
+        
+        console.log('   ✅ Multa salva com sucesso!');
+        console.log('   📊 Dados retornados:', data);
+        
+        // Fechar modal
+        closeAddClientFineModal();
+        
+        // Mostrar mensagem de sucesso
+        const successMsg = `✅ Multa adicionada com sucesso!\n\nCliente: ${clientName}\nValor: R$ ${fineAmount.toFixed(2)}`;
+        
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage(successMsg);
+        } else {
+            alert(successMsg);
+        }
+        
+        console.log('\n╔═══════════════════════════════════════════════════════╗');
+        console.log('║              ✅ SUCESSO TOTAL! ✅                    ║');
+        console.log('╚═══════════════════════════════════════════════════════╝\n');
+        
+        // Recarregar histórico se estiver aberto
+        const historySection = document.getElementById('history');
+        if (historySection && !historySection.classList.contains('hidden')) {
+            console.log('🔄 Recarregando histórico do cliente...');
+            await loadClientHistory();
+        }
+        
+    } catch (error) {
+        console.error('❌ Erro ao salvar multa:', error);
+        console.error('   Stack:', error.stack);
+        alert('❌ Erro ao salvar multa:\n\n' + error.message);
+    }
+}
+
+// Salvar multa do cliente (função antiga mantida para compatibilidade)
+async function saveClientFine(event) {
+    console.log('⚠️ === FUNÇÃO ANTIGA saveClientFine CHAMADA ===');
+    console.log('⚠️ Esta função não deveria ser chamada mais!');
+    console.log('📋 Evento recebido:', event);
+    
+    if (event) {
+        event.preventDefault();
+        console.log('✅ preventDefault() executado');
+    }
+    
+    // Pegar elementos
+    const clientIdInput = document.getElementById('fineClientId');
+    const clientNameInput = document.getElementById('fineClientName');
+    const fineAmountInput = document.getElementById('fineAmount');
+    const fineDescriptionInput = document.getElementById('fineDescription');
+    
+    console.log('\n🔍 === VERIFICANDO ELEMENTOS ===');
+    console.log('clientIdInput existe?', !!clientIdInput);
+    console.log('clientNameInput existe?', !!clientNameInput);
+    console.log('fineAmountInput existe?', !!fineAmountInput);
+    console.log('fineDescriptionInput existe?', !!fineDescriptionInput);
+    
+    if (!fineAmountInput) {
+        alert('❌ ERRO CRÍTICO: Campo de valor não encontrado! Recarregue a página.');
+        console.error('❌ fineAmountInput é null!');
+        return;
+    }
+    
+    // Pegar valores
+    const clientId = clientIdInput ? clientIdInput.value : '';
+    const clientName = clientNameInput ? clientNameInput.value : '';
+    let fineAmountValue = fineAmountInput.value;
+    const fineDescription = fineDescriptionInput ? fineDescriptionInput.value : '';
+    
+    // Debug - vamos ver o que está acontecendo
+    console.log('\n💰 === DEBUG MULTA - VALORES ===');
+    console.log('1. Valor ORIGINAL digitado:', fineAmountValue);
+    console.log('2. Length do valor:', fineAmountValue ? fineAmountValue.length : 0);
+    console.log('3. Tipo do valor:', typeof fineAmountValue);
+    console.log('4. clientId:', clientId);
+    console.log('5. clientName:', clientName);
+    
+    console.log('\n✔️ === INICIANDO VALIDAÇÕES ===');
+    
+    // Validação do cliente
+    console.log('Validando clientId...', clientId);
+    if (!clientId || clientId.trim() === '') {
+        alert('❌ Erro: Cliente não identificado. Por favor, tente novamente.');
+        console.error('❌ FALHA: clientId inválido:', clientId);
+        return;
+    }
+    console.log('✅ clientId OK');
+    
+    // Verificar se o campo está vazio
+    console.log('Validando fineAmountValue...', { 
+        value: fineAmountValue, 
+        isEmpty: !fineAmountValue,
+        trimEmpty: fineAmountValue ? fineAmountValue.trim() === '' : 'N/A'
+    });
+    
+    if (!fineAmountValue || fineAmountValue.trim() === '') {
+        alert('❌ Por favor, digite o valor da multa.\n\nO campo está vazio!');
+        console.error('❌ FALHA: Campo de valor está vazio');
+        console.error('   - fineAmountValue:', fineAmountValue);
+        console.error('   - É null/undefined?', fineAmountValue == null);
+        console.error('   - Após trim:', fineAmountValue ? fineAmountValue.trim() : 'N/A');
+        fineAmountInput.focus();
+        return;
+    }
+    console.log('✅ Campo não está vazio');
+    
+    // Normalizar o valor: aceitar vírgula OU ponto como separador decimal
+    fineAmountValue = fineAmountValue.trim();
+    
+    // Substituir vírgula por ponto para o parseFloat funcionar
+    const normalizedValue = fineAmountValue.replace(',', '.');
+    
+    console.log('5. Valor APÓS remover espaços:', fineAmountValue);
+    console.log('6. Valor NORMALIZADO (vírgula→ponto):', normalizedValue);
+    
+    // Converter para número
+    const fineAmount = parseFloat(normalizedValue);
+    
+    console.log('7. Valor CONVERTIDO para número:', fineAmount);
+    console.log('8. É NaN?', isNaN(fineAmount));
+    console.log('9. É menor ou igual a zero?', fineAmount <= 0);
+    console.log('=== FIM DEBUG ===\n');
+    
+    // Validação do valor
+    if (isNaN(fineAmount)) {
+        alert('❌ Valor inválido!\n\nVocê digitou: "' + fineAmountValue + '"\n\nPor favor, digite apenas números.\nExemplos válidos: 50 ou 50.00 ou 50,00');
+        console.error('❌ parseFloat retornou NaN para:', normalizedValue);
+        document.getElementById('fineAmount').select();
+        return;
+    }
+    
+    if (fineAmount <= 0) {
+        alert('❌ O valor da multa deve ser maior que zero!\n\nValor digitado: R$ ' + fineAmount.toFixed(2) + '\n\nPor favor, digite um valor positivo.');
+        console.error('❌ Valor é zero ou negativo:', fineAmount);
+        document.getElementById('fineAmount').select();
+        return;
+    }
+    
+    console.log('✅ Validação passou! Valor aceito: R$', fineAmount.toFixed(2));
+    
+    try {
+        // Buscar ID do usuário atual
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+            alert('Erro: Usuário não autenticado');
+            return;
+        }
+        
+        // Inserir multa no banco de dados
+        const { data, error } = await supabase
+            .from('client_fines')
+            .insert([
+                {
+                    client_id: clientId,
+                    company_id: currentCompany,
+                    fine_amount: fineAmount,
+                    description: fineDescription || null,
+                    fine_date: new Date().toISOString(),
+                    created_by: user.id
+                }
+            ])
+            .select();
+        
+        if (error) {
+            console.error('Erro ao adicionar multa:', error);
+            console.error('Detalhes do erro:', JSON.stringify(error, null, 2));
+            alert('Erro ao adicionar multa: ' + error.message);
+            return;
+        }
+        
+        console.log('Multa adicionada com sucesso:', data);
+        
+        // Fechar modal
+        closeAddClientFineModal();
+        
+        // Mostrar mensagem de sucesso
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage(`Multa de R$ ${fineAmount.toFixed(2)} adicionada ao cliente ${clientName} com sucesso!`);
+        } else {
+            alert(`✅ Multa de R$ ${fineAmount.toFixed(2)} adicionada ao cliente ${clientName} com sucesso!`);
+        }
+        
+        // Recarregar dados se estivermos na aba de histórico
+        const historySection = document.getElementById('history');
+        if (historySection && !historySection.classList.contains('hidden')) {
+            console.log('Recarregando histórico do cliente...');
+            await loadClientHistory();
+        }
+        
+    } catch (error) {
+        console.error('Erro ao salvar multa:', error);
+        console.error('Stack trace:', error.stack);
+        alert('Erro ao salvar multa: ' + error.message);
+    }
+}
+
+// Buscar total de multas de um cliente
+async function getClientTotalFines(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('client_fines')
+            .select('fine_amount')
+            .eq('client_id', clientId)
+            .eq('company_id', currentCompany);
+        
+        if (error) {
+            console.error('Erro ao buscar multas do cliente:', error);
+            return 0;
+        }
+        
+        const totalFines = data.reduce((sum, fine) => sum + parseFloat(fine.fine_amount), 0);
+        return totalFines;
+        
+    } catch (error) {
+        console.error('Erro ao calcular total de multas:', error);
+        return 0;
+    }
+}
+
+// Buscar histórico de multas de um cliente
+async function getClientFinesHistory(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('client_fines')
+            .select(`
+                *,
+                users:created_by (name)
+            `)
+            .eq('client_id', clientId)
+            .eq('company_id', currentCompany)
+            .order('fine_date', { ascending: false });
+        
+        if (error) {
+            console.error('Erro ao buscar histórico de multas:', error);
+            return [];
+        }
+        
+        return data || [];
+        
+    } catch (error) {
+        console.error('Erro ao buscar histórico de multas:', error);
+        return [];
+    }
+}
+
+// Adicionar event listener ao BOTÃO de multa (não ao form)
+document.addEventListener('DOMContentLoaded', function() {
+    console.log('🎬 DOM loaded - Configurando botão de multa...');
+    
+    const submitFineBtn = document.getElementById('submitFineBtn');
+    if (submitFineBtn) {
+        console.log('✅ Botão de multa encontrado!');
+        
+        // Remover listeners antigos se existirem
+        const newButton = submitFineBtn.cloneNode(true);
+        submitFineBtn.parentNode.replaceChild(newButton, submitFineBtn);
+        
+        // Adicionar listener ao botão CLONADO
+        newButton.addEventListener('click', function(e) {
+            console.log('🖱️ BOTÃO CLICADO!');
+            saveClientFineDirectly();
+        });
+        
+        console.log('✅ Event listener adicionado ao botão');
+    } else {
+        console.error('❌ Botão submitFineBtn NÃO encontrado!');
+    }
+    
+    // Adicionar preview do valor da multa enquanto digita
+    const fineAmountInput = document.getElementById('fineAmount');
+    if (fineAmountInput) {
+        // Criar elemento de preview se não existir
+        let previewElement = document.getElementById('fineAmountPreview');
+        if (!previewElement) {
+            previewElement = document.createElement('p');
+            previewElement.id = 'fineAmountPreview';
+            previewElement.className = 'text-sm mt-2 font-semibold';
+            fineAmountInput.parentElement.parentElement.appendChild(previewElement);
+        }
+        
+        fineAmountInput.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            
+            if (!value) {
+                previewElement.textContent = '';
+                previewElement.className = 'text-sm mt-2 font-semibold';
+                return;
+            }
+            
+            // Normalizar: trocar vírgula por ponto
+            const normalized = value.replace(',', '.');
+            const parsed = parseFloat(normalized);
+            
+            if (isNaN(parsed)) {
+                previewElement.textContent = '❌ Valor inválido! Digite apenas números.';
+                previewElement.className = 'text-sm mt-2 font-semibold text-red-400';
+            } else if (parsed <= 0) {
+                previewElement.textContent = '❌ O valor deve ser maior que zero!';
+                previewElement.className = 'text-sm mt-2 font-semibold text-red-400';
+            } else {
+                previewElement.textContent = '✅ Valor da multa: R$ ' + parsed.toFixed(2);
+                previewElement.className = 'text-sm mt-2 font-semibold text-green-400';
+            }
+        });
+        
+        // Limpar preview quando modal fechar
+        const closeButton = document.querySelector('#addClientFineModal button[onclick*="closeAddClientFineModal"]');
+        if (closeButton) {
+            closeButton.addEventListener('click', function() {
+                if (previewElement) {
+                    previewElement.textContent = '';
+                }
+            });
+        }
+    }
+});
