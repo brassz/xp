@@ -138,6 +138,54 @@ BEGIN
 END $$;
 
 -- =====================================================
+-- PASSO 3.5: Remover NOT NULL das colunas antigas (retrocompatibilidade)
+-- =====================================================
+
+-- As colunas antigas devem permitir NULL já que agora usamos as novas colunas
+DO $$ 
+BEGIN
+    -- Remover NOT NULL de start_date (se existir)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'installments' 
+        AND column_name = 'start_date'
+        AND is_nullable = 'NO'
+    ) THEN
+        ALTER TABLE installments ALTER COLUMN start_date DROP NOT NULL;
+    END IF;
+    
+    -- Remover NOT NULL de installment_count (se existir)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'installments' 
+        AND column_name = 'installment_count'
+        AND is_nullable = 'NO'
+    ) THEN
+        ALTER TABLE installments ALTER COLUMN installment_count DROP NOT NULL;
+    END IF;
+    
+    -- Remover NOT NULL de installment_value (se existir)
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'installments' 
+        AND column_name = 'installment_value'
+        AND is_nullable = 'NO'
+    ) THEN
+        ALTER TABLE installments ALTER COLUMN installment_value DROP NOT NULL;
+    END IF;
+    
+    -- Remover NOT NULL de interest_rate se estiver como NOT NULL
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'installments' 
+        AND column_name = 'interest_rate'
+        AND is_nullable = 'NO'
+    ) THEN
+        ALTER TABLE installments ALTER COLUMN interest_rate DROP NOT NULL;
+    END IF;
+END $$;
+
+-- =====================================================
 -- PASSO 4: Criar índices para performance (se não existirem)
 -- =====================================================
 
@@ -146,6 +194,53 @@ CREATE INDEX IF NOT EXISTS idx_installments_client_id ON installments(client_id)
 CREATE INDEX IF NOT EXISTS idx_installments_status ON installments(status);
 CREATE INDEX IF NOT EXISTS idx_installments_first_due_date ON installments(first_due_date);
 CREATE INDEX IF NOT EXISTS idx_installments_created_at ON installments(created_at);
+
+-- =====================================================
+-- PASSO 4.5: Criar trigger para sincronizar colunas antigas e novas
+-- =====================================================
+
+-- Função para sincronizar automaticamente colunas novas <-> antigas
+CREATE OR REPLACE FUNCTION sync_installments_columns()
+RETURNS TRIGGER AS $$
+BEGIN
+    -- Se inserindo com novas colunas, preencher antigas automaticamente
+    IF NEW.first_due_date IS NOT NULL AND NEW.start_date IS NULL THEN
+        NEW.start_date := NEW.first_due_date;
+    END IF;
+    
+    IF NEW.total_installments IS NOT NULL AND NEW.installment_count IS NULL THEN
+        NEW.installment_count := NEW.total_installments;
+    END IF;
+    
+    IF NEW.installment_amount IS NOT NULL AND NEW.installment_value IS NULL THEN
+        NEW.installment_value := NEW.installment_amount;
+    END IF;
+    
+    -- Se inserindo com colunas antigas, preencher novas automaticamente
+    IF NEW.start_date IS NOT NULL AND NEW.first_due_date IS NULL THEN
+        NEW.first_due_date := NEW.start_date;
+    END IF;
+    
+    IF NEW.installment_count IS NOT NULL AND NEW.total_installments IS NULL THEN
+        NEW.total_installments := NEW.installment_count;
+    END IF;
+    
+    IF NEW.installment_value IS NOT NULL AND NEW.installment_amount IS NULL THEN
+        NEW.installment_amount := NEW.installment_value;
+    END IF;
+    
+    RETURN NEW;
+END;
+$$ LANGUAGE plpgsql;
+
+-- Criar trigger para sincronização automática
+DROP TRIGGER IF EXISTS trigger_sync_installments_columns ON installments;
+CREATE TRIGGER trigger_sync_installments_columns
+    BEFORE INSERT OR UPDATE ON installments
+    FOR EACH ROW
+    EXECUTE FUNCTION sync_installments_columns();
+
+COMMENT ON FUNCTION sync_installments_columns() IS 'Sincroniza automaticamente colunas antigas e novas de installments para compatibilidade';
 
 -- =====================================================
 -- PASSO 5: Recriar a view installments_with_details
