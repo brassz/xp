@@ -17633,34 +17633,72 @@ function closeAddClientFineModal() {
 
 // Salvar multa do cliente
 async function saveClientFine(event) {
-    event.preventDefault();
+    console.log('🚀 === FUNÇÃO saveClientFine CHAMADA ===');
+    console.log('📋 Evento recebido:', event);
     
-    const clientId = document.getElementById('fineClientId').value;
-    const clientName = document.getElementById('fineClientName').value;
-    let fineAmountValue = document.getElementById('fineAmount').value;
-    const fineDescription = document.getElementById('fineDescription').value;
+    event.preventDefault();
+    console.log('✅ preventDefault() executado');
+    
+    // Pegar elementos
+    const clientIdInput = document.getElementById('fineClientId');
+    const clientNameInput = document.getElementById('fineClientName');
+    const fineAmountInput = document.getElementById('fineAmount');
+    const fineDescriptionInput = document.getElementById('fineDescription');
+    
+    console.log('\n🔍 === VERIFICANDO ELEMENTOS ===');
+    console.log('clientIdInput existe?', !!clientIdInput);
+    console.log('clientNameInput existe?', !!clientNameInput);
+    console.log('fineAmountInput existe?', !!fineAmountInput);
+    console.log('fineDescriptionInput existe?', !!fineDescriptionInput);
+    
+    if (!fineAmountInput) {
+        alert('❌ ERRO CRÍTICO: Campo de valor não encontrado! Recarregue a página.');
+        console.error('❌ fineAmountInput é null!');
+        return;
+    }
+    
+    // Pegar valores
+    const clientId = clientIdInput ? clientIdInput.value : '';
+    const clientName = clientNameInput ? clientNameInput.value : '';
+    let fineAmountValue = fineAmountInput.value;
+    const fineDescription = fineDescriptionInput ? fineDescriptionInput.value : '';
     
     // Debug - vamos ver o que está acontecendo
-    console.log('=== DEBUG MULTA - INICIO ===');
+    console.log('\n💰 === DEBUG MULTA - VALORES ===');
     console.log('1. Valor ORIGINAL digitado:', fineAmountValue);
-    console.log('2. Tipo do valor:', typeof fineAmountValue);
-    console.log('3. clientId:', clientId);
-    console.log('4. clientName:', clientName);
+    console.log('2. Length do valor:', fineAmountValue ? fineAmountValue.length : 0);
+    console.log('3. Tipo do valor:', typeof fineAmountValue);
+    console.log('4. clientId:', clientId);
+    console.log('5. clientName:', clientName);
+    
+    console.log('\n✔️ === INICIANDO VALIDAÇÕES ===');
     
     // Validação do cliente
+    console.log('Validando clientId...', clientId);
     if (!clientId || clientId.trim() === '') {
-        alert('Erro: Cliente não identificado. Por favor, tente novamente.');
-        console.error('❌ clientId inválido:', clientId);
+        alert('❌ Erro: Cliente não identificado. Por favor, tente novamente.');
+        console.error('❌ FALHA: clientId inválido:', clientId);
         return;
     }
+    console.log('✅ clientId OK');
     
     // Verificar se o campo está vazio
+    console.log('Validando fineAmountValue...', { 
+        value: fineAmountValue, 
+        isEmpty: !fineAmountValue,
+        trimEmpty: fineAmountValue ? fineAmountValue.trim() === '' : 'N/A'
+    });
+    
     if (!fineAmountValue || fineAmountValue.trim() === '') {
-        alert('Por favor, digite o valor da multa.');
-        console.error('❌ Campo de valor está vazio');
-        document.getElementById('fineAmount').focus();
+        alert('❌ Por favor, digite o valor da multa.\n\nO campo está vazio!');
+        console.error('❌ FALHA: Campo de valor está vazio');
+        console.error('   - fineAmountValue:', fineAmountValue);
+        console.error('   - É null/undefined?', fineAmountValue == null);
+        console.error('   - Após trim:', fineAmountValue ? fineAmountValue.trim() : 'N/A');
+        fineAmountInput.focus();
         return;
     }
+    console.log('✅ Campo não está vazio');
     
     // Normalizar o valor: aceitar vírgula OU ponto como separador decimal
     fineAmountValue = fineAmountValue.trim();
