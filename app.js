@@ -6391,9 +6391,9 @@ function openAddClientFineModal(clientId, clientName) {
     const modal = document.getElementById('addClientFineModal');
     document.getElementById('fineClientId').value = clientId;
     document.getElementById('fineClientName').value = clientName;
-    document.getElementById('fineAmount').value = '';
-    document.getElementById('fineReason').value = '';
-    document.getElementById('fineNotes').value = '';
+    document.getElementById('clientFineAmount').value = '';
+    document.getElementById('clientFineReason').value = '';
+    document.getElementById('clientFineNotes').value = '';
     modal.classList.remove('hidden');
 }
 
@@ -6412,16 +6412,16 @@ document.addEventListener('DOMContentLoaded', function() {
             e.preventDefault();
             
             const clientId = document.getElementById('fineClientId').value;
-            const amount = parseFloat(document.getElementById('fineAmount').value);
-            const reason = document.getElementById('fineReason').value;
-            const notes = document.getElementById('fineNotes').value.trim();
+            const amount = parseFloat(document.getElementById('clientFineAmount').value);
+            const reason = document.getElementById('clientFineReason').value;
+            const notes = document.getElementById('clientFineNotes').value.trim();
             
             if (!clientId || !amount || !reason) {
                 showErrorMessage('Todos os campos obrigatórios devem ser preenchidos!');
                 return;
             }
             
-            if (amount <= 0) {
+            if (amount <= 0 || isNaN(amount)) {
                 showErrorMessage('O valor da multa deve ser maior que zero!');
                 return;
             }
