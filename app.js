@@ -4645,7 +4645,6 @@ async function updateDashboard() {
     const totalRemaining = totalCapitalRemaining + totalInterestRemaining;
     
     // Atualizar elementos na UI
-    document.getElementById('totalCapitalRemaining').textContent = `R$ ${totalCapitalRemaining.toFixed(2)}`;
     document.getElementById('totalInterestRemaining').textContent = `R$ ${totalInterestRemaining.toFixed(2)}`;
     document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
     
