@@ -277,6 +277,133 @@ LEFT JOIN users u ON i.created_by = u.id;
 COMMENT ON VIEW installments_with_details IS 'View com detalhes completos dos parcelamentos incluindo dados de clientes e usuários';
 
 -- =====================================================
+-- PASSO 5.5: Corrigir estrutura de installment_payments
+-- =====================================================
+
+-- A Franca Private tem uma estrutura diferente:
+-- - installment_items: parcelas individuais (tem due_date)
+-- - installment_payments: pagamentos (não tem due_date)
+-- 
+-- Padrão Nexus:
+-- - installment_payments: parcelas individuais (tem due_date, paid_date, status)
+--
+-- Solução: Adicionar colunas padrão Nexus em installment_payments
+
+-- Verificar se a tabela tem estrutura antiga (installment_item_id)
+DO $$ 
+BEGIN
+    -- Se tem installment_item_id, é estrutura antiga da Franca Private
+    IF EXISTS (
+        SELECT 1 FROM information_schema.columns 
+        WHERE table_name = 'installment_payments' 
+        AND column_name = 'installment_item_id'
+    ) THEN
+        -- Adicionar colunas padrão Nexus
+        
+        -- Adicionar installment_id se não existir
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'installment_id'
+        ) THEN
+            ALTER TABLE installment_payments ADD COLUMN installment_id UUID REFERENCES installments(id) ON DELETE CASCADE;
+        END IF;
+        
+        -- Adicionar installment_number se não existir
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'installment_number'
+        ) THEN
+            ALTER TABLE installment_payments ADD COLUMN installment_number INTEGER;
+        END IF;
+        
+        -- Adicionar due_date se não existir
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'due_date'
+        ) THEN
+            ALTER TABLE installment_payments ADD COLUMN due_date DATE;
+        END IF;
+        
+        -- Adicionar paid_date se não existir
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'paid_date'
+        ) THEN
+            ALTER TABLE installment_payments ADD COLUMN paid_date DATE;
+        END IF;
+        
+        -- Adicionar paid_amount se não existir
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'paid_amount'
+        ) THEN
+            ALTER TABLE installment_payments ADD COLUMN paid_amount DECIMAL(15,2) DEFAULT 0.00;
+        END IF;
+        
+        -- Adicionar status se não existir
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'status'
+        ) THEN
+            ALTER TABLE installment_payments ADD COLUMN status TEXT DEFAULT 'pending';
+        END IF;
+        
+        -- Adicionar payment_method se não existir (renomear de payment_type)
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'payment_method'
+        ) THEN
+            -- Se tem payment_type, renomear
+            IF EXISTS (
+                SELECT 1 FROM information_schema.columns 
+                WHERE table_name = 'installment_payments' 
+                AND column_name = 'payment_type'
+            ) THEN
+                ALTER TABLE installment_payments RENAME COLUMN payment_type TO payment_method;
+            ELSE
+                ALTER TABLE installment_payments ADD COLUMN payment_method TEXT;
+            END IF;
+        END IF;
+        
+        -- Adicionar updated_at se não existir
+        IF NOT EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'updated_at'
+        ) THEN
+            ALTER TABLE installment_payments ADD COLUMN updated_at TIMESTAMP WITH TIME ZONE DEFAULT NOW();
+        END IF;
+        
+        -- Remover NOT NULL de installment_item_id (agora é opcional)
+        ALTER TABLE installment_payments ALTER COLUMN installment_item_id DROP NOT NULL;
+        
+        -- Remover NOT NULL de payment_date (agora é paid_date que é usado)
+        IF EXISTS (
+            SELECT 1 FROM information_schema.columns 
+            WHERE table_name = 'installment_payments' 
+            AND column_name = 'payment_date'
+        ) THEN
+            ALTER TABLE installment_payments ALTER COLUMN payment_date DROP NOT NULL;
+        END IF;
+        
+    END IF;
+END $$;
+
+-- Comentários atualizados
+COMMENT ON COLUMN installment_payments.installment_id IS 'Referência direta ao parcelamento (padrão Nexus)';
+COMMENT ON COLUMN installment_payments.installment_number IS 'Número da parcela (1, 2, 3, etc.)';
+COMMENT ON COLUMN installment_payments.due_date IS 'Data de vencimento da parcela';
+COMMENT ON COLUMN installment_payments.paid_date IS 'Data em que a parcela foi paga';
+COMMENT ON COLUMN installment_payments.status IS 'Status da parcela (pending, paid, overdue, partial)';
+
+-- =====================================================
 -- PASSO 6: Resetar o cache de schema do Supabase
 -- =====================================================
 
