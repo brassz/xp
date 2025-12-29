@@ -4642,7 +4642,16 @@ async function updateDashboard() {
     // Calcular total restante, capital restante e juros restante considerando pagamentos
     const totalCapitalRemaining = remainingDetails.reduce((sum, detail) => sum + detail.capital, 0);
     const totalInterestRemaining = remainingDetails.reduce((sum, detail) => sum + detail.interest, 0);
-    const totalRemaining = totalCapitalRemaining + totalInterestRemaining;
+    const totalRemaining = remainingDetails.reduce((sum, detail) => sum + detail.total, 0);
+    
+    // Debug: verificar se os valores batem
+    console.log('📊 VALORES RESTANTES:', {
+        'Capital Restante': `R$ ${totalCapitalRemaining.toFixed(2)}`,
+        'Juros Restante': `R$ ${totalInterestRemaining.toFixed(2)}`,
+        'Total Restante': `R$ ${totalRemaining.toFixed(2)}`,
+        'Soma (Capital+Juros)': `R$ ${(totalCapitalRemaining + totalInterestRemaining).toFixed(2)}`,
+        'Diferença': `R$ ${(totalRemaining - (totalCapitalRemaining + totalInterestRemaining)).toFixed(2)}`
+    });
     
     // Atualizar elementos na UI
     document.getElementById('totalInterestRemaining').textContent = `R$ ${totalInterestRemaining.toFixed(2)}`;
