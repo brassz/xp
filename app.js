@@ -17637,30 +17637,64 @@ async function saveClientFine(event) {
     
     const clientId = document.getElementById('fineClientId').value;
     const clientName = document.getElementById('fineClientName').value;
-    const fineAmountValue = document.getElementById('fineAmount').value;
-    const fineAmount = parseFloat(fineAmountValue);
+    let fineAmountValue = document.getElementById('fineAmount').value;
     const fineDescription = document.getElementById('fineDescription').value;
     
     // Debug - vamos ver o que está acontecendo
-    console.log('=== DEBUG MULTA ===');
-    console.log('clientId:', clientId);
-    console.log('clientName:', clientName);
-    console.log('fineAmountValue:', fineAmountValue);
-    console.log('fineAmount (parsed):', fineAmount);
-    console.log('isNaN(fineAmount):', isNaN(fineAmount));
+    console.log('=== DEBUG MULTA - INICIO ===');
+    console.log('1. Valor ORIGINAL digitado:', fineAmountValue);
+    console.log('2. Tipo do valor:', typeof fineAmountValue);
+    console.log('3. clientId:', clientId);
+    console.log('4. clientName:', clientName);
     
-    // Validação mais robusta
+    // Validação do cliente
     if (!clientId || clientId.trim() === '') {
         alert('Erro: Cliente não identificado. Por favor, tente novamente.');
-        console.error('clientId inválido:', clientId);
+        console.error('❌ clientId inválido:', clientId);
         return;
     }
     
-    if (!fineAmountValue || fineAmountValue.trim() === '' || isNaN(fineAmount) || fineAmount <= 0) {
-        alert('Por favor, informe um valor válido para a multa (maior que zero).');
-        console.error('fineAmount inválido:', { fineAmountValue, fineAmount });
+    // Verificar se o campo está vazio
+    if (!fineAmountValue || fineAmountValue.trim() === '') {
+        alert('Por favor, digite o valor da multa.');
+        console.error('❌ Campo de valor está vazio');
+        document.getElementById('fineAmount').focus();
         return;
     }
+    
+    // Normalizar o valor: aceitar vírgula OU ponto como separador decimal
+    fineAmountValue = fineAmountValue.trim();
+    
+    // Substituir vírgula por ponto para o parseFloat funcionar
+    const normalizedValue = fineAmountValue.replace(',', '.');
+    
+    console.log('5. Valor APÓS remover espaços:', fineAmountValue);
+    console.log('6. Valor NORMALIZADO (vírgula→ponto):', normalizedValue);
+    
+    // Converter para número
+    const fineAmount = parseFloat(normalizedValue);
+    
+    console.log('7. Valor CONVERTIDO para número:', fineAmount);
+    console.log('8. É NaN?', isNaN(fineAmount));
+    console.log('9. É menor ou igual a zero?', fineAmount <= 0);
+    console.log('=== FIM DEBUG ===\n');
+    
+    // Validação do valor
+    if (isNaN(fineAmount)) {
+        alert('❌ Valor inválido!\n\nVocê digitou: "' + fineAmountValue + '"\n\nPor favor, digite apenas números.\nExemplos válidos: 50 ou 50.00 ou 50,00');
+        console.error('❌ parseFloat retornou NaN para:', normalizedValue);
+        document.getElementById('fineAmount').select();
+        return;
+    }
+    
+    if (fineAmount <= 0) {
+        alert('❌ O valor da multa deve ser maior que zero!\n\nValor digitado: R$ ' + fineAmount.toFixed(2) + '\n\nPor favor, digite um valor positivo.');
+        console.error('❌ Valor é zero ou negativo:', fineAmount);
+        document.getElementById('fineAmount').select();
+        return;
+    }
+    
+    console.log('✅ Validação passou! Valor aceito: R$', fineAmount.toFixed(2));
     
     try {
         // Buscar ID do usuário atual
@@ -17773,5 +17807,53 @@ document.addEventListener('DOMContentLoaded', function() {
     const addClientFineForm = document.getElementById('addClientFineForm');
     if (addClientFineForm) {
         addClientFineForm.addEventListener('submit', saveClientFine);
+    }
+    
+    // Adicionar preview do valor da multa enquanto digita
+    const fineAmountInput = document.getElementById('fineAmount');
+    if (fineAmountInput) {
+        // Criar elemento de preview se não existir
+        let previewElement = document.getElementById('fineAmountPreview');
+        if (!previewElement) {
+            previewElement = document.createElement('p');
+            previewElement.id = 'fineAmountPreview';
+            previewElement.className = 'text-sm mt-2 font-semibold';
+            fineAmountInput.parentElement.parentElement.appendChild(previewElement);
+        }
+        
+        fineAmountInput.addEventListener('input', function(e) {
+            const value = e.target.value.trim();
+            
+            if (!value) {
+                previewElement.textContent = '';
+                previewElement.className = 'text-sm mt-2 font-semibold';
+                return;
+            }
+            
+            // Normalizar: trocar vírgula por ponto
+            const normalized = value.replace(',', '.');
+            const parsed = parseFloat(normalized);
+            
+            if (isNaN(parsed)) {
+                previewElement.textContent = '❌ Valor inválido! Digite apenas números.';
+                previewElement.className = 'text-sm mt-2 font-semibold text-red-400';
+            } else if (parsed <= 0) {
+                previewElement.textContent = '❌ O valor deve ser maior que zero!';
+                previewElement.className = 'text-sm mt-2 font-semibold text-red-400';
+            } else {
+                previewElement.textContent = '✅ Valor da multa: R$ ' + parsed.toFixed(2);
+                previewElement.className = 'text-sm mt-2 font-semibold text-green-400';
+            }
+        });
+        
+        // Limpar preview quando modal fechar
+        const closeButton = document.querySelector('#addClientFineModal button[onclick*="closeAddClientFineModal"]');
+        if (closeButton) {
+            closeButton.addEventListener('click', function() {
+                if (previewElement) {
+                    previewElement.textContent = '';
+                }
+            });
+        }
     }
 });
