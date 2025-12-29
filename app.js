@@ -2342,7 +2342,7 @@ async function renderLoansTable() {
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
                     <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="contactGuarantorOrEmergency('${loan.id}')" title="Contatar Avalista ou Emergência">👥</button>
-                    <button class="text-amber-400 hover:text-amber-300 mr-3" onclick="openAddClientFineModal('${loan.client_id}', '${loan.clients?.name || 'Cliente não encontrado'}')" title="Adicionar Multa ao Cliente">⚠️</button>
+                    <button class="text-amber-400 hover:text-amber-300 mr-3" data-client-id="${loan.client_id}" data-client-name="${(loan.clients?.name || 'Cliente não encontrado').replace(/"/g, '&quot;')}" onclick="openAddClientFineModalSafe(this)" title="Adicionar Multa ao Cliente">⚠️</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -17571,8 +17571,29 @@ setInterval(initNotifications, 5 * 60 * 1000);
 // FUNÇÕES PARA GERENCIAR MULTAS DE CLIENTES
 // =====================================================
 
+// Função auxiliar para abrir modal de forma segura usando data attributes
+function openAddClientFineModalSafe(button) {
+    const clientId = button.getAttribute('data-client-id');
+    const clientName = button.getAttribute('data-client-name');
+    
+    console.log('=== openAddClientFineModalSafe ===');
+    console.log('clientId:', clientId);
+    console.log('clientName:', clientName);
+    
+    if (!clientId) {
+        alert('Erro: Cliente não identificado. Por favor, recarregue a página e tente novamente.');
+        return;
+    }
+    
+    openAddClientFineModal(clientId, clientName);
+}
+
 // Abrir modal para adicionar multa ao cliente
 function openAddClientFineModal(clientId, clientName) {
+    console.log('=== openAddClientFineModal ===');
+    console.log('clientId:', clientId);
+    console.log('clientName:', clientName);
+    
     const modal = document.getElementById('addClientFineModal');
     const clientIdInput = document.getElementById('fineClientId');
     const clientNameInput = document.getElementById('fineClientName');
@@ -17580,15 +17601,28 @@ function openAddClientFineModal(clientId, clientName) {
     const fineAmountInput = document.getElementById('fineAmount');
     const fineDescriptionInput = document.getElementById('fineDescription');
     
+    if (!modal || !clientIdInput || !clientNameInput || !clientNameDisplay || !fineAmountInput) {
+        console.error('Elementos do modal não encontrados!');
+        alert('Erro: Modal não encontrado. Por favor, recarregue a página.');
+        return;
+    }
+    
     // Limpar campos
-    clientIdInput.value = clientId;
-    clientNameInput.value = clientName;
-    clientNameDisplay.textContent = clientName;
+    clientIdInput.value = clientId || '';
+    clientNameInput.value = clientName || '';
+    clientNameDisplay.textContent = clientName || 'Cliente';
     fineAmountInput.value = '';
-    fineDescriptionInput.value = '';
+    if (fineDescriptionInput) {
+        fineDescriptionInput.value = '';
+    }
     
     // Mostrar modal
     modal.classList.remove('hidden');
+    
+    // Focar no campo de valor
+    setTimeout(() => {
+        fineAmountInput.focus();
+    }, 100);
 }
 
 // Fechar modal de multa
@@ -17603,11 +17637,28 @@ async function saveClientFine(event) {
     
     const clientId = document.getElementById('fineClientId').value;
     const clientName = document.getElementById('fineClientName').value;
-    const fineAmount = parseFloat(document.getElementById('fineAmount').value);
+    const fineAmountValue = document.getElementById('fineAmount').value;
+    const fineAmount = parseFloat(fineAmountValue);
     const fineDescription = document.getElementById('fineDescription').value;
     
-    if (!clientId || !fineAmount || fineAmount <= 0) {
-        alert('Por favor, preencha todos os campos obrigatórios corretamente.');
+    // Debug - vamos ver o que está acontecendo
+    console.log('=== DEBUG MULTA ===');
+    console.log('clientId:', clientId);
+    console.log('clientName:', clientName);
+    console.log('fineAmountValue:', fineAmountValue);
+    console.log('fineAmount (parsed):', fineAmount);
+    console.log('isNaN(fineAmount):', isNaN(fineAmount));
+    
+    // Validação mais robusta
+    if (!clientId || clientId.trim() === '') {
+        alert('Erro: Cliente não identificado. Por favor, tente novamente.');
+        console.error('clientId inválido:', clientId);
+        return;
+    }
+    
+    if (!fineAmountValue || fineAmountValue.trim() === '' || isNaN(fineAmount) || fineAmount <= 0) {
+        alert('Por favor, informe um valor válido para a multa (maior que zero).');
+        console.error('fineAmount inválido:', { fineAmountValue, fineAmount });
         return;
     }
     
@@ -17637,24 +17688,33 @@ async function saveClientFine(event) {
         
         if (error) {
             console.error('Erro ao adicionar multa:', error);
+            console.error('Detalhes do erro:', JSON.stringify(error, null, 2));
             alert('Erro ao adicionar multa: ' + error.message);
             return;
         }
+        
+        console.log('Multa adicionada com sucesso:', data);
         
         // Fechar modal
         closeAddClientFineModal();
         
         // Mostrar mensagem de sucesso
-        alert(`Multa de R$ ${fineAmount.toFixed(2)} adicionada ao cliente ${clientName} com sucesso!`);
+        if (typeof showSuccessMessage === 'function') {
+            showSuccessMessage(`Multa de R$ ${fineAmount.toFixed(2)} adicionada ao cliente ${clientName} com sucesso!`);
+        } else {
+            alert(`✅ Multa de R$ ${fineAmount.toFixed(2)} adicionada ao cliente ${clientName} com sucesso!`);
+        }
         
         // Recarregar dados se estivermos na aba de histórico
         const historySection = document.getElementById('history');
         if (historySection && !historySection.classList.contains('hidden')) {
+            console.log('Recarregando histórico do cliente...');
             await loadClientHistory();
         }
         
     } catch (error) {
         console.error('Erro ao salvar multa:', error);
+        console.error('Stack trace:', error.stack);
         alert('Erro ao salvar multa: ' + error.message);
     }
 }
