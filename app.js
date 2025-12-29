@@ -4632,28 +4632,30 @@ async function updateDashboard() {
         }
     });
     
-    document.getElementById('totalLoaned').textContent = `R$ ${totalLoaned.toFixed(2)}`;
-    document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
-    
     // Calcular valores restantes de todos os empréstimos em lote (com detalhes)
     const loanIds = loans.map(loan => loan.id);
     const remainingDetails = await calculateBatchLoanRemainingAmounts(loanIds, true);
     
-    // Calcular total restante, capital restante e juros restante considerando pagamentos
-    const totalCapitalRemaining = remainingDetails.reduce((sum, detail) => sum + detail.capital, 0);
+    // Total Emprestado = soma do capital restante de todos os empréstimos (sem juros)
+    const totalEmprestado = remainingDetails.reduce((sum, detail) => sum + detail.capital, 0);
+    
+    // Juros Restante = juros calculados sobre o capital restante
     const totalInterestRemaining = remainingDetails.reduce((sum, detail) => sum + detail.interest, 0);
-    // Total Restante = Capital Restante + Juros Restante
-    const totalRemaining = totalCapitalRemaining + totalInterestRemaining;
+    
+    // Total Restante = Total Emprestado + Juros Restante
+    const totalRemaining = totalEmprestado + totalInterestRemaining;
     
     // Debug: verificar valores
-    console.log('📊 VALORES RESTANTES:', {
-        'Capital Restante': `R$ ${totalCapitalRemaining.toFixed(2)}`,
+    console.log('📊 VALORES VISÃO GERAL:', {
+        'Total Emprestado (Capital Restante)': `R$ ${totalEmprestado.toFixed(2)}`,
         'Juros Restante': `R$ ${totalInterestRemaining.toFixed(2)}`,
-        'Total Restante (Capital+Juros)': `R$ ${totalRemaining.toFixed(2)}`,
+        'Total Restante (Emprestado+Juros)': `R$ ${totalRemaining.toFixed(2)}`,
         'Empréstimos Processados': remainingDetails.length
     });
     
     // Atualizar elementos na UI
+    document.getElementById('totalLoaned').textContent = `R$ ${totalEmprestado.toFixed(2)}`;
+    document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
     document.getElementById('totalInterestRemaining').textContent = `R$ ${totalInterestRemaining.toFixed(2)}`;
     document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
     
