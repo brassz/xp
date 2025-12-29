@@ -2342,6 +2342,7 @@ async function renderLoansTable() {
                     <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
                     <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
                     <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="contactGuarantorOrEmergency('${loan.id}')" title="Contatar Avalista ou Emergência">👥</button>
+                    <button class="text-amber-400 hover:text-amber-300 mr-3" onclick="openAddClientFineModal('${loan.client_id}', '${(loan.clients?.name || 'Cliente').replace(/'/g, "\\'")}')" title="Aplicar Multa ao Cliente">⚠️</button>
                     <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
                 </td>
             </tr>
@@ -6381,6 +6382,113 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 });
 
+// ========================================
+// FUNÇÕES PARA GERENCIAR MULTAS DE CLIENTES
+// ========================================
+
+// Função para abrir modal de adicionar multa ao cliente
+function openAddClientFineModal(clientId, clientName) {
+    const modal = document.getElementById('addClientFineModal');
+    document.getElementById('fineClientId').value = clientId;
+    document.getElementById('fineClientName').value = clientName;
+    document.getElementById('clientFineAmount').value = '';
+    document.getElementById('clientFineReason').value = '';
+    document.getElementById('clientFineNotes').value = '';
+    modal.classList.remove('hidden');
+}
+
+// Função para fechar modal de adicionar multa
+function closeAddClientFineModal() {
+    const modal = document.getElementById('addClientFineModal');
+    modal.classList.add('hidden');
+    document.getElementById('addClientFineForm').reset();
+}
+
+// Event listener para formulário de multa de cliente
+document.addEventListener('DOMContentLoaded', function() {
+    const addClientFineForm = document.getElementById('addClientFineForm');
+    if (addClientFineForm) {
+        addClientFineForm.addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const clientId = document.getElementById('fineClientId').value;
+            const amount = parseFloat(document.getElementById('clientFineAmount').value);
+            const reason = document.getElementById('clientFineReason').value;
+            const notes = document.getElementById('clientFineNotes').value.trim();
+            
+            if (!clientId || !amount || !reason) {
+                showErrorMessage('Todos os campos obrigatórios devem ser preenchidos!');
+                return;
+            }
+            
+            if (amount <= 0 || isNaN(amount)) {
+                showErrorMessage('O valor da multa deve ser maior que zero!');
+                return;
+            }
+            
+            try {
+                // Inserir multa no banco de dados
+                const { data, error } = await supabase
+                    .from('client_fines')
+                    .insert([{
+                        client_id: clientId,
+                        amount: amount,
+                        reason: reason,
+                        notes: notes || null,
+                        created_by: currentUser ? currentUser.id : null,
+                        created_at: new Date().toISOString(),
+                        updated_at: new Date().toISOString()
+                    }])
+                    .select();
+                
+                if (error) throw error;
+                
+                showSuccessMessage(`Multa de R$ ${amount.toFixed(2)} aplicada com sucesso!`);
+                closeAddClientFineModal();
+                
+                // Recarregar a tabela de empréstimos para atualizar visualmente
+                if (typeof renderLoansTable === 'function') {
+                    await renderLoansTable();
+                }
+                
+            } catch (error) {
+                console.error('Erro ao adicionar multa:', error);
+                showErrorMessage('Erro ao adicionar multa: ' + error.message);
+            }
+        });
+    }
+});
+
+// Função para buscar multas de um cliente
+async function getClientFines(clientId) {
+    try {
+        const { data, error } = await supabase
+            .from('client_fines')
+            .select('*')
+            .eq('client_id', clientId)
+            .order('created_at', { ascending: false });
+        
+        if (error) throw error;
+        
+        return data || [];
+    } catch (error) {
+        console.error('Erro ao buscar multas do cliente:', error);
+        return [];
+    }
+}
+
+// Função para calcular total de multas de um cliente
+async function getTotalClientFines(clientId) {
+    try {
+        const fines = await getClientFines(clientId);
+        const total = fines.reduce((sum, fine) => sum + parseFloat(fine.amount || 0), 0);
+        return total;
+    } catch (error) {
+        console.error('Erro ao calcular total de multas:', error);
+        return 0;
+    }
+}
+
 // Função para enviar mensagem de cobrança via WhatsApp com chave PIX selecionada
 async function sendWhatsAppMessageWithPixKey(loanId, pixKeyId, bankName, pixKey, accountHolder) {
     try {
@@ -9135,10 +9243,19 @@ async function loadClientHistory() {
         const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(clientLoanIds);
         const totalRemaining = clientRemainingAmounts.reduce((sum, amount) => sum + amount, 0);
         
+        // Buscar multas do cliente
+        const { data: clientFines, error: finesError } = await supabase
+            .from('client_fines')
+            .select('amount')
+            .eq('client_id', clientId);
+        
+        const totalFines = (clientFines || []).reduce((sum, fine) => sum + parseFloat(fine.amount || 0), 0);
+        
         // Atualizar resumo do cliente
         document.getElementById('historyTotalLoans').textContent = totalLoans;
         document.getElementById('historyTotalAmount').textContent = `R$ ${totalAmount.toFixed(2)}`;
         document.getElementById('historyTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
+        document.getElementById('historyTotalFines').textContent = `R$ ${totalFines.toFixed(2)}`;
         document.getElementById('historyRemainingAmount').textContent = `R$ ${totalRemaining.toFixed(2)}`;
         
         // Mostrar resumo do cliente
@@ -9149,6 +9266,9 @@ async function loadClientHistory() {
         
         // Renderizar tabela de pagamentos
         renderHistoryPaymentsTable(clientPayments, clientLoans || [], paidLoansWithClient || []);
+        
+        // Renderizar tabela de multas de cliente
+        renderHistoryClientFinesTable(clientFines || []);
         
         showSuccessMessage(`Histórico carregado para ${client.name}`);
         
@@ -9312,6 +9432,45 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
                     <div class="text-xs text-gray-400">Total: R$ ${loanTotal.toFixed(2)}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${info.notes}</td>
+            </tr>
+        `;
+    }
+    
+    tbody.innerHTML = tableHTML;
+}
+
+// Função para renderizar tabela de multas de cliente
+function renderHistoryClientFinesTable(clientFines) {
+    const tbody = document.getElementById('historyClientFinesTableBody');
+    
+    if (clientFines.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="5" class="px-6 py-8 text-center text-gray-400">
+                    Nenhuma multa registrada para este cliente
+                </td>
+            </tr>
+        `;
+        return;
+    }
+    
+    let tableHTML = '';
+    for (const fine of clientFines) {
+        tableHTML += `
+            <tr class="table-row bg-amber-900 bg-opacity-10">
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(fine.created_at)}</td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-amber-400 font-semibold">
+                    R$ ${parseFloat(fine.amount).toFixed(2)}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
+                    ${fine.reason || 'Não especificado'}
+                </td>
+                <td class="px-6 py-4 text-sm text-gray-300">
+                    ${fine.notes || '-'}
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-400">
+                    ${fine.created_by ? 'Usuário do Sistema' : 'Sistema'}
+                </td>
             </tr>
         `;
     }
@@ -14561,9 +14720,26 @@ async function loadWeeklyPaymentHistory() {
 
         if (paymentsError) throw paymentsError;
 
+        // Buscar multas de clientes dos últimos 7 dias
+        const { data: clientFines, error: finesError } = await supabase
+            .from('client_fines')
+            .select(`
+                *,
+                clients (
+                    id,
+                    name,
+                    phone
+                )
+            `)
+            .gte('created_at', sevenDaysAgo.toISOString().split('T')[0])
+            .order('created_at', { ascending: false });
+
+        if (finesError) throw finesError;
+
         // Renderizar dados na tabela
         renderWeeklyPaymentsTable(payments || []);
-        updateWeeklyPaymentsSummary(payments || []);
+        renderWeeklyClientFinesTable(clientFines || []);
+        updateWeeklyPaymentsSummary(payments || [], clientFines || []);
 
     } catch (error) {
         console.error('Erro ao carregar histórico de pagamentos:', error);
@@ -14634,9 +14810,11 @@ function renderWeeklyPaymentsTable(payments) {
 }
 
 // Função para atualizar resumo dos pagamentos semanais
-function updateWeeklyPaymentsSummary(payments) {
+function updateWeeklyPaymentsSummary(payments, clientFines = []) {
     const totalAmount = payments.reduce((sum, payment) => sum + payment.amount, 0);
-    const totalFines = payments.reduce((sum, payment) => sum + (payment.fine_amount || 0), 0);
+    const totalPaymentFines = payments.reduce((sum, payment) => sum + (payment.fine_amount || 0), 0);
+    const totalClientFines = clientFines.reduce((sum, fine) => sum + parseFloat(fine.amount || 0), 0);
+    const totalFines = totalPaymentFines + totalClientFines;
     const totalCount = payments.length;
     const uniqueClients = new Set(payments.map(p => p.loans?.client_id).filter(Boolean)).size;
 
@@ -14650,6 +14828,55 @@ function updateWeeklyPaymentsSummary(payments) {
     if (totalFinesEl) totalFinesEl.textContent = `R$ ${totalFines.toFixed(2)}`;
     if (totalCountEl) totalCountEl.textContent = totalCount.toString();
     if (uniqueClientsEl) uniqueClientsEl.textContent = uniqueClients.toString();
+}
+
+// Função para renderizar tabela de multas de clientes semanais
+function renderWeeklyClientFinesTable(clientFines) {
+    const tbody = document.getElementById('clientFinesTableBody');
+    const emptyState = document.getElementById('clientFinesTableEmpty');
+    
+    if (!tbody) return;
+
+    tbody.innerHTML = '';
+
+    if (clientFines.length === 0) {
+        tbody.style.display = 'none';
+        if (emptyState) emptyState.classList.remove('hidden');
+        return;
+    }
+
+    tbody.style.display = '';
+    if (emptyState) emptyState.classList.add('hidden');
+
+    clientFines.forEach(fine => {
+        const row = document.createElement('tr');
+        row.className = 'hover:bg-gray-800 transition-colors';
+        
+        row.innerHTML = `
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm text-gray-300">${formatDate(fine.created_at)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-medium text-white">${fine.clients?.name || 'Cliente não encontrado'}</div>
+                <div class="text-sm text-gray-400">${fine.clients?.phone || '-'}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <div class="text-sm font-semibold text-amber-400">R$ ${parseFloat(fine.amount).toFixed(2)}</div>
+            </td>
+            <td class="px-6 py-4 whitespace-nowrap">
+                <span class="px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full bg-amber-900 bg-opacity-30 text-amber-300">
+                    ${fine.reason || 'Não especificado'}
+                </span>
+            </td>
+            <td class="px-6 py-4">
+                <div class="text-sm text-gray-300 max-w-xs truncate" title="${fine.notes || '-'}">
+                    ${fine.notes || '-'}
+                </div>
+            </td>
+        `;
+        
+        tbody.appendChild(row);
+    });
 }
 
 // Função para obter classe CSS do método de pagamento
