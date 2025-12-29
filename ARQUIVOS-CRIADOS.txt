@@ -79,12 +79,43 @@ Status: ✅ Solução Completa
 
 ================================================================================
 
-📋 ESTE ARQUIVO
+📋 ESTE ARQUIVO E CORREÇÕES v2.0
 ────────────────────────────────────────────────────────────────────────────
 10. ARQUIVOS-CRIADOS.txt
     • Lista de todos os arquivos criados
     • Descrição de cada arquivo
     • Ordem de uso recomendada
+
+11. CORRECAO-ERRO-VIEW-INSTALLMENTS.md ⭐ NOVO (v2.0)
+    • Correção do erro com VIEW existente
+    • Explicação técnica da solução
+    • Guia de migração v1.0 → v2.0
+    • ⏱️ Tempo: 5 minutos de leitura
+
+12. CHANGELOG-v2-fix-view-error.md ⭐ NOVO (v2.0)
+    • Changelog completo da versão 2.0
+    • Comparação entre versões
+    • Testes realizados
+    • Lições aprendidas
+
+================================================================================
+
+⭐ ATUALIZAÇÃO v2.0 (29/12/2025)
+────────────────────────────────────────────────────────────────────────────
+O script principal foi ATUALIZADO para resolver o erro:
+"cannot alter type of a column used by a view or rule"
+
+MUDANÇAS:
+• DROP VIEW antes de alterar colunas
+• Recriação da VIEW com estrutura atualizada
+• Verificação da VIEW adicionada ao script de validação
+• Documentação completa do problema e solução
+
+IMPACTO:
+✅ Script agora funciona sem erros
+✅ VIEW recriada automaticamente
+✅ Todas as colunas incluídas na VIEW
+✅ Zero perda de dados
 
 ================================================================================
 

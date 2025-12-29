@@ -186,7 +186,31 @@ SELECT
 FROM installment_payments;
 
 -- =====================================================
--- 7. TESTE DE INSERÇÃO (SIMULAÇÃO)
+-- 7. VERIFICAR VIEW INSTALLMENTS_WITH_DETAILS
+-- =====================================================
+
+SELECT 
+    '✓ VIEW INSTALLMENTS_WITH_DETAILS' as verificacao;
+
+SELECT 
+    table_name as view_name,
+    '✅ VIEW EXISTE' as status
+FROM information_schema.views
+WHERE table_name = 'installments_with_details'
+AND table_schema = 'public';
+
+-- Verificar colunas da view
+SELECT 
+    column_name,
+    data_type,
+    '✓ OK' as status
+FROM information_schema.columns
+WHERE table_name = 'installments_with_details'
+ORDER BY ordinal_position
+LIMIT 10;
+
+-- =====================================================
+-- 8. TESTE DE INSERÇÃO (SIMULAÇÃO)
 -- =====================================================
 
 SELECT 

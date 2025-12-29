@@ -140,6 +140,39 @@ na empresa **Franca Private**.
 
 ---
 
+### 9. 🔧 **CORRECAO-ERRO-VIEW-INSTALLMENTS.md** ⭐ NOVO (v2.0)
+**Tipo:** Documentação de Correção  
+**Função:** Explica erro com VIEW e solução  
+**Uso:** Entender problema específico com VIEW  
+
+**Conteúdo:**
+- Erro detalhado com VIEW
+- Por que aconteceu
+- Como foi corrigido
+- Guia de uso do script v2.0
+- Verificações pós-correção
+
+**Quando usar:** Se você encontrou o erro "cannot alter type of a column used by a view"
+
+---
+
+### 10. 📝 **CHANGELOG-v2-fix-view-error.md** ⭐ NOVO (v2.0)
+**Tipo:** Changelog Técnico  
+**Função:** Histórico da versão 2.0  
+**Uso:** Documentação de mudanças  
+
+**Conteúdo:**
+- Comparação v1.0 vs v2.0
+- Bug corrigido
+- Implementação da solução
+- Testes realizados
+- Migração entre versões
+- Lições aprendidas
+
+**Quando usar:** Para documentação técnica completa da v2.0
+
+---
+
 ## 🎯 Guia de Uso Por Situação
 
 ### Situação 1: Preciso resolver AGORA (5 min)

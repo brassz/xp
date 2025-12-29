@@ -8,7 +8,11 @@ Erro ao criar parcelamento: Could not find the 'first_due_date'
 column of 'installments' in the schema cache
 ```
 
-**Status:** ✅ SOLUÇÃO COMPLETA CRIADA
+**Status:** ✅ SOLUÇÃO COMPLETA CRIADA - VERSÃO 2.0
+
+> **📌 ATUALIZAÇÃO v2.0:** Script corrigido para lidar com VIEW existente!  
+> O script agora dropa e recria a VIEW `installments_with_details` automaticamente.  
+> Veja: `CORRECAO-ERRO-VIEW-INSTALLMENTS.md` e `CHANGELOG-v2-fix-view-error.md`
 
 ---
 
@@ -65,6 +69,16 @@ column of 'installments' in the schema cache
 8. **`RESUMO-SOLUCAO-FRANCA-PRIVATE.md`**
    - Este arquivo!
    - Resumo geral da solução
+
+9. **`CORRECAO-ERRO-VIEW-INSTALLMENTS.md`** ⭐ NOVO
+   - Correção do erro com VIEW
+   - Explicação técnica da v2.0
+   - Guia de uso da versão atualizada
+
+10. **`CHANGELOG-v2-fix-view-error.md`** ⭐ NOVO
+    - Changelog da versão 2.0
+    - Comparação v1.0 vs v2.0
+    - Histórico de correções
 
 ---
 

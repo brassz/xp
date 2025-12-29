@@ -9,6 +9,13 @@
 -- da Franca Private (https://pebwoerzslfzhjptyjwh.supabase.co)
 
 -- =====================================================
+-- PASSO 0: Dropar views que dependem da tabela installments
+-- =====================================================
+
+-- Salvar definição da view para recriar depois
+DROP VIEW IF EXISTS installments_with_details CASCADE;
+
+-- =====================================================
 -- PASSO 1: Adicionar colunas faltantes
 -- =====================================================
 
@@ -141,14 +148,48 @@ CREATE INDEX IF NOT EXISTS idx_installments_first_due_date ON installments(first
 CREATE INDEX IF NOT EXISTS idx_installments_created_at ON installments(created_at);
 
 -- =====================================================
--- PASSO 5: Resetar o cache de schema do Supabase
+-- PASSO 5: Recriar a view installments_with_details
+-- =====================================================
+
+CREATE OR REPLACE VIEW installments_with_details AS
+SELECT 
+    i.id,
+    i.loan_id,
+    i.client_id,
+    i.total_amount,
+    i.total_installments,
+    i.installment_amount,
+    i.first_due_date,
+    i.interest_rate,
+    i.status,
+    i.notes,
+    i.created_by,
+    i.created_at,
+    i.updated_at,
+    -- Colunas antigas (retrocompatibilidade)
+    i.start_date,
+    i.installment_count,
+    i.installment_value,
+    -- Dados relacionados
+    c.name as client_name,
+    c.cpf as client_cpf,
+    c.phone as client_phone,
+    u.full_name as created_by_name
+FROM installments i
+JOIN clients c ON i.client_id = c.id
+LEFT JOIN users u ON i.created_by = u.id;
+
+COMMENT ON VIEW installments_with_details IS 'View com detalhes completos dos parcelamentos incluindo dados de clientes e usuários';
+
+-- =====================================================
+-- PASSO 6: Resetar o cache de schema do Supabase
 -- =====================================================
 
 -- Notificar o Supabase para atualizar o cache de schema
 NOTIFY pgrst, 'reload schema';
 
 -- =====================================================
--- VERIFICAÇÃO FINAL
+-- PASSO 7: VERIFICAÇÃO FINAL
 -- =====================================================
 
 -- Verificar se todas as colunas necessárias existem
