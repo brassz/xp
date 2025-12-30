@@ -4653,11 +4653,34 @@ async function updateDashboard() {
         'Empréstimos Processados': remainingDetails.length
     });
     
+    // Calcular total de parcelamentos
+    let totalInstallmentsValue = 0;
+    try {
+        const { data: installments, error: installmentsError } = await supabase
+            .from('installments')
+            .select('amount, interest_amount, status');
+        
+        if (!installmentsError && installments) {
+            // Somar apenas parcelamentos não quitados (status != 'paid')
+            totalInstallmentsValue = installments
+                .filter(inst => inst.status !== 'paid')
+                .reduce((sum, inst) => {
+                    const amount = parseFloat(inst.amount) || 0;
+                    const interest = parseFloat(inst.interest_amount) || 0;
+                    return sum + amount + interest;
+                }, 0);
+        }
+    } catch (error) {
+        console.error('Erro ao calcular total de parcelamentos:', error);
+    }
+    
     // Atualizar elementos na UI
     document.getElementById('totalLoaned').textContent = `R$ ${totalEmprestado.toFixed(2)}`;
     document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
     document.getElementById('totalInterestRemaining').textContent = `R$ ${totalInterestRemaining.toFixed(2)}`;
     document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
+    document.getElementById('totalInstallments').textContent = `R$ ${totalInstallmentsValue.toFixed(2)}`;
+    document.getElementById('totalPaidLoans').textContent = `R$ ${paidLoansTotal.toFixed(2)}`;
     
     const activeLoans = loans.filter(loan => loan.status !== 'paid').length;
     document.getElementById('activeLoans').textContent = activeLoans;
