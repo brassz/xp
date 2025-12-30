@@ -4632,16 +4632,55 @@ async function updateDashboard() {
         }
     });
     
-    document.getElementById('totalLoaned').textContent = `R$ ${totalLoaned.toFixed(2)}`;
-    document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
-    
-    // Calcular valores restantes de todos os empréstimos em lote
+    // Calcular valores restantes de todos os empréstimos em lote (com detalhes)
     const loanIds = loans.map(loan => loan.id);
-    const remainingAmounts = await calculateBatchLoanRemainingAmounts(loanIds);
+    const remainingDetails = await calculateBatchLoanRemainingAmounts(loanIds, true);
     
-    // Calcular total restante considerando pagamentos
-    const totalRemaining = remainingAmounts.reduce((sum, amount) => sum + amount, 0);
+    // Total Emprestado = soma do capital restante de todos os empréstimos (sem juros)
+    const totalEmprestado = remainingDetails.reduce((sum, detail) => sum + detail.capital, 0);
+    
+    // Juros Restante = juros calculados sobre o capital restante
+    const totalInterestRemaining = remainingDetails.reduce((sum, detail) => sum + detail.interest, 0);
+    
+    // Total Restante = Total Emprestado + Juros Restante
+    const totalRemaining = totalEmprestado + totalInterestRemaining;
+    
+    // Debug: verificar valores
+    console.log('📊 VALORES VISÃO GERAL:', {
+        'Total Emprestado (Capital Restante)': `R$ ${totalEmprestado.toFixed(2)}`,
+        'Juros Restante': `R$ ${totalInterestRemaining.toFixed(2)}`,
+        'Total Restante (Emprestado+Juros)': `R$ ${totalRemaining.toFixed(2)}`,
+        'Empréstimos Processados': remainingDetails.length
+    });
+    
+    // Calcular total de parcelamentos
+    let totalInstallmentsValue = 0;
+    try {
+        const { data: installments, error: installmentsError } = await supabase
+            .from('installments')
+            .select('amount, interest_amount, status');
+        
+        if (!installmentsError && installments) {
+            // Somar apenas parcelamentos não quitados (status != 'paid')
+            totalInstallmentsValue = installments
+                .filter(inst => inst.status !== 'paid')
+                .reduce((sum, inst) => {
+                    const amount = parseFloat(inst.amount) || 0;
+                    const interest = parseFloat(inst.interest_amount) || 0;
+                    return sum + amount + interest;
+                }, 0);
+        }
+    } catch (error) {
+        console.error('Erro ao calcular total de parcelamentos:', error);
+    }
+    
+    // Atualizar elementos na UI
+    document.getElementById('totalLoaned').textContent = `R$ ${totalEmprestado.toFixed(2)}`;
+    document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
+    document.getElementById('totalInterestRemaining').textContent = `R$ ${totalInterestRemaining.toFixed(2)}`;
     document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
+    document.getElementById('totalInstallments').textContent = `R$ ${totalInstallmentsValue.toFixed(2)}`;
+    document.getElementById('totalPaidLoans').textContent = `R$ ${paidLoansTotal.toFixed(2)}`;
     
     const activeLoans = loans.filter(loan => loan.status !== 'paid').length;
     document.getElementById('activeLoans').textContent = activeLoans;
@@ -4663,7 +4702,7 @@ async function updateDashboard() {
     for (const loan of overdueLoans) {
         const loanIndex = loans.findIndex(l => l.id === loan.id);
         if (loanIndex !== -1) {
-            totalOverdue += remainingAmounts[loanIndex];
+            totalOverdue += remainingDetails[loanIndex].total;
         }
     }
     document.getElementById('overdueLoans').textContent = `R$ ${totalOverdue.toFixed(2)}`;
@@ -7730,7 +7769,8 @@ function invalidateLoanRemainingAmountsCache() {
 }
 
 // Função otimizada para calcular valores restantes de múltiplos empréstimos em lote
-async function calculateBatchLoanRemainingAmounts(loanIds) {
+// Retorna array de objetos: { total, capital, interest }
+async function calculateBatchLoanRemainingAmounts(loanIds, returnDetailed = false) {
     if (!loanIds || loanIds.length === 0) return [];
     
     // Verificar se o cache é válido
@@ -7738,7 +7778,7 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
     const cacheIsValid = (now - lastCacheUpdate) < LOAN_AMOUNTS_CACHE_DURATION;
     
     // Se o cache é válido e contém todos os loan IDs necessários, usar o cache
-    if (cacheIsValid && loanIds.every(id => loanRemainingAmountsCache.hasOwnProperty(id))) {
+    if (!returnDetailed && cacheIsValid && loanIds.every(id => loanRemainingAmountsCache.hasOwnProperty(id))) {
         console.log('Usando cache para valores restantes dos empréstimos');
         return loanIds.map(id => loanRemainingAmountsCache[id] || 0);
     }
@@ -7763,11 +7803,13 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
         
         // Calcular valor restante para cada empréstimo
         const remainingAmounts = [];
+        const detailedResults = [];
         
         for (const loanId of loanIds) {
             const loan = loans.find(l => l.id === loanId);
             if (!loan) {
                 remainingAmounts.push(0);
+                detailedResults.push({ total: 0, capital: 0, interest: 0 });
                 continue;
             }
             
@@ -7792,8 +7834,10 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
             const totalPaid = realPayments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
             
             // Calcular valor restante baseado no valor original
-            let remaining;
+            let remaining, remainingCapital, remainingInterest;
             if (totalPaid === 0) {
+                remainingCapital = originalCapital;
+                remainingInterest = originalInterest;
                 remaining = originalTotal;
             } else {
                 // Calcular quanto foi pago de capital
@@ -7830,15 +7874,20 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
                 }
                 
                 // Calcular capital restante
-                const remainingCapital = Math.max(0, originalCapital - capitalPaid);
+                remainingCapital = Math.max(0, originalCapital - capitalPaid);
                 
-                // Calcular juros restantes baseado no capital restante
-                const remainingInterest = remainingCapital * (interestRate / 100);
+                // Calcular juros restantes baseado no capital restante (sempre recalcula)
+                remainingInterest = remainingCapital * (interestRate / 100);
                 
                 // Valor total restante
                 remaining = remainingCapital + remainingInterest;
             }
             remainingAmounts.push(remaining);
+            detailedResults.push({ 
+                total: remaining, 
+                capital: remainingCapital, 
+                interest: remainingInterest 
+            });
             
             // Atualizar cache
             loanRemainingAmountsCache[loanId] = remaining;
@@ -7848,11 +7897,14 @@ async function calculateBatchLoanRemainingAmounts(loanIds) {
         lastCacheUpdate = now;
         console.log(`Calculados valores restantes para ${loanIds.length} empréstimos`);
         
-        return remainingAmounts;
+        return returnDetailed ? detailedResults : remainingAmounts;
         
     } catch (error) {
         console.error('Erro ao calcular valores restantes em lote:', error);
         // Fallback: retornar array com valores zero
+        if (returnDetailed) {
+            return new Array(loanIds.length).fill({ total: 0, capital: 0, interest: 0 });
+        }
         return new Array(loanIds.length).fill(0);
     }
 }
