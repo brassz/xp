@@ -1320,6 +1320,23 @@ function removeActivityListeners() {
     }
 }
 
+// Função para controlar visibilidade das boxes de multas
+function controlFinesBoxVisibility(targetTab) {
+    const paymentHistoryFinesBox = document.getElementById('paymentHistoryFinesBox');
+    const historyFinesBox = document.getElementById('historyFinesBox');
+    
+    // Esconder ambas as boxes por padrão
+    if (paymentHistoryFinesBox) paymentHistoryFinesBox.style.display = 'none';
+    if (historyFinesBox) historyFinesBox.style.display = 'none';
+    
+    // Mostrar a box apropriada baseado na aba ativa
+    if (targetTab === 'payment-history' && paymentHistoryFinesBox) {
+        paymentHistoryFinesBox.style.display = 'block';
+    } else if (targetTab === 'history' && historyFinesBox) {
+        historyFinesBox.style.display = 'block';
+    }
+}
+
 // Navegação
 function handleNavigation(e) {
     e.preventDefault();
@@ -1331,6 +1348,9 @@ function handleNavigation(e) {
     const submenuLinks = document.querySelectorAll('.submenu-item');
     submenuLinks.forEach(link => link.classList.remove('active'));
     e.currentTarget.classList.add('active');
+    
+    // Controlar visibilidade das boxes de multas
+    controlFinesBoxVisibility(target);
     
     // Mostrar seção correspondente
     contentSections.forEach(section => {
@@ -3779,6 +3799,11 @@ function showDashboard() {
     
     loginPage.classList.add('hidden');
     dashboard.classList.remove('hidden');
+    
+    // Esconder boxes de multas inicialmente (elas só devem aparecer nas abas corretas)
+    setTimeout(() => {
+        controlFinesBoxVisibility('overview'); // Aba inicial é 'overview', então nenhuma box de multas deve aparecer
+    }, 100);
     
     console.log('Dashboard exibido');
     
@@ -15230,10 +15255,27 @@ async function loadWeekData(startDate, endDate) {
 
         if (error) throw error;
 
+        // Buscar multas de clientes da semana selecionada
+        const { data: clientFines, error: finesError } = await supabase
+            .from('client_fines')
+            .select(`
+                *,
+                clients (
+                    id,
+                    name,
+                    phone
+                )
+            `)
+            .gte('created_at', startDateStr)
+            .lte('created_at', endDateStr)
+            .order('created_at', { ascending: false });
+
+        if (finesError) throw finesError;
 
         // Renderizar dados na tabela
         renderWeeklyPaymentsTable(payments || []);
-        updateWeeklyPaymentsSummary(payments || []);
+        renderWeeklyClientFinesTable(clientFines || []);
+        updateWeeklyPaymentsSummary(payments || [], clientFines || []);
 
     } catch (error) {
         console.error('Erro ao carregar dados da semana:', error);
