@@ -596,6 +596,7 @@ function setupEventListeners() {
                 'backupInstallments',
                 'backupPayments',
                 'backupCapitalRaising',
+                'backupFines',
                 'backupExpenses'
             ];
             
@@ -621,6 +622,7 @@ function setupEventListeners() {
                 installments: document.getElementById('backupInstallments').checked,
                 payments: document.getElementById('backupPayments').checked,
                 capitalRaising: document.getElementById('backupCapitalRaising').checked,
+                fines: document.getElementById('backupFines').checked,
                 expenses: document.getElementById('backupExpenses').checked
             };
             
@@ -10786,8 +10788,22 @@ async function generateWeeklyPaymentsPDF() {
             .lte('paid_date', endOfWeek.toISOString().split('T')[0])
             .order('paid_date', { ascending: true });
 
+        // Buscar multas de clientes da semana
+        const { data: weeklyClientFines, error: finesError } = await supabase
+            .from('client_fines')
+            .select(`
+                *,
+                clients (
+                    name
+                )
+            `)
+            .gte('created_at', startOfWeek.toISOString().split('T')[0])
+            .lte('created_at', endOfWeek.toISOString().split('T')[0])
+            .order('created_at', { ascending: true });
+
         if (error) throw error;
         if (paidLoansError) throw paidLoansError;
+        if (finesError) throw finesError;
 
         // Combinar pagamentos regulares com quitações
         const allWeeklyPayments = [...(weeklyPayments || [])];
@@ -10889,11 +10905,18 @@ async function generateWeeklyPaymentsPDF() {
         
         // Adicionar total de multas antes da tabela
         const totalFines = allWeeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+        const totalClientFines = (weeklyClientFines || []).reduce((sum, fine) => sum + parseFloat(fine.amount || 0), 0);
+        const totalAllFines = totalFines + totalClientFines;
+        
         yPosition -= 15; // Voltar para adicionar a linha de multas
         doc.setFontSize(10);
         doc.setFont('helvetica', 'normal');
-        doc.text(`Total em Multas: R$ ${totalFines.toFixed(2)}`, 20, yPosition);
-        yPosition += 15;
+        doc.text(`Total em Multas (Pagamentos): R$ ${totalFines.toFixed(2)}`, 20, yPosition);
+        yPosition += 8;
+        doc.text(`Total em Multas (Clientes): R$ ${totalClientFines.toFixed(2)}`, 20, yPosition);
+        yPosition += 8;
+        doc.text(`Total Geral de Multas: R$ ${totalAllFines.toFixed(2)}`, 20, yPosition);
+        yPosition += 7;
         
         // Cabeçalho da tabela
         doc.setFontSize(12);
@@ -10978,6 +11001,65 @@ async function generateWeeklyPaymentsPDF() {
             doc.text(`R$ ${capitalPaid.toFixed(2)}`, 180, yPosition);
             
             yPosition += 8;
+        }
+        
+        // Multas de Clientes (se houver)
+        if (weeklyClientFines && weeklyClientFines.length > 0) {
+            yPosition += 15;
+            
+            // Verificar quebra de página
+            if (yPosition > 240) {
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('MULTAS DE CLIENTES APLICADAS NA SEMANA', 20, yPosition);
+            yPosition += 10;
+            
+            // Cabeçalhos
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Data', 20, yPosition);
+            doc.text('Cliente', 45, yPosition);
+            doc.text('Motivo', 100, yPosition);
+            doc.text('Valor', 160, yPosition);
+            yPosition += 8;
+            doc.line(20, yPosition - 2, 190, yPosition - 2);
+            yPosition += 5;
+            
+            // Listar multas de clientes
+            doc.setFont('helvetica', 'normal');
+            for (const fine of weeklyClientFines) {
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                    
+                    // Repetir cabeçalhos
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Data', 20, yPosition);
+                    doc.text('Cliente', 45, yPosition);
+                    doc.text('Motivo', 100, yPosition);
+                    doc.text('Valor', 160, yPosition);
+                    yPosition += 8;
+                    doc.line(20, yPosition - 2, 190, yPosition - 2);
+                    yPosition += 5;
+                    doc.setFont('helvetica', 'normal');
+                }
+                
+                const clientName = fine.clients?.name || 'N/A';
+                const reason = fine.reason || 'Não especificado';
+                const fineAmount = parseFloat(fine.amount || 0);
+                
+                doc.text(formatDate(fine.created_at), 20, yPosition);
+                doc.text(clientName.substring(0, 20), 45, yPosition);
+                doc.text(reason.substring(0, 25), 100, yPosition);
+                doc.text(`R$ ${fineAmount.toFixed(2)}`, 160, yPosition);
+                
+                yPosition += 8;
+            }
         }
         
         // Rodapé com totais
@@ -14059,11 +14141,23 @@ async function generateWeeklyReportPDF() {
             .gte('payment_date', last7Days.toISOString().split('T')[0])
             .lte('payment_date', now.toISOString().split('T')[0]);
         
+        // Buscar multas de clientes da semana
+        const { data: weeklyClientFines, error: clientFinesError } = await supabase
+            .from('client_fines')
+            .select('amount')
+            .gte('created_at', last7Days.toISOString().split('T')[0])
+            .lte('created_at', now.toISOString().split('T')[0]);
+        
         if (!paymentsError && weeklyPayments) {
-            const totalFines = weeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
-            const fineCount = weeklyPayments.filter(payment => (parseFloat(payment.fine_amount) || 0) > 0).length;
+            const totalPaymentFines = weeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            const paymentFineCount = weeklyPayments.filter(payment => (parseFloat(payment.fine_amount) || 0) > 0).length;
             
-            if (totalFines > 0) {
+            const totalClientFines = (weeklyClientFines || []).reduce((sum, fine) => sum + (parseFloat(fine.amount) || 0), 0);
+            const clientFineCount = (weeklyClientFines || []).length;
+            
+            const totalAllFines = totalPaymentFines + totalClientFines;
+            
+            if (totalAllFines > 0) {
                 doc.setFontSize(12);
                 doc.setFont('helvetica', 'bold');
                 doc.text('MULTAS DA SEMANA', 20, yPosition);
@@ -14071,10 +14165,25 @@ async function generateWeeklyReportPDF() {
                 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
-                doc.text(`Total de multas aplicadas: ${fineCount}`, 20, yPosition);
-                yPosition += 6;
-                doc.text(`Valor total em multas: R$ ${totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                
+                if (totalPaymentFines > 0) {
+                    doc.text(`Multas em Pagamentos: ${paymentFineCount}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`Valor: R$ ${totalPaymentFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                    yPosition += 8;
+                }
+                
+                if (totalClientFines > 0) {
+                    doc.text(`Multas de Clientes: ${clientFineCount}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`Valor: R$ ${totalClientFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                    yPosition += 8;
+                }
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`TOTAL GERAL DE MULTAS: R$ ${totalAllFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
                 yPosition += 15;
+                doc.setFont('helvetica', 'normal');
             }
         }
         
@@ -14215,11 +14324,29 @@ async function generateMonthlyReportPDF() {
             .gte('payment_date', startOfMonth.toISOString().split('T')[0])
             .lte('payment_date', endOfMonth.toISOString().split('T')[0]);
         
+        // Buscar multas de clientes do mês
+        const { data: monthlyClientFines, error: clientFinesError } = await supabase
+            .from('client_fines')
+            .select(`
+                *,
+                clients (
+                    name
+                )
+            `)
+            .gte('created_at', startOfMonth.toISOString().split('T')[0])
+            .lte('created_at', endOfMonth.toISOString().split('T')[0])
+            .order('created_at', { ascending: false });
+        
         if (!paymentsError && monthlyPayments) {
-            const totalFines = monthlyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
-            const fineCount = monthlyPayments.filter(payment => (parseFloat(payment.fine_amount) || 0) > 0).length;
+            const totalPaymentFines = monthlyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+            const paymentFineCount = monthlyPayments.filter(payment => (parseFloat(payment.fine_amount) || 0) > 0).length;
             
-            if (totalFines > 0) {
+            const totalClientFinesAmount = (monthlyClientFines || []).reduce((sum, fine) => sum + parseFloat(fine.amount || 0), 0);
+            const clientFineCount = (monthlyClientFines || []).length;
+            
+            const totalAllFines = totalPaymentFines + totalClientFinesAmount;
+            
+            if (totalAllFines > 0) {
                 doc.setFontSize(12);
                 doc.setFont('helvetica', 'bold');
                 doc.text('MULTAS DO MÊS', 20, yPosition);
@@ -14227,10 +14354,66 @@ async function generateMonthlyReportPDF() {
                 
                 doc.setFontSize(10);
                 doc.setFont('helvetica', 'normal');
-                doc.text(`Total de multas aplicadas: ${fineCount}`, 20, yPosition);
-                yPosition += 6;
-                doc.text(`Valor total em multas: R$ ${totalFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
-                yPosition += 15;
+                
+                // Multas de pagamentos
+                if (totalPaymentFines > 0) {
+                    doc.text(`Multas em Pagamentos: ${paymentFineCount}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`Valor: R$ ${totalPaymentFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                    yPosition += 8;
+                }
+                
+                // Multas de clientes
+                if (totalClientFinesAmount > 0) {
+                    doc.text(`Multas de Clientes: ${clientFineCount}`, 20, yPosition);
+                    yPosition += 6;
+                    doc.text(`Valor: R$ ${totalClientFinesAmount.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                    yPosition += 8;
+                }
+                
+                // Total geral
+                doc.setFont('helvetica', 'bold');
+                doc.text(`TOTAL GERAL DE MULTAS: R$ ${totalAllFines.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, 20, yPosition);
+                yPosition += 10;
+                doc.setFont('helvetica', 'normal');
+                
+                // Listar multas de clientes se houver
+                if (monthlyClientFines && monthlyClientFines.length > 0) {
+                    yPosition += 5;
+                    
+                    // Verificar quebra de página
+                    if (yPosition > 240) {
+                        doc.addPage();
+                        yPosition = 20;
+                    }
+                    
+                    doc.setFontSize(11);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Detalhamento das Multas de Clientes:', 20, yPosition);
+                    yPosition += 8;
+                    
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'normal');
+                    
+                    for (const fine of monthlyClientFines) {
+                        if (yPosition > 270) {
+                            doc.addPage();
+                            yPosition = 20;
+                        }
+                        
+                        const clientName = fine.clients?.name || 'N/A';
+                        const reason = fine.reason || 'Não especificado';
+                        const fineAmount = parseFloat(fine.amount || 0);
+                        const fineDate = formatDate(fine.created_at);
+                        
+                        doc.text(`• ${fineDate} - ${clientName} - R$ ${fineAmount.toFixed(2)} - ${reason.substring(0, 35)}`, 22, yPosition);
+                        yPosition += 6;
+                    }
+                    
+                    yPosition += 10;
+                }
+                
+                yPosition += 5;
             }
         }
         
@@ -14736,6 +14919,83 @@ async function generateCompleteBackupPDF(options) {
                     if (expense.category) {
                         doc.text(`   Categoria: ${expense.category}`, margin + 5, yPosition);
                         yPosition += lineHeight;
+                    }
+                }
+                
+                yPosition += 10;
+            }
+        }
+        
+        // ===== MULTAS DE CLIENTES =====
+        if (options.fines) {
+            checkPageBreak(30);
+            
+            // Buscar multas de clientes
+            const { data: clientFinesData, error: finesError } = await supabase
+                .from('client_fines')
+                .select(`
+                    *,
+                    clients (
+                        name,
+                        cpf
+                    )
+                `)
+                .order('created_at', { ascending: false })
+                .limit(100);
+            
+            if (!finesError && clientFinesData && clientFinesData.length > 0) {
+                // Título com fundo amarelo/laranja
+                doc.setFillColor(243, 156, 18); // Laranja/Amarelo
+                doc.rect(margin - 5, yPosition - 6, pageWidth - (margin * 2) + 10, 10, 'F');
+                doc.setTextColor(255, 255, 255);
+                doc.setFontSize(16);
+                doc.setFont('helvetica', 'bold');
+                doc.text('MULTAS DE CLIENTES', margin, yPosition);
+                yPosition += 8;
+                doc.setTextColor(0, 0, 0);
+                
+                doc.setFontSize(10);
+                doc.setFont('helvetica', 'normal');
+                doc.text(`Total de multas registradas (últimas 100): ${clientFinesData.length}`, margin, yPosition);
+                yPosition += 8;
+                
+                const totalFinesAmount = clientFinesData.reduce((sum, f) => sum + parseFloat(f.amount || 0), 0);
+                doc.text(`Valor total em multas: ${formatCurrency(totalFinesAmount)}`, margin, yPosition);
+                yPosition += 10;
+                
+                // Cabeçalhos
+                doc.setFontSize(9);
+                doc.setFont('helvetica', 'bold');
+                doc.text('Data', margin + 5, yPosition);
+                doc.text('Cliente', margin + 30, yPosition);
+                doc.text('Motivo', margin + 80, yPosition);
+                doc.text('Valor', margin + 140, yPosition);
+                yPosition += 6;
+                doc.line(margin, yPosition - 1, pageWidth - margin, yPosition - 1);
+                yPosition += 4;
+                
+                doc.setFont('helvetica', 'normal');
+                
+                for (const fine of clientFinesData.slice(0, 50)) { // Mostrar apenas 50 no PDF
+                    checkPageBreak(20);
+                    
+                    const clientName = fine.clients?.name || 'N/A';
+                    const reason = fine.reason || 'Não especificado';
+                    const fineAmount = parseFloat(fine.amount || 0);
+                    const fineDate = formatDate(fine.created_at);
+                    
+                    doc.text(fineDate, margin + 5, yPosition);
+                    doc.text(clientName.substring(0, 20), margin + 30, yPosition);
+                    doc.text(reason.substring(0, 25), margin + 80, yPosition);
+                    doc.text(formatCurrency(fineAmount), margin + 140, yPosition);
+                    yPosition += lineHeight;
+                    
+                    // Se houver notas, adicionar em linha separada
+                    if (fine.notes && fine.notes.trim()) {
+                        doc.setFontSize(8);
+                        doc.text(`   Obs: ${fine.notes.substring(0, 60)}`, margin + 10, yPosition);
+                        yPosition += lineHeight - 1;
+                        doc.setFontSize(9);
                     }
                 }
                 
@@ -15724,7 +15984,21 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
             .lte('payment_date', endDateStr)
             .order('payment_date', { ascending: false });
 
+        // Buscar multas de clientes do período especificado
+        const { data: weeklyClientFines, error: finesError } = await supabase
+            .from('client_fines')
+            .select(`
+                *,
+                clients (
+                    name
+                )
+            `)
+            .gte('created_at', startDateStr)
+            .lte('created_at', endDateStr)
+            .order('created_at', { ascending: true });
+
         if (error) throw error;
+        if (finesError) throw finesError;
 
         const allWeeklyPayments = weeklyPayments || [];
         
@@ -15878,6 +16152,82 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
             doc.text(`R$ ${totalCapital.toFixed(2)}`, 180, yPosition);
         } else {
             doc.text('Nenhum pagamento encontrado no período selecionado.', 20, yPosition);
+        }
+        
+        // Multas de Clientes (se houver)
+        if (weeklyClientFines && weeklyClientFines.length > 0) {
+            yPosition += 15;
+            
+            // Verificar quebra de página
+            if (yPosition > 240) {
+                doc.addPage();
+                yPosition = 20;
+            }
+            
+            doc.setFontSize(12);
+            doc.setFont('helvetica', 'bold');
+            doc.text('MULTAS DE CLIENTES APLICADAS NO PERÍODO', 20, yPosition);
+            yPosition += 10;
+            
+            // Cabeçalhos
+            doc.setFontSize(9);
+            doc.setFont('helvetica', 'bold');
+            doc.text('Data', 20, yPosition);
+            doc.text('Cliente', 45, yPosition);
+            doc.text('Motivo', 100, yPosition);
+            doc.text('Valor', 160, yPosition);
+            yPosition += 8;
+            doc.line(20, yPosition - 2, 190, yPosition - 2);
+            yPosition += 5;
+            
+            // Listar multas de clientes
+            doc.setFont('helvetica', 'normal');
+            const totalClientFines = weeklyClientFines.reduce((sum, fine) => sum + parseFloat(fine.amount || 0), 0);
+            
+            for (const fine of weeklyClientFines) {
+                if (yPosition > 270) {
+                    doc.addPage();
+                    yPosition = 20;
+                    
+                    // Repetir cabeçalhos
+                    doc.setFontSize(9);
+                    doc.setFont('helvetica', 'bold');
+                    doc.text('Data', 20, yPosition);
+                    doc.text('Cliente', 45, yPosition);
+                    doc.text('Motivo', 100, yPosition);
+                    doc.text('Valor', 160, yPosition);
+                    yPosition += 8;
+                    doc.line(20, yPosition - 2, 190, yPosition - 2);
+                    yPosition += 5;
+                    doc.setFont('helvetica', 'normal');
+                }
+                
+                const clientName = fine.clients?.name || 'N/A';
+                const reason = fine.reason || 'Não especificado';
+                const fineAmount = parseFloat(fine.amount || 0);
+                
+                doc.text(formatDate(fine.created_at), 20, yPosition);
+                doc.text(clientName.substring(0, 20), 45, yPosition);
+                doc.text(reason.substring(0, 25), 100, yPosition);
+                doc.text(`R$ ${fineAmount.toFixed(2)}`, 160, yPosition);
+                
+                yPosition += 8;
+            }
+            
+            // Total de multas de clientes
+            yPosition += 5;
+            doc.line(20, yPosition, 190, yPosition);
+            yPosition += 8;
+            doc.setFont('helvetica', 'bold');
+            doc.text('TOTAL MULTAS DE CLIENTES:', 20, yPosition);
+            doc.text(`R$ ${totalClientFines.toFixed(2)}`, 160, yPosition);
+            yPosition += 10;
+            
+            // Total geral (pagamentos + clientes)
+            const totalAllFines = totalFines + totalClientFines;
+            doc.setFontSize(11);
+            doc.text('TOTAL GERAL DE MULTAS:', 20, yPosition);
+            doc.text(`R$ ${totalAllFines.toFixed(2)}`, 160, yPosition);
         }
         
         // Informações da empresa no rodapé
