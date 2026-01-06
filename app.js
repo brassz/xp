@@ -16059,9 +16059,17 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         doc.text(`Total em Capital: R$ ${totalCapital.toFixed(2)}`, 20, yPosition);
         yPosition += 8;
         
-        // Calcular e exibir total de multas
-        const totalFines = allWeeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
-        doc.text(`Total em Multas: R$ ${totalFines.toFixed(2)}`, 20, yPosition);
+        // Calcular e exibir total de multas (pagamentos + clientes)
+        const totalPaymentFines = allWeeklyPayments.reduce((sum, payment) => sum + (parseFloat(payment.fine_amount) || 0), 0);
+        const totalClientFines = (weeklyClientFines || []).reduce((sum, fine) => sum + parseFloat(fine.amount || 0), 0);
+        const totalAllFines = totalPaymentFines + totalClientFines;
+        doc.text(`Total em Multas (Pagamentos): R$ ${totalPaymentFines.toFixed(2)}`, 20, yPosition);
+        yPosition += 6;
+        doc.text(`Total em Multas (Clientes): R$ ${totalClientFines.toFixed(2)}`, 20, yPosition);
+        yPosition += 6;
+        doc.setFont('helvetica', 'bold');
+        doc.text(`Total Geral de Multas: R$ ${totalAllFines.toFixed(2)}`, 20, yPosition);
+        doc.setFont('helvetica', 'normal');
         yPosition += 15;
         
         // Linha divisória
@@ -16147,7 +16155,7 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
             doc.setFont('helvetica', 'bold');
             doc.text('TOTAIS DA SEMANA:', 20, yPosition);
             doc.text(`R$ ${totalPayments.toFixed(2)}`, 100, yPosition);
-            doc.text(`R$ ${totalFines.toFixed(2)}`, 130, yPosition);
+            doc.text(`R$ ${totalPaymentFines.toFixed(2)}`, 130, yPosition);
             doc.text(`R$ ${totalInterest.toFixed(2)}`, 160, yPosition);
             doc.text(`R$ ${totalCapital.toFixed(2)}`, 180, yPosition);
         } else {
