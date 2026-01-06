@@ -16232,10 +16232,10 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
             yPosition += 10;
             
             // Total geral (pagamentos + clientes)
-            const totalAllFines = totalFines + totalClientFines;
+            const totalAllFinesSum = totalPaymentFines + totalClientFines;
             doc.setFontSize(11);
             doc.text('TOTAL GERAL DE MULTAS:', 20, yPosition);
-            doc.text(`R$ ${totalAllFines.toFixed(2)}`, 160, yPosition);
+            doc.text(`R$ ${totalAllFinesSum.toFixed(2)}`, 160, yPosition);
         }
         
         // Informações da empresa no rodapé
