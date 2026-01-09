@@ -18244,14 +18244,50 @@ function waGetBotBaseUrlFromStorage() {
 
 function waGetBotBaseUrl() {
     const input = document.getElementById('botUrlInput');
-    const raw = (input?.value || waGetBotBaseUrlFromStorage() || 'http://localhost:3333').trim();
+    const defaultUrl = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+        ? 'http://localhost:3333'
+        : '';
+    const raw = (input?.value || waGetBotBaseUrlFromStorage() || defaultUrl).trim();
     const normalized = raw.replace(/\/+$/, '');
     if (input && input.value !== normalized) input.value = normalized;
     localStorage.setItem('waBotUrl', normalized);
     return normalized;
 }
 
+function waIsLocalAddress(urlString) {
+    try {
+        const u = new URL(urlString);
+        return u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+    } catch {
+        return false;
+    }
+}
+
+function waCanCallBot() {
+    const base = waGetBotBaseUrl();
+    if (!base) {
+        return { ok: false, reason: 'Configure a URL do bot (https) na aba Atendimento.' };
+    }
+
+    // Em produção (Vercel/https), o navegador bloqueia acesso a http://localhost por Private Network Access.
+    const isPageLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const isLocalBot = waIsLocalAddress(base);
+    const isHttpsPage = location.protocol === 'https:';
+
+    if (!isPageLocal && isHttpsPage && isLocalBot) {
+        return {
+            ok: false,
+            reason: 'Em produção, o navegador bloqueia http://localhost. Use uma URL pública HTTPS do bot (ex: tunnel/ngrok/cloudflare).'
+        };
+    }
+
+    return { ok: true };
+}
+
 async function waRequest(path, options = {}) {
+    const can = waCanCallBot();
+    if (!can.ok) throw new Error(can.reason);
+
     const base = waGetBotBaseUrl();
     const url = `${base}${path}`;
     
@@ -18375,7 +18411,10 @@ async function waSendTest() {
 function initAtendimentoSection() {
     const botUrlInput = document.getElementById('botUrlInput');
     if (botUrlInput && !botUrlInput.value) {
-        botUrlInput.value = waGetBotBaseUrlFromStorage() || 'http://localhost:3333';
+        const defaultUrl = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+            ? 'http://localhost:3333'
+            : '';
+        botUrlInput.value = waGetBotBaseUrlFromStorage() || defaultUrl;
     }
     
     const connectBtn = document.getElementById('waConnectBtn');
@@ -18431,6 +18470,16 @@ function initAtendimentoSection() {
         atendimentoPollId = setInterval(() => {
             const section = document.getElementById('atendimento');
             if (!section || section.classList.contains('hidden')) return;
+
+            // Evitar spam de erro quando o bot está em localhost e o app está em https (Vercel)
+            const can = waCanCallBot();
+            if (!can.ok) {
+                waSetStatusBadge(false);
+                const qrEmpty = document.getElementById('waQrEmpty');
+                if (qrEmpty) qrEmpty.textContent = can.reason;
+                return;
+            }
+
             waRefreshStatus().catch(() => {});
             waRefreshQr().catch(() => {});
         }, 5000);
