@@ -4696,19 +4696,15 @@ async function updateDashboard() {
     // Calcular total de parcelamentos
     let totalInstallmentsValue = 0;
     try {
-        const { data: installments, error: installmentsError } = await supabase
-            .from('installments')
-            .select('amount, interest_amount, status');
+        // Schema atual: installments não tem amount/interest_amount.
+        // O valor "em aberto" pode ser obtido somando parcelas pendentes/vencidas em installment_payments.
+        const { data: installmentPayments, error: installmentPaymentsError } = await supabase
+            .from('installment_payments')
+            .select('amount, status')
+            .in('status', ['pending', 'overdue', 'partial']);
         
-        if (!installmentsError && installments) {
-            // Somar apenas parcelamentos não quitados (status != 'paid')
-            totalInstallmentsValue = installments
-                .filter(inst => inst.status !== 'paid')
-                .reduce((sum, inst) => {
-                    const amount = parseFloat(inst.amount) || 0;
-                    const interest = parseFloat(inst.interest_amount) || 0;
-                    return sum + amount + interest;
-                }, 0);
+        if (!installmentPaymentsError && installmentPayments) {
+            totalInstallmentsValue = installmentPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         }
     } catch (error) {
         console.error('Erro ao calcular total de parcelamentos:', error);
@@ -10056,7 +10052,8 @@ async function handleNewExpense(e) {
 async function loadExpenses() {
     try {
         // Carregar despesas sem join - mais simples e confiável
-        let expensesQuery = supabase.from('expenses')
+        let expensesQuery = supabase
+            .from('expenses')
             .select('*');
         
         // Se não for admin ou manager, filtrar apenas despesas próprias
@@ -10064,8 +10061,9 @@ async function loadExpenses() {
             expensesQuery = expensesQuery.eq('user_id', currentUser.id);
         }
         
-        const { data: expensesData, error: expensesError } = await expensesQuery
-            .order('date', { ascending: false });
+        // Alguns bancos usam expense_date (novo schema) e outros usam date (schema antigo).
+        // Para evitar erro 400 por coluna inexistente, não ordenamos no SQL e ordenamos aqui.
+        const { data: expensesData, error: expensesError } = await expensesQuery;
             
         if (expensesError) throw expensesError;
         
@@ -10080,25 +10078,39 @@ async function loadExpenses() {
             // Continuar mesmo sem categorias
         }
         
-        // Criar mapa de categorias por nome
-        const categoriesMap = {};
+        // Criar mapas de categorias por nome e por id
+        const categoriesByName = {};
+        const categoriesById = {};
         (categoriesData || []).forEach(category => {
-            categoriesMap[category.name] = category;
+            if (category?.name) categoriesByName[category.name] = category;
+            if (category?.id) categoriesById[category.id] = category;
         });
         
         // Processar despesas
         expenses = (expensesData || []).map(expense => ({
             ...expense,
-            // A categoria vem como nome (texto) na coluna 'category'
-            expense_categories: expense.category ? categoriesMap[expense.category] : null
+            // Compatibilidade:
+            // - schema novo: category_id + expense_date
+            // - schema antigo: category (nome) + date
+            date: expense.expense_date || expense.date,
+            expense_categories: expense.category_id
+                ? categoriesById[expense.category_id]
+                : (expense.category ? categoriesByName[expense.category] : null)
         }));
+
+        // Ordenar do mais recente para o mais antigo
+        expenses.sort((a, b) => {
+            const da = new Date(a.date || 0).getTime();
+            const db = new Date(b.date || 0).getTime();
+            return db - da;
+        });
         
         displayExpenses();
         updateExpensesSummary();
         
     } catch (error) {
         console.error('Erro ao carregar despesas:', error);
-        showInfoMessage('Erro ao carregar despesas: ' + error.message);
+        showInfoMessage('Erro ao carregar despesas: ' + (error?.message || JSON.stringify(error)));
     }
 }
 
@@ -10140,7 +10152,7 @@ function displayExpenses() {
                 <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
             </td>
             <td class="px-6 py-4">
-                <span class="text-gray-300">${formatDate(expense.date)}</span>
+                <span class="text-gray-300">${formatDate(expense.expense_date || expense.date)}</span>
             </td>
             <td class="px-6 py-4">
                 <div>
