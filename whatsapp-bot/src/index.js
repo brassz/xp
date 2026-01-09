@@ -36,7 +36,28 @@ app.get('/api/whatsapp/status', (_req, res) => {
   });
 });
 
+async function waitForQrOrConnected({ timeoutMs = 12_000, intervalMs = 200 } = {}) {
+  const startedAt = Date.now();
+  while (Date.now() - startedAt < timeoutMs) {
+    if (bot.connected) return { kind: 'connected' };
+    if (bot.qr) return { kind: 'qr' };
+    // eslint-disable-next-line no-await-in-loop
+    await new Promise((r) => setTimeout(r, intervalMs));
+  }
+  return { kind: 'timeout' };
+}
+
 app.get('/api/whatsapp/qr', async (_req, res) => {
+  // Garante que o socket exista; se ainda não foi iniciado, inicia conexão.
+  if (!bot.sock) {
+    await bot.connect();
+  }
+
+  // Evita corrida de tempo: espera o QR aparecer (ou conectar).
+  await waitForQrOrConnected({
+    timeoutMs: Number(process.env.QR_WAIT_TIMEOUT_MS || 12_000),
+  });
+
   const dataUrl = await bot.getQrDataUrl();
   res.json({
     qrUpdatedAt: bot.qrUpdatedAt,
