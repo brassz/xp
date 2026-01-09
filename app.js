@@ -1215,6 +1215,13 @@ async function handleLogin(e) {
 }
 
 async function handleLogout() {
+    // Se o usuário estiver "online" no atendimento, desativar automaticamente
+    try {
+        await waSafeGoOffline();
+    } catch (err) {
+        console.warn('Falha ao desativar atendimento online no logout (não crítico):', err);
+    }
+
     // Limpar timeout do usuário se existir
     clearUserTimeout();
     
@@ -1411,6 +1418,12 @@ function handleNavigation(e) {
             if (target === 'commissions') {
                 console.log('Seção de comissões ativada, inicializando...');
                 initializeCommissionsSection();
+            }
+
+            // Inicializar seção de atendimento (WhatsApp) quando for exibida
+            if (target === 'atendimento') {
+                console.log('Seção de atendimento ativada, inicializando...');
+                initAtendimentoSection();
             }
             
 
@@ -18201,3 +18214,227 @@ async function initNotifications() {
 
 // Atualizar notificações periodicamente (a cada 5 minutos)
 setInterval(initNotifications, 5 * 60 * 1000);
+
+// =====================================================
+// ATENDIMENTO (WHATSAPP BOT + BAILEYS)
+// =====================================================
+let atendimentoInitialized = false;
+let atendimentoPollId = null;
+
+function waGetCompanyId() {
+    if (typeof currentCompany === 'string' && currentCompany) return currentCompany;
+    return localStorage.getItem('selectedCompany') || 'nexus';
+}
+
+function waGetBotBaseUrlFromStorage() {
+    return localStorage.getItem('waBotUrl') || '';
+}
+
+function waGetBotBaseUrl() {
+    const input = document.getElementById('botUrlInput');
+    const raw = (input?.value || waGetBotBaseUrlFromStorage() || 'http://localhost:3333').trim();
+    const normalized = raw.replace(/\/+$/, '');
+    if (input && input.value !== normalized) input.value = normalized;
+    localStorage.setItem('waBotUrl', normalized);
+    return normalized;
+}
+
+async function waRequest(path, options = {}) {
+    const base = waGetBotBaseUrl();
+    const url = `${base}${path}`;
+    
+    const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        ...options
+    });
+    
+    const text = await res.text();
+    let data;
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch {
+        data = { raw: text };
+    }
+    
+    if (!res.ok) {
+        const msg = data?.error || data?.message || `HTTP ${res.status}`;
+        throw new Error(msg);
+    }
+    
+    return data;
+}
+
+function waSetStatusBadge(connected) {
+    const badge = document.getElementById('waStatusText');
+    if (!badge) return;
+    
+    badge.classList.remove('status-active', 'status-overdue', 'status-pending');
+    
+    if (connected) {
+        badge.classList.add('status-active');
+        badge.textContent = 'Conectado';
+    } else {
+        badge.classList.add('status-pending');
+        badge.textContent = 'Desconectado';
+    }
+}
+
+async function waRefreshStatus() {
+    const status = await waRequest('/api/whatsapp/status', { method: 'GET' });
+    const connected = Boolean(status?.whatsapp?.connected);
+    waSetStatusBadge(connected);
+    
+    const onlineToggle = document.getElementById('waOnlineToggle');
+    if (onlineToggle) onlineToggle.checked = Boolean(status?.billing?.online);
+    
+    const templateTextarea = document.getElementById('waTemplateTextarea');
+    if (templateTextarea && !atendimentoInitialized) {
+        templateTextarea.value = status?.billing?.template || '';
+    }
+    
+    return status;
+}
+
+async function waRefreshQr() {
+    const qr = await waRequest('/api/whatsapp/qr', { method: 'GET' });
+    
+    const img = document.getElementById('waQrImg');
+    const empty = document.getElementById('waQrEmpty');
+    const updatedAt = document.getElementById('waQrUpdatedAt');
+    
+    if (updatedAt) updatedAt.textContent = qr?.qrUpdatedAt || '-';
+    
+    if (qr?.qrDataUrl) {
+        if (img) {
+            img.src = qr.qrDataUrl;
+            img.classList.remove('hidden');
+        }
+        if (empty) empty.classList.add('hidden');
+    } else {
+        if (img) {
+            img.removeAttribute('src');
+            img.classList.add('hidden');
+        }
+        if (empty) empty.classList.remove('hidden');
+    }
+    
+    return qr;
+}
+
+async function waConnect() {
+    await waRequest('/api/whatsapp/connect', { method: 'POST', body: '{}' });
+    await waRefreshStatus();
+    await waRefreshQr();
+    showNotification('WhatsApp: conectando... escaneie o QR se aparecer.', 'success');
+}
+
+async function waLogout() {
+    await waRequest('/api/whatsapp/logout', { method: 'POST', body: '{}' });
+    await waRefreshStatus();
+    await waRefreshQr();
+    showNotification('WhatsApp desconectado.', 'success');
+}
+
+async function waSetOnline(online) {
+    const payload = { online: Boolean(online), companyId: waGetCompanyId() };
+    await waRequest('/api/whatsapp/online', { method: 'POST', body: JSON.stringify(payload) });
+    await waRefreshStatus();
+    showNotification(`Atendimento ${online ? 'ativado' : 'desativado'}.`, 'success');
+}
+
+async function waSaveTemplate() {
+    const templateTextarea = document.getElementById('waTemplateTextarea');
+    const template = templateTextarea?.value || '';
+    await waRequest('/api/whatsapp/template', { method: 'POST', body: JSON.stringify({ template }) });
+    showNotification('Template salvo no bot.', 'success');
+}
+
+async function waSendTest() {
+    const to = (document.getElementById('waTestToInput')?.value || '').trim();
+    const message = (document.getElementById('waTestMessageInput')?.value || '').trim();
+    if (!to || !message) {
+        showNotification('Informe telefone e mensagem para teste.', 'warning');
+        return;
+    }
+    await waRequest('/api/whatsapp/send', { method: 'POST', body: JSON.stringify({ to, message }) });
+    showNotification('Mensagem de teste enviada (se o WhatsApp estiver conectado).', 'success');
+}
+
+function initAtendimentoSection() {
+    const botUrlInput = document.getElementById('botUrlInput');
+    if (botUrlInput && !botUrlInput.value) {
+        botUrlInput.value = waGetBotBaseUrlFromStorage() || 'http://localhost:3333';
+    }
+    
+    const connectBtn = document.getElementById('waConnectBtn');
+    const logoutBtn = document.getElementById('waLogoutBtn');
+    const refreshBtn = document.getElementById('waRefreshBtn');
+    const onlineToggle = document.getElementById('waOnlineToggle');
+    const saveTemplateBtn = document.getElementById('waSaveTemplateBtn');
+    const sendTestBtn = document.getElementById('waSendTestBtn');
+    
+    if (!atendimentoInitialized) {
+        connectBtn?.addEventListener('click', () => waConnect().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao conectar WhatsApp: ${err.message}`, 'error');
+        }));
+        logoutBtn?.addEventListener('click', () => waLogout().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao desconectar WhatsApp: ${err.message}`, 'error');
+        }));
+        refreshBtn?.addEventListener('click', () => waRefreshQr().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao atualizar QR: ${err.message}`, 'error');
+        }));
+        onlineToggle?.addEventListener('change', (e) => waSetOnline(e.target.checked).catch(err => {
+            console.error(err);
+            showNotification(`Erro ao alterar online: ${err.message}`, 'error');
+            // Recarregar status para refletir estado real
+            waRefreshStatus().catch(() => {});
+        }));
+        saveTemplateBtn?.addEventListener('click', () => waSaveTemplate().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao salvar template: ${err.message}`, 'error');
+        }));
+        sendTestBtn?.addEventListener('click', () => waSendTest().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao enviar teste: ${err.message}`, 'error');
+        }));
+        
+        botUrlInput?.addEventListener('change', () => {
+            try { waGetBotBaseUrl(); } catch {}
+        });
+        
+        atendimentoInitialized = true;
+    }
+    
+    // Atualizar status/QR imediatamente
+    Promise.all([
+        waRefreshStatus().catch(err => console.warn('Status WhatsApp indisponível:', err)),
+        waRefreshQr().catch(err => console.warn('QR WhatsApp indisponível:', err))
+    ]).catch(() => {});
+    
+    // Poll apenas enquanto a seção estiver visível
+    if (!atendimentoPollId) {
+        atendimentoPollId = setInterval(() => {
+            const section = document.getElementById('atendimento');
+            if (!section || section.classList.contains('hidden')) return;
+            waRefreshStatus().catch(() => {});
+            waRefreshQr().catch(() => {});
+        }, 5000);
+    }
+}
+
+async function waSafeGoOffline() {
+    const storedUrl = waGetBotBaseUrlFromStorage();
+    if (!storedUrl) return;
+    // Tenta desligar, mas não bloqueia logout.
+    try {
+        await waRequest('/api/whatsapp/online', {
+            method: 'POST',
+            body: JSON.stringify({ online: false, companyId: waGetCompanyId() })
+        });
+    } catch {
+        // ignore
+    }
+}

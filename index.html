@@ -571,6 +571,13 @@
                     <span>Comissões</span>
                 </a>
 
+                <a href="#atendimento" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16h6m6 4H3a2 2 0 01-2-2V6a2 2 0 012-2h18a2 2 0 012 2v12a2 2 0 01-2 2z"></path>
+                    </svg>
+                    <span>Atendimento</span>
+                </a>
+
 
             </nav>
             
@@ -2168,6 +2175,92 @@
                             </table>
                         </div>
                     </div>
+                    </div>
+                </div>
+
+                <!-- Atendimento Section -->
+                <div id="atendimento" class="content-section hidden">
+                    <div class="mb-6">
+                        <h2 class="text-2xl font-bold text-white mb-2">Atendimento (WhatsApp)</h2>
+                        <p class="text-gray-400">Conecte o WhatsApp via QR Code e ative o modo online para cobranças automáticas.</p>
+                    </div>
+
+                    <div class="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                        <!-- Conexão WhatsApp -->
+                        <div class="glass-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-white">Conexão</h3>
+                                <span id="waStatusText" class="status-badge status-pending">Desconectado</span>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-blue-200 mb-2">URL do Bot</label>
+                                    <input id="botUrlInput" type="text" class="form-input w-full" placeholder="http://localhost:3333">
+                                    <p class="text-xs text-gray-400 mt-2">Dica: rode o bot localmente em `whatsapp-bot` e aponte para a URL acima.</p>
+                                </div>
+
+                                <div class="flex flex-wrap gap-2">
+                                    <button id="waConnectBtn" class="btn-primary px-4 py-2 rounded-lg font-semibold text-white">
+                                        Conectar
+                                    </button>
+                                    <button id="waLogoutBtn" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold text-white transition-colors">
+                                        Desconectar
+                                    </button>
+                                    <button id="waRefreshBtn" class="bg-gray-700 hover:bg-gray-600 px-4 py-2 rounded-lg font-semibold text-white transition-colors">
+                                        Atualizar QR
+                                    </button>
+                                </div>
+
+                                <div class="border border-gray-700 rounded-xl p-4 bg-gray-900 bg-opacity-40">
+                                    <div class="flex items-center justify-between mb-3">
+                                        <p class="text-sm text-gray-300">QR Code</p>
+                                        <p class="text-xs text-gray-500">Atualizado: <span id="waQrUpdatedAt">-</span></p>
+                                    </div>
+                                    <div class="flex items-center justify-center">
+                                        <img id="waQrImg" alt="QR Code do WhatsApp" class="max-w-full rounded-lg hidden">
+                                        <div id="waQrEmpty" class="text-sm text-gray-400">Clique em “Conectar” para gerar o QR.</div>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+
+                        <!-- Cobranças automáticas -->
+                        <div class="glass-card p-6 rounded-xl">
+                            <div class="flex items-center justify-between mb-4">
+                                <h3 class="text-lg font-semibold text-white">Cobranças automáticas</h3>
+                                <label class="flex items-center space-x-3">
+                                    <span class="text-sm text-gray-300">Online</span>
+                                    <input id="waOnlineToggle" type="checkbox" class="h-5 w-5">
+                                </label>
+                            </div>
+
+                            <div class="space-y-4">
+                                <div>
+                                    <label class="block text-sm font-medium text-blue-200 mb-2">Mensagem (template)</label>
+                                    <textarea id="waTemplateTextarea" class="form-input w-full" rows="6" placeholder="Use {NOME}, {VALOR}, {VENCIMENTO}, {PARCELA}, {TOTAL_PARCELAS}"></textarea>
+                                    <p class="text-xs text-gray-400 mt-2">Placeholders: <span class="text-gray-300">{NOME}</span>, <span class="text-gray-300">{VALOR}</span>, <span class="text-gray-300">{VENCIMENTO}</span>, <span class="text-gray-300">{PARCELA}</span>, <span class="text-gray-300">{TOTAL_PARCELAS}</span></p>
+                                </div>
+
+                                <div class="flex flex-wrap gap-2">
+                                    <button id="waSaveTemplateBtn" class="bg-green-600 hover:bg-green-700 px-4 py-2 rounded-lg font-semibold text-white transition-colors">
+                                        Salvar template
+                                    </button>
+                                </div>
+
+                                <div class="border border-gray-700 rounded-xl p-4 bg-gray-900 bg-opacity-40">
+                                    <h4 class="text-sm font-semibold text-white mb-3">Teste rápido</h4>
+                                    <div class="grid grid-cols-1 gap-3">
+                                        <input id="waTestToInput" type="text" class="form-input w-full" placeholder="Telefone (ex: 5511999999999)">
+                                        <textarea id="waTestMessageInput" class="form-input w-full" rows="3" placeholder="Mensagem de teste"></textarea>
+                                        <button id="waSendTestBtn" class="bg-blue-700 hover:bg-blue-600 px-4 py-2 rounded-lg font-semibold text-white transition-colors">
+                                            Enviar teste
+                                        </button>
+                                        <p class="text-xs text-gray-400">Obs: o bot só envia se o WhatsApp estiver conectado.</p>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
                     </div>
                 </div>
 

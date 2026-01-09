@@ -51,6 +51,10 @@ Sistema completo de gestão financeira para controle de clientes, empréstimos e
   - Resumo financeiro total
   - Acesso pela aba Histórico Completo
 
+### 💬 Atendimento (WhatsApp)
+- Nova aba **Atendimento** para conectar o WhatsApp via **QR Code**
+- Serviço Node em `whatsapp-bot/` (Baileys) para manter sessão e enviar cobranças automáticas quando o usuário estiver **online**
+
 ## Funcionalidades de Edição e Exclusão
 
 ### ✏️ Edição de Clientes
