@@ -18886,7 +18886,10 @@ async function wppTryStartSession() {
 async function wppCheckStatus() {
     setWppStatusBadge('Checando...', 'idle');
     const candidates = [
+        // Rotas oficiais do wppconnect-server (conforme Swagger)
         '/api/{session}/status-session',
+        '/api/{session}/check-connection-session',
+        // Fallbacks (variantes)
         '/api/{session}/status'
     ];
 
@@ -18942,6 +18945,9 @@ function wppShowQr(srcOrText) {
 
 async function wppRefreshQr() {
     const candidates = [
+        // Rota oficial do wppconnect-server (conforme Swagger)
+        '/api/{session}/qrcode-session',
+        // Fallbacks (variantes)
         '/api/{session}/qrcode',
         '/api/{session}/qr-code'
     ];
