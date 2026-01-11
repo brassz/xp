@@ -18778,7 +18778,8 @@ function loadWppConfigToUI() {
     const sessionEl = document.getElementById('wppSession');
     const tokenEl = document.getElementById('wppToken');
 
-    if (baseUrlEl && !baseUrlEl.value) baseUrlEl.value = cfg.baseUrl || 'http://localhost:21465';
+    // Default para VPS (pode ser sobrescrito no UI/localStorage)
+    if (baseUrlEl && !baseUrlEl.value) baseUrlEl.value = cfg.baseUrl || 'http://212.85.19.210:21465';
     if (sessionEl && !sessionEl.value) sessionEl.value = cfg.session || 'default';
     if (tokenEl && !tokenEl.value) tokenEl.value = cfg.token || '';
 }
