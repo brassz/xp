@@ -18279,18 +18279,34 @@ function setupCobrancasEventListeners() {
     }
 
     wppConnectBtn?.addEventListener('click', async () => {
-        saveWppConfigFromUI();
-        await wppTryStartSession();
-        await wppRefreshQr();
-        await wppCheckStatus();
+        try {
+            saveWppConfigFromUI();
+            await wppTryStartSession();
+            await wppRefreshQr();
+            await wppCheckStatus();
+        } catch (e) {
+            console.error('Erro ao conectar WPPConnect:', e);
+            showNotification(`Erro WPPConnect: ${e?.message || 'falha ao conectar'}`, 'error');
+            // Evitar "promise rejeitada não tratada"
+        }
     });
     wppRefreshQrBtn?.addEventListener('click', async () => {
-        saveWppConfigFromUI();
-        await wppRefreshQr();
+        try {
+            saveWppConfigFromUI();
+            await wppRefreshQr();
+        } catch (e) {
+            console.error('Erro ao atualizar QR WPPConnect:', e);
+            showNotification(`Erro ao atualizar QR: ${e?.message || 'falha'}`, 'error');
+        }
     });
     wppCheckStatusBtn?.addEventListener('click', async () => {
-        saveWppConfigFromUI();
-        await wppCheckStatus();
+        try {
+            saveWppConfigFromUI();
+            await wppCheckStatus();
+        } catch (e) {
+            console.error('Erro ao checar status WPPConnect:', e);
+            showNotification(`Erro ao checar status: ${e?.message || 'falha'}`, 'error');
+        }
     });
 
     cobrancasListenersSetup = true;
@@ -18885,7 +18901,9 @@ async function wppCheckStatus() {
 
     if (!data) {
         setWppStatusBadge('Erro no status', 'error');
-        throw new Error('Não foi possível checar status do WPPConnect.');
+        // Não lançar erro aqui para evitar "Uncaught (in promise)" em UI.
+        // Quem chama pode tratar/avisar; aqui retornamos null.
+        return null;
     }
 
     const statusStr = typeof data === 'string'
