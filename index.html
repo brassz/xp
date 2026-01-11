@@ -11,6 +11,7 @@
     <script src="https://ucarecdn.com/libs/widget/3.x/uploadcare.full.min.js"></script>
     <link rel="stylesheet" href="https://ucarecdn.com/libs/widget/3.x/uploadcare.min.css">
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
     <style>
         :root {
             --primary: #1e40af;
@@ -569,6 +570,13 @@
                         <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 20l-5.447-2.724A1 1 0 013 16.382V5.618a1 1 0 011.447-.894L9 7m0 13l6-3m-6 3V7m6 10l4.553 2.276A1 1 0 0021 18.382V7.618a1 1 0 00-.553-.894L15 4m0 13V4m0 0L9 7"></path>
                     </svg>
                     <span>Comissões</span>
+                </a>
+                
+                <a href="#collections" class="nav-link flex items-center space-x-3 px-4 py-3 text-gray-300 hover:text-white rounded-lg hover:bg-gray-700 transition-all">
+                    <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                    </svg>
+                    <span>Cobranças WhatsApp</span>
                 </a>
 
 
@@ -2168,6 +2176,221 @@
                             </table>
                         </div>
                     </div>
+                    </div>
+                </div>
+
+                <!-- Collections Section (Cobranças WhatsApp) -->
+                <div id="collections" class="content-section hidden">
+                    <div class="mb-6">
+                        <h2 class="text-3xl font-bold text-white mb-2">Cobranças WhatsApp</h2>
+                        <p class="text-gray-400">Sistema automatizado de cobrança via WhatsApp</p>
+                    </div>
+                    
+                    <!-- WhatsApp Connection Status -->
+                    <div class="glass-card p-6 rounded-xl mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-xl font-semibold text-white">Status da Conexão WhatsApp</h3>
+                            <div id="whatsappStatus" class="flex items-center space-x-2">
+                                <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                                <span class="text-sm text-gray-400">Desconectado</span>
+                            </div>
+                        </div>
+                        
+                        <div id="qrcodeContainer" class="flex flex-col items-center justify-center py-8 hidden">
+                            <p class="text-gray-300 mb-4">Escaneie o QR Code com seu WhatsApp:</p>
+                            <div id="qrcodeDisplay" class="bg-white p-4 rounded-lg"></div>
+                            <p class="text-sm text-gray-400 mt-4">Aguardando leitura do QR Code...</p>
+                        </div>
+                        
+                        <div id="whatsappConnectedInfo" class="hidden">
+                            <div class="flex items-center space-x-4 mb-4">
+                                <div class="w-16 h-16 bg-green-500 bg-opacity-20 rounded-full flex items-center justify-center">
+                                    <svg class="w-8 h-8 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                                <div>
+                                    <p class="text-lg font-semibold text-white">WhatsApp Conectado!</p>
+                                    <p class="text-sm text-gray-400" id="whatsappPhone">+55 00 00000-0000</p>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="flex space-x-4">
+                            <button id="connectWhatsAppBtn" class="btn-primary px-6 py-3 rounded-lg font-semibold text-white">
+                                Conectar WhatsApp
+                            </button>
+                            <button id="disconnectWhatsAppBtn" class="bg-red-600 hover:bg-red-700 px-6 py-3 rounded-lg font-semibold text-white hidden">
+                                Desconectar
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Statistics Cards -->
+                    <div class="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+                        <div class="glass-card p-4 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-400 mb-1">Total de Devedores</p>
+                                    <p class="text-2xl font-bold text-white" id="totalDebtors">0</p>
+                                </div>
+                                <div class="p-3 bg-red-500 bg-opacity-20 rounded-full">
+                                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-4 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-400 mb-1">Vencidos</p>
+                                    <p class="text-2xl font-bold text-red-400" id="overdueCount">0</p>
+                                </div>
+                                <div class="p-3 bg-red-500 bg-opacity-20 rounded-full">
+                                    <svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-4 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-400 mb-1">Vencem Hoje</p>
+                                    <p class="text-2xl font-bold text-yellow-400" id="dueTodayCount">0</p>
+                                </div>
+                                <div class="p-3 bg-yellow-500 bg-opacity-20 rounded-full">
+                                    <svg class="w-6 h-6 text-yellow-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                        
+                        <div class="glass-card p-4 rounded-lg">
+                            <div class="flex items-center justify-between">
+                                <div>
+                                    <p class="text-sm text-gray-400 mb-1">Mensagens Enviadas</p>
+                                    <p class="text-2xl font-bold text-green-400" id="messagesSent">0</p>
+                                </div>
+                                <div class="p-3 bg-green-500 bg-opacity-20 rounded-full">
+                                    <svg class="w-6 h-6 text-green-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"></path>
+                                    </svg>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    
+                    <!-- Filters and Controls -->
+                    <div class="glass-card p-6 rounded-xl mb-6">
+                        <div class="flex items-center justify-between mb-4">
+                            <h3 class="text-lg font-semibold text-white">Filtros e Controles</h3>
+                            <button id="refreshDebtorsBtn" class="text-blue-400 hover:text-blue-300">
+                                <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        
+                        <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label class="block text-sm font-medium text-blue-200 mb-2">Filtrar por Status</label>
+                                <select id="debtorStatusFilter" class="form-select w-full">
+                                    <option value="all">Todos</option>
+                                    <option value="overdue">Vencidos</option>
+                                    <option value="due_today">Vencem Hoje</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-blue-200 mb-2">Tipo de Débito</label>
+                                <select id="debtTypeFilter" class="form-select w-full">
+                                    <option value="all">Todos</option>
+                                    <option value="loans">Empréstimos</option>
+                                    <option value="installments">Parcelamentos</option>
+                                </select>
+                            </div>
+                            
+                            <div>
+                                <label class="block text-sm font-medium text-blue-200 mb-2">Delay entre Mensagens (minutos)</label>
+                                <input type="number" id="messageDelay" class="form-input w-full" value="10" min="1">
+                            </div>
+                        </div>
+                        
+                        <div class="flex flex-wrap gap-3">
+                            <button id="selectAllDebtorsBtn" class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg font-semibold text-white text-sm">
+                                Selecionar Todos
+                            </button>
+                            <button id="unselectAllDebtorsBtn" class="bg-gray-600 hover:bg-gray-700 px-4 py-2 rounded-lg font-semibold text-white text-sm">
+                                Desmarcar Todos
+                            </button>
+                            <button id="sendCollectionMessagesBtn" class="btn-primary px-4 py-2 rounded-lg font-semibold text-white text-sm" disabled>
+                                Enviar Cobranças Selecionadas
+                            </button>
+                        </div>
+                    </div>
+                    
+                    <!-- Debtors List -->
+                    <div class="glass-card p-6 rounded-xl mb-6">
+                        <h3 class="text-lg font-semibold text-white mb-4">Lista de Devedores</h3>
+                        
+                        <div id="debtorsLoadingIndicator" class="hidden text-center py-8">
+                            <div class="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-500"></div>
+                            <p class="text-gray-400 mt-4">Carregando devedores...</p>
+                        </div>
+                        
+                        <div class="overflow-x-auto">
+                            <table class="w-full">
+                                <thead class="border-b border-gray-700">
+                                    <tr>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-blue-200 uppercase tracking-wider">
+                                            <input type="checkbox" id="selectAllCheckbox" class="rounded">
+                                        </th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-blue-200 uppercase tracking-wider">Cliente</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-blue-200 uppercase tracking-wider">Telefone</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-blue-200 uppercase tracking-wider">Tipo</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-blue-200 uppercase tracking-wider">Valor em Aberto</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-blue-200 uppercase tracking-wider">Data Vencimento</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-blue-200 uppercase tracking-wider">Status</th>
+                                        <th class="px-4 py-3 text-left text-xs font-medium text-blue-200 uppercase tracking-wider">Ações</th>
+                                    </tr>
+                                </thead>
+                                <tbody id="debtorsTableBody" class="divide-y divide-gray-700">
+                                    <tr>
+                                        <td colspan="8" class="px-4 py-8 text-center text-gray-400">
+                                            Nenhum devedor encontrado. Clique em atualizar para carregar.
+                                        </td>
+                                    </tr>
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                    
+                    <!-- Sending Progress -->
+                    <div id="sendingProgressContainer" class="glass-card p-6 rounded-xl mb-6 hidden">
+                        <h3 class="text-lg font-semibold text-white mb-4">Progresso do Envio</h3>
+                        
+                        <div class="mb-4">
+                            <div class="flex justify-between text-sm text-gray-400 mb-2">
+                                <span id="progressText">0 de 0 mensagens enviadas</span>
+                                <span id="progressPercentage">0%</span>
+                            </div>
+                            <div class="w-full bg-gray-700 rounded-full h-3">
+                                <div id="progressBar" class="bg-green-500 h-3 rounded-full transition-all duration-300" style="width: 0%"></div>
+                            </div>
+                        </div>
+                        
+                        <div id="sendingLog" class="bg-gray-800 bg-opacity-50 rounded-lg p-4 max-h-64 overflow-y-auto space-y-2">
+                            <!-- Log entries will be added here -->
+                        </div>
+                        
+                        <button id="stopSendingBtn" class="bg-red-600 hover:bg-red-700 px-4 py-2 rounded-lg font-semibold text-white text-sm mt-4">
+                            Parar Envio
+                        </button>
                     </div>
                 </div>
 
@@ -4422,6 +4645,685 @@
                     }
                 }, 100);
             }
+        })();
+
+        // ========================================
+        // WHATSAPP COLLECTIONS MODULE
+        // ========================================
+        (function() {
+            const WPPCONNECT_API_URL = 'http://212.85.19.210:21465';
+            const SESSION_NAME = 'nexus-collections';
+            let whatsappConnected = false;
+            let qrCodeCheckInterval = null;
+            let debtorsList = [];
+            let sendingInProgress = false;
+            let sendingCancelled = false;
+
+            document.addEventListener('DOMContentLoaded', function() {
+                initializeCollectionsModule();
+            });
+
+            function initializeCollectionsModule() {
+                // Event Listeners
+                document.getElementById('connectWhatsAppBtn')?.addEventListener('click', connectWhatsApp);
+                document.getElementById('disconnectWhatsAppBtn')?.addEventListener('click', disconnectWhatsApp);
+                document.getElementById('refreshDebtorsBtn')?.addEventListener('click', loadDebtors);
+                document.getElementById('selectAllDebtorsBtn')?.addEventListener('click', selectAllDebtors);
+                document.getElementById('unselectAllDebtorsBtn')?.addEventListener('click', unselectAllDebtors);
+                document.getElementById('sendCollectionMessagesBtn')?.addEventListener('click', sendCollectionMessages);
+                document.getElementById('stopSendingBtn')?.addEventListener('click', stopSending);
+                document.getElementById('debtorStatusFilter')?.addEventListener('change', filterDebtors);
+                document.getElementById('debtTypeFilter')?.addEventListener('change', filterDebtors);
+                document.getElementById('selectAllCheckbox')?.addEventListener('change', function(e) {
+                    if (e.target.checked) {
+                        selectAllDebtors();
+                    } else {
+                        unselectAllDebtors();
+                    }
+                });
+
+                // Check WhatsApp status on load
+                checkWhatsAppStatus();
+            }
+
+            // ========================================
+            // WHATSAPP CONNECTION FUNCTIONS
+            // ========================================
+
+            async function connectWhatsApp() {
+                try {
+                    showLoading('Iniciando sessão WhatsApp...');
+                    
+                    // Start session
+                    const response = await fetch(`${WPPCONNECT_API_URL}/${SESSION_NAME}/start-session`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    const data = await response.json();
+                    
+                    if (data.status === 'QRCODE') {
+                        displayQRCode(data.qrcode);
+                        startQRCodeCheck();
+                    } else if (data.status === 'CONNECTED') {
+                        onWhatsAppConnected();
+                    }
+                    
+                    hideLoading();
+                } catch (error) {
+                    console.error('Error connecting WhatsApp:', error);
+                    alert('Erro ao conectar WhatsApp: ' + error.message);
+                    hideLoading();
+                }
+            }
+
+            async function disconnectWhatsApp() {
+                try {
+                    showLoading('Desconectando WhatsApp...');
+                    
+                    const response = await fetch(`${WPPCONNECT_API_URL}/${SESSION_NAME}/close-session`, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json'
+                        }
+                    });
+
+                    whatsappConnected = false;
+                    updateConnectionUI(false);
+                    hideLoading();
+                    alert('WhatsApp desconectado com sucesso!');
+                } catch (error) {
+                    console.error('Error disconnecting WhatsApp:', error);
+                    alert('Erro ao desconectar: ' + error.message);
+                    hideLoading();
+                }
+            }
+
+            async function checkWhatsAppStatus() {
+                try {
+                    const response = await fetch(`${WPPCONNECT_API_URL}/${SESSION_NAME}/check-connection-session`);
+                    const data = await response.json();
+                    
+                    if (data.status === 'CONNECTED') {
+                        whatsappConnected = true;
+                        updateConnectionUI(true);
+                    }
+                } catch (error) {
+                    console.error('Error checking WhatsApp status:', error);
+                }
+            }
+
+            function displayQRCode(qrcode) {
+                const qrcodeContainer = document.getElementById('qrcodeContainer');
+                const qrcodeDisplay = document.getElementById('qrcodeDisplay');
+                
+                qrcodeContainer.classList.remove('hidden');
+                qrcodeDisplay.innerHTML = `<img src="${qrcode}" alt="QR Code" class="max-w-full">`;
+            }
+
+            function startQRCodeCheck() {
+                if (qrCodeCheckInterval) {
+                    clearInterval(qrCodeCheckInterval);
+                }
+                
+                qrCodeCheckInterval = setInterval(async () => {
+                    try {
+                        const response = await fetch(`${WPPCONNECT_API_URL}/${SESSION_NAME}/check-connection-session`);
+                        const data = await response.json();
+                        
+                        if (data.status === 'CONNECTED') {
+                            clearInterval(qrCodeCheckInterval);
+                            onWhatsAppConnected();
+                        }
+                    } catch (error) {
+                        console.error('Error checking connection:', error);
+                    }
+                }, 3000);
+            }
+
+            function onWhatsAppConnected() {
+                whatsappConnected = true;
+                updateConnectionUI(true);
+                document.getElementById('qrcodeContainer').classList.add('hidden');
+                alert('WhatsApp conectado com sucesso!');
+            }
+
+            function updateConnectionUI(connected) {
+                const statusDiv = document.getElementById('whatsappStatus');
+                const connectedInfo = document.getElementById('whatsappConnectedInfo');
+                const connectBtn = document.getElementById('connectWhatsAppBtn');
+                const disconnectBtn = document.getElementById('disconnectWhatsAppBtn');
+                const sendBtn = document.getElementById('sendCollectionMessagesBtn');
+                
+                if (connected) {
+                    statusDiv.innerHTML = `
+                        <span class="w-3 h-3 bg-green-500 rounded-full animate-pulse"></span>
+                        <span class="text-sm text-green-400">Conectado</span>
+                    `;
+                    connectedInfo.classList.remove('hidden');
+                    connectBtn.classList.add('hidden');
+                    disconnectBtn.classList.remove('hidden');
+                    sendBtn.disabled = false;
+                } else {
+                    statusDiv.innerHTML = `
+                        <span class="w-3 h-3 bg-red-500 rounded-full animate-pulse"></span>
+                        <span class="text-sm text-gray-400">Desconectado</span>
+                    `;
+                    connectedInfo.classList.add('hidden');
+                    connectBtn.classList.remove('hidden');
+                    disconnectBtn.classList.add('hidden');
+                    sendBtn.disabled = true;
+                }
+            }
+
+            // ========================================
+            // DEBTORS MANAGEMENT FUNCTIONS
+            // ========================================
+
+            async function loadDebtors() {
+                try {
+                    showDebtorsLoading(true);
+                    debtorsList = [];
+                    
+                    const currentUser = JSON.parse(localStorage.getItem('currentUser'));
+                    const company = currentUser?.company;
+                    
+                    if (!company) {
+                        alert('Erro: Empresa não identificada');
+                        return;
+                    }
+
+                    // Load overdue loans and installments
+                    const overdue = await loadOverdueDebts(company);
+                    const dueToday = await loadDueTodayDebts(company);
+                    
+                    debtorsList = [...overdue, ...dueToday];
+                    
+                    // Update statistics
+                    updateStatistics();
+                    
+                    // Display debtors
+                    displayDebtors();
+                    
+                    showDebtorsLoading(false);
+                } catch (error) {
+                    console.error('Error loading debtors:', error);
+                    alert('Erro ao carregar devedores: ' + error.message);
+                    showDebtorsLoading(false);
+                }
+            }
+
+            async function loadOverdueDebts(company) {
+                const debtors = [];
+                const today = new Date().toISOString().split('T')[0];
+                
+                try {
+                    // Load overdue loans
+                    const { data: loans, error: loansError } = await supabase
+                        .from('loans')
+                        .select('*, clients(*)')
+                        .eq('company', company)
+                        .eq('status', 'active')
+                        .lt('due_date', today);
+                    
+                    if (loansError) throw loansError;
+                    
+                    if (loans) {
+                        loans.forEach(loan => {
+                            debtors.push({
+                                id: loan.id,
+                                type: 'loan',
+                                clientName: loan.clients?.name || 'N/A',
+                                clientPhone: loan.clients?.phone || '',
+                                amount: loan.remaining_amount || 0,
+                                dueDate: loan.due_date,
+                                status: 'overdue',
+                                loanId: loan.id
+                            });
+                        });
+                    }
+                    
+                    // Load overdue installments
+                    const { data: installments, error: installmentsError } = await supabase
+                        .from('installments')
+                        .select('*, loans!inner(*, clients(*))')
+                        .eq('loans.company', company)
+                        .eq('status', 'pending')
+                        .lt('due_date', today);
+                    
+                    if (installmentsError) throw installmentsError;
+                    
+                    if (installments) {
+                        installments.forEach(inst => {
+                            debtors.push({
+                                id: inst.id,
+                                type: 'installment',
+                                clientName: inst.loans?.clients?.name || 'N/A',
+                                clientPhone: inst.loans?.clients?.phone || '',
+                                amount: inst.amount || 0,
+                                dueDate: inst.due_date,
+                                status: 'overdue',
+                                loanId: inst.loan_id,
+                                installmentNumber: inst.installment_number
+                            });
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading overdue debts:', error);
+                }
+                
+                return debtors;
+            }
+
+            async function loadDueTodayDebts(company) {
+                const debtors = [];
+                const today = new Date().toISOString().split('T')[0];
+                
+                try {
+                    // Load loans due today
+                    const { data: loans, error: loansError } = await supabase
+                        .from('loans')
+                        .select('*, clients(*)')
+                        .eq('company', company)
+                        .eq('status', 'active')
+                        .eq('due_date', today);
+                    
+                    if (loansError) throw loansError;
+                    
+                    if (loans) {
+                        loans.forEach(loan => {
+                            debtors.push({
+                                id: loan.id,
+                                type: 'loan',
+                                clientName: loan.clients?.name || 'N/A',
+                                clientPhone: loan.clients?.phone || '',
+                                amount: loan.remaining_amount || 0,
+                                dueDate: loan.due_date,
+                                status: 'due_today',
+                                loanId: loan.id
+                            });
+                        });
+                    }
+                    
+                    // Load installments due today
+                    const { data: installments, error: installmentsError } = await supabase
+                        .from('installments')
+                        .select('*, loans!inner(*, clients(*))')
+                        .eq('loans.company', company)
+                        .eq('status', 'pending')
+                        .eq('due_date', today);
+                    
+                    if (installmentsError) throw installmentsError;
+                    
+                    if (installments) {
+                        installments.forEach(inst => {
+                            debtors.push({
+                                id: inst.id,
+                                type: 'installment',
+                                clientName: inst.loans?.clients?.name || 'N/A',
+                                clientPhone: inst.loans?.clients?.phone || '',
+                                amount: inst.amount || 0,
+                                dueDate: inst.due_date,
+                                status: 'due_today',
+                                loanId: inst.loan_id,
+                                installmentNumber: inst.installment_number
+                            });
+                        });
+                    }
+                } catch (error) {
+                    console.error('Error loading due today debts:', error);
+                }
+                
+                return debtors;
+            }
+
+            function displayDebtors() {
+                const tbody = document.getElementById('debtorsTableBody');
+                
+                if (!debtorsList || debtorsList.length === 0) {
+                    tbody.innerHTML = `
+                        <tr>
+                            <td colspan="8" class="px-4 py-8 text-center text-gray-400">
+                                Nenhum devedor encontrado.
+                            </td>
+                        </tr>
+                    `;
+                    return;
+                }
+                
+                let html = '';
+                debtorsList.forEach((debtor, index) => {
+                    const statusBadge = debtor.status === 'overdue' 
+                        ? '<span class="px-2 py-1 bg-red-500 bg-opacity-20 text-red-400 text-xs rounded-full">Vencido</span>'
+                        : '<span class="px-2 py-1 bg-yellow-500 bg-opacity-20 text-yellow-400 text-xs rounded-full">Vence Hoje</span>';
+                    
+                    const typeBadge = debtor.type === 'loan'
+                        ? '<span class="px-2 py-1 bg-blue-500 bg-opacity-20 text-blue-400 text-xs rounded-full">Empréstimo</span>'
+                        : `<span class="px-2 py-1 bg-purple-500 bg-opacity-20 text-purple-400 text-xs rounded-full">Parcela ${debtor.installmentNumber || ''}</span>`;
+                    
+                    const formattedAmount = new Intl.NumberFormat('pt-BR', { 
+                        style: 'currency', 
+                        currency: 'BRL' 
+                    }).format(debtor.amount);
+                    
+                    const formattedDate = new Date(debtor.dueDate + 'T00:00:00').toLocaleDateString('pt-BR');
+                    
+                    html += `
+                        <tr class="hover:bg-gray-700 hover:bg-opacity-30 transition-colors debtor-row" data-index="${index}">
+                            <td class="px-4 py-3">
+                                <input type="checkbox" class="debtor-checkbox rounded" data-index="${index}">
+                            </td>
+                            <td class="px-4 py-3 text-white">${debtor.clientName}</td>
+                            <td class="px-4 py-3 text-gray-300">${debtor.clientPhone}</td>
+                            <td class="px-4 py-3">${typeBadge}</td>
+                            <td class="px-4 py-3 text-white font-semibold">${formattedAmount}</td>
+                            <td class="px-4 py-3 text-gray-300">${formattedDate}</td>
+                            <td class="px-4 py-3">${statusBadge}</td>
+                            <td class="px-4 py-3">
+                                <button class="text-blue-400 hover:text-blue-300 text-sm" onclick="window.collectionsModule.sendSingleMessage(${index})">
+                                    Enviar Agora
+                                </button>
+                            </td>
+                        </tr>
+                    `;
+                });
+                
+                tbody.innerHTML = html;
+            }
+
+            function filterDebtors() {
+                const statusFilter = document.getElementById('debtorStatusFilter').value;
+                const typeFilter = document.getElementById('debtTypeFilter').value;
+                const rows = document.querySelectorAll('.debtor-row');
+                
+                rows.forEach(row => {
+                    const index = row.dataset.index;
+                    const debtor = debtorsList[index];
+                    
+                    let showRow = true;
+                    
+                    if (statusFilter !== 'all' && debtor.status !== statusFilter) {
+                        showRow = false;
+                    }
+                    
+                    if (typeFilter === 'loans' && debtor.type !== 'loan') {
+                        showRow = false;
+                    } else if (typeFilter === 'installments' && debtor.type !== 'installment') {
+                        showRow = false;
+                    }
+                    
+                    row.style.display = showRow ? '' : 'none';
+                });
+                
+                updateStatistics();
+            }
+
+            function updateStatistics() {
+                const total = debtorsList.length;
+                const overdue = debtorsList.filter(d => d.status === 'overdue').length;
+                const dueToday = debtorsList.filter(d => d.status === 'due_today').length;
+                
+                document.getElementById('totalDebtors').textContent = total;
+                document.getElementById('overdueCount').textContent = overdue;
+                document.getElementById('dueTodayCount').textContent = dueToday;
+            }
+
+            function selectAllDebtors() {
+                const checkboxes = document.querySelectorAll('.debtor-checkbox');
+                checkboxes.forEach(cb => {
+                    const row = cb.closest('.debtor-row');
+                    if (row.style.display !== 'none') {
+                        cb.checked = true;
+                    }
+                });
+                document.getElementById('selectAllCheckbox').checked = true;
+            }
+
+            function unselectAllDebtors() {
+                const checkboxes = document.querySelectorAll('.debtor-checkbox');
+                checkboxes.forEach(cb => cb.checked = false);
+                document.getElementById('selectAllCheckbox').checked = false;
+            }
+
+            // ========================================
+            // MESSAGE SENDING FUNCTIONS
+            // ========================================
+
+            async function sendCollectionMessages() {
+                if (!whatsappConnected) {
+                    alert('Conecte o WhatsApp primeiro!');
+                    return;
+                }
+                
+                const selectedCheckboxes = document.querySelectorAll('.debtor-checkbox:checked');
+                
+                if (selectedCheckboxes.length === 0) {
+                    alert('Selecione pelo menos um devedor!');
+                    return;
+                }
+                
+                const delayMinutes = parseInt(document.getElementById('messageDelay').value) || 10;
+                const delayMs = delayMinutes * 60 * 1000;
+                
+                if (!confirm(`Enviar ${selectedCheckboxes.length} mensagem(ns) com delay de ${delayMinutes} minutos entre cada uma?`)) {
+                    return;
+                }
+                
+                sendingInProgress = true;
+                sendingCancelled = false;
+                
+                document.getElementById('sendingProgressContainer').classList.remove('hidden');
+                document.getElementById('sendCollectionMessagesBtn').disabled = true;
+                
+                let sent = 0;
+                let failed = 0;
+                
+                for (let i = 0; i < selectedCheckboxes.length; i++) {
+                    if (sendingCancelled) {
+                        addLog('Envio cancelado pelo usuário.', 'warning');
+                        break;
+                    }
+                    
+                    const index = selectedCheckboxes[i].dataset.index;
+                    const debtor = debtorsList[index];
+                    
+                    try {
+                        await sendMessageToDebtor(debtor);
+                        sent++;
+                        addLog(`✓ Mensagem enviada para ${debtor.clientName}`, 'success');
+                    } catch (error) {
+                        failed++;
+                        addLog(`✗ Erro ao enviar para ${debtor.clientName}: ${error.message}`, 'error');
+                    }
+                    
+                    updateProgress(i + 1, selectedCheckboxes.length);
+                    
+                    // Wait delay before next message (except for last one)
+                    if (i < selectedCheckboxes.length - 1 && !sendingCancelled) {
+                        addLog(`⏳ Aguardando ${delayMinutes} minutos...`, 'info');
+                        await sleep(delayMs);
+                    }
+                }
+                
+                // Update message counter
+                const currentCount = parseInt(document.getElementById('messagesSent').textContent) || 0;
+                document.getElementById('messagesSent').textContent = currentCount + sent;
+                
+                sendingInProgress = false;
+                document.getElementById('sendCollectionMessagesBtn').disabled = false;
+                
+                addLog(`✓ Processo finalizado! Enviadas: ${sent} | Falhas: ${failed}`, 'success');
+                alert(`Envio concluído!\n\nEnviadas: ${sent}\nFalhas: ${failed}`);
+            }
+
+            async function sendMessageToDebtor(debtor) {
+                const phone = formatPhoneNumber(debtor.clientPhone);
+                const message = generateCollectionMessage(debtor);
+                
+                const response = await fetch(`${WPPCONNECT_API_URL}/${SESSION_NAME}/send-message`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        phone: phone,
+                        message: message,
+                        isGroup: false
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (!response.ok || !data.success) {
+                    throw new Error(data.message || 'Erro ao enviar mensagem');
+                }
+                
+                return data;
+            }
+
+            async function sendSingleMessage(index) {
+                if (!whatsappConnected) {
+                    alert('Conecte o WhatsApp primeiro!');
+                    return;
+                }
+                
+                const debtor = debtorsList[index];
+                
+                if (!confirm(`Enviar mensagem de cobrança para ${debtor.clientName}?`)) {
+                    return;
+                }
+                
+                try {
+                    showLoading('Enviando mensagem...');
+                    await sendMessageToDebtor(debtor);
+                    
+                    // Update counter
+                    const currentCount = parseInt(document.getElementById('messagesSent').textContent) || 0;
+                    document.getElementById('messagesSent').textContent = currentCount + 1;
+                    
+                    hideLoading();
+                    alert('Mensagem enviada com sucesso!');
+                } catch (error) {
+                    hideLoading();
+                    alert('Erro ao enviar mensagem: ' + error.message);
+                }
+            }
+
+            function generateCollectionMessage(debtor) {
+                const formattedAmount = new Intl.NumberFormat('pt-BR', { 
+                    style: 'currency', 
+                    currency: 'BRL' 
+                }).format(debtor.amount);
+                
+                const formattedDate = new Date(debtor.dueDate + 'T00:00:00').toLocaleDateString('pt-BR');
+                
+                let message = `Olá, ${debtor.clientName}! 👋\n\n`;
+                
+                if (debtor.status === 'overdue') {
+                    if (debtor.type === 'loan') {
+                        message += `⚠️ Identificamos que seu empréstimo está vencido.\n\n`;
+                    } else {
+                        message += `⚠️ Identificamos que a parcela ${debtor.installmentNumber} do seu empréstimo está vencida.\n\n`;
+                    }
+                } else {
+                    if (debtor.type === 'loan') {
+                        message += `⏰ Seu empréstimo vence HOJE!\n\n`;
+                    } else {
+                        message += `⏰ A parcela ${debtor.installmentNumber} do seu empréstimo vence HOJE!\n\n`;
+                    }
+                }
+                
+                message += `💰 *Valor em aberto:* ${formattedAmount}\n`;
+                message += `📅 *Data de vencimento:* ${formattedDate}\n\n`;
+                
+                if (debtor.status === 'overdue') {
+                    message += `Por favor, regularize sua situação o quanto antes para evitar multas adicionais.\n\n`;
+                } else {
+                    message += `Por favor, realize o pagamento hoje para evitar juros e multas.\n\n`;
+                }
+                
+                message += `Para mais informações, entre em contato conosco.\n\n`;
+                message += `Atenciosamente,\nEquipe Nexus 💙`;
+                
+                return message;
+            }
+
+            function formatPhoneNumber(phone) {
+                // Remove all non-numeric characters
+                let cleaned = phone.replace(/\D/g, '');
+                
+                // Ensure it has country code (55 for Brazil)
+                if (!cleaned.startsWith('55')) {
+                    cleaned = '55' + cleaned;
+                }
+                
+                return cleaned;
+            }
+
+            function stopSending() {
+                if (confirm('Deseja realmente parar o envio de mensagens?')) {
+                    sendingCancelled = true;
+                }
+            }
+
+            function updateProgress(current, total) {
+                const percentage = Math.round((current / total) * 100);
+                document.getElementById('progressBar').style.width = percentage + '%';
+                document.getElementById('progressText').textContent = `${current} de ${total} mensagens enviadas`;
+                document.getElementById('progressPercentage').textContent = percentage + '%';
+            }
+
+            function addLog(message, type = 'info') {
+                const log = document.getElementById('sendingLog');
+                const timestamp = new Date().toLocaleTimeString('pt-BR');
+                
+                let colorClass = 'text-gray-300';
+                if (type === 'success') colorClass = 'text-green-400';
+                else if (type === 'error') colorClass = 'text-red-400';
+                else if (type === 'warning') colorClass = 'text-yellow-400';
+                
+                const entry = document.createElement('div');
+                entry.className = `text-sm ${colorClass}`;
+                entry.textContent = `[${timestamp}] ${message}`;
+                
+                log.appendChild(entry);
+                log.scrollTop = log.scrollHeight;
+            }
+
+            // ========================================
+            // UTILITY FUNCTIONS
+            // ========================================
+
+            function showLoading(message = 'Carregando...') {
+                // You can implement a loading overlay here if needed
+                console.log('Loading:', message);
+            }
+
+            function hideLoading() {
+                // Hide loading overlay
+                console.log('Loading hidden');
+            }
+
+            function showDebtorsLoading(show) {
+                const indicator = document.getElementById('debtorsLoadingIndicator');
+                if (show) {
+                    indicator.classList.remove('hidden');
+                } else {
+                    indicator.classList.add('hidden');
+                }
+            }
+
+            function sleep(ms) {
+                return new Promise(resolve => setTimeout(resolve, ms));
+            }
+
+            // Expose functions globally
+            window.collectionsModule = {
+                sendSingleMessage: sendSingleMessage,
+                loadDebtors: loadDebtors
+            };
         })();
     </script>
     
