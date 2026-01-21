@@ -98,6 +98,21 @@
             to { opacity: 1; transform: translateY(0); }
         }
 
+        /* Animação de piscar para parcelamentos vencidos */
+        @keyframes blink {
+            0%, 100% { opacity: 1; }
+            50% { opacity: 0.3; }
+        }
+
+        .nav-link.blink-overdue {
+            animation: blink 1.5s ease-in-out infinite;
+            background-color: rgba(239, 68, 68, 0.2) !important;
+        }
+
+        .nav-link.blink-overdue:hover {
+            background-color: rgba(239, 68, 68, 0.3) !important;
+        }
+
         .slide-in {
             animation: slideIn 0.3s ease-out;
         }

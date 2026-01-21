@@ -238,6 +238,7 @@ let expenseCategories = [];
 let installments = [];
 let filteredInstallments = [];
 let installmentPayments = [];
+let overdueInstallmentsCheckInterval = null; // Intervalo para verificar parcelamentos vencidos
 let guarantors = [];
 
 // Sistema de timeout para todos os usuários (5 minutos de inatividade)
@@ -1450,6 +1451,9 @@ async function loadData() {
         
         await updateDashboard();
         await updateCharts();
+        
+        // Verificar parcelamentos vencidos para atualizar animação da aba
+        checkOverdueInstallmentsForBlink();
         
         console.log('Dados carregados com sucesso');
     } catch (error) {
@@ -3786,6 +3790,9 @@ function showLogin() {
     // Limpar timeout do usuário e remover listeners
     clearUserTimeout();
     removeActivityListeners();
+    
+    // Parar verificação periódica de parcelamentos vencidos
+    stopOverdueInstallmentsCheck();
 }
 
 function showDashboard() {
@@ -3819,6 +3826,33 @@ function showDashboard() {
     
     // Configurar timeout para usuário logado
     setupActivityListeners();
+    
+    // Inicializar verificação periódica de parcelamentos vencidos
+    startOverdueInstallmentsCheck();
+}
+
+// Iniciar verificação periódica de parcelamentos vencidos
+function startOverdueInstallmentsCheck() {
+    // Limpar intervalo anterior se existir
+    if (overdueInstallmentsCheckInterval) {
+        clearInterval(overdueInstallmentsCheckInterval);
+    }
+    
+    // Verificar imediatamente
+    checkOverdueInstallmentsForBlink();
+    
+    // Verificar a cada 30 segundos
+    overdueInstallmentsCheckInterval = setInterval(() => {
+        checkOverdueInstallmentsForBlink();
+    }, 30000);
+}
+
+// Parar verificação periódica de parcelamentos vencidos
+function stopOverdueInstallmentsCheck() {
+    if (overdueInstallmentsCheckInterval) {
+        clearInterval(overdueInstallmentsCheckInterval);
+        overdueInstallmentsCheckInterval = null;
+    }
 }
 
 function populateClientSelect() {
@@ -11946,10 +11980,33 @@ async function loadInstallments() {
         installments = data || [];
         filteredInstallments = [...installments]; // Inicializar filteredInstallments
         renderInstallmentsTable();
+        
+        // Verificar parcelamentos vencidos para atualizar animação da aba
+        checkOverdueInstallmentsForBlink();
 
     } catch (error) {
         console.error('Erro ao carregar parcelamentos:', error);
         showNotification('Erro ao carregar parcelamentos', 'error');
+    }
+}
+
+// Verificar se há parcelamentos vencidos e atualizar animação da aba
+async function checkOverdueInstallmentsForBlink() {
+    try {
+        const overdueList = await getOverdueInstallments();
+        const installmentsLink = document.querySelector('a[href="#installments"]');
+        
+        if (installmentsLink) {
+            if (overdueList.length > 0) {
+                // Adicionar classe de animação se houver parcelamentos vencidos
+                installmentsLink.classList.add('blink-overdue');
+            } else {
+                // Remover classe de animação se não houver parcelamentos vencidos
+                installmentsLink.classList.remove('blink-overdue');
+            }
+        }
+    } catch (error) {
+        console.error('Erro ao verificar parcelamentos vencidos:', error);
     }
 }
 
