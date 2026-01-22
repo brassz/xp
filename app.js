@@ -420,6 +420,8 @@ async function initializeApp() {
             setTimeout(async () => {
                 console.log('Carregando dados da sessão anterior...');
                 await loadData();
+                // Configurar permissões do usuário
+                setupUserPermissions();
                 // Inicializar sistema de PDFs semanais automáticos
                 initializeWeeklyPDFCheck();
                 // Inicializar sistema de notificações
@@ -1197,6 +1199,14 @@ async function handleLogin(e) {
             }
             
             console.log('=== ✓✓✓ LOGIN CONCLUÍDO COM SUCESSO! ✓✓✓ ===');
+            
+            console.log('>>> PASSO 9: Configurando permissões do usuário...');
+            try {
+                setupUserPermissions();
+                console.log('✓ Permissões configuradas');
+            } catch (permError) {
+                console.error('⚠ Erro ao configurar permissões (não crítico):', permError);
+            }
                 
         } else {
             console.error('✗ Senha incorreta');
@@ -1212,6 +1222,143 @@ async function handleLogin(e) {
         console.error('Stack trace:', error.stack);
         alert('Erro no login: ' + error.message + '\n\nVerifique o console (F12) para mais detalhes.');
         // Não recarregar a página, apenas mostrar o erro
+    }
+}
+
+// Função para configurar permissões e visibilidade baseado no role do usuário
+function setupUserPermissions() {
+    if (!currentUser) {
+        console.warn('Nenhum usuário logado, não é possível configurar permissões');
+        return;
+    }
+    
+    const userRole = currentUser.role || 'user';
+    const isLimitedAccess = userRole === 'limited' || userRole === 'viewer';
+    
+    console.log('Configurando permissões para role:', userRole);
+    console.log('Acesso limitado?', isLimitedAccess);
+    
+    // Lista de IDs de seções que devem ser escondidas para usuários com acesso limitado
+    const restrictedSections = [
+        'overview',      // Visão Geral
+        'clients',       // Clientes
+        'overdueLoans',  // Empréstimos Vencidos
+        'paidLoans',     // Empréstimos Quitados
+        'reports',       // Relatórios
+        'payment-history', // Histórico de Pagamentos
+        'expenses',      // Despesas
+        'cashManagement', // Gestão de Caixa
+        'capitalRaising', // Levantamento de Capital
+        'history',       // Histórico
+        'commissions'    // Comissões
+    ];
+    
+    // Lista de hrefs de links do menu que devem ser escondidos
+    const restrictedMenuLinks = [
+        '#overview',
+        '#clients',
+        '#overdueLoans',
+        '#paidLoans',
+        '#reports',
+        '#payment-history',
+        '#expenses',
+        '#cashManagement',
+        '#capitalRaising',
+        '#history',
+        '#commissions'
+    ];
+    
+    if (isLimitedAccess) {
+        // Esconder seções restritas
+        restrictedSections.forEach(sectionId => {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                section.classList.add('hidden');
+                section.style.display = 'none';
+            }
+        });
+        
+        // Esconder links do menu restritos
+        restrictedMenuLinks.forEach(href => {
+            const menuLinks = document.querySelectorAll(`a[href="${href}"]`);
+            menuLinks.forEach(link => {
+                link.style.display = 'none';
+                link.classList.add('hidden');
+            });
+        });
+        
+        // Esconder o menu de relatórios (que tem submenu)
+        const reportsMenuContainer = document.querySelector('.reports-menu-container');
+        if (reportsMenuContainer) {
+            reportsMenuContainer.style.display = 'none';
+            reportsMenuContainer.classList.add('hidden');
+        }
+        
+        // Garantir que apenas Empréstimos e Parcelamento estejam visíveis
+        const loansLink = document.querySelector('a[href="#loans"]');
+        const installmentsLink = document.querySelector('a[href="#installments"]');
+        
+        if (loansLink) {
+            loansLink.style.display = 'flex';
+            loansLink.classList.remove('hidden');
+        }
+        
+        if (installmentsLink) {
+            installmentsLink.style.display = 'flex';
+            installmentsLink.classList.remove('hidden');
+        }
+        
+        // Se a seção ativa for uma restrita, redirecionar para Empréstimos
+        const activeSection = document.querySelector('.content-section:not(.hidden)');
+        if (activeSection && restrictedSections.includes(activeSection.id)) {
+            // Remover active de todos os links
+            document.querySelectorAll('.nav-link').forEach(link => {
+                link.classList.remove('active');
+            });
+            
+            // Ativar link de Empréstimos
+            if (loansLink) {
+                loansLink.classList.add('active');
+            }
+            
+            // Mostrar seção de Empréstimos
+            const loansSection = document.getElementById('loans');
+            if (loansSection) {
+                document.querySelectorAll('.content-section').forEach(section => {
+                    section.classList.add('hidden');
+                });
+                loansSection.classList.remove('hidden');
+                loansSection.classList.add('fade-in');
+            }
+        }
+        
+        console.log('✓ Permissões de acesso limitado aplicadas');
+    } else {
+        // Usuário com acesso completo - garantir que tudo esteja visível
+        restrictedSections.forEach(sectionId => {
+            const section = document.getElementById(sectionId);
+            if (section) {
+                // Não remover hidden aqui, pois as seções são controladas pela navegação
+                // Apenas garantir que não estejam forçadas a esconder
+                section.style.display = '';
+            }
+        });
+        
+        restrictedMenuLinks.forEach(href => {
+            const menuLinks = document.querySelectorAll(`a[href="${href}"]`);
+            menuLinks.forEach(link => {
+                link.style.display = '';
+                link.classList.remove('hidden');
+            });
+        });
+        
+        const reportsMenuContainer = document.querySelector('.reports-menu-container');
+        if (reportsMenuContainer) {
+            reportsMenuContainer.style.display = '';
+            reportsMenuContainer.classList.remove('hidden');
+        }
+        
+        console.log('✓ Permissões de acesso completo aplicadas');
     }
 }
 
@@ -1345,6 +1492,34 @@ function handleNavigation(e) {
     e.preventDefault();
     
     const target = e.currentTarget.getAttribute('href').substring(1);
+    
+    // Verificar permissões para usuários com acesso limitado
+    if (currentUser) {
+        const userRole = currentUser.role || 'user';
+        const isLimitedAccess = userRole === 'limited' || userRole === 'viewer';
+        
+        if (isLimitedAccess) {
+            // Lista de seções restritas
+            const restrictedSections = [
+                'overview', 'clients', 'overdueLoans', 'paidLoans', 
+                'reports', 'payment-history', 'expenses', 'cashManagement', 
+                'capitalRaising', 'history', 'commissions'
+            ];
+            
+            // Se tentar acessar uma seção restrita, redirecionar para Empréstimos
+            if (restrictedSections.includes(target)) {
+                console.warn('Acesso negado à seção:', target);
+                showNotification('Você não tem permissão para acessar esta seção.', 'warning');
+                
+                // Redirecionar para Empréstimos
+                const loansLink = document.querySelector('a[href="#loans"]');
+                if (loansLink) {
+                    loansLink.click();
+                }
+                return;
+            }
+        }
+    }
     
     // Atualizar navegação ativa
     navLinks.forEach(link => link.classList.remove('active'));
