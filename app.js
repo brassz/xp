@@ -1813,6 +1813,29 @@ async function loadLoans() {
         if (error) throw error;
         
         loans = data || [];
+        
+        // Carregar também parcelamentos ativos
+        const { data: installmentsData, error: installmentsError } = await supabase
+            .from('installments')
+            .select(`
+                *,
+                clients (
+                    name,
+                    cpf,
+                    email,
+                    phone
+                ),
+                installment_payments (status, due_date, paid_date, amount, paid_amount)
+            `)
+            .eq('status', 'active')
+            .order('created_at', { ascending: false });
+        
+        if (installmentsError) {
+            console.error('Erro ao carregar parcelamentos:', installmentsError);
+        } else {
+            installments = installmentsData || [];
+        }
+        
         filteredLoans = [...loans]; // Inicializar filteredLoans
         
         // Aplicar filtros restaurados (se houver) ao invés de renderizar diretamente
@@ -2483,10 +2506,57 @@ async function renderLoansTable() {
     // Filtrar apenas empréstimos ativos (não quitados)
     const activeLoans = loansToShow.filter(loan => loan.status !== 'paid');
     
-    if (activeLoans.length === 0) {
+    // Preparar lista combinada de empréstimos e parcelamentos
+    const combinedItems = [];
+    
+    // Adicionar empréstimos marcados como tipo 'loan'
+    activeLoans.forEach(loan => {
+        combinedItems.push({ ...loan, itemType: 'loan' });
+    });
+    
+    // Adicionar parcelamentos ativos marcados como tipo 'installment'
+    const activeInstallments = (installments || []).filter(inst => inst.status === 'active');
+    activeInstallments.forEach(installment => {
+        // Calcular próxima data de vencimento para ordenação
+        const unpaidPayments = (installment.installment_payments || []).filter(p => p.status === 'pending' || p.status === 'overdue');
+        const nextPayment = unpaidPayments.length > 0 ? unpaidPayments[0] : null;
+        const nextDueDate = nextPayment ? new Date(nextPayment.due_date) : new Date('9999-12-31');
+        
+        combinedItems.push({ 
+            ...installment, 
+            itemType: 'installment',
+            _sortDueDate: nextDueDate // Campo auxiliar para ordenação
+        });
+    });
+    
+    // Ordenar por data de vencimento (mais próximos primeiro) ou data de criação
+    combinedItems.sort((a, b) => {
+        if (a.itemType === 'loan' && b.itemType === 'loan') {
+            // Ambos são empréstimos: ordenar por data de vencimento
+            const dateA = new Date(a.due_date || a.created_at || 0);
+            const dateB = new Date(b.due_date || b.created_at || 0);
+            return dateA - dateB;
+        } else if (a.itemType === 'installment' && b.itemType === 'installment') {
+            // Ambos são parcelamentos: ordenar por próxima data de vencimento
+            const dateA = a._sortDueDate || new Date('9999-12-31');
+            const dateB = b._sortDueDate || new Date('9999-12-31');
+            return dateA - dateB;
+        } else {
+            // Um é empréstimo e outro é parcelamento: ordenar por data de vencimento
+            const dateA = a.itemType === 'loan' 
+                ? new Date(a.due_date || a.created_at || 0)
+                : (a._sortDueDate || new Date('9999-12-31'));
+            const dateB = b.itemType === 'loan'
+                ? new Date(b.due_date || b.created_at || 0)
+                : (b._sortDueDate || new Date('9999-12-31'));
+            return dateA - dateB;
+        }
+    });
+    
+    if (combinedItems.length === 0) {
         const message = hasActiveFilters 
-            ? 'Nenhum empréstimo encontrado com os filtros aplicados'
-            : 'Nenhum empréstimo ativo';
+            ? 'Nenhum empréstimo ou parcelamento encontrado com os filtros aplicados'
+            : 'Nenhum empréstimo ou parcelamento ativo';
         tbody.innerHTML = `
             <tr>
                 <td colspan="8" class="px-6 py-8 text-center text-gray-400">
@@ -2500,60 +2570,117 @@ async function renderLoansTable() {
     
     // Calcular índices para paginação
     const startIndex = (currentLoansPage - 1) * loansPerPage;
-    const endIndex = Math.min(startIndex + loansPerPage, activeLoans.length);
-    const loansToDisplay = activeLoans.slice(startIndex, endIndex);
+    const endIndex = Math.min(startIndex + loansPerPage, combinedItems.length);
+    const itemsToDisplay = combinedItems.slice(startIndex, endIndex);
     
-    // Renderizar linhas com valores atualizados usando cálculo em lote
-    const loanIds = loansToDisplay.map(loan => loan.id);
-    const remainingAmounts = await calculateBatchLoanRemainingAmounts(loanIds);
+    // Separar empréstimos e parcelamentos para processamento
+    const loansToProcess = itemsToDisplay.filter(item => item.itemType === 'loan');
+    const installmentsToProcess = itemsToDisplay.filter(item => item.itemType === 'installment');
+    
+    // Calcular valores restantes apenas para empréstimos
+    const loanIds = loansToProcess.map(loan => loan.id);
+    const remainingAmounts = loanIds.length > 0 ? await calculateBatchLoanRemainingAmounts(loanIds) : [];
     
     let tableHTML = '';
-    for (let i = 0; i < loansToDisplay.length; i++) {
-        const loan = loansToDisplay[i];
-        const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
-        const remainingAmount = remainingAmounts[i];
-        const status = getLoanStatus(loan.due_date, loan.status);
-        
-        // Determinar a classe CSS para a data de vencimento
-        const dueDateClass = loan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
-        const dueDateTitle = loan.due_date_manually_changed ? 'Data de vencimento alterada manualmente' : '';
-        
-        tableHTML += `
-            <tr class="table-row">
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
-                    <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateClass}" title="${dueDateTitle}">${formatDate(loan.due_date)}${loan.due_date_manually_changed ? ' ⚠️' : ''}</td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
-                    <div>Original: R$ ${originalTotal.toFixed(2)}</div>
-                    <div class="text-blue-300">Restante: R$ ${remainingAmount.toFixed(2)}</div>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap">
-                    <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
-                </td>
-                <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                    <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
-                    <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
-                    <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
-                    <button class="text-red-500 hover:text-red-400 mr-3" onclick="generateLoanPDF('${loan.id}')" title="Gerar PDF do Empréstimo">📑</button>
-                    <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
-                    <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
-                    <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="contactGuarantorOrEmergency('${loan.id}')" title="Contatar Avalista ou Emergência">👥</button>
-                    <button class="text-amber-400 hover:text-amber-300 mr-3" onclick="openAddClientFineModal('${loan.client_id}', '${(loan.clients?.name || 'Cliente').replace(/'/g, "\\'")}')" title="Aplicar Multa ao Cliente">⚠️</button>
-                    <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
-                </td>
-            </tr>
-        `;
+    let loanIndex = 0;
+    
+    for (const item of itemsToDisplay) {
+        if (item.itemType === 'loan') {
+            // Renderizar empréstimo
+            const loan = item;
+            const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+            const remainingAmount = remainingAmounts[loanIndex] || 0;
+            const status = getLoanStatus(loan.due_date, loan.status);
+            
+            // Determinar a classe CSS para a data de vencimento
+            const dueDateClass = loan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
+            const dueDateTitle = loan.due_date_manually_changed ? 'Data de vencimento alterada manualmente' : '';
+            
+            tableHTML += `
+                <tr class="table-row">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                        <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateClass}" title="${dueDateTitle}">${formatDate(loan.due_date)}${loan.due_date_manually_changed ? ' ⚠️' : ''}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        <div>Original: R$ ${originalTotal.toFixed(2)}</div>
+                        <div class="text-blue-300">Restante: R$ ${remainingAmount.toFixed(2)}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="editLoan('${loan.id}')">✏️</button>
+                        <button class="text-purple-400 hover:text-purple-300 mr-3" onclick="showPaymentHistory('${loan.id}')">💰</button>
+                        <button class="text-orange-400 hover:text-orange-300 mr-3" onclick="generateContract('${loan.id}')" title="Gerar Contrato">📄</button>
+                        <button class="text-red-500 hover:text-red-400 mr-3" onclick="generateLoanPDF('${loan.id}')" title="Gerar PDF do Empréstimo">📑</button>
+                        <button class="text-green-400 hover:text-green-300 mr-3" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅</button>
+                        <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelector('${loan.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                        <button class="text-cyan-400 hover:text-cyan-300 mr-3" onclick="contactGuarantorOrEmergency('${loan.id}')" title="Contatar Avalista ou Emergência">👥</button>
+                        <button class="text-amber-400 hover:text-amber-300 mr-3" onclick="openAddClientFineModal('${loan.client_id}', '${(loan.clients?.name || 'Cliente').replace(/'/g, "\\'")}')" title="Aplicar Multa ao Cliente">⚠️</button>
+                        <button class="text-red-400 hover:text-red-300" onclick="deleteLoan('${loan.id}')">🗑️</button>
+                    </td>
+                </tr>
+            `;
+            loanIndex++;
+        } else if (item.itemType === 'installment') {
+            // Renderizar parcelamento
+            const installment = item;
+            
+            // Calcular próximo vencimento
+            const unpaidPayments = (installment.installment_payments || []).filter(p => p.status === 'pending' || p.status === 'overdue');
+            const nextPayment = unpaidPayments.length > 0 ? unpaidPayments[0] : null;
+            const nextDueDate = nextPayment ? formatDate(nextPayment.due_date) : 'Todas pagas';
+            
+            // Calcular progresso
+            const paidCount = (installment.installment_payments || []).filter(p => p.status === 'paid').length;
+            const progress = `${paidCount}/${installment.total_installments}`;
+            
+            // Calcular valor restante
+            const totalPaid = (installment.installment_payments || []).filter(p => p.status === 'paid')
+                .reduce((sum, p) => sum + parseFloat(p.paid_amount || p.amount || 0), 0);
+            const remainingAmount = parseFloat(installment.total_amount) - totalPaid;
+            
+            // Status do parcelamento
+            const status = nextPayment && new Date(nextPayment.due_date) < new Date() ? 'overdue' : 'active';
+            
+            tableHTML += `
+                <tr class="table-row">
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <div class="text-sm font-medium text-red-500">${installment.clients?.name || 'Cliente não encontrado'}</div>
+                        <div class="text-sm text-gray-300">${installment.clients?.cpf || ''}</div>
+                        <div class="text-xs text-red-400 mt-1">📦 Parcelamento</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(installment.total_amount).toFixed(2)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${installment.interest_rate || 0}%</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(installment.created_at || installment.first_due_date)}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${nextDueDate}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
+                        <div>Total: R$ ${parseFloat(installment.total_amount).toFixed(2)}</div>
+                        <div class="text-blue-300">Restante: R$ ${remainingAmount.toFixed(2)}</div>
+                        <div class="text-xs text-gray-400">Parcela: R$ ${parseFloat(installment.installment_amount).toFixed(2)}</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap">
+                        <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
+                        <div class="text-xs text-gray-400 mt-1">${progress} parcelas</div>
+                    </td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm font-medium">
+                        <button class="text-yellow-400 hover:text-yellow-300 mr-3" onclick="showPixKeySelectorForInstallment('${installment.id}')" title="Enviar cobrança via WhatsApp">📞</button>
+                        <button class="text-blue-400 hover:text-blue-300 mr-3" onclick="viewInstallmentDetails('${installment.id}')" title="Ver Detalhes">👁️</button>
+                    </td>
+                </tr>
+            `;
+        }
     }
     
     tbody.innerHTML = tableHTML;
     
     // Atualizar controles de paginação
-    updateLoansPaginationControls(activeLoans.length);
+    updateLoansPaginationControls(combinedItems.length);
 }
 
 // Função para atualizar controles de paginação dos empréstimos
