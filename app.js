@@ -822,6 +822,15 @@ function setupEventListeners() {
     if (sortOrder) sortOrder.addEventListener('change', () => { saveLoanFilters(); applyFiltersAndSort(); });
     if (clearAllFiltersBtn) clearAllFiltersBtn.addEventListener('click', clearAllFilters);
     
+    // Event listener para checkbox de incluir parcelamentos
+    const includeInstallmentsCheckbox = document.getElementById('includeInstallmentsFilter');
+    if (includeInstallmentsCheckbox) {
+        includeInstallmentsCheckbox.addEventListener('change', () => { 
+            saveLoanFilters(); 
+            applyFiltersAndSort(); 
+        });
+    }
+    
     // Event listeners para os filtros de parcelamentos
     const installmentSearchInput = document.getElementById('installmentSearchInput');
     const clearInstallmentSearchBtn = document.getElementById('clearInstallmentSearch');
@@ -2059,7 +2068,8 @@ function saveLoanFilters() {
         dueDateFrom: document.getElementById('dueDateFrom')?.value || '',
         dueDateTo: document.getElementById('dueDateTo')?.value || '',
         sortBy: document.getElementById('sortBy')?.value || 'loan_date',
-        sortOrder: document.getElementById('sortOrder')?.value || 'desc'
+        sortOrder: document.getElementById('sortOrder')?.value || 'desc',
+        includeInstallments: document.getElementById('includeInstallmentsFilter')?.checked || false
     };
     
     localStorage.setItem('loanFilters', JSON.stringify(filters));
@@ -2090,6 +2100,12 @@ function restoreLoanFilters() {
             if (sortBy) sortBy.value = filters.sortBy || 'loan_date';
             if (sortOrder) sortOrder.value = filters.sortOrder || 'desc';
             
+            // Restaurar checkbox de parcelamentos
+            const includeInstallmentsCheckbox = document.getElementById('includeInstallmentsFilter');
+            if (includeInstallmentsCheckbox) {
+                includeInstallmentsCheckbox.checked = filters.includeInstallments || false;
+            }
+            
             console.log('Filtros de empréstimos restaurados:', filters);
         }
     } catch (error) {
@@ -2104,16 +2120,37 @@ function applyFiltersAndSort() {
     // Resetar página para 1 ao aplicar filtros
     currentLoansPage = 1;
     
-    // Se não há empréstimos, não continuar
-    if (result.length === 0) {
-        filteredLoans = result;
-        renderLoansTable();
-        return;
-    }
+    // Verificar se deve incluir parcelamentos
+    const includeInstallmentsCheckbox = document.getElementById('includeInstallmentsFilter');
+    const includeInstallments = includeInstallmentsCheckbox ? includeInstallmentsCheckbox.checked : false;
     
     // Aplicar filtro de busca por texto
     const searchInput = document.getElementById('loanSearchInput');
     const searchTerm = searchInput ? searchInput.value.trim() : '';
+    
+    // Filtrar parcelamentos apenas se checkbox estiver marcado
+    let filteredInstallmentsResult = [];
+    if (includeInstallments) {
+        if (searchTerm !== '') {
+            // Se há busca, filtrar parcelamentos pelo termo de busca
+            const term = searchTerm.toLowerCase().trim();
+            filteredInstallmentsResult = (installments || []).filter(installment => {
+                // Encontrar o cliente associado ao parcelamento
+                const client = clients.find(c => c.id === installment.client_id);
+                const clientName = client ? client.name.toLowerCase() : '';
+                
+                return (
+                    clientName.includes(term) ||
+                    installment.total_amount.toString().includes(term) ||
+                    (installment.interest_rate && installment.interest_rate.toString().includes(term)) ||
+                    (installment.created_at && installment.created_at.includes(term))
+                );
+            });
+        } else {
+            // Se não há busca mas checkbox marcado, incluir todos os parcelamentos ativos
+            filteredInstallmentsResult = (installments || []).filter(inst => inst.status === 'active');
+        }
+    }
     
     if (searchTerm !== '') {
         const term = searchTerm.toLowerCase().trim();
@@ -2131,6 +2168,14 @@ function applyFiltersAndSort() {
                 (loan.due_date && loan.due_date.includes(term))
             );
         });
+    }
+    
+    // Se não há empréstimos e não há parcelamentos para mostrar, não continuar
+    if (result.length === 0 && filteredInstallmentsResult.length === 0) {
+        filteredLoans = result;
+        filteredInstallments = [];
+        renderLoansTable();
+        return;
     }
     
     // Aplicar filtro por data de criação
@@ -2241,6 +2286,7 @@ function applyFiltersAndSort() {
     });
     
     filteredLoans = result;
+    filteredInstallments = filteredInstallmentsResult;
     renderLoansTable();
 }
 
@@ -2277,6 +2323,12 @@ function clearAllFilters() {
     
     if (sortBy) sortBy.value = 'loan_date';
     if (sortOrder) sortOrder.value = 'desc';
+    
+    // Resetar checkbox de parcelamentos para desmarcado (padrão)
+    const includeInstallmentsCheckbox = document.getElementById('includeInstallmentsFilter');
+    if (includeInstallmentsCheckbox) {
+        includeInstallmentsCheckbox.checked = false;
+    }
     
     // Limpar filtros salvos do localStorage
     localStorage.removeItem('loanFilters');
@@ -2493,6 +2545,8 @@ async function renderLoansTable() {
     const dueDateFrom = document.getElementById('dueDateFrom');
     const dueDateTo = document.getElementById('dueDateTo');
     const sortBy = document.getElementById('sortBy');
+    const includeInstallmentsCheckbox = document.getElementById('includeInstallmentsFilter');
+    const includeInstallments = includeInstallmentsCheckbox ? includeInstallmentsCheckbox.checked : false;
     
     const hasActiveFilters = (searchInput && searchInput.value.trim() !== '') ||
                            (creationDateFrom && creationDateFrom.value !== '') ||
@@ -2514,9 +2568,20 @@ async function renderLoansTable() {
         combinedItems.push({ ...loan, itemType: 'loan' });
     });
     
-    // Adicionar parcelamentos ativos marcados como tipo 'installment'
-    const activeInstallments = (installments || []).filter(inst => inst.status === 'active');
-    activeInstallments.forEach(installment => {
+    // Adicionar parcelamentos apenas se o checkbox estiver marcado
+    // Se há filtros ativos, usar filteredInstallments, senão usar todos os parcelamentos ativos
+    let installmentsToAdd = [];
+    if (includeInstallments) {
+        if (hasActiveFilters) {
+            // Usar parcelamentos filtrados quando há filtros ativos
+            installmentsToAdd = (filteredInstallments || []).filter(inst => inst.status === 'active');
+        } else {
+            // Usar todos os parcelamentos ativos quando não há filtros
+            installmentsToAdd = (installments || []).filter(inst => inst.status === 'active');
+        }
+    }
+    
+    installmentsToAdd.forEach(installment => {
         // Calcular próxima data de vencimento para ordenação
         const unpaidPayments = (installment.installment_payments || []).filter(p => p.status === 'pending' || p.status === 'overdue');
         const nextPayment = unpaidPayments.length > 0 ? unpaidPayments[0] : null;
