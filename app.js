@@ -309,6 +309,7 @@ const guarantorModal = document.getElementById('guarantorModal');
 const emergencyContactModal = document.getElementById('emergencyContactModal');
 const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
 const renewalOptionsModal = document.getElementById('renewalOptionsModal');
+const renewalOptionsModal20 = document.getElementById('renewalOptionsModal20');
 
 
 // Botões
@@ -727,13 +728,25 @@ function setupEventListeners() {
     
     // Botão de abrir modal de renovação
     document.getElementById('openRenewalModalBtn').addEventListener('click', () => openRenewalOptionsModal());
+    document.getElementById('openRenewal20Btn').addEventListener('click', () => openRenewalOptionsModal20());
     
-    // Event listeners para o modal de opções de renovação
+    // Event listeners para o modal de opções de renovação 30 dias
     document.getElementById('closeRenewalOptionsModal').addEventListener('click', () => hideModal(renewalOptionsModal));
     document.getElementById('cancelRenewalBtn').addEventListener('click', () => hideModal(renewalOptionsModal));
-    document.getElementById('renewalCapitalJuros').addEventListener('click', () => handleNewRenewalPayment('capital_juros'));
-    document.getElementById('renewalSomenteJuros').addEventListener('click', () => handleNewRenewalPayment('somente_juros'));
-    document.getElementById('renewalSomenteCapital').addEventListener('click', () => handleNewRenewalPayment('somente_capital'));
+    document.getElementById('renewalCapitalJuros').addEventListener('click', () => handleNewRenewalPayment('capital_juros', 30));
+    document.getElementById('renewalSomenteJuros').addEventListener('click', () => handleNewRenewalPayment('somente_juros', 30));
+    document.getElementById('renewalSomenteCapital').addEventListener('click', () => handleNewRenewalPayment('somente_capital', 30));
+    
+    // Event listeners para o modal de opções de renovação 20 dias
+    document.getElementById('closeRenewalOptionsModal20').addEventListener('click', () => hideModal(renewalOptionsModal20));
+    document.getElementById('cancelRenewal20Btn').addEventListener('click', () => hideModal(renewalOptionsModal20));
+    document.getElementById('renewal20CapitalJuros').addEventListener('click', () => handleNewRenewalPayment('capital_juros', 20));
+    document.getElementById('renewal20SomenteJuros').addEventListener('click', () => handleNewRenewalPayment('somente_juros', 20));
+    document.getElementById('renewal20SomenteCapital').addEventListener('click', () => handleNewRenewalPayment('somente_capital', 20));
+    
+    // Event listeners para calcular data de vencimento automaticamente
+    document.getElementById('loanDate').addEventListener('change', calculateLoanDueDate);
+    document.getElementById('loanTermDays').addEventListener('change', calculateLoanDueDate);
     
     // Capital Raising cancel buttons
     if (document.getElementById('cancelCapitalRaising')) {
@@ -3181,6 +3194,7 @@ async function handleNewLoan(e) {
         interest_rate: parseFloat(document.getElementById('loanInterest').value),
         loan_date: document.getElementById('loanDate').value,
         due_date: document.getElementById('loanDueDate').value,
+        term_days: parseInt(document.getElementById('loanTermDays').value) || 30,
         status: 'active',
         created_by: currentUser.id,
         created_at: new Date().toISOString()
@@ -3390,7 +3404,27 @@ function formatDateToAdd30Days(dateStr, loanDate = null) {
     return formatDate(date.toISOString().split('T')[0]);
 }
 
-// Função para abrir modal de opções de renovação
+// Função para calcular próxima data de vencimento baseado no term_days do empréstimo
+function calculateNextDueDateByTermDays(loanDate, currentDueDate, termDays) {
+    try {
+        const loanDateObj = parseLocalDate(loanDate);
+        const currentDueDateObj = parseLocalDate(currentDueDate);
+        
+        // Adicionar os dias do período (20 ou 30) à data de vencimento atual
+        const newDueDate = new Date(currentDueDateObj);
+        newDueDate.setDate(newDueDate.getDate() + termDays);
+        
+        return formatDateForInput(newDueDate);
+    } catch (error) {
+        console.error('Erro ao calcular próxima data de vencimento:', error);
+        // Fallback: adicionar termDays à data atual
+        const currentDate = new Date(currentDueDate);
+        currentDate.setDate(currentDate.getDate() + termDays);
+        return formatDateForInput(currentDate);
+    }
+}
+
+// Função para abrir modal de opções de renovação (30 dias)
 async function openRenewalOptionsModal() {
     try {
         const loanId = document.getElementById('paymentForm').dataset.loanId;
@@ -3413,8 +3447,9 @@ async function openRenewalOptionsModal() {
         document.getElementById('renewalClientName').textContent = loan.clients?.name || 'Cliente não encontrado';
         document.getElementById('renewalPaymentAmount').textContent = `R$ ${paymentAmount.toFixed(2)}`;
         
-        // Calcular nova data de vencimento mantendo o dia original do empréstimo
-        const newDueDateStr = calculateNextDueDateKeepingOriginalDay(loan.loan_date, loan.due_date);
+        // Calcular nova data de vencimento baseado no term_days do empréstimo (ou padrão 30)
+        const termDays = loan.term_days || 30;
+        const newDueDateStr = calculateNextDueDateByTermDays(loan.loan_date, loan.due_date, termDays);
         document.getElementById('renewalNewDueDate').textContent = formatDate(newDueDateStr);
         
         // Mostrar modal
@@ -3425,8 +3460,43 @@ async function openRenewalOptionsModal() {
     }
 }
 
+// Função para abrir modal de opções de renovação (20 dias)
+async function openRenewalOptionsModal20() {
+    try {
+        const loanId = document.getElementById('paymentForm').dataset.loanId;
+        const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
+        
+        // Validar se há um valor de pagamento
+        if (!paymentAmount || paymentAmount <= 0) {
+            alert('Por favor, insira um valor de pagamento válido antes de renovar.');
+            return;
+        }
+        
+        // Obter o empréstimo atual
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            alert('Empréstimo não encontrado.');
+            return;
+        }
+        
+        // Preencher informações no modal
+        document.getElementById('renewal20ClientName').textContent = loan.clients?.name || 'Cliente não encontrado';
+        document.getElementById('renewal20PaymentAmount').textContent = `R$ ${paymentAmount.toFixed(2)}`;
+        
+        // Calcular nova data de vencimento adicionando 20 dias
+        const newDueDateStr = calculateNextDueDateByTermDays(loan.loan_date, loan.due_date, 20);
+        document.getElementById('renewal20NewDueDate').textContent = formatDate(newDueDateStr);
+        
+        // Mostrar modal
+        showModal(renewalOptionsModal20);
+    } catch (error) {
+        console.error('Erro ao abrir modal de renovação 20 dias:', error);
+        alert('Erro ao abrir modal de renovação: ' + error.message);
+    }
+}
+
 // Função para lidar com renovação com pagamento
-async function handleNewRenewalPayment(paymentOption) {
+async function handleNewRenewalPayment(paymentOption, renewalDays = 30) {
     // Mostrar loading
     const loadingOverlay = document.getElementById('paymentLoadingOverlay');
     const cancelBtn = document.getElementById('cancelPaymentBtn');
@@ -3459,20 +3529,23 @@ async function handleNewRenewalPayment(paymentOption) {
         switch(paymentOption) {
             case 'capital_juros':
                 finalPaymentType = 'capital_interest_renewal';
-                paymentDescription = 'RENOVAÇÃO +30 DIAS - Capital + Juros';
+                paymentDescription = `RENOVAÇÃO +${renewalDays} DIAS - Capital + Juros`;
                 break;
             case 'somente_juros':
                 finalPaymentType = 'interest_renewal';
-                paymentDescription = 'RENOVAÇÃO +30 DIAS - Somente Juros';
+                paymentDescription = `RENOVAÇÃO +${renewalDays} DIAS - Somente Juros`;
                 break;
             case 'somente_capital':
                 finalPaymentType = 'capital_renewal';
-                paymentDescription = 'RENOVAÇÃO +30 DIAS - Somente Capital';
+                paymentDescription = `RENOVAÇÃO +${renewalDays} DIAS - Somente Capital`;
                 break;
         }
         
+        // Calcular nova data de vencimento baseado nos dias de renovação
+        const newDueDateStr = calculateNextDueDateByTermDays(loan.loan_date, loan.due_date, renewalDays);
+        
         // Confirmar com o usuário
-        const confirmMsg = `Confirmar renovação do empréstimo por +30 dias?\n\nTipo: ${paymentDescription}\nValor do pagamento: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDateToAdd30Days(loan.due_date, loan.loan_date)}`;
+        const confirmMsg = `Confirmar renovação do empréstimo por +${renewalDays} dias?\n\nTipo: ${paymentDescription}\nValor do pagamento: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDate(newDueDateStr)}`;
         if (!confirm(confirmMsg)) {
             return;
         }
@@ -3504,10 +3577,6 @@ async function handleNewRenewalPayment(paymentOption) {
         
         if (paymentError) throw paymentError;
         
-        // Calcular nova data de vencimento mantendo o dia original do empréstimo
-        // Por exemplo: se o empréstimo foi feito dia 25, os vencimentos sempre serão dia 25
-        const newDueDateStr = calculateNextDueDateKeepingOriginalDay(loan.loan_date, loan.due_date);
-        
         // Atualizar o empréstimo com a nova data de vencimento
         const { error: loanError } = await supabase
             .from('loans')
@@ -3520,7 +3589,7 @@ async function handleNewRenewalPayment(paymentOption) {
         if (loanError) throw loanError;
         
         // Registrar a renovação nos pagamentos
-        const renewalNote = `EMPRÉSTIMO RENOVADO: Data de vencimento estendida em +30 dias. Nova data: ${formatDate(newDueDateStr)}. ${paymentDescription}: R$ ${paymentAmount.toFixed(2)}`;
+        const renewalNote = `EMPRÉSTIMO RENOVADO: Data de vencimento estendida em +${renewalDays} dias. Nova data: ${formatDate(newDueDateStr)}. ${paymentDescription}: R$ ${paymentAmount.toFixed(2)}`;
         await supabase
             .from('payments')
             .insert({
@@ -3546,6 +3615,7 @@ async function handleNewRenewalPayment(paymentOption) {
         
         // Fechar modais após recarregar
         hideModal(renewalOptionsModal);
+        hideModal(renewalOptionsModal20);
         hideModal(paymentModal);
         document.getElementById('paymentForm').reset();
         
@@ -3577,6 +3647,10 @@ async function handleNewRenewalPayment(paymentOption) {
             if (cancelBtn) cancelBtn.disabled = false;
             if (renewalBtn) renewalBtn.disabled = false;
         }
+        
+        // Ocultar botão de renovação 20 se existir
+        const renewal20Btn = document.getElementById('openRenewal20Btn');
+        if (renewal20Btn) renewal20Btn.disabled = false;
         
         // Mensagem de erro mais detalhada
         let errorMessage = 'Erro ao renovar empréstimo: ';
@@ -4236,12 +4310,36 @@ function populateClientSelect() {
 
 function setDefaultDates() {
     const today = new Date();
-    const nextMonth = new Date(today.getFullYear(), today.getMonth() + 1, today.getDate());
     
     // Usar a função auxiliar para formatar datas
-    
     document.getElementById('loanDate').value = formatDateForInput(today);
-    document.getElementById('loanDueDate').value = formatDateForInput(nextMonth);
+    
+    // Calcular data de vencimento baseado no período escolhido (padrão 30 dias)
+    calculateLoanDueDate();
+}
+
+// Função para calcular a data de vencimento baseado na data do empréstimo e período escolhido
+function calculateLoanDueDate() {
+    const loanDateInput = document.getElementById('loanDate');
+    const termDaysInput = document.getElementById('loanTermDays');
+    const dueDateInput = document.getElementById('loanDueDate');
+    
+    if (!loanDateInput || !termDaysInput || !dueDateInput) return;
+    
+    const loanDateValue = loanDateInput.value;
+    const termDays = parseInt(termDaysInput.value) || 30;
+    
+    if (!loanDateValue) {
+        dueDateInput.value = '';
+        return;
+    }
+    
+    // Calcular data de vencimento adicionando os dias escolhidos
+    const loanDate = new Date(loanDateValue);
+    const dueDate = new Date(loanDate);
+    dueDate.setDate(dueDate.getDate() + termDays);
+    
+    dueDateInput.value = formatDateForInput(dueDate);
 }
 
 function updateLoanSummary() {

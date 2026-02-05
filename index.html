@@ -2442,9 +2442,17 @@
                             <input type="date" id="loanDate" class="form-input w-full" required>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Data de Vencimento</label>
-                            <input type="date" id="loanDueDate" class="form-input w-full" required>
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Período de Vencimento</label>
+                            <select id="loanTermDays" class="form-input w-full" required>
+                                <option value="30">30 dias</option>
+                                <option value="20">20 dias</option>
+                            </select>
                         </div>
+                    </div>
+                    <div>
+                        <label class="block text-sm font-medium text-blue-200 mb-2">Data de Vencimento</label>
+                        <input type="date" id="loanDueDate" class="form-input w-full" required readonly>
+                        <p class="text-xs text-gray-400 mt-1">Calculada automaticamente baseado no período escolhido</p>
                     </div>
                     
                     <div class="bg-gray-800 p-4 rounded-lg">
@@ -2629,6 +2637,10 @@
                             <button type="button" id="cancelPaymentBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-medium">
                                 Cancelar
                             </button>
+                            <button type="button" id="openRenewal20Btn" class="px-6 py-2 bg-gradient-to-r from-orange-600 to-red-600 text-white rounded-lg hover:from-orange-500 hover:to-red-500 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center justify-center">
+                                <span class="text-lg mr-2">🔄</span>
+                                RENOVAR 20+
+                            </button>
                             <button type="button" id="openRenewalModalBtn" class="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-500 hover:to-pink-500 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center justify-center">
                                 <span class="text-lg mr-2">🔄</span>
                                 RENOVAR 30+
@@ -2645,6 +2657,101 @@
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Renewal Options Modal 20 Days -->
+    <div id="renewalOptionsModal20" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-lg p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-2xl font-bold text-white flex items-center">
+                        <span class="text-3xl mr-3">🔄</span>
+                        RENOVAR 20+
+                    </h3>
+                    <button id="closeRenewalOptionsModal20" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+                
+                <div class="mb-6">
+                    <p class="text-gray-300 text-sm mb-4">Escolha o tipo de pagamento para renovar o empréstimo por mais 20 dias:</p>
+                    
+                    <!-- Client Info -->
+                    <div class="bg-gray-800 p-4 rounded-lg mb-6">
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-400 text-sm">Cliente:</span>
+                            <span class="text-white font-semibold" id="renewal20ClientName">-</span>
+                        </div>
+                        <div class="flex justify-between items-center mb-2">
+                            <span class="text-gray-400 text-sm">Valor do Pagamento:</span>
+                            <span class="text-green-400 font-bold text-lg" id="renewal20PaymentAmount">R$ 0,00</span>
+                        </div>
+                        <div class="flex justify-between items-center">
+                            <span class="text-gray-400 text-sm">Nova Data de Vencimento:</span>
+                            <span class="text-blue-400 font-semibold" id="renewal20NewDueDate">-</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="space-y-3 mb-6">
+                    <!-- Capital + Juros -->
+                    <button type="button" id="renewal20CapitalJuros" class="renewal-option-btn w-full p-4 rounded-xl border-2 border-blue-500 bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-500 hover:to-blue-400 text-white transition-all duration-300 transform hover:scale-105 hover:shadow-2xl">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <span class="text-2xl mr-3">💰</span>
+                                <div class="text-left">
+                                    <div class="font-bold text-lg">Capital + Juros</div>
+                                    <div class="text-xs text-blue-100 opacity-90">Pagamento completo (principal + juros)</div>
+                                </div>
+                            </div>
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </button>
+                    
+                    <!-- Somente Juros -->
+                    <button type="button" id="renewal20SomenteJuros" class="renewal-option-btn w-full p-4 rounded-xl border-2 border-purple-500 bg-gradient-to-r from-purple-600 to-purple-500 hover:from-purple-500 hover:to-purple-400 text-white transition-all duration-300 transform hover:scale-105 hover:shadow-2xl">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <span class="text-2xl mr-3">📊</span>
+                                <div class="text-left">
+                                    <div class="font-bold text-lg">Somente Juros</div>
+                                    <div class="text-xs text-purple-100 opacity-90">Pagamento apenas dos juros</div>
+                                </div>
+                            </div>
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </button>
+                    
+                    <!-- Somente Capital -->
+                    <button type="button" id="renewal20SomenteCapital" class="renewal-option-btn w-full p-4 rounded-xl border-2 border-green-500 bg-gradient-to-r from-green-600 to-green-500 hover:from-green-500 hover:to-green-400 text-white transition-all duration-300 transform hover:scale-105 hover:shadow-2xl">
+                        <div class="flex items-center justify-between">
+                            <div class="flex items-center">
+                                <span class="text-2xl mr-3">🏦</span>
+                                <div class="text-left">
+                                    <div class="font-bold text-lg">Somente Capital</div>
+                                    <div class="text-xs text-green-100 opacity-90">Pagamento apenas do principal</div>
+                                </div>
+                            </div>
+                            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 5l7 7-7 7"></path>
+                            </svg>
+                        </div>
+                    </button>
+                </div>
+                
+                <div class="flex justify-end">
+                    <button type="button" id="cancelRenewal20Btn" class="px-6 py-3 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-medium">
+                        Cancelar
+                    </button>
+                </div>
             </div>
         </div>
     </div>
