@@ -400,6 +400,85 @@
             }
         }
 
+        /* Cards Mobile para Empréstimos */
+        .loan-card-mobile {
+            background: rgba(15, 23, 42, 0.9);
+            border: 1px solid rgba(59, 130, 246, 0.3);
+            border-radius: 12px;
+            padding: 1rem;
+            transition: all 0.3s ease;
+        }
+
+        .loan-card-mobile:hover {
+            border-color: rgba(59, 130, 246, 0.5);
+            box-shadow: 0 4px 12px rgba(59, 130, 246, 0.2);
+        }
+
+        .loan-card-mobile.installment {
+            border-color: rgba(239, 68, 68, 0.3);
+        }
+
+        .loan-card-mobile.installment:hover {
+            border-color: rgba(239, 68, 68, 0.5);
+        }
+
+        .loan-card-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: flex-start;
+            margin-bottom: 0.75rem;
+            padding-bottom: 0.75rem;
+            border-bottom: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .loan-card-info {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 0.75rem;
+            margin-bottom: 0.75rem;
+        }
+
+        .loan-card-info-item {
+            display: flex;
+            flex-direction: column;
+        }
+
+        .loan-card-info-label {
+            font-size: 0.75rem;
+            color: #9ca3af;
+            margin-bottom: 0.25rem;
+        }
+
+        .loan-card-info-value {
+            font-size: 0.875rem;
+            color: white;
+            font-weight: 500;
+        }
+
+        .loan-card-actions {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 0.5rem;
+            margin-top: 0.75rem;
+            padding-top: 0.75rem;
+            border-top: 1px solid rgba(59, 130, 246, 0.2);
+        }
+
+        .loan-card-action-btn {
+            padding: 0.5rem 0.75rem;
+            border-radius: 8px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            transition: all 0.2s ease;
+            border: none;
+            cursor: pointer;
+        }
+
+        .loan-card-action-btn:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+        }
+
         /* Renewal Option Buttons Styles */
         .renewal-option-btn {
             cursor: pointer;
@@ -1188,7 +1267,8 @@
                                 </div>
                             </div>
                         </div>
-                        <div class="overflow-x-auto">
+                        <!-- Tabela Desktop (escondida no mobile) -->
+                        <div class="overflow-x-auto hidden md:block">
                             <table class="w-full">
                                 <thead class="table-header">
                                     <tr>
@@ -1207,6 +1287,12 @@
                                 </tbody>
                             </table>
                         </div>
+                        
+                        <!-- Cards Mobile (visíveis apenas no mobile) -->
+                        <div id="loansCardsContainer" class="md:hidden space-y-4">
+                            <!-- Cards will be populated here -->
+                        </div>
+                        
                         <div id="loansPagination" class="mt-6 bg-gray-800 rounded-lg p-4 hidden">
                             <!-- Pagination controls will be populated here -->
                         </div>

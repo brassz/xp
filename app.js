@@ -2680,6 +2680,17 @@ async function renderLoansTable() {
                 </td>
             </tr>
         `;
+        
+        // Atualizar cards mobile também
+        const cardsContainer = document.getElementById('loansCardsContainer');
+        if (cardsContainer) {
+            cardsContainer.innerHTML = `
+                <div class="loan-card-mobile text-center py-8">
+                    <div class="text-gray-400">${message}</div>
+                </div>
+            `;
+        }
+        
         updateLoansPaginationControls(0);
         return;
     }
@@ -2698,6 +2709,7 @@ async function renderLoansTable() {
     const remainingAmounts = loanIds.length > 0 ? await calculateBatchLoanRemainingAmounts(loanIds) : [];
     
     let tableHTML = '';
+    let cardsHTML = '';
     let loanIndex = 0;
     
     for (const item of itemsToDisplay) {
@@ -2712,6 +2724,7 @@ async function renderLoansTable() {
             const dueDateClass = loan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
             const dueDateTitle = loan.due_date_manually_changed ? 'Data de vencimento alterada manualmente' : '';
             
+            // HTML da tabela (desktop)
             tableHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -2742,6 +2755,56 @@ async function renderLoansTable() {
                     </td>
                 </tr>
             `;
+            
+            // HTML do card (mobile)
+            cardsHTML += `
+                <div class="loan-card-mobile">
+                    <div class="loan-card-header">
+                        <div>
+                            <div class="text-base font-semibold text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                            <div class="text-xs text-gray-400 mt-1">${loan.clients?.cpf || ''}</div>
+                        </div>
+                        <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
+                    </div>
+                    <div class="loan-card-info">
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Valor</span>
+                            <span class="loan-card-info-value">R$ ${parseFloat(loan.amount).toFixed(2)}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Juros</span>
+                            <span class="loan-card-info-value">${loan.interest_rate}%</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Data Empréstimo</span>
+                            <span class="loan-card-info-value">${formatDate(loan.loan_date)}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Vencimento</span>
+                            <span class="loan-card-info-value ${dueDateClass}">${formatDate(loan.due_date)}${loan.due_date_manually_changed ? ' ⚠️' : ''}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Total Original</span>
+                            <span class="loan-card-info-value">R$ ${originalTotal.toFixed(2)}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Restante</span>
+                            <span class="loan-card-info-value text-blue-300 font-semibold">R$ ${remainingAmount.toFixed(2)}</span>
+                        </div>
+                    </div>
+                    <div class="loan-card-actions">
+                        <button class="loan-card-action-btn bg-blue-600 text-white" onclick="editLoan('${loan.id}')">✏️ Editar</button>
+                        <button class="loan-card-action-btn bg-purple-600 text-white" onclick="showPaymentHistory('${loan.id}')">💰 Pagamentos</button>
+                        <button class="loan-card-action-btn bg-yellow-600 text-white" onclick="showPixKeySelector('${loan.id}')">📞 WhatsApp</button>
+                        <button class="loan-card-action-btn bg-green-600 text-white" onclick="markLoanAsPaid('${loan.id}')" ${loan.status === 'paid' ? 'disabled' : ''}>✅ Quitar</button>
+                        <button class="loan-card-action-btn bg-orange-600 text-white" onclick="generateContract('${loan.id}')">📄 Contrato</button>
+                        <button class="loan-card-action-btn bg-red-600 text-white" onclick="generateLoanPDF('${loan.id}')">📑 PDF</button>
+                        <button class="loan-card-action-btn bg-cyan-600 text-white" onclick="contactGuarantorOrEmergency('${loan.id}')">👥 Contatos</button>
+                        <button class="loan-card-action-btn bg-amber-600 text-white" onclick="openAddClientFineModal('${loan.client_id}', '${(loan.clients?.name || 'Cliente').replace(/'/g, "\\'")}')">⚠️ Multa</button>
+                        <button class="loan-card-action-btn bg-gray-600 text-white" onclick="deleteLoan('${loan.id}')">🗑️ Excluir</button>
+                    </div>
+                </div>
+            `;
             loanIndex++;
         } else if (item.itemType === 'installment') {
             // Renderizar parcelamento
@@ -2764,6 +2827,7 @@ async function renderLoansTable() {
             // Status do parcelamento
             const status = nextPayment && new Date(nextPayment.due_date) < new Date() ? 'overdue' : 'active';
             
+            // HTML da tabela (desktop)
             tableHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap">
@@ -2790,10 +2854,76 @@ async function renderLoansTable() {
                     </td>
                 </tr>
             `;
+            
+            // HTML do card (mobile)
+            cardsHTML += `
+                <div class="loan-card-mobile installment">
+                    <div class="loan-card-header">
+                        <div>
+                            <div class="text-base font-semibold text-red-500">${installment.clients?.name || 'Cliente não encontrado'}</div>
+                            <div class="text-xs text-gray-400 mt-1">${installment.clients?.cpf || ''}</div>
+                            <div class="text-xs text-red-400 mt-1">📦 Parcelamento</div>
+                        </div>
+                        <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
+                    </div>
+                    <div class="loan-card-info">
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Valor Total</span>
+                            <span class="loan-card-info-value">R$ ${parseFloat(installment.total_amount).toFixed(2)}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Juros</span>
+                            <span class="loan-card-info-value">${installment.interest_rate || 0}%</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Data Criação</span>
+                            <span class="loan-card-info-value">${formatDate(installment.created_at || installment.first_due_date)}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Próximo Vencimento</span>
+                            <span class="loan-card-info-value">${nextDueDate}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Valor Parcela</span>
+                            <span class="loan-card-info-value">R$ ${parseFloat(installment.installment_amount).toFixed(2)}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Restante</span>
+                            <span class="loan-card-info-value text-blue-300 font-semibold">R$ ${remainingAmount.toFixed(2)}</span>
+                        </div>
+                        <div class="loan-card-info-item">
+                            <span class="loan-card-info-label">Progresso</span>
+                            <span class="loan-card-info-value">${progress} parcelas</span>
+                        </div>
+                    </div>
+                    <div class="loan-card-actions">
+                        <button class="loan-card-action-btn bg-yellow-600 text-white" onclick="showPixKeySelectorForInstallment('${installment.id}')">📞 WhatsApp</button>
+                        <button class="loan-card-action-btn bg-blue-600 text-white" onclick="viewInstallmentDetails('${installment.id}')">👁️ Detalhes</button>
+                    </div>
+                </div>
+            `;
         }
     }
     
     tbody.innerHTML = tableHTML;
+    
+    // Atualizar cards mobile
+    const cardsContainer = document.getElementById('loansCardsContainer');
+    if (cardsContainer) {
+        if (itemsToDisplay.length === 0) {
+            cardsContainer.innerHTML = `
+                <div class="loan-card-mobile text-center py-8">
+                    <div class="text-gray-400">
+                        ${hasActiveFilters 
+                            ? 'Nenhum empréstimo ou parcelamento encontrado com os filtros aplicados'
+                            : 'Nenhum empréstimo ou parcelamento ativo'}
+                    </div>
+                </div>
+            `;
+        } else {
+            cardsContainer.innerHTML = cardsHTML;
+        }
+    }
     
     // Atualizar controles de paginação
     updateLoansPaginationControls(combinedItems.length);
