@@ -284,6 +284,12 @@ const dashboard = document.getElementById('dashboard');
 const loginForm = document.getElementById('loginForm');
 const logoutBtn = document.getElementById('logoutBtn');
 
+// Navegação mobile
+const mobileMenu = document.getElementById('mobileMenu');
+const mobileMenuBtn = document.getElementById('mobileMenuBtn');
+const mobileMenuClose = document.getElementById('mobileMenuClose');
+const mobileLogoutBtn = document.getElementById('mobileLogoutBtn');
+
 // Navegação
 const navLinks = document.querySelectorAll('.nav-link');
 const contentSections = document.querySelectorAll('.content-section');
@@ -479,12 +485,38 @@ function setupEventListeners() {
         console.log('Event listener adicionado ao logoutBtn');
     }
     
+    // Logout mobile
+    if (mobileLogoutBtn) {
+        mobileLogoutBtn.addEventListener('click', () => {
+            if (mobileMenu) {
+                mobileMenu.classList.add('hidden');
+            }
+            handleLogout();
+        });
+        console.log('Event listener adicionado ao mobileLogoutBtn');
+    }
+    
     // Navegação
     if (navLinks) {
         navLinks.forEach(link => {
             link.addEventListener('click', handleNavigation);
         });
         console.log(`Event listeners adicionados a ${navLinks.length} links de navegação`);
+    }
+    
+    // Menu mobile
+    if (mobileMenuBtn && mobileMenu) {
+        mobileMenuBtn.addEventListener('click', () => {
+            mobileMenu.classList.remove('hidden');
+        });
+        console.log('Event listener adicionado ao mobileMenuBtn');
+    }
+    
+    if (mobileMenuClose && mobileMenu) {
+        mobileMenuClose.addEventListener('click', () => {
+            mobileMenu.classList.add('hidden');
+        });
+        console.log('Event listener adicionado ao mobileMenuClose');
     }
 
     // Navegação do submenu
@@ -1514,6 +1546,12 @@ function handleNavigation(e) {
     e.preventDefault();
     
     const target = e.currentTarget.getAttribute('href').substring(1);
+    
+    // Fechar menu mobile ao navegar
+    const mobileMenuEl = document.getElementById('mobileMenu');
+    if (mobileMenuEl) {
+        mobileMenuEl.classList.add('hidden');
+    }
     
     // Verificar permissões para usuários com acesso limitado
     if (currentUser) {
@@ -4259,10 +4297,19 @@ function showDashboard() {
     
     // Atualizar indicador da empresa
     const companyIndicator = document.getElementById('companyIndicator');
-    if (companyIndicator && currentCompany) {
+    const mobileCompanyIndicator = document.getElementById('mobileCompanyIndicator');
+    if (currentCompany) {
         const config = getCurrentCompanyConfig();
-        companyIndicator.textContent = config ? config.name : 'Empresa não identificada';
-        console.log('Indicador de empresa atualizado:', config ? config.name : 'Não identificada');
+        const companyName = config ? config.name : 'Empresa não identificada';
+        
+        if (companyIndicator) {
+            companyIndicator.textContent = companyName;
+        }
+        if (mobileCompanyIndicator) {
+            mobileCompanyIndicator.textContent = companyName;
+        }
+        
+        console.log('Indicadores de empresa atualizados:', companyName);
     }
     
     // Configurar timeout para usuário logado
