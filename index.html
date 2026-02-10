@@ -211,6 +211,37 @@
                 max-height: 85vh;
             }
         }
+
+        /* Melhorias para modais no mobile */
+        @media (max-width: 768px) {
+            .modal-content {
+                margin: 0;
+                padding: 0.75rem;
+                max-height: 100vh;
+                border-radius: 0;
+            }
+
+            #newLoanModal .modal-content {
+                border-radius: 16px 16px 0 0;
+                margin-top: auto;
+            }
+
+            .form-input,
+            .form-select {
+                font-size: 16px; /* Evita zoom no iOS */
+            }
+
+            /* Ajustar grid de filtros no mobile */
+            #filtersContent .grid {
+                gap: 0.75rem;
+            }
+
+            #filtersContent input[type="date"],
+            #filtersContent select {
+                font-size: 14px;
+                padding: 0.5rem;
+            }
+        }
         
         @media (max-height: 600px) {
             #paymentModal .modal-content {
@@ -1157,21 +1188,21 @@
                     
                     <div class="table-container">
                         <div class="table-header px-6 py-4">
-                            <div class="flex items-center justify-between">
+                            <div class="flex flex-col md:flex-row md:items-center md:justify-between gap-3 md:gap-0">
                                 <h3 class="text-lg font-semibold text-white">Lista de Empréstimos</h3>
-                                <div class="flex items-center space-x-4">
-                                    <div class="relative">
+                                <div class="flex items-center space-x-2 md:space-x-4">
+                                    <div class="relative flex-1 md:flex-none">
                                         <input 
                                             type="text" 
                                             id="loanSearchInput" 
-                                            placeholder="Buscar empréstimo..." 
-                                            class="bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pl-10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+                                            placeholder="Buscar..." 
+                                            class="bg-gray-700 border border-gray-600 rounded-lg px-4 py-2 pl-10 text-white placeholder-gray-400 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-full md:w-64"
                                         >
                                         <svg class="absolute left-3 top-2.5 h-5 w-5 text-gray-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"></path>
                                         </svg>
                                     </div>
-                                    <button id="clearLoanSearch" class="text-gray-400 hover:text-white transition-colors" title="Limpar busca">
+                                    <button id="clearLoanSearch" class="text-gray-400 hover:text-white transition-colors p-1" title="Limpar busca">
                                         <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
                                         </svg>
@@ -1182,12 +1213,18 @@
                             <!-- Filtros Avançados -->
                             <div class="mt-4 pt-4 border-t border-gray-700">
                                 <div class="flex items-center justify-between mb-4">
-                                    <h4 class="text-sm font-medium text-gray-300">Filtros e Ordenação</h4>
+                                    <button id="toggleFiltersBtn" class="md:hidden flex items-center space-x-2 text-sm font-medium text-blue-300 hover:text-blue-200 transition-colors">
+                                        <span>Filtros e Ordenação</span>
+                                        <svg id="filtersToggleIcon" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
+                                        </svg>
+                                    </button>
+                                    <h4 class="hidden md:block text-sm font-medium text-gray-300">Filtros e Ordenação</h4>
                                     <button id="clearAllFilters" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
                                         Limpar Filtros
                                     </button>
                                 </div>
-                                <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div id="filtersContent" class="hidden md:block grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <!-- Filtro por Data de Criação -->
                                     <div class="space-y-2">
                                         <label class="text-xs font-medium text-gray-300">Data de Criação</label>
@@ -1254,8 +1291,10 @@
                                     </div>
                                 </div>
                                 
+                                </div>
+                                
                                 <!-- Filtro de Parcelamentos -->
-                                <div class="mt-4 pt-4 border-t border-gray-700">
+                                <div id="installmentsFilterMobile" class="hidden md:block mt-4 pt-4 border-t border-gray-700">
                                     <label class="flex items-center space-x-2 cursor-pointer">
                                         <input 
                                             type="checkbox" 
@@ -2622,30 +2661,29 @@
     </div>
 
     <!-- New Loan Modal -->
-    <div id="newLoanModal" class="modal-overlay fixed inset-0 z-50 hidden">
-        <div class="flex items-center justify-center min-h-screen p-4">
-            <div class="modal-content w-full max-w-2xl p-6 relative">
-                <div class="flex items-center justify-between mb-6">
-                    <h3 class="text-xl font-semibold text-white">Novo Empréstimo</h3>
-                    <button id="closeLoanModal" class="text-gray-400 hover:text-white">
-                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+    <div id="newLoanModal" class="modal-overlay fixed inset-0 z-50 hidden overflow-y-auto">
+        <div class="flex items-start md:items-center justify-center min-h-screen p-0 md:p-4">
+            <div class="modal-content w-full max-w-2xl p-3 md:p-6 relative my-0 md:my-4 flex flex-col max-h-screen md:max-h-[95vh]">
+                <div class="flex items-center justify-between mb-3 md:mb-6 flex-shrink-0">
+                    <h3 class="text-base md:text-xl font-semibold text-white">Novo Empréstimo</h3>
+                    <button id="closeLoanModal" class="text-gray-400 hover:text-white p-1">
+                        <svg class="w-5 h-5 md:w-6 md:h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-                        </svg>
                         </svg>
                     </button>
                 </div>
                 
-                <form id="newLoanForm" class="space-y-4">
+                <form id="newLoanForm" class="space-y-3 md:space-y-4 flex-1 overflow-y-auto pb-20 md:pb-0">
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Cliente</label>
+                        <label class="block text-xs md:text-sm font-medium text-blue-200 mb-1.5 md:mb-2">Cliente</label>
                         
                         <!-- Campo de busca -->
-                        <div class="relative mb-3">
+                        <div class="relative mb-2 md:mb-3">
                             <input 
                                 type="text" 
                                 id="loanClientSearch" 
-                                class="form-input w-full pl-10" 
-                                placeholder="Digite o nome ou CPF do cliente para buscar..."
+                                class="form-input w-full pl-10 text-sm md:text-base py-2 md:py-2.5" 
+                                placeholder="Buscar cliente..."
                                 autocomplete="off"
                             >
                             <div class="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
@@ -2656,8 +2694,8 @@
                         </div>
                         
                         <!-- Lista de resultados de busca -->
-                        <div id="loanClientResults" class="hidden mb-3">
-                            <div class="max-h-60 overflow-y-auto border border-gray-600 rounded-lg bg-gray-800">
+                        <div id="loanClientResults" class="hidden mb-2 md:mb-3">
+                            <div class="max-h-40 md:max-h-60 overflow-y-auto border border-gray-600 rounded-lg bg-gray-800">
                                 <div id="loanClientResultsList" class="divide-y divide-gray-600">
                                     <!-- Resultados aparecerão aqui -->
                                 </div>
@@ -2665,67 +2703,69 @@
                         </div>
                         
                         <!-- Select tradicional (mantido como fallback) -->
-                        <select id="loanClient" class="form-input w-full" required>
+                        <select id="loanClient" class="form-input w-full text-sm md:text-base py-2 md:py-2.5" required>
                             <option value="">Ou selecione da lista completa</option>
                         </select>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Valor do Empréstimo</label>
-                            <input type="number" id="loanAmount" class="form-input w-full" step="0.01" min="0" required>
+                            <label class="block text-xs md:text-sm font-medium text-blue-200 mb-1.5 md:mb-2">Valor do Empréstimo</label>
+                            <input type="number" id="loanAmount" class="form-input w-full text-sm md:text-base py-2 md:py-2.5" step="0.01" min="0" required>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Taxa de Juros (%)</label>
-                            <input type="number" id="loanInterest" class="form-input w-full" step="0.01" min="0" required>
+                            <label class="block text-xs md:text-sm font-medium text-blue-200 mb-1.5 md:mb-2">Taxa de Juros (%)</label>
+                            <input type="number" id="loanInterest" class="form-input w-full text-sm md:text-base py-2 md:py-2.5" step="0.01" min="0" required>
                         </div>
                     </div>
                     
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                         <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Data do Empréstimo</label>
-                            <input type="date" id="loanDate" class="form-input w-full" required>
+                            <label class="block text-xs md:text-sm font-medium text-blue-200 mb-1.5 md:mb-2">Data do Empréstimo</label>
+                            <input type="date" id="loanDate" class="form-input w-full text-sm md:text-base py-2 md:py-2.5" required>
                         </div>
                         <div>
-                            <label class="block text-sm font-medium text-blue-200 mb-2">Período de Vencimento</label>
-                            <select id="loanTermDays" class="form-input w-full" required>
+                            <label class="block text-xs md:text-sm font-medium text-blue-200 mb-1.5 md:mb-2">Período de Vencimento</label>
+                            <select id="loanTermDays" class="form-input w-full text-sm md:text-base py-2 md:py-2.5" required>
                                 <option value="30">30 dias</option>
                                 <option value="20">20 dias</option>
                             </select>
                         </div>
                     </div>
                     <div>
-                        <label class="block text-sm font-medium text-blue-200 mb-2">Data de Vencimento</label>
-                        <input type="date" id="loanDueDate" class="form-input w-full" required readonly>
-                        <p class="text-xs text-gray-400 mt-1">Calculada automaticamente baseado no período escolhido</p>
+                        <label class="block text-xs md:text-sm font-medium text-blue-200 mb-1.5 md:mb-2">Data de Vencimento</label>
+                        <input type="date" id="loanDueDate" class="form-input w-full text-sm md:text-base py-2 md:py-2.5" required readonly>
+                        <p class="text-xs text-gray-400 mt-0.5 md:mt-1">Calculada automaticamente</p>
                     </div>
                     
-                    <div class="bg-gray-800 p-4 rounded-lg">
-                        <h4 class="text-sm font-medium text-blue-200 mb-2">Resumo do Empréstimo</h4>
-                        <div class="grid grid-cols-2 gap-4 text-sm">
-                            <div>
-                                <span class="text-gray-400">Valor Principal:</span>
-                                <span class="text-white ml-2" id="summaryPrincipal">R$ 0,00</span>
+                    <div class="bg-gray-800 p-2.5 md:p-4 rounded-lg">
+                        <h4 class="text-xs md:text-sm font-medium text-blue-200 mb-1.5 md:mb-2">Resumo</h4>
+                        <div class="space-y-1.5 md:space-y-0 md:grid md:grid-cols-2 md:gap-3 md:gap-4 text-xs md:text-sm">
+                            <div class="flex justify-between md:block">
+                                <span class="text-gray-400">Principal:</span>
+                                <span class="text-white md:ml-2 font-medium" id="summaryPrincipal">R$ 0,00</span>
                             </div>
-                            <div>
+                            <div class="flex justify-between md:block">
                                 <span class="text-gray-400">Juros:</span>
-                                <span class="text-white ml-2" id="summaryInterest">R$ 0,00</span>
+                                <span class="text-white md:ml-2 font-medium" id="summaryInterest">R$ 0,00</span>
                             </div>
-                            <div>
-                                <span class="text-gray-400">Total:</span>
-                                <span class="text-white ml-2 font-semibold" id="summaryTotal">R$ 0,00</span>
+                            <div class="flex justify-between md:block md:col-span-2 border-t border-gray-700 pt-1.5 md:pt-0 md:border-0">
+                                <span class="text-gray-400 font-medium">Total:</span>
+                                <span class="text-white md:ml-2 font-semibold text-base md:text-lg" id="summaryTotal">R$ 0,00</span>
                             </div>
                         </div>
                     </div>
-                    
-                    <div class="flex justify-end space-x-4 pt-4">
-                        <button type="button" id="cancelLoanBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
-                            Cancelar
-                        </button>
-                        <button type="submit" id="submitLoanBtn" class="btn-primary px-6 py-2 rounded-lg font-semibold text-white">
-                            Criar Empréstimo
-                        </button>
-                    </div>
+                </form>
+                
+                <!-- Botões fixos no bottom no mobile -->
+                <div class="flex flex-col sm:flex-row justify-end gap-2 sm:gap-4 pt-3 md:pt-4 border-t border-gray-700 mt-auto flex-shrink-0 bg-gray-900 -mx-3 md:-mx-6 px-3 md:px-6 pb-3 md:pb-0 md:border-0 md:bg-transparent md:mt-0">
+                    <button type="button" id="cancelLoanBtn" class="w-full sm:w-auto px-4 md:px-6 py-2 md:py-2.5 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors text-sm md:text-base order-2 sm:order-1">
+                        Cancelar
+                    </button>
+                    <button type="submit" id="submitLoanBtn" form="newLoanForm" class="w-full sm:w-auto btn-primary px-4 md:px-6 py-2 md:py-2.5 rounded-lg font-semibold text-white text-sm md:text-base order-1 sm:order-2">
+                        Criar Empréstimo
+                    </button>
+                </div>
                     
                     <!-- Loading Overlay -->
                     <div id="loanLoadingOverlay" class="hidden absolute inset-0 bg-black bg-opacity-70 flex items-center justify-center rounded-lg z-50">

@@ -649,6 +649,28 @@ function setupEventListeners() {
         });
     }
 
+    // Toggle de filtros mobile
+    const toggleFiltersBtn = document.getElementById('toggleFiltersBtn');
+    const filtersContent = document.getElementById('filtersContent');
+    const installmentsFilterMobile = document.getElementById('installmentsFilterMobile');
+    const filtersToggleIcon = document.getElementById('filtersToggleIcon');
+    
+    if (toggleFiltersBtn && filtersContent) {
+        toggleFiltersBtn.addEventListener('click', () => {
+            const isHidden = filtersContent.classList.contains('hidden');
+            
+            if (isHidden) {
+                filtersContent.classList.remove('hidden');
+                if (installmentsFilterMobile) installmentsFilterMobile.classList.remove('hidden');
+                if (filtersToggleIcon) filtersToggleIcon.style.transform = 'rotate(180deg)';
+            } else {
+                filtersContent.classList.add('hidden');
+                if (installmentsFilterMobile) installmentsFilterMobile.classList.add('hidden');
+                if (filtersToggleIcon) filtersToggleIcon.style.transform = 'rotate(0deg)';
+            }
+        });
+    }
+
     const generateBackupBtn = document.getElementById('generateBackupBtn');
     if (generateBackupBtn) {
         generateBackupBtn.addEventListener('click', async () => {
