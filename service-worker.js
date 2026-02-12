@@ -1,4 +1,4 @@
-const CACHE_NAME = 'nexus-pwa-v1';
+const CACHE_NAME = 'nexus-pwa-v2';
 
 // Arquivos estáticos principais para cache
 const CORE_ASSETS = [
@@ -14,7 +14,7 @@ self.addEventListener('install', (event) => {
   event.waitUntil(
     caches.open(CACHE_NAME).then((cache) => {
       return cache.addAll(CORE_ASSETS);
-    })
+    }).then(() => self.skipWaiting())
   );
 });
 
@@ -26,16 +26,47 @@ self.addEventListener('activate', (event) => {
           if (cacheName !== CACHE_NAME) {
             return caches.delete(cacheName);
           }
+          return Promise.resolve();
         })
       )
-    )
+    ).then(() => self.clients.claim())
   );
 });
 
-// Estratégia simples: cache-first para assets estáticos,
-// network-first para o restante (como chamadas Supabase)
+self.addEventListener('message', (event) => {
+  if (event.data && event.data.type === 'SKIP_WAITING') {
+    self.skipWaiting();
+  }
+});
+
+async function networkFirst(request) {
+  try {
+    const response = await fetch(request);
+    const responseClone = response.clone();
+    const cache = await caches.open(CACHE_NAME);
+    cache.put(request, responseClone);
+    return response;
+  } catch (error) {
+    return caches.match(request);
+  }
+}
+
+async function cacheFirst(request) {
+  const cached = await caches.match(request);
+  if (cached) {
+    return cached;
+  }
+  
+  const response = await fetch(request);
+  const responseClone = response.clone();
+  const cache = await caches.open(CACHE_NAME);
+  cache.put(request, responseClone);
+  return response;
+}
+
 self.addEventListener('fetch', (event) => {
   const { request } = event;
+  if (request.method !== 'GET') return;
 
   // Ignorar chamadas de outros protocolos
   if (!request.url.startsWith(self.location.origin) && !request.url.includes('supabase.co')) {
@@ -50,23 +81,18 @@ self.addEventListener('fetch', (event) => {
     return;
   }
 
-  // Para assets locais, usar cache-first
-  event.respondWith(
-    caches.match(request).then((cached) => {
-      if (cached) {
-        return cached;
-      }
-
-      return fetch(request).then((response) => {
-        // Clonar a resposta para colocar no cache
-        const responseClone = response.clone();
-        caches.open(CACHE_NAME).then((cache) => {
-          cache.put(request, responseClone);
-        });
-        return response;
-      });
-    })
-  );
+  const url = new URL(request.url);
+  const isAppShellRequest = request.mode === 'navigate' ||
+    url.pathname === '/' ||
+    url.pathname.endsWith('/index.html') ||
+    url.pathname.endsWith('/app.js');
+  
+  // App shell em network-first para evitar versões antigas do JS
+  if (isAppShellRequest) {
+    event.respondWith(networkFirst(request));
+    return;
+  }
+  
+  // Assets locais estáticos em cache-first
+  event.respondWith(cacheFirst(request));
 });
-
-
