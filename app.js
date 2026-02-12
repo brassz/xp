@@ -1890,6 +1890,7 @@ async function loadLoans() {
                     phone
                 )
             `)
+            .neq('status', 'paid')
             .order('created_at', { ascending: false });
         
         if (error) throw error;
@@ -8233,6 +8234,78 @@ function getPaymentTypeText(type) {
     }
 }
 
+function getPaymentCompositionType(paymentType, paymentAmount, currentCapital, interestRate) {
+    const normalizedType = (paymentType || '').toString().toLowerCase();
+    
+    const interestOnlyTypes = new Set([
+        'renewal',
+        'interest_renewal',
+        'early_payment_partial_interest',
+        'early_payment_interest_renewal',
+        'partial_interest',
+        'interest'
+    ]);
+    
+    const capitalOnlyTypes = new Set([
+        'capital_renewal',
+        'principal'
+    ]);
+    
+    const interestAndCapitalTypes = new Set([
+        'capital_interest_renewal',
+        'capital_payment',
+        'early_payment_capital_reduction',
+        'loan_payoff',
+        'full'
+    ]);
+    
+    if (interestOnlyTypes.has(normalizedType)) {
+        return 'interest_only';
+    }
+    
+    if (capitalOnlyTypes.has(normalizedType)) {
+        return 'capital_only';
+    }
+    
+    if (interestAndCapitalTypes.has(normalizedType)) {
+        return 'interest_capital';
+    }
+    
+    const safeCapital = Math.max(0, parseFloat(currentCapital) || 0);
+    const safeInterestRate = Math.max(0, parseFloat(interestRate) || 0);
+    const safePaymentAmount = Math.max(0, parseFloat(paymentAmount) || 0);
+    const expectedInterest = safeCapital * (safeInterestRate / 100);
+    
+    if (expectedInterest <= 0.01) {
+        return 'capital_only';
+    }
+    
+    const tolerance = Math.max(0.01, expectedInterest * 0.01);
+    if (safePaymentAmount <= expectedInterest + tolerance) {
+        return 'interest_only';
+    }
+    
+    return 'interest_capital';
+}
+
+function getPaymentCompositionLabel(compositionType) {
+    switch (compositionType) {
+        case 'interest_only': return 'Somente Juros';
+        case 'interest_capital': return 'Juros + Capital';
+        case 'capital_only': return 'Somente Capital';
+        default: return 'Não identificado';
+    }
+}
+
+function getPaymentCompositionClass(compositionType) {
+    switch (compositionType) {
+        case 'interest_only': return 'text-amber-300';
+        case 'interest_capital': return 'text-green-300';
+        case 'capital_only': return 'text-cyan-300';
+        default: return 'text-gray-300';
+    }
+}
+
 async function editPayment(paymentId) {
     try {
         // Buscar o pagamento do banco de dados
@@ -9756,7 +9829,9 @@ async function markLoanAsPaid(loanId) {
             `Deseja realmente marcar este empréstimo como quitado?\n\nCliente: ${loan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(loan.amount).toFixed(2)}\nJuros: ${loan.interest_rate}%`,
             async () => {
                 // Calcular valores
-                const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+                const loanPrincipal = parseFloat(loan.original_amount || loan.amount || 0);
+                const interestRate = parseFloat(loan.interest_rate || 0);
+                const totalWithInterest = loanPrincipal + (loanPrincipal * interestRate / 100);
                 
                 // Buscar total pago
                 const { data: payments, error: paymentsError } = await supabase
@@ -9766,54 +9841,65 @@ async function markLoanAsPaid(loanId) {
                 
                 if (paymentsError) throw paymentsError;
                 
-                const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+                const totalPaid = (payments || []).reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
                 
-                // Inserir na tabela paid_loans
-                const { error: insertError } = await supabase
+                const paidLoanPayload = {
+                    loan_id: loanId,
+                    client_id: loan.client_id,
+                    original_amount: loanPrincipal,
+                    interest_rate: interestRate,
+                    total_with_interest: totalWithInterest,
+                    loan_date: loan.loan_date,
+                    due_date: loan.due_date,
+                    paid_date: new Date().toISOString().split('T')[0],
+                    total_paid: totalPaid,
+                    payment_method: 'Sistema',
+                    notes: 'Quitado pelo sistema',
+                    created_by: loan.created_by
+                };
+                
+                // Criar/atualizar registro em paid_loans sem duplicar
+                const { data: existingPaidLoan, error: existingPaidLoanError } = await supabase
                     .from('paid_loans')
-                    .insert([{
-                        loan_id: loanId,
-                        client_id: loan.client_id,
-                        original_amount: loan.amount,
-                        interest_rate: loan.interest_rate,
-                        total_with_interest: totalWithInterest,
-                        loan_date: loan.loan_date,
-                        due_date: loan.due_date,
-                        paid_date: new Date().toISOString().split('T')[0],
-                        total_paid: totalPaid,
-                        payment_method: 'Sistema',
-                        notes: 'Quitado pelo sistema',
-                        created_by: loan.created_by
-                    }]);
+                    .select('id')
+                    .eq('loan_id', loanId)
+                    .maybeSingle();
                 
-                if (insertError) throw insertError;
+                if (existingPaidLoanError) throw existingPaidLoanError;
                 
-                // Remover da tabela loans
-                const { error: deleteError } = await supabase
+                if (existingPaidLoan?.id) {
+                    const { error: updatePaidLoanError } = await supabase
+                        .from('paid_loans')
+                        .update(paidLoanPayload)
+                        .eq('id', existingPaidLoan.id);
+                    
+                    if (updatePaidLoanError) throw updatePaidLoanError;
+                } else {
+                    const { error: insertError } = await supabase
+                        .from('paid_loans')
+                        .insert([paidLoanPayload]);
+                    
+                    if (insertError) throw insertError;
+                }
+                
+                // Marcar empréstimo como quitado sem remover da tabela loans
+                // (preserva pagamentos vinculados e evita cascata de exclusão)
+                const { error: loanUpdateError } = await supabase
                     .from('loans')
-                    .delete()
+                    .update({
+                        status: 'paid',
+                        updated_at: new Date().toISOString()
+                    })
                     .eq('id', loanId);
                 
-                if (deleteError) throw deleteError;
-                
-                // Remover da lista local
-                const loanIndex = loans.findIndex(l => l.id === loanId);
-                if (loanIndex > -1) {
-                    loans.splice(loanIndex, 1);
-                }
-                
-                // Remover da lista filtrada
-                const filteredLoanIndex = filteredLoans.findIndex(l => l.id === loanId);
-                if (filteredLoanIndex > -1) {
-                    filteredLoans.splice(filteredLoanIndex, 1);
-                }
+                if (loanUpdateError) throw loanUpdateError;
                 
                 // Mostrar mensagem de sucesso
-                showSuccessMessage('Empréstimo quitado com sucesso e movido para histórico de quitados!');
+                showSuccessMessage('Empréstimo quitado com sucesso! Pagamentos preservados no banco.');
                 
                 // Invalidar cache e atualizar interface imediatamente
                 invalidateLoanRemainingAmountsCache();
-                await renderLoansTable();
+                await loadLoans();
                 await renderPaidLoansTable();
                 await updateDashboard();
                 await updateCharts();
@@ -9938,6 +10024,51 @@ function selectHistoryClient(client) {
     loadClientHistory();
 }
 
+async function fetchAllClientPaymentsByLoanIds(loanIds) {
+    const uniqueLoanIds = [...new Set((loanIds || []).filter(Boolean))];
+    if (uniqueLoanIds.length === 0) return [];
+    
+    const pageSize = 1000;
+    let offset = 0;
+    const payments = [];
+    
+    while (true) {
+        const { data, error } = await supabase
+            .from('payments')
+            .select('*')
+            .in('loan_id', uniqueLoanIds)
+            .order('payment_date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + pageSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        payments.push(...data);
+        
+        if (data.length < pageSize) break;
+        offset += pageSize;
+    }
+    
+    // Garantir que não haja duplicidade caso a API retorne sobreposição entre páginas
+    const uniquePayments = new Map();
+    for (const payment of payments) {
+        if (payment?.id) {
+            uniquePayments.set(payment.id, payment);
+        }
+    }
+    
+    return [...uniquePayments.values()].sort((a, b) => {
+        const dateA = new Date(a.payment_date || 0).getTime();
+        const dateB = new Date(b.payment_date || 0).getTime();
+        if (dateA !== dateB) return dateB - dateA;
+        
+        const createdAtA = new Date(a.created_at || 0).getTime();
+        const createdAtB = new Date(b.created_at || 0).getTime();
+        return createdAtB - createdAtA;
+    });
+}
+
 // Função para carregar o histórico completo de um cliente
 async function loadClientHistory() {
     const clientId = document.getElementById('historyClientSelect').value;
@@ -9986,38 +10117,62 @@ async function loadClientHistory() {
             clients: client // Usar os dados do cliente já carregados
         }));
         
-        // Combinar empréstimos ativos e quitados
-        const allClientLoans = [...(clientLoans || []), ...paidLoansWithClient];
+        const paidLoanIds = (paidLoansWithClient || [])
+            .map(loan => loan.loan_id || loan.id)
+            .filter(Boolean);
+        const paidLoanIdSet = new Set(paidLoanIds);
         
-        // Buscar todos os pagamentos dos empréstimos ativos do cliente
+        // Combinar empréstimos ativos e quitados sem duplicar
+        // (caso o empréstimo quitado também exista na tabela loans com status paid)
+        const clientLoanIdsSet = new Set((clientLoans || []).map(loan => loan.id));
+        const paidLoansWithoutLoanRow = (paidLoansWithClient || []).filter(loan => {
+            const originalLoanId = loan.loan_id || loan.id;
+            return originalLoanId && !clientLoanIdsSet.has(originalLoanId);
+        });
+        const allClientLoans = [...(clientLoans || []), ...paidLoansWithoutLoanRow];
+        
+        // Buscar todos os pagamentos dos empréstimos do cliente (ativos + quitados)
         const activeLoanIds = (clientLoans || []).map(loan => loan.id);
+        const allClientLoanIds = [...new Set([...activeLoanIds, ...paidLoanIds])];
         let clientPayments = [];
         
-        if (activeLoanIds.length > 0) {
-            const { data: payments, error: paymentsError } = await supabase
-                .from('payments')
-                .select('*')
-                .in('loan_id', activeLoanIds)
-                .order('payment_date', { ascending: false });
-            
-            if (paymentsError) throw paymentsError;
-            clientPayments = payments || [];
+        if (allClientLoanIds.length > 0) {
+            clientPayments = await fetchAllClientPaymentsByLoanIds(allClientLoanIds);
         }
         
         // Calcular resumo financeiro
         const totalLoans = allClientLoans.length;
-        const totalActiveAmount = (clientLoans || []).reduce((sum, loan) => sum + parseFloat(loan.amount || 0), 0);
-        const totalPaidAmount = (paidLoansWithClient || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
-        const totalAmount = totalActiveAmount + totalPaidAmount;
+        const totalAmount = allClientLoans.reduce((sum, loan) => {
+            return sum + parseFloat(loan.original_amount || loan.amount || 0);
+        }, 0);
         
-        // Total pago inclui pagamentos de empréstimos ativos + total pago de empréstimos quitados
-        const totalPaidFromActive = clientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
-        const totalPaidFromSettled = (paidLoansWithClient || []).reduce((sum, loan) => sum + parseFloat(loan.total_paid || 0), 0);
-        const totalPaid = totalPaidFromActive + totalPaidFromSettled;
+        // Total pago = pagamentos reais já registrados + fallback para quitados sem histórico detalhado
+        const realClientPayments = clientPayments.filter(payment => parseFloat(payment.amount || 0) > 0);
+        const totalPaidFromPayments = realClientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        
+        const paidLoanPaymentTotals = new Map();
+        
+        for (const payment of realClientPayments) {
+            if (!paidLoanIdSet.has(payment.loan_id)) continue;
+            const currentTotal = paidLoanPaymentTotals.get(payment.loan_id) || 0;
+            paidLoanPaymentTotals.set(payment.loan_id, currentTotal + parseFloat(payment.amount || 0));
+        }
+        
+        const totalPaidFromSettledFallback = (paidLoansWithClient || []).reduce((sum, loan) => {
+            const originalLoanId = loan.loan_id || loan.id;
+            const settledTotal = parseFloat(loan.total_paid || 0);
+            const recordedTotal = originalLoanId ? (paidLoanPaymentTotals.get(originalLoanId) || 0) : 0;
+            const missingAmount = Math.max(0, settledTotal - recordedTotal);
+            return sum + missingAmount;
+        }, 0);
+        
+        const totalPaid = totalPaidFromPayments + totalPaidFromSettledFallback;
         
         // Calcular valores restantes em lote para melhor performance
-        const clientLoanIds = (clientLoans || []).map(loan => loan.id);
-        const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(clientLoanIds);
+        const activeClientLoanIds = (clientLoans || [])
+            .filter(loan => loan.status !== 'paid' && !paidLoanIdSet.has(loan.id))
+            .map(loan => loan.id);
+        const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(activeClientLoanIds);
         const totalRemaining = clientRemainingAmounts.reduce((sum, amount) => sum + amount, 0);
         
         // Buscar multas do cliente
@@ -10073,7 +10228,7 @@ function renderHistoryLoansTable(allClientLoans, paidLoans) {
     let tableHTML = '';
     for (const loan of allClientLoans) {
         // Verificar se é empréstimo quitado
-        const isPaidLoan = paidLoans.some(pl => pl.loan_id === loan.id || pl.id === loan.id);
+        const isPaidLoan = loan.status === 'paid' || paidLoans.some(pl => pl.loan_id === loan.id || pl.id === loan.id);
         const loanAmount = isPaidLoan ? parseFloat(loan.original_amount || loan.amount || 0) : parseFloat(loan.amount || 0);
         const interestRate = parseFloat(loan.interest_rate || 0);
         const originalTotal = loanAmount + (loanAmount * interestRate / 100);
@@ -10134,44 +10289,146 @@ function renderHistoryLoansTable(allClientLoans, paidLoans) {
 function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
     const tbody = document.getElementById('historyPaymentsTableBody');
     
-    // Combinar pagamentos de empréstimos ativos com informações de empréstimos quitados
+    // Consolidar informações de empréstimos ativos e quitados
     const allPaymentInfo = [];
+    const loanInfoMap = new Map();
     
-    // Adicionar pagamentos de empréstimos ativos
-    for (const payment of clientPayments) {
-        const loan = clientLoans.find(l => l.id === payment.loan_id);
-        if (loan) {
-            allPaymentInfo.push({
-                type: 'payment',
-                date: payment.payment_date,
-                amount: parseFloat(payment.amount),
-                fineAmount: parseFloat(payment.fine_amount || 0),
-                paymentType: payment.payment_type,
-                notes: payment.notes || 'Sem notas',
-                loanAmount: parseFloat(loan.amount),
-                loanInterest: parseFloat(loan.interest_rate),
-                isFromPaidLoan: false
-            });
-        }
+    for (const loan of (clientLoans || [])) {
+        if (!loan || !loan.id) continue;
+        loanInfoMap.set(loan.id, {
+            loanId: loan.id,
+            loanAmount: parseFloat(loan.original_amount || loan.amount || 0),
+            loanInterest: parseFloat(loan.interest_rate || 0),
+            isFromPaidLoan: false
+        });
     }
     
-    // Adicionar informações de quitação de empréstimos pagos
-    for (const paidLoan of paidLoans) {
-        allPaymentInfo.push({
-            type: 'settlement',
-            date: paidLoan.paid_date,
-            amount: parseFloat(paidLoan.total_paid || 0),
-            fineAmount: 0, // Empréstimos quitados não têm multa separada
-            paymentType: paidLoan.payment_method || 'Quitação',
-            notes: paidLoan.notes || 'Empréstimo quitado completamente',
-            loanAmount: parseFloat(paidLoan.original_amount || 0),
+    for (const paidLoan of (paidLoans || [])) {
+        const originalLoanId = paidLoan.loan_id || paidLoan.id;
+        if (!originalLoanId || loanInfoMap.has(originalLoanId)) continue;
+        loanInfoMap.set(originalLoanId, {
+            loanId: originalLoanId,
+            loanAmount: parseFloat(paidLoan.original_amount || paidLoan.amount || 0),
             loanInterest: parseFloat(paidLoan.interest_rate || 0),
             isFromPaidLoan: true
         });
     }
     
+    // Considerar apenas pagamentos com valor real
+    const realPayments = (clientPayments || []).filter(payment => {
+        const paymentAmount = parseFloat(payment.amount || 0);
+        return paymentAmount > 0 && payment.loan_id && loanInfoMap.has(payment.loan_id);
+    });
+    
+    // Calcular composição do pagamento por empréstimo em ordem cronológica
+    const loanCapitalState = new Map();
+    const paymentCompositionMap = new Map();
+    const sortedPaymentsForCalculation = [...realPayments].sort((a, b) => {
+        const dateA = new Date(a.payment_date || 0).getTime();
+        const dateB = new Date(b.payment_date || 0).getTime();
+        if (dateA !== dateB) return dateA - dateB;
+        
+        const createdAtA = new Date(a.created_at || 0).getTime();
+        const createdAtB = new Date(b.created_at || 0).getTime();
+        return createdAtA - createdAtB;
+    });
+    
+    for (const payment of sortedPaymentsForCalculation) {
+        const loanInfo = loanInfoMap.get(payment.loan_id);
+        if (!loanInfo) continue;
+        
+        const paymentAmount = parseFloat(payment.amount || 0);
+        const currentCapital = loanCapitalState.has(payment.loan_id)
+            ? loanCapitalState.get(payment.loan_id)
+            : loanInfo.loanAmount;
+        
+        const compositionType = getPaymentCompositionType(
+            payment.payment_type,
+            paymentAmount,
+            currentCapital,
+            loanInfo.loanInterest
+        );
+        paymentCompositionMap.set(payment.id, compositionType);
+        
+        const currentInterest = currentCapital * (loanInfo.loanInterest / 100);
+        let capitalPaid = 0;
+        
+        if (compositionType === 'capital_only') {
+            capitalPaid = paymentAmount;
+        } else if (compositionType === 'interest_capital') {
+            capitalPaid = Math.max(0, paymentAmount - currentInterest);
+        }
+        
+        const updatedCapital = Math.max(0, currentCapital - Math.min(currentCapital, capitalPaid));
+        loanCapitalState.set(payment.loan_id, updatedCapital);
+    }
+    
+    const paymentsByLoanTotals = new Map();
+    
+    // Adicionar todos os pagamentos reais encontrados
+    for (const payment of realPayments) {
+        const loanInfo = loanInfoMap.get(payment.loan_id);
+        if (!loanInfo) continue;
+        
+        allPaymentInfo.push({
+            type: 'payment',
+            date: payment.payment_date,
+            amount: parseFloat(payment.amount || 0),
+            fineAmount: parseFloat(payment.fine_amount || 0),
+            paymentType: payment.payment_type,
+            paymentTypeText: getPaymentTypeText(payment.payment_type),
+            compositionType: paymentCompositionMap.get(payment.id) || 'interest_capital',
+            notes: payment.notes || 'Sem notas',
+            loanAmount: loanInfo.loanAmount,
+            loanInterest: loanInfo.loanInterest,
+            isFromPaidLoan: loanInfo.isFromPaidLoan,
+            isSettlementFallback: false
+        });
+        
+        const currentLoanTotal = paymentsByLoanTotals.get(payment.loan_id) || 0;
+        paymentsByLoanTotals.set(payment.loan_id, currentLoanTotal + parseFloat(payment.amount || 0));
+    }
+    
+    // Para empréstimos quitados com diferença não registrada, adicionar fallback de quitação
+    for (const paidLoan of (paidLoans || [])) {
+        const originalLoanId = paidLoan.loan_id || paidLoan.id;
+        if (!originalLoanId) continue;
+        
+        const settledTotal = parseFloat(paidLoan.total_paid || 0);
+        const recordedTotal = paymentsByLoanTotals.get(originalLoanId) || 0;
+        const settlementAmount = Math.max(0, settledTotal - recordedTotal);
+        if (settlementAmount <= 0.01) continue;
+        
+        const paidLoanAmount = parseFloat(paidLoan.original_amount || 0);
+        const paidLoanRate = parseFloat(paidLoan.interest_rate || 0);
+        const totalLoanInterest = paidLoanAmount * (paidLoanRate / 100);
+        const settlementCompositionType = recordedTotal >= (totalLoanInterest - 0.01)
+            ? 'capital_only'
+            : 'interest_capital';
+        
+        allPaymentInfo.push({
+            type: 'settlement',
+            date: paidLoan.paid_date,
+            amount: settlementAmount,
+            fineAmount: 0,
+            paymentType: 'loan_payoff',
+            paymentTypeText: '✅ Quitação Total',
+            compositionType: settlementCompositionType,
+            notes: paidLoan.notes || 'Complemento de quitação do empréstimo',
+            loanAmount: paidLoanAmount,
+            loanInterest: paidLoanRate,
+            isFromPaidLoan: true,
+            isSettlementFallback: true
+        });
+    }
+    
     // Ordenar por data (mais recente primeiro)
-    allPaymentInfo.sort((a, b) => new Date(b.date) - new Date(a.date));
+    allPaymentInfo.sort((a, b) => {
+        const dateA = new Date(a.date || 0).getTime();
+        const dateB = new Date(b.date || 0).getTime();
+        if (dateA !== dateB) return dateB - dateA;
+        return (b.amount || 0) - (a.amount || 0);
+    });
     
     if (allPaymentInfo.length === 0) {
         tbody.innerHTML = `
@@ -10188,21 +10445,24 @@ function renderHistoryPaymentsTable(clientPayments, clientLoans, paidLoans) {
     for (const info of allPaymentInfo) {
         const loanTotal = info.loanAmount + (info.loanAmount * info.loanInterest / 100);
         const rowClass = info.isFromPaidLoan ? 'bg-green-900 bg-opacity-20' : '';
-        const typeDisplay = info.type === 'settlement' ? 'Quitação Total' : getPaymentTypeText(info.paymentType);
+        const compositionLabel = getPaymentCompositionLabel(info.compositionType);
+        const compositionClass = getPaymentCompositionClass(info.compositionType);
+        const typeDisplay = info.paymentTypeText || getPaymentTypeText(info.paymentType) || 'Pagamento';
         
         tableHTML += `
             <tr class="table-row ${rowClass}">
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(info.date)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${info.isFromPaidLoan ? 'text-green-400 font-semibold' : 'text-gray-300'}">
                     R$ ${info.amount.toFixed(2)}
-                    ${info.isFromPaidLoan ? '<div class="text-xs text-green-300">Quitação</div>' : ''}
+                    ${info.isSettlementFallback ? '<div class="text-xs text-green-300">Quitação</div>' : ''}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm ${(info.fineAmount > 0) ? 'text-red-400' : 'text-gray-500'}">
                     ${(info.fineAmount > 0) ? `R$ ${info.fineAmount.toFixed(2)}` : '-'}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
-                    ${typeDisplay}
-                    ${info.isFromPaidLoan ? '<div class="text-xs text-green-400">✅ Empréstimo Quitado</div>' : ''}
+                    <div class="font-semibold ${compositionClass}">${compositionLabel}</div>
+                    <div class="text-xs text-gray-400">${typeDisplay}</div>
+                    ${info.isSettlementFallback ? '<div class="text-xs text-green-400">✅ Quitação sem histórico detalhado</div>' : ''}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     <div>R$ ${info.loanAmount.toFixed(2)}</div>
@@ -10575,27 +10835,54 @@ async function restorePaidLoan(paidLoanId) {
         }
         
         // Mostrar confirmação
-        const confirmMessage = `Deseja restaurar o empréstimo quitado?\n\nCliente: ${client?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nEsta ação irá recriar o empréstimo na tabela principal.`;
+        const confirmMessage = `Deseja restaurar o empréstimo quitado?\n\nCliente: ${client?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nEsta ação irá reativar o empréstimo na tabela principal.`;
         
         if (!confirm(confirmMessage)) return;
         
-        // Recriar o empréstimo na tabela loans
-        const { error: insertError } = await supabase
+        // Verificar se o empréstimo já existe na tabela loans
+        const { data: existingLoan, error: existingLoanError } = await supabase
             .from('loans')
-            .insert([{
-                id: paidLoan.loan_id, // Manter o ID original
-                client_id: paidLoan.client_id,
-                amount: paidLoan.original_amount,
-                original_amount: paidLoan.original_amount, // Preservar valor original
-                interest_rate: paidLoan.interest_rate,
-                loan_date: paidLoan.loan_date,
-                due_date: paidLoan.due_date,
-                status: 'active', // Status ativo
-                created_by: paidLoan.created_by,
-                created_at: paidLoan.created_at
-            }]);
+            .select('id')
+            .eq('id', paidLoan.loan_id)
+            .maybeSingle();
         
-        if (insertError) throw insertError;
+        if (existingLoanError) throw existingLoanError;
+        
+        if (existingLoan?.id) {
+            // Reativar empréstimo já existente
+            const { error: updateLoanError } = await supabase
+                .from('loans')
+                .update({
+                    amount: paidLoan.original_amount,
+                    original_amount: paidLoan.original_amount,
+                    interest_rate: paidLoan.interest_rate,
+                    loan_date: paidLoan.loan_date,
+                    status: 'active',
+                    due_date: paidLoan.due_date,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', paidLoan.loan_id);
+            
+            if (updateLoanError) throw updateLoanError;
+        } else {
+            // Recriar empréstimo legado (casos antigos onde era removido da tabela loans)
+            const { error: insertError } = await supabase
+                .from('loans')
+                .insert([{
+                    id: paidLoan.loan_id, // Manter o ID original
+                    client_id: paidLoan.client_id,
+                    amount: paidLoan.original_amount,
+                    original_amount: paidLoan.original_amount, // Preservar valor original
+                    interest_rate: paidLoan.interest_rate,
+                    loan_date: paidLoan.loan_date,
+                    due_date: paidLoan.due_date,
+                    status: 'active', // Status ativo
+                    created_by: paidLoan.created_by,
+                    created_at: paidLoan.created_at
+                }]);
+            
+            if (insertError) throw insertError;
+        }
         
         // Remover da tabela paid_loans
         const { error: deleteError } = await supabase
