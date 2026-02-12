@@ -10010,6 +10010,51 @@ function selectHistoryClient(client) {
     loadClientHistory();
 }
 
+async function fetchAllClientPaymentsByLoanIds(loanIds) {
+    const uniqueLoanIds = [...new Set((loanIds || []).filter(Boolean))];
+    if (uniqueLoanIds.length === 0) return [];
+    
+    const pageSize = 1000;
+    let offset = 0;
+    const payments = [];
+    
+    while (true) {
+        const { data, error } = await supabase
+            .from('payments')
+            .select('*')
+            .in('loan_id', uniqueLoanIds)
+            .order('payment_date', { ascending: false })
+            .order('created_at', { ascending: false })
+            .range(offset, offset + pageSize - 1);
+        
+        if (error) throw error;
+        if (!data || data.length === 0) break;
+        
+        payments.push(...data);
+        
+        if (data.length < pageSize) break;
+        offset += pageSize;
+    }
+    
+    // Garantir que não haja duplicidade caso a API retorne sobreposição entre páginas
+    const uniquePayments = new Map();
+    for (const payment of payments) {
+        if (payment?.id) {
+            uniquePayments.set(payment.id, payment);
+        }
+    }
+    
+    return [...uniquePayments.values()].sort((a, b) => {
+        const dateA = new Date(a.payment_date || 0).getTime();
+        const dateB = new Date(b.payment_date || 0).getTime();
+        if (dateA !== dateB) return dateB - dateA;
+        
+        const createdAtA = new Date(a.created_at || 0).getTime();
+        const createdAtB = new Date(b.created_at || 0).getTime();
+        return createdAtB - createdAtA;
+    });
+}
+
 // Função para carregar o histórico completo de um cliente
 async function loadClientHistory() {
     const clientId = document.getElementById('historyClientSelect').value;
@@ -10070,14 +10115,7 @@ async function loadClientHistory() {
         let clientPayments = [];
         
         if (allClientLoanIds.length > 0) {
-            const { data: payments, error: paymentsError } = await supabase
-                .from('payments')
-                .select('*')
-                .in('loan_id', allClientLoanIds)
-                .order('payment_date', { ascending: false });
-            
-            if (paymentsError) throw paymentsError;
-            clientPayments = payments || [];
+            clientPayments = await fetchAllClientPaymentsByLoanIds(allClientLoanIds);
         }
         
         // Calcular resumo financeiro
