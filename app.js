@@ -374,6 +374,9 @@ document.addEventListener('DOMContentLoaded', async function() {
     if (!loginForm) {
         console.error('ERRO CRÍTICO: loginForm não encontrado no DOM');
     }
+
+    // Garantir login funcional mesmo se a inicialização assíncrona falhar
+    setupLoginFormListener();
     
     // Aguardar o carregamento do Supabase antes de inicializar
     try {
@@ -449,6 +452,32 @@ async function initializeApp() {
 
 // Flag para evitar múltiplos setups
 let eventListenersSetup = false;
+let loginListenerSetup = false;
+
+function onLoginFormSubmit(e) {
+    console.log('=== SUBMIT EVENT CAPTURED ===');
+    console.log('Event:', e);
+    console.log('Prevenindo default...');
+    e.preventDefault();
+    e.stopPropagation();
+    console.log('Chamando handleLogin...');
+    handleLogin(e);
+}
+
+function setupLoginFormListener() {
+    if (!loginForm) {
+        console.error('✗ loginForm não encontrado no DOM');
+        return;
+    }
+
+    if (loginListenerSetup) {
+        return;
+    }
+
+    loginForm.addEventListener('submit', onLoginFormSubmit);
+    loginListenerSetup = true;
+    console.log('✓ Event listener de login configurado');
+}
 
 // Configurar event listeners
 function setupEventListeners() {
@@ -459,26 +488,8 @@ function setupEventListeners() {
     
     console.log('Configurando event listeners...');
     
-    // Login - verificar se elementos existem
-    if (loginForm) {
-        // Remover qualquer listener anterior (se existir)
-        loginForm.removeEventListener('submit', handleLogin);
-        
-        // Adicionar novo listener com capturing
-        loginForm.addEventListener('submit', function(e) {
-            console.log('=== SUBMIT EVENT CAPTURED ===');
-            console.log('Event:', e);
-            console.log('Prevenindo default...');
-            e.preventDefault();
-            e.stopPropagation();
-            console.log('Chamando handleLogin...');
-            handleLogin(e);
-        }, false);
-        
-        console.log('✓ Event listener adicionado ao loginForm com wrapper');
-    } else {
-        console.error('✗ loginForm não encontrado no DOM');
-    }
+    // Login
+    setupLoginFormListener();
     
     if (logoutBtn) {
         logoutBtn.addEventListener('click', handleLogout);
