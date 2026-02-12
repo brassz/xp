@@ -1089,7 +1089,7 @@
                             <div class="flex items-center justify-between">
                                 <div>
                                     <p class="text-sm text-blue-300 mb-1">Empréstimos Quitados</p>
-                                    <p class="text-2xl font-bold text-white" id="paidLoans">0</p>
+                                    <p class="text-2xl font-bold text-white" id="paidLoansCount">0</p>
                                 </div>
                                 <div class="w-12 h-12 bg-green-500 rounded-lg flex items-center justify-center">
                                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1145,7 +1145,7 @@
                             <div class="flex items-center justify-between">
                                 <div>
                                     <p class="text-sm text-blue-300 mb-1">Empréstimos Vencidos</p>
-                                    <p class="text-2xl font-bold text-white" id="overdueLoans">R$ 0,00</p>
+                                    <p class="text-2xl font-bold text-white" id="overdueLoansAmount">R$ 0,00</p>
                                 </div>
                                 <div class="w-12 h-12 bg-red-600 rounded-lg flex items-center justify-center">
                                     <svg class="w-6 h-6 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -1309,18 +1309,17 @@
                             <!-- Filtros Avançados -->
                             <div class="mt-4 pt-4 border-t border-gray-700">
                                 <div class="flex items-center justify-between mb-4">
-                                    <button id="toggleFiltersBtn" class="md:hidden flex items-center space-x-2 text-sm font-medium text-blue-300 hover:text-blue-200 transition-colors">
+                                    <button id="toggleFiltersBtn" class="flex items-center space-x-2 text-sm font-medium text-blue-300 hover:text-blue-200 transition-colors">
                                         <span>Filtros e Ordenação</span>
                                         <svg id="filtersToggleIcon" class="w-4 h-4 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                             <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"></path>
                                         </svg>
                                     </button>
-                                    <h4 class="hidden md:block text-sm font-medium text-gray-300">Filtros e Ordenação</h4>
                                     <button id="clearAllFilters" class="text-xs text-blue-400 hover:text-blue-300 transition-colors">
                                         Limpar Filtros
                                     </button>
                                 </div>
-                                <div id="filtersContent" class="hidden md:block grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+                                <div id="filtersContent" class="hidden grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
                                     <!-- Filtro por Data de Criação -->
                                     <div class="space-y-2">
                                         <label class="text-xs font-medium text-gray-300">Data de Criação</label>
@@ -1387,10 +1386,8 @@
                                     </div>
                                 </div>
                                 
-                                </div>
-                                
                                 <!-- Filtro de Parcelamentos -->
-                                <div id="installmentsFilterMobile" class="hidden md:block mt-4 pt-4 border-t border-gray-700">
+                                <div id="installmentsFilterMobile" class="hidden mt-4 pt-4 border-t border-gray-700">
                                     <label class="flex items-center space-x-2 cursor-pointer">
                                         <input 
                                             type="checkbox" 

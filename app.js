@@ -5427,7 +5427,10 @@ async function updateDashboard() {
     const activeLoans = loans.filter(loan => loan.status !== 'paid').length;
     document.getElementById('activeLoans').textContent = activeLoans;
     
-    document.getElementById('paidLoans').textContent = paidLoansCount;
+    const paidLoansCountElement = document.getElementById('paidLoansCount');
+    if (paidLoansCountElement) {
+        paidLoansCountElement.textContent = paidLoansCount;
+    }
     
     // Calcular total em caixa
     const totalCash = cashSettings ? parseFloat(cashSettings.current_balance) : 0;
@@ -5447,7 +5450,10 @@ async function updateDashboard() {
             totalOverdue += remainingDetails[loanIndex].total;
         }
     }
-    document.getElementById('overdueLoans').textContent = `R$ ${totalOverdue.toFixed(2)}`;
+    const overdueLoansAmountElement = document.getElementById('overdueLoansAmount');
+    if (overdueLoansAmountElement) {
+        overdueLoansAmountElement.textContent = `R$ ${totalOverdue.toFixed(2)}`;
+    }
 
     
     // Atualizar informações do usuário no header
@@ -10169,11 +10175,19 @@ async function loadClientHistory() {
         const totalAmount = allClientLoans.reduce((sum, loan) => {
             return sum + parseFloat(loan.original_amount || loan.amount || 0);
         }, 0);
+<<<<<<< Current (Your changes)
         
         // Total pago = pagamentos reais já registrados + fallback para quitados sem histórico detalhado
         const realClientPayments = clientPayments.filter(payment => parseFloat(payment.amount || 0) > 0);
         const totalPaidFromPayments = realClientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
         
+=======
+        
+        // Total pago = pagamentos reais já registrados + fallback para quitados sem histórico detalhado
+        const realClientPayments = clientPayments.filter(payment => parseFloat(payment.amount || 0) > 0);
+        const totalPaidFromPayments = realClientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
+        
+>>>>>>> Incoming (Background Agent changes)
         const paidLoanPaymentTotals = new Map();
         
         for (const payment of realClientPayments) {
@@ -13547,7 +13561,7 @@ async function loadOverdueLoans() {
 
         tableBody.innerHTML = overdueLoans.map(loan => {
             const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
-            const dailyInterestRate = (loan.interest_rate || 0) / 30; // Juros diário aproximado
+            const dailyInterestRate = (loan.interest_rate || 0) / 30; // Juros di��rio aproximado
             const accumulatedInterest = (loan.total_amount * dailyInterestRate * daysOverdue) / 100;
             
             return `
