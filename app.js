@@ -1890,12 +1890,28 @@ async function loadLoans() {
                     phone
                 )
             `)
-            .neq('status', 'paid')
             .order('created_at', { ascending: false });
         
         if (error) throw error;
-        
-        loans = data || [];
+
+        let paidLoanIdsSet = new Set();
+        try {
+            const { data: paidLoansData, error: paidLoansError } = await supabase
+                .from('paid_loans')
+                .select('loan_id');
+
+            if (paidLoansError) {
+                console.warn('Erro ao buscar paid_loans para filtro de empréstimos ativos:', paidLoansError);
+            } else {
+                paidLoanIdsSet = new Set((paidLoansData || []).map(item => item.loan_id).filter(Boolean));
+            }
+        } catch (paidLoansFetchError) {
+            console.warn('Falha ao consultar paid_loans para filtro de ativos:', paidLoansFetchError);
+        }
+
+        // Esconder da lista ativa qualquer empréstimo marcado como quitado
+        // tanto por status='paid' quanto por presença na tabela paid_loans.
+        loans = (data || []).filter(loan => loan.status !== 'paid' && !paidLoanIdsSet.has(loan.id));
         
         // Carregar também parcelamentos ativos
         const { data: installmentsData, error: installmentsError } = await supabase
@@ -9822,6 +9838,19 @@ async function markLoanAsPaid(loanId) {
             showInfoMessage('Este empréstimo já está quitado');
             return;
         }
+
+        // Validação defensiva: se já existe em paid_loans, considerar como quitado
+        const { data: existingPaidLoanAtStart, error: existingPaidLoanAtStartError } = await supabase
+            .from('paid_loans')
+            .select('id')
+            .eq('loan_id', loanId)
+            .maybeSingle();
+        
+        if (existingPaidLoanAtStartError) throw existingPaidLoanAtStartError;
+        if (existingPaidLoanAtStart?.id) {
+            showInfoMessage('Este empréstimo já está quitado');
+            return;
+        }
         
         // Mostrar confirmação
         showConfirmationModal(
@@ -9882,17 +9911,12 @@ async function markLoanAsPaid(loanId) {
                     if (insertError) throw insertError;
                 }
                 
-                // Marcar empréstimo como quitado sem remover da tabela loans
-                // (preserva pagamentos vinculados e evita cascata de exclusão)
-                const { error: loanUpdateError } = await supabase
-                    .from('loans')
-                    .update({
-                        status: 'paid',
-                        updated_at: new Date().toISOString()
-                    })
-                    .eq('id', loanId);
-                
-                if (loanUpdateError) throw loanUpdateError;
+                // IMPORTANTE:
+                // Não atualizar status='paid' no empréstimo aqui.
+                // Em alguns bancos legados, existem automações/rotinas que podem
+                // apagar o empréstimo ao marcar como pago, causando exclusão em cascata
+                // dos pagamentos. Mantemos o empréstimo intacto e usamos paid_loans
+                // como fonte de verdade para "quitado".
                 
                 // Mostrar mensagem de sucesso
                 showSuccessMessage('Empréstimo quitado com sucesso! Pagamentos preservados no banco.');
