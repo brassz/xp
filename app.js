@@ -10110,6 +10110,199 @@ async function fetchAllClientPaymentsByLoanIds(loanIds) {
     });
 }
 
+function normalizeDateToDay(dateValue) {
+    const parsedDate = parseLocalDate(dateValue);
+    if (!parsedDate || isNaN(parsedDate.getTime())) return null;
+    return new Date(parsedDate.getFullYear(), parsedDate.getMonth(), parsedDate.getDate());
+}
+
+function calculateDaysBetweenDates(startDate, endDate) {
+    if (!startDate || !endDate) return 0;
+    const msPerDay = 24 * 60 * 60 * 1000;
+    return Math.floor((endDate.getTime() - startDate.getTime()) / msPerDay);
+}
+
+function formatScoreValue(score) {
+    const safeScore = Number.isFinite(score) ? score : 0;
+    const roundedScore = Math.round(safeScore * 100) / 100;
+    return `${roundedScore > 0 ? '+' : ''}${roundedScore.toFixed(2)}`;
+}
+
+function getScoreColorClass(score, wasZeroedByOverdue = false) {
+    if (wasZeroedByOverdue) return 'text-red-400';
+    if (score > 0.01) return 'text-green-400';
+    if (score < -0.01) return 'text-red-400';
+    return 'text-yellow-300';
+}
+
+function calculateLoanCreditScore(loan, loanPayments = [], paidLoan = null) {
+    const loanId = loan?.loan_id || loan?.id;
+    const isPaidLoan = loan?.status === 'paid' || !!paidLoan;
+    const loanStatus = isPaidLoan
+        ? 'paid'
+        : (loan?.due_date ? getLoanStatus(loan.due_date, loan.status) : (loan?.status || 'active'));
+
+    if (loanStatus === 'overdue') {
+        return {
+            loanId,
+            score: 0,
+            status: loanStatus,
+            onTimePayments: 0,
+            latePayments: 0,
+            maxDelayDays: 0,
+            punctualityBonus: 0,
+            latePenalty: 0,
+            finePenalty: 0,
+            activityBonus: 0,
+            settlementBonus: 0,
+            wasZeroedByOverdue: true,
+            label: 'Score zerado (empréstimo vencido)'
+        };
+    }
+
+    const dueDateDay = normalizeDateToDay(loan?.due_date);
+    const realPayments = (loanPayments || [])
+        .filter(payment => parseFloat(payment?.amount || 0) > 0)
+        .sort((a, b) => {
+            const dateA = new Date(a.payment_date || 0).getTime();
+            const dateB = new Date(b.payment_date || 0).getTime();
+            if (dateA !== dateB) return dateA - dateB;
+            return new Date(a.created_at || 0).getTime() - new Date(b.created_at || 0).getTime();
+        });
+
+    let punctualityBonus = 0;
+    let latePenalty = 0;
+    let finePenalty = 0;
+    let onTimePayments = 0;
+    let latePayments = 0;
+    let maxDelayDays = 0;
+
+    for (const payment of realPayments) {
+        const fineAmount = parseFloat(payment.fine_amount || 0);
+        const paymentDateDay = normalizeDateToDay(payment.payment_date);
+
+        let isLatePayment = false;
+        let delayDays = 0;
+
+        if (fineAmount > 0) {
+            isLatePayment = true;
+        }
+
+        if (dueDateDay && paymentDateDay) {
+            delayDays = calculateDaysBetweenDates(dueDateDay, paymentDateDay);
+            if (delayDays > 0) {
+                isLatePayment = true;
+                maxDelayDays = Math.max(maxDelayDays, delayDays);
+            }
+        }
+
+        if (isLatePayment) {
+            latePayments += 1;
+            const delayPenalty = delayDays > 0 ? Math.min(1.2, delayDays * 0.03) : 0;
+            latePenalty += 0.35 + delayPenalty;
+            if (fineAmount > 0) {
+                finePenalty += Math.min(0.9, fineAmount / 150);
+            }
+            continue;
+        }
+
+        if (dueDateDay && paymentDateDay) {
+            onTimePayments += 1;
+            punctualityBonus += 0.25;
+        }
+    }
+
+    const activityBonus = Math.min(0.5, realPayments.length * 0.05);
+    const settlementBonus = isPaidLoan ? 1 : 0;
+    let score = punctualityBonus - latePenalty - finePenalty + activityBonus + settlementBonus;
+    score = Math.max(-5, Math.min(5, score));
+    score = Math.round(score * 100) / 100;
+
+    const labelParts = [];
+    if (onTimePayments > 0) labelParts.push(`${onTimePayments} pagamento(s) em dia`);
+    if (latePayments > 0) labelParts.push(`${latePayments} atraso(s)`);
+    if (settlementBonus > 0) labelParts.push('+1.00 por quitação');
+    const label = labelParts.length > 0
+        ? labelParts.join(' • ')
+        : (realPayments.length > 0 ? `${realPayments.length} pagamento(s) registrado(s)` : 'Sem pagamentos');
+
+    return {
+        loanId,
+        score,
+        status: loanStatus,
+        onTimePayments,
+        latePayments,
+        maxDelayDays,
+        punctualityBonus: Math.round(punctualityBonus * 100) / 100,
+        latePenalty: Math.round(latePenalty * 100) / 100,
+        finePenalty: Math.round(finePenalty * 100) / 100,
+        activityBonus: Math.round(activityBonus * 100) / 100,
+        settlementBonus,
+        wasZeroedByOverdue: false,
+        label
+    };
+}
+
+function buildLoanCreditScoreMap(allClientLoans, clientPayments, paidLoans) {
+    const scoreMap = new Map();
+    const paymentsByLoan = new Map();
+
+    for (const payment of (clientPayments || [])) {
+        if (!payment?.loan_id) continue;
+        if (parseFloat(payment.amount || 0) <= 0) continue;
+        if (!paymentsByLoan.has(payment.loan_id)) {
+            paymentsByLoan.set(payment.loan_id, []);
+        }
+        paymentsByLoan.get(payment.loan_id).push(payment);
+    }
+
+    const paidLoanByOriginalId = new Map();
+    for (const paidLoan of (paidLoans || [])) {
+        const originalLoanId = paidLoan?.loan_id || paidLoan?.id;
+        if (!originalLoanId) continue;
+        paidLoanByOriginalId.set(originalLoanId, paidLoan);
+    }
+
+    for (const loan of (allClientLoans || [])) {
+        const originalLoanId = loan?.loan_id || loan?.id;
+        if (!originalLoanId) continue;
+        const loanPayments = paymentsByLoan.get(originalLoanId) || [];
+        const paidLoan = paidLoanByOriginalId.get(originalLoanId) || null;
+        scoreMap.set(originalLoanId, calculateLoanCreditScore(loan, loanPayments, paidLoan));
+    }
+
+    return scoreMap;
+}
+
+function calculateClientCreditScoreSummary(allClientLoans, loanScoreMap) {
+    const uniqueLoanIds = [...new Set((allClientLoans || []).map(loan => loan?.loan_id || loan?.id).filter(Boolean))];
+    if (uniqueLoanIds.length === 0) {
+        return {
+            totalScore: 0,
+            averageScore: 0,
+            settlementBonusTotal: 0
+        };
+    }
+
+    let totalScore = 0;
+    let settlementBonusTotal = 0;
+    for (const loanId of uniqueLoanIds) {
+        const scoreData = loanScoreMap.get(loanId);
+        if (!scoreData) continue;
+        totalScore += scoreData.score || 0;
+        settlementBonusTotal += scoreData.settlementBonus || 0;
+    }
+
+    totalScore = Math.round(totalScore * 100) / 100;
+    const averageScore = Math.round((totalScore / uniqueLoanIds.length) * 100) / 100;
+
+    return {
+        totalScore,
+        averageScore,
+        settlementBonusTotal: Math.round(settlementBonusTotal * 100) / 100
+    };
+}
+
 // Função para carregar o histórico completo de um cliente
 async function loadClientHistory() {
     const clientId = document.getElementById('historyClientSelect').value;
@@ -10215,6 +10408,10 @@ async function loadClientHistory() {
             .map(loan => loan.id);
         const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(activeClientLoanIds);
         const totalRemaining = clientRemainingAmounts.reduce((sum, amount) => sum + amount, 0);
+
+        // Calcular score de crédito por empréstimo e score consolidado do cliente
+        const loanCreditScoreMap = buildLoanCreditScoreMap(allClientLoans, clientPayments, paidLoansWithClient || []);
+        const clientCreditScore = calculateClientCreditScoreSummary(allClientLoans, loanCreditScoreMap);
         
         // Buscar multas do cliente
         const { data: clientFines, error: finesError } = await supabase
@@ -10230,12 +10427,24 @@ async function loadClientHistory() {
         document.getElementById('historyTotalPaid').textContent = `R$ ${totalPaid.toFixed(2)}`;
         document.getElementById('historyTotalFines').textContent = `R$ ${totalFines.toFixed(2)}`;
         document.getElementById('historyRemainingAmount').textContent = `R$ ${totalRemaining.toFixed(2)}`;
+
+        const historyCreditScoreElement = document.getElementById('historyCreditScore');
+        if (historyCreditScoreElement) {
+            historyCreditScoreElement.textContent = formatScoreValue(clientCreditScore.totalScore);
+            historyCreditScoreElement.classList.remove('text-white', 'text-green-400', 'text-red-400', 'text-yellow-300');
+            historyCreditScoreElement.classList.add(getScoreColorClass(clientCreditScore.totalScore));
+        }
+
+        const historyCreditScoreAverageElement = document.getElementById('historyCreditScoreAverage');
+        if (historyCreditScoreAverageElement) {
+            historyCreditScoreAverageElement.textContent = `Média: ${formatScoreValue(clientCreditScore.averageScore)} • Bônus de quitação: +${clientCreditScore.settlementBonusTotal.toFixed(2)}`;
+        }
         
         // Mostrar resumo do cliente
         document.getElementById('clientSummary').classList.remove('hidden');
         
         // Renderizar tabela de empréstimos (ativos e quitados)
-        renderHistoryLoansTable(allClientLoans, paidLoansWithClient || []);
+        renderHistoryLoansTable(allClientLoans, paidLoansWithClient || [], loanCreditScoreMap);
         
         // Renderizar tabela de pagamentos
         renderHistoryPaymentsTable(clientPayments, clientLoans || [], paidLoansWithClient || []);
@@ -10252,13 +10461,13 @@ async function loadClientHistory() {
 }
 
 // Função para renderizar tabela de empréstimos do histórico
-function renderHistoryLoansTable(allClientLoans, paidLoans) {
+function renderHistoryLoansTable(allClientLoans, paidLoans, loanScoreMap = new Map()) {
     const tbody = document.getElementById('historyLoansTableBody');
     
     if (allClientLoans.length === 0) {
         tbody.innerHTML = `
             <tr>
-                <td colspan="8" class="px-6 py-8 text-center text-gray-400">
+                <td colspan="9" class="px-6 py-8 text-center text-gray-400">
                     Nenhum empréstimo encontrado para este cliente
                 </td>
             </tr>
@@ -10289,6 +10498,9 @@ function renderHistoryLoansTable(allClientLoans, paidLoans) {
         const loanDate = isPaidLoan ? (loan.loan_date || loan.created_at) : loan.loan_date;
         const dueDate = isPaidLoan ? loan.due_date : loan.due_date;
         const paidDate = isPaidLoan ? loan.paid_date : null;
+        const loanScoreData = loanScoreMap.get(loan.loan_id || loan.id) || calculateLoanCreditScore(loan, [], null);
+        const loanScore = Number.isFinite(loanScoreData.score) ? loanScoreData.score : 0;
+        const loanScoreClass = getScoreColorClass(loanScore, loanScoreData.wasZeroedByOverdue);
         
         tableHTML += `
             <tr class="table-row ${isPaidLoan ? 'bg-green-900 bg-opacity-20' : ''}">
@@ -10302,6 +10514,11 @@ function renderHistoryLoansTable(allClientLoans, paidLoans) {
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(dueDate)}</td>
                 <td class="px-6 py-4 whitespace-nowrap">
                     <span class="status-badge ${statusClass}">${statusText}</span>
+                </td>
+                <td class="px-6 py-4 whitespace-nowrap text-sm">
+                    <div class="font-semibold ${loanScoreClass}">${formatScoreValue(loanScore)}</div>
+                    <div class="text-xs text-gray-400">${loanScoreData.label || 'Sem pagamentos'}</div>
+                    ${loanScoreData.maxDelayDays > 0 ? `<div class="text-xs text-red-300">Maior atraso: ${loanScoreData.maxDelayDays} dia(s)</div>` : ''}
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">
                     <div class="text-blue-300">R$ ${originalTotal.toFixed(2)}</div>
