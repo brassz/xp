@@ -1890,6 +1890,7 @@ async function loadLoans() {
                     phone
                 )
             `)
+            .neq('status', 'paid')
             .order('created_at', { ascending: false });
         
         if (error) throw error;
@@ -9828,7 +9829,9 @@ async function markLoanAsPaid(loanId) {
             `Deseja realmente marcar este empréstimo como quitado?\n\nCliente: ${loan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(loan.amount).toFixed(2)}\nJuros: ${loan.interest_rate}%`,
             async () => {
                 // Calcular valores
-                const totalWithInterest = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+                const loanPrincipal = parseFloat(loan.original_amount || loan.amount || 0);
+                const interestRate = parseFloat(loan.interest_rate || 0);
+                const totalWithInterest = loanPrincipal + (loanPrincipal * interestRate / 100);
                 
                 // Buscar total pago
                 const { data: payments, error: paymentsError } = await supabase
@@ -9838,54 +9841,65 @@ async function markLoanAsPaid(loanId) {
                 
                 if (paymentsError) throw paymentsError;
                 
-                const totalPaid = payments.reduce((sum, payment) => sum + parseFloat(payment.amount), 0);
+                const totalPaid = (payments || []).reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
                 
-                // Inserir na tabela paid_loans
-                const { error: insertError } = await supabase
+                const paidLoanPayload = {
+                    loan_id: loanId,
+                    client_id: loan.client_id,
+                    original_amount: loanPrincipal,
+                    interest_rate: interestRate,
+                    total_with_interest: totalWithInterest,
+                    loan_date: loan.loan_date,
+                    due_date: loan.due_date,
+                    paid_date: new Date().toISOString().split('T')[0],
+                    total_paid: totalPaid,
+                    payment_method: 'Sistema',
+                    notes: 'Quitado pelo sistema',
+                    created_by: loan.created_by
+                };
+                
+                // Criar/atualizar registro em paid_loans sem duplicar
+                const { data: existingPaidLoan, error: existingPaidLoanError } = await supabase
                     .from('paid_loans')
-                    .insert([{
-                        loan_id: loanId,
-                        client_id: loan.client_id,
-                        original_amount: loan.amount,
-                        interest_rate: loan.interest_rate,
-                        total_with_interest: totalWithInterest,
-                        loan_date: loan.loan_date,
-                        due_date: loan.due_date,
-                        paid_date: new Date().toISOString().split('T')[0],
-                        total_paid: totalPaid,
-                        payment_method: 'Sistema',
-                        notes: 'Quitado pelo sistema',
-                        created_by: loan.created_by
-                    }]);
+                    .select('id')
+                    .eq('loan_id', loanId)
+                    .maybeSingle();
                 
-                if (insertError) throw insertError;
+                if (existingPaidLoanError) throw existingPaidLoanError;
                 
-                // Remover da tabela loans
-                const { error: deleteError } = await supabase
+                if (existingPaidLoan?.id) {
+                    const { error: updatePaidLoanError } = await supabase
+                        .from('paid_loans')
+                        .update(paidLoanPayload)
+                        .eq('id', existingPaidLoan.id);
+                    
+                    if (updatePaidLoanError) throw updatePaidLoanError;
+                } else {
+                    const { error: insertError } = await supabase
+                        .from('paid_loans')
+                        .insert([paidLoanPayload]);
+                    
+                    if (insertError) throw insertError;
+                }
+                
+                // Marcar empréstimo como quitado sem remover da tabela loans
+                // (preserva pagamentos vinculados e evita cascata de exclusão)
+                const { error: loanUpdateError } = await supabase
                     .from('loans')
-                    .delete()
+                    .update({
+                        status: 'paid',
+                        updated_at: new Date().toISOString()
+                    })
                     .eq('id', loanId);
                 
-                if (deleteError) throw deleteError;
-                
-                // Remover da lista local
-                const loanIndex = loans.findIndex(l => l.id === loanId);
-                if (loanIndex > -1) {
-                    loans.splice(loanIndex, 1);
-                }
-                
-                // Remover da lista filtrada
-                const filteredLoanIndex = filteredLoans.findIndex(l => l.id === loanId);
-                if (filteredLoanIndex > -1) {
-                    filteredLoans.splice(filteredLoanIndex, 1);
-                }
+                if (loanUpdateError) throw loanUpdateError;
                 
                 // Mostrar mensagem de sucesso
-                showSuccessMessage('Empréstimo quitado com sucesso e movido para histórico de quitados!');
+                showSuccessMessage('Empréstimo quitado com sucesso! Pagamentos preservados no banco.');
                 
                 // Invalidar cache e atualizar interface imediatamente
                 invalidateLoanRemainingAmountsCache();
-                await renderLoansTable();
+                await loadLoans();
                 await renderPaidLoansTable();
                 await updateDashboard();
                 await updateCharts();
@@ -10103,14 +10117,22 @@ async function loadClientHistory() {
             clients: client // Usar os dados do cliente já carregados
         }));
         
-        // Combinar empréstimos ativos e quitados
-        const allClientLoans = [...(clientLoans || []), ...paidLoansWithClient];
-        
-        // Buscar todos os pagamentos dos empréstimos do cliente (ativos + quitados)
-        const activeLoanIds = (clientLoans || []).map(loan => loan.id);
         const paidLoanIds = (paidLoansWithClient || [])
             .map(loan => loan.loan_id || loan.id)
             .filter(Boolean);
+        const paidLoanIdSet = new Set(paidLoanIds);
+        
+        // Combinar empréstimos ativos e quitados sem duplicar
+        // (caso o empréstimo quitado também exista na tabela loans com status paid)
+        const clientLoanIdsSet = new Set((clientLoans || []).map(loan => loan.id));
+        const paidLoansWithoutLoanRow = (paidLoansWithClient || []).filter(loan => {
+            const originalLoanId = loan.loan_id || loan.id;
+            return originalLoanId && !clientLoanIdsSet.has(originalLoanId);
+        });
+        const allClientLoans = [...(clientLoans || []), ...paidLoansWithoutLoanRow];
+        
+        // Buscar todos os pagamentos dos empréstimos do cliente (ativos + quitados)
+        const activeLoanIds = (clientLoans || []).map(loan => loan.id);
         const allClientLoanIds = [...new Set([...activeLoanIds, ...paidLoanIds])];
         let clientPayments = [];
         
@@ -10120,15 +10142,14 @@ async function loadClientHistory() {
         
         // Calcular resumo financeiro
         const totalLoans = allClientLoans.length;
-        const totalActiveAmount = (clientLoans || []).reduce((sum, loan) => sum + parseFloat(loan.amount || 0), 0);
-        const totalPaidAmount = (paidLoansWithClient || []).reduce((sum, loan) => sum + parseFloat(loan.original_amount || 0), 0);
-        const totalAmount = totalActiveAmount + totalPaidAmount;
+        const totalAmount = allClientLoans.reduce((sum, loan) => {
+            return sum + parseFloat(loan.original_amount || loan.amount || 0);
+        }, 0);
         
         // Total pago = pagamentos reais já registrados + fallback para quitados sem histórico detalhado
         const realClientPayments = clientPayments.filter(payment => parseFloat(payment.amount || 0) > 0);
         const totalPaidFromPayments = realClientPayments.reduce((sum, payment) => sum + parseFloat(payment.amount || 0), 0);
         
-        const paidLoanIdSet = new Set(paidLoanIds);
         const paidLoanPaymentTotals = new Map();
         
         for (const payment of realClientPayments) {
@@ -10148,8 +10169,10 @@ async function loadClientHistory() {
         const totalPaid = totalPaidFromPayments + totalPaidFromSettledFallback;
         
         // Calcular valores restantes em lote para melhor performance
-        const clientLoanIds = (clientLoans || []).map(loan => loan.id);
-        const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(clientLoanIds);
+        const activeClientLoanIds = (clientLoans || [])
+            .filter(loan => loan.status !== 'paid' && !paidLoanIdSet.has(loan.id))
+            .map(loan => loan.id);
+        const clientRemainingAmounts = await calculateBatchLoanRemainingAmounts(activeClientLoanIds);
         const totalRemaining = clientRemainingAmounts.reduce((sum, amount) => sum + amount, 0);
         
         // Buscar multas do cliente
@@ -10205,7 +10228,7 @@ function renderHistoryLoansTable(allClientLoans, paidLoans) {
     let tableHTML = '';
     for (const loan of allClientLoans) {
         // Verificar se é empréstimo quitado
-        const isPaidLoan = paidLoans.some(pl => pl.loan_id === loan.id || pl.id === loan.id);
+        const isPaidLoan = loan.status === 'paid' || paidLoans.some(pl => pl.loan_id === loan.id || pl.id === loan.id);
         const loanAmount = isPaidLoan ? parseFloat(loan.original_amount || loan.amount || 0) : parseFloat(loan.amount || 0);
         const interestRate = parseFloat(loan.interest_rate || 0);
         const originalTotal = loanAmount + (loanAmount * interestRate / 100);
@@ -10812,27 +10835,54 @@ async function restorePaidLoan(paidLoanId) {
         }
         
         // Mostrar confirmação
-        const confirmMessage = `Deseja restaurar o empréstimo quitado?\n\nCliente: ${client?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nEsta ação irá recriar o empréstimo na tabela principal.`;
+        const confirmMessage = `Deseja restaurar o empréstimo quitado?\n\nCliente: ${client?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(paidLoan.original_amount).toFixed(2)}\nJuros: ${paidLoan.interest_rate}%\n\nEsta ação irá reativar o empréstimo na tabela principal.`;
         
         if (!confirm(confirmMessage)) return;
         
-        // Recriar o empréstimo na tabela loans
-        const { error: insertError } = await supabase
+        // Verificar se o empréstimo já existe na tabela loans
+        const { data: existingLoan, error: existingLoanError } = await supabase
             .from('loans')
-            .insert([{
-                id: paidLoan.loan_id, // Manter o ID original
-                client_id: paidLoan.client_id,
-                amount: paidLoan.original_amount,
-                original_amount: paidLoan.original_amount, // Preservar valor original
-                interest_rate: paidLoan.interest_rate,
-                loan_date: paidLoan.loan_date,
-                due_date: paidLoan.due_date,
-                status: 'active', // Status ativo
-                created_by: paidLoan.created_by,
-                created_at: paidLoan.created_at
-            }]);
+            .select('id')
+            .eq('id', paidLoan.loan_id)
+            .maybeSingle();
         
-        if (insertError) throw insertError;
+        if (existingLoanError) throw existingLoanError;
+        
+        if (existingLoan?.id) {
+            // Reativar empréstimo já existente
+            const { error: updateLoanError } = await supabase
+                .from('loans')
+                .update({
+                    amount: paidLoan.original_amount,
+                    original_amount: paidLoan.original_amount,
+                    interest_rate: paidLoan.interest_rate,
+                    loan_date: paidLoan.loan_date,
+                    status: 'active',
+                    due_date: paidLoan.due_date,
+                    updated_at: new Date().toISOString()
+                })
+                .eq('id', paidLoan.loan_id);
+            
+            if (updateLoanError) throw updateLoanError;
+        } else {
+            // Recriar empréstimo legado (casos antigos onde era removido da tabela loans)
+            const { error: insertError } = await supabase
+                .from('loans')
+                .insert([{
+                    id: paidLoan.loan_id, // Manter o ID original
+                    client_id: paidLoan.client_id,
+                    amount: paidLoan.original_amount,
+                    original_amount: paidLoan.original_amount, // Preservar valor original
+                    interest_rate: paidLoan.interest_rate,
+                    loan_date: paidLoan.loan_date,
+                    due_date: paidLoan.due_date,
+                    status: 'active', // Status ativo
+                    created_by: paidLoan.created_by,
+                    created_at: paidLoan.created_at
+                }]);
+            
+            if (insertError) throw insertError;
+        }
         
         // Remover da tabela paid_loans
         const { error: deleteError } = await supabase
