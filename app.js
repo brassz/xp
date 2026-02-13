@@ -5283,21 +5283,18 @@ function formatDate(dateString) {
 }
 
 const LOAN_SCORE_RULES = {
-    perfectScore: 10,
-    lateScoreMinor: 8,
-    lateScoreMajor: 7,
-    lateDaysThreshold: 7,
-    minScore: 0,
+    onTimePaymentBonus: 0.35,
+    latePaymentPenalty: 0.50,
+    finePenalty: 0.20,
+    settledLoanBonus: 1.00,
+    settledOnTimeBonus: 0.25,
+    settledLatePenalty: 0.15,
+    minScore: -5,
     maxScore: 10
 };
 
 function roundScore(value) {
     return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
-}
-
-function clampLoanScore(value) {
-    const numericValue = Number.isFinite(value) ? value : LOAN_SCORE_RULES.minScore;
-    return Math.max(LOAN_SCORE_RULES.minScore, Math.min(LOAN_SCORE_RULES.maxScore, numericValue));
 }
 
 function getLoanReferenceId(loan) {
@@ -5332,16 +5329,6 @@ function groupPaymentsByLoan(payments = []) {
     return paymentsByLoan;
 }
 
-function calculateLateDays(paymentDate, dueDate) {
-    if (!paymentDate || !dueDate) return 0;
-    
-    const paymentDay = new Date(paymentDate.getFullYear(), paymentDate.getMonth(), paymentDate.getDate());
-    const dueDay = new Date(dueDate.getFullYear(), dueDate.getMonth(), dueDate.getDate());
-    const diffMs = paymentDay.getTime() - dueDay.getTime();
-    if (diffMs <= 0) return 0;
-    return Math.ceil(diffMs / (1000 * 60 * 60 * 24));
-}
-
 async function fetchPaymentsByLoanIds(loanIds) {
     const uniqueLoanIds = [...new Set((loanIds || []).filter(Boolean))];
     if (uniqueLoanIds.length === 0) return new Map();
@@ -5370,40 +5357,45 @@ function calculateLoanScore(loan, payments = [], isSettledLoan = false) {
     
     const dueDate = parseLocalDate(loan.due_date);
     const validPayments = (payments || []).filter(payment => parseFloat(payment.amount || 0) > 0);
-
-    if (!dueDate) {
-        return LOAN_SCORE_RULES.perfectScore;
-    }
     
-    let maxLateDays = 0;
+    let score = 0;
     
     for (const payment of validPayments) {
         const paymentDate = parseLocalDate(payment.payment_date || payment.created_at);
-        if (!paymentDate) continue;
         
-        const lateDays = calculateLateDays(paymentDate, dueDate);
-        if (lateDays > maxLateDays) {
-            maxLateDays = lateDays;
+        if (dueDate && paymentDate) {
+            if (paymentDate <= dueDate) {
+                score += LOAN_SCORE_RULES.onTimePaymentBonus;
+            } else {
+                score -= LOAN_SCORE_RULES.latePaymentPenalty;
+            }
+        }
+        
+        if (parseFloat(payment.fine_amount || 0) > 0) {
+            score -= LOAN_SCORE_RULES.finePenalty;
         }
     }
     
-    // Fallback para empréstimos quitados sem histórico de pagamentos detalhado.
-    if (maxLateDays === 0 && validPayments.length === 0 && isSettledLoan) {
+    if (isSettledLoan) {
+        // Regra solicitada: ao quitar, o cliente ganha ponto positivo no histórico.
+        score += LOAN_SCORE_RULES.settledLoanBonus;
+        
         const paidDate = parseLocalDate(loan.paid_date);
-        if (paidDate) {
-            maxLateDays = calculateLateDays(paidDate, dueDate);
+        if (dueDate && paidDate) {
+            if (paidDate <= dueDate) {
+                score += LOAN_SCORE_RULES.settledOnTimeBonus;
+            } else {
+                score -= LOAN_SCORE_RULES.settledLatePenalty;
+            }
         }
     }
     
-    if (maxLateDays <= 0) {
-        return LOAN_SCORE_RULES.perfectScore;
-    }
+    const boundedScore = Math.max(
+        LOAN_SCORE_RULES.minScore,
+        Math.min(LOAN_SCORE_RULES.maxScore, score)
+    );
     
-    if (maxLateDays <= LOAN_SCORE_RULES.lateDaysThreshold) {
-        return LOAN_SCORE_RULES.lateScoreMinor;
-    }
-    
-    return LOAN_SCORE_RULES.lateScoreMajor;
+    return roundScore(boundedScore);
 }
 
 function buildLoanScoresMap(loanItems = [], paymentsByLoan = new Map(), paidLoanIdSet = new Set()) {
@@ -5423,21 +5415,17 @@ function buildLoanScoresMap(loanItems = [], paymentsByLoan = new Map(), paidLoan
 
 function calculateClientScoreFromLoans(loanItems = [], loanScoresByReference = new Map()) {
     const seen = new Set();
-    const clientScores = [];
+    let totalScore = 0;
     
     for (const loan of loanItems) {
         const referenceId = getLoanReferenceId(loan);
         if (!referenceId || seen.has(referenceId)) continue;
         
         seen.add(referenceId);
-        clientScores.push(loanScoresByReference.get(referenceId) || 0);
+        totalScore += loanScoresByReference.get(referenceId) || 0;
     }
     
-    if (clientScores.length === 0) return LOAN_SCORE_RULES.minScore;
-    
-    // Score do cliente segue a pior ocorrência: se houver atraso, sai de 10 para 8/7.
-    const worstScore = Math.min(...clientScores);
-    return roundScore(clampLoanScore(worstScore));
+    return roundScore(totalScore);
 }
 
 function formatLoanScore(score) {
@@ -5449,18 +5437,17 @@ function formatLoanScore(score) {
 function getLoanScoreBadgeClass(score) {
     const numericScore = Number.isFinite(score) ? score : 0;
     
-    if (numericScore >= LOAN_SCORE_RULES.perfectScore) return 'bg-green-500/20 text-green-300 border border-green-500/40';
-    if (numericScore >= LOAN_SCORE_RULES.lateScoreMinor) return 'bg-blue-500/20 text-blue-300 border border-blue-500/40';
-    if (numericScore >= LOAN_SCORE_RULES.lateScoreMajor) return 'bg-yellow-500/20 text-yellow-300 border border-yellow-500/40';
+    if (numericScore > 0.5) return 'bg-green-500/20 text-green-300 border border-green-500/40';
+    if (numericScore > 0) return 'bg-blue-500/20 text-blue-300 border border-blue-500/40';
+    if (numericScore < 0) return 'bg-red-500/20 text-red-300 border border-red-500/40';
     return 'bg-gray-600/40 text-gray-200 border border-gray-500/50';
 }
 
 function getLoanScoreTextClass(score) {
     const numericScore = Number.isFinite(score) ? score : 0;
     
-    if (numericScore >= LOAN_SCORE_RULES.perfectScore) return 'text-green-400';
-    if (numericScore >= LOAN_SCORE_RULES.lateScoreMinor) return 'text-blue-400';
-    if (numericScore >= LOAN_SCORE_RULES.lateScoreMajor) return 'text-yellow-400';
+    if (numericScore > 0) return 'text-green-400';
+    if (numericScore < 0) return 'text-red-400';
     return 'text-gray-300';
 }
 
