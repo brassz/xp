@@ -5289,7 +5289,7 @@ const LOAN_SCORE_RULES = {
     settledLoanBonus: 1.00,
     settledOnTimeBonus: 0.25,
     settledLatePenalty: 0.15,
-    minScore: -5,
+    minScore: 0,
     maxScore: 10
 };
 
@@ -5439,7 +5439,6 @@ function getLoanScoreBadgeClass(score) {
     
     if (numericScore > 0.5) return 'bg-green-500/20 text-green-300 border border-green-500/40';
     if (numericScore > 0) return 'bg-blue-500/20 text-blue-300 border border-blue-500/40';
-    if (numericScore < 0) return 'bg-red-500/20 text-red-300 border border-red-500/40';
     return 'bg-gray-600/40 text-gray-200 border border-gray-500/50';
 }
 
@@ -5447,7 +5446,6 @@ function getLoanScoreTextClass(score) {
     const numericScore = Number.isFinite(score) ? score : 0;
     
     if (numericScore > 0) return 'text-green-400';
-    if (numericScore < 0) return 'text-red-400';
     return 'text-gray-300';
 }
 
