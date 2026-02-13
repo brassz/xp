@@ -2757,6 +2757,8 @@ async function renderLoansTable() {
     // Calcular valores restantes apenas para empréstimos
     const loanIds = loansToProcess.map(loan => loan.id);
     const remainingAmounts = loanIds.length > 0 ? await calculateBatchLoanRemainingAmounts(loanIds) : [];
+    const paymentsByLoan = loanIds.length > 0 ? await fetchPaymentsByLoanIds(loanIds) : new Map();
+    const loanScoresByReference = buildLoanScoresMap(loansToProcess, paymentsByLoan);
     
     let tableHTML = '';
     let cardsHTML = '';
@@ -2769,6 +2771,7 @@ async function renderLoansTable() {
             const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
             const remainingAmount = remainingAmounts[loanIndex] || 0;
             const status = getLoanStatus(loan.due_date, loan.status);
+            const loanScore = loanScoresByReference.get(loan.id) || 0;
             
             // Determinar a classe CSS para a data de vencimento
             const dueDateClass = loan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
@@ -2778,8 +2781,11 @@ async function renderLoansTable() {
             tableHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
-                        <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
+                        <div class="relative inline-block pr-20">
+                            ${renderLoanScoreBadge(loanScore, true)}
+                            <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                        </div>
+                        <div class="text-sm text-gray-300 mt-1">${loan.clients?.cpf || ''}</div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
@@ -2811,7 +2817,10 @@ async function renderLoansTable() {
                 <div class="loan-card-mobile">
                     <div class="loan-card-header">
                         <div>
-                            <div class="text-base font-semibold text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                            <div class="relative inline-block pr-20">
+                                ${renderLoanScoreBadge(loanScore, true)}
+                                <div class="text-base font-semibold text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                            </div>
                             <div class="text-xs text-gray-400 mt-1">${loan.clients?.cpf || ''}</div>
                         </div>
                         <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
@@ -5271,6 +5280,184 @@ function formatDate(dateString) {
         console.warn('Erro ao formatar data:', dateString, error);
         return 'Data inválida';
     }
+}
+
+const LOAN_SCORE_RULES = {
+    onTimePaymentBonus: 0.35,
+    latePaymentPenalty: 0.50,
+    finePenalty: 0.20,
+    settledLoanBonus: 1.00,
+    settledOnTimeBonus: 0.25,
+    settledLatePenalty: 0.15,
+    minScore: -5,
+    maxScore: 10
+};
+
+function roundScore(value) {
+    return Math.round((Number(value) + Number.EPSILON) * 100) / 100;
+}
+
+function getLoanReferenceId(loan) {
+    if (!loan) return null;
+    return loan.loan_id || loan.id || null;
+}
+
+function groupPaymentsByLoan(payments = []) {
+    const paymentsByLoan = new Map();
+    
+    for (const payment of payments) {
+        if (!payment?.loan_id) continue;
+        
+        if (!paymentsByLoan.has(payment.loan_id)) {
+            paymentsByLoan.set(payment.loan_id, []);
+        }
+        
+        paymentsByLoan.get(payment.loan_id).push(payment);
+    }
+    
+    for (const paymentList of paymentsByLoan.values()) {
+        paymentList.sort((a, b) => {
+            const dateA = parseLocalDate(a.payment_date || a.created_at)?.getTime() || 0;
+            const dateB = parseLocalDate(b.payment_date || b.created_at)?.getTime() || 0;
+            if (dateA !== dateB) return dateA - dateB;
+            const createdAtA = parseLocalDate(a.created_at)?.getTime() || 0;
+            const createdAtB = parseLocalDate(b.created_at)?.getTime() || 0;
+            return createdAtA - createdAtB;
+        });
+    }
+    
+    return paymentsByLoan;
+}
+
+async function fetchPaymentsByLoanIds(loanIds) {
+    const uniqueLoanIds = [...new Set((loanIds || []).filter(Boolean))];
+    if (uniqueLoanIds.length === 0) return new Map();
+    
+    try {
+        const { data, error } = await supabase
+            .from('payments')
+            .select('loan_id, amount, payment_date, created_at, fine_amount')
+            .in('loan_id', uniqueLoanIds);
+        
+        if (error) throw error;
+        return groupPaymentsByLoan(data || []);
+    } catch (error) {
+        console.error('Erro ao buscar pagamentos para cálculo de score:', error);
+        return new Map();
+    }
+}
+
+function calculateLoanScore(loan, payments = [], isSettledLoan = false) {
+    if (!loan) return 0;
+    
+    // Regra solicitada: empréstimo vencido e ainda em aberto tem score zero.
+    if (!isSettledLoan && getLoanStatus(loan.due_date, loan.status) === 'overdue') {
+        return 0;
+    }
+    
+    const dueDate = parseLocalDate(loan.due_date);
+    const validPayments = (payments || []).filter(payment => parseFloat(payment.amount || 0) > 0);
+    
+    let score = 0;
+    
+    for (const payment of validPayments) {
+        const paymentDate = parseLocalDate(payment.payment_date || payment.created_at);
+        
+        if (dueDate && paymentDate) {
+            if (paymentDate <= dueDate) {
+                score += LOAN_SCORE_RULES.onTimePaymentBonus;
+            } else {
+                score -= LOAN_SCORE_RULES.latePaymentPenalty;
+            }
+        }
+        
+        if (parseFloat(payment.fine_amount || 0) > 0) {
+            score -= LOAN_SCORE_RULES.finePenalty;
+        }
+    }
+    
+    if (isSettledLoan) {
+        // Regra solicitada: ao quitar, o cliente ganha ponto positivo no histórico.
+        score += LOAN_SCORE_RULES.settledLoanBonus;
+        
+        const paidDate = parseLocalDate(loan.paid_date);
+        if (dueDate && paidDate) {
+            if (paidDate <= dueDate) {
+                score += LOAN_SCORE_RULES.settledOnTimeBonus;
+            } else {
+                score -= LOAN_SCORE_RULES.settledLatePenalty;
+            }
+        }
+    }
+    
+    const boundedScore = Math.max(
+        LOAN_SCORE_RULES.minScore,
+        Math.min(LOAN_SCORE_RULES.maxScore, score)
+    );
+    
+    return roundScore(boundedScore);
+}
+
+function buildLoanScoresMap(loanItems = [], paymentsByLoan = new Map(), paidLoanIdSet = new Set()) {
+    const loanScoresByReference = new Map();
+    
+    for (const loan of loanItems) {
+        const referenceId = getLoanReferenceId(loan);
+        if (!referenceId || loanScoresByReference.has(referenceId)) continue;
+        
+        const isSettledLoan = paidLoanIdSet.has(referenceId) || loan.status === 'paid' || !!loan.paid_date;
+        const score = calculateLoanScore(loan, paymentsByLoan.get(referenceId) || [], isSettledLoan);
+        loanScoresByReference.set(referenceId, score);
+    }
+    
+    return loanScoresByReference;
+}
+
+function calculateClientScoreFromLoans(loanItems = [], loanScoresByReference = new Map()) {
+    const seen = new Set();
+    let totalScore = 0;
+    
+    for (const loan of loanItems) {
+        const referenceId = getLoanReferenceId(loan);
+        if (!referenceId || seen.has(referenceId)) continue;
+        
+        seen.add(referenceId);
+        totalScore += loanScoresByReference.get(referenceId) || 0;
+    }
+    
+    return roundScore(totalScore);
+}
+
+function formatLoanScore(score) {
+    const numericScore = Number.isFinite(score) ? score : 0;
+    const sign = numericScore > 0 ? '+' : '';
+    return `${sign}${numericScore.toFixed(2)}`;
+}
+
+function getLoanScoreBadgeClass(score) {
+    const numericScore = Number.isFinite(score) ? score : 0;
+    
+    if (numericScore > 0.5) return 'bg-green-500/20 text-green-300 border border-green-500/40';
+    if (numericScore > 0) return 'bg-blue-500/20 text-blue-300 border border-blue-500/40';
+    if (numericScore < 0) return 'bg-red-500/20 text-red-300 border border-red-500/40';
+    return 'bg-gray-600/40 text-gray-200 border border-gray-500/50';
+}
+
+function getLoanScoreTextClass(score) {
+    const numericScore = Number.isFinite(score) ? score : 0;
+    
+    if (numericScore > 0) return 'text-green-400';
+    if (numericScore < 0) return 'text-red-400';
+    return 'text-gray-300';
+}
+
+function renderLoanScoreBadge(score, floating = false) {
+    const positionClasses = floating ? 'absolute -top-2 right-0 shadow-lg z-10' : '';
+    return `
+        <span class="${positionClasses} inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold ${getLoanScoreBadgeClass(score)}">
+            Score ${formatLoanScore(score)}
+        </span>
+    `;
 }
 
 // Calcular próxima data de vencimento mantendo o dia original do empréstimo
@@ -10181,6 +10368,10 @@ async function loadClientHistory() {
             clientPayments = await fetchAllClientPaymentsByLoanIds(allClientLoanIds);
         }
         
+        const paymentsByLoan = groupPaymentsByLoan(clientPayments || []);
+        const historyLoanScores = buildLoanScoresMap(allClientLoans, paymentsByLoan, paidLoanIdSet);
+        const clientHistoryScore = calculateClientScoreFromLoans(allClientLoans, historyLoanScores);
+        
         // Calcular resumo financeiro
         const totalLoans = allClientLoans.length;
         const totalAmount = allClientLoans.reduce((sum, loan) => {
@@ -10231,11 +10422,17 @@ async function loadClientHistory() {
         document.getElementById('historyTotalFines').textContent = `R$ ${totalFines.toFixed(2)}`;
         document.getElementById('historyRemainingAmount').textContent = `R$ ${totalRemaining.toFixed(2)}`;
         
+        const historyClientScoreElement = document.getElementById('historyClientScore');
+        if (historyClientScoreElement) {
+            historyClientScoreElement.textContent = formatLoanScore(clientHistoryScore);
+            historyClientScoreElement.className = `text-2xl font-bold ${getLoanScoreTextClass(clientHistoryScore)}`;
+        }
+        
         // Mostrar resumo do cliente
         document.getElementById('clientSummary').classList.remove('hidden');
         
         // Renderizar tabela de empréstimos (ativos e quitados)
-        renderHistoryLoansTable(allClientLoans, paidLoansWithClient || []);
+        renderHistoryLoansTable(allClientLoans, paidLoansWithClient || [], historyLoanScores);
         
         // Renderizar tabela de pagamentos
         renderHistoryPaymentsTable(clientPayments, clientLoans || [], paidLoansWithClient || []);
@@ -10252,7 +10449,7 @@ async function loadClientHistory() {
 }
 
 // Função para renderizar tabela de empréstimos do histórico
-function renderHistoryLoansTable(allClientLoans, paidLoans) {
+function renderHistoryLoansTable(allClientLoans, paidLoans, loanScoresByReference = new Map()) {
     const tbody = document.getElementById('historyLoansTableBody');
     
     if (allClientLoans.length === 0) {
@@ -10289,12 +10486,14 @@ function renderHistoryLoansTable(allClientLoans, paidLoans) {
         const loanDate = isPaidLoan ? (loan.loan_date || loan.created_at) : loan.loan_date;
         const dueDate = isPaidLoan ? loan.due_date : loan.due_date;
         const paidDate = isPaidLoan ? loan.paid_date : null;
+        const loanScore = loanScoresByReference.get(getLoanReferenceId(loan)) || 0;
         
         tableHTML += `
             <tr class="table-row ${isPaidLoan ? 'bg-green-900 bg-opacity-20' : ''}">
                 <td class="px-6 py-4 whitespace-nowrap">
                     <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
                     <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
+                    <div class="mt-1">${renderLoanScoreBadge(loanScore)}</div>
                 </td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${loanAmount.toFixed(2)}</td>
                 <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${interestRate}%</td>
