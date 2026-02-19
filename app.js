@@ -2782,14 +2782,7 @@ async function renderLoansTable() {
             tableHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm font-medium ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</span>
-                            <button 
-                                class="text-yellow-400 hover:text-yellow-300 text-lg"
-                                title="Ver detalhes do empréstimo"
-                                onclick="showLoanAuditDetails('${loan.id}')"
-                            >❗</button>
-                        </div>
+                        <div class="text-sm font-medium ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</div>
                         <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
@@ -2822,14 +2815,7 @@ async function renderLoansTable() {
                 <div class="loan-card-mobile">
                     <div class="loan-card-header">
                         <div>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-base font-semibold ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</span>
-                                <button 
-                                    class="text-yellow-400 text-lg"
-                                    title="Ver detalhes do empréstimo"
-                                    onclick="showLoanAuditDetails('${loan.id}')"
-                                >❗</button>
-                            </div>
+                            <div class="text-base font-semibold ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</div>
                             <div class="text-xs text-gray-400 mt-1">${loan.clients?.cpf || ''}</div>
                         </div>
                         <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
@@ -8623,104 +8609,6 @@ function invalidateLoanRemainingAmountsCache() {
     loanRemainingAmountsCache = {};
     lastCacheUpdate = 0;
     console.log('Cache de valores restantes invalidado');
-}
-
-// Função SOMENTE LEITURA para mostrar detalhes/auditoria do empréstimo
-// Importante: esta função faz apenas SELECT no banco. Não altera, não apaga e não insere dados.
-async function showLoanAuditDetails(loanId) {
-    try {
-        console.log('Abrindo modal de auditoria para empréstimo:', loanId);
-        if (!supabase) {
-            alert('Conexão com o banco não inicializada.');
-            return;
-        }
-
-        // Buscar dados básicos do empréstimo (apenas SELECT)
-        const { data: loan, error: loanError } = await supabase
-            .from('loans')
-            .select(`
-                id,
-                amount,
-                interest_rate,
-                loan_date,
-                due_date,
-                status,
-                created_by,
-                created_at,
-                updated_at,
-                clients (
-                    name,
-                    cpf
-                )
-            `)
-            .eq('id', loanId)
-            .maybeSingle();
-
-        if (loanError) throw loanError;
-        if (!loan) {
-            alert('Empréstimo não encontrado.');
-            return;
-        }
-
-        // Buscar último pagamento apenas para leitura (quem registrou)
-        const { data: lastPayment, error: paymentError } = await supabase
-            .from('payments')
-            .select(`
-                id,
-                amount,
-                payment_date,
-                payment_type,
-                created_by
-            `)
-            .eq('loan_id', loanId)
-            .order('payment_date', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (paymentError) {
-            console.warn('Erro ao buscar último pagamento (apenas leitura):', paymentError);
-        }
-
-        const loanAuditContent = document.getElementById('loanAuditContent');
-        const loanAuditModal = document.getElementById('loanAuditModal');
-
-        if (!loanAuditContent || !loanAuditModal) {
-            console.error('Elementos do modal de auditoria de empréstimo não encontrados.');
-            return;
-        }
-
-        // Montar texto legível para created_by e updated_at
-        const createdByText = loan.created_by ? loan.created_by : 'Não registrado';
-        const createdAtText = loan.created_at ? new Date(loan.created_at).toLocaleString('pt-BR') : 'Não registrado';
-        const updatedAtText = loan.updated_at ? new Date(loan.updated_at).toLocaleString('pt-BR') : 'Nunca atualizado';
-
-        const lastPaymentText = lastPayment
-            ? `R$ ${parseFloat(lastPayment.amount || 0).toFixed(2)} em ${lastPayment.payment_date ? formatDate(lastPayment.payment_date) : '-'} (created_by: ${lastPayment.created_by || 'não informado'})`
-            : 'Nenhum pagamento registrado';
-
-        loanAuditContent.innerHTML = `
-            <div>
-                <h4 class="text-lg font-semibold text-white mb-2">Informações do Empréstimo</h4>
-                <p><span class="font-medium text-gray-300">Cliente:</span> ${loan.clients?.name || 'Não encontrado'} (${loan.clients?.cpf || 'CPF não informado'})</p>
-                <p><span class="font-medium text-gray-300">Valor:</span> R$ ${parseFloat(loan.amount || 0).toFixed(2)}</p>
-                <p><span class="font-medium text-gray-300">Juros:</span> ${parseFloat(loan.interest_rate || 0)}%</p>
-                <p><span class="font-medium text-gray-300">Data do Empréstimo:</span> ${loan.loan_date ? formatDate(loan.loan_date) : '-'}</p>
-                <p><span class="font-medium text-gray-300">Data de Vencimento:</span> ${loan.due_date ? formatDate(loan.due_date) : '-'}</p>
-            </div>
-            <div class="pt-4 border-t border-gray-700">
-                <h4 class="text-lg font-semibold text-white mb-2">Auditoria (somente leitura)</h4>
-                <p><span class="font-medium text-gray-300">created_by (empréstimo):</span> ${createdByText}</p>
-                <p><span class="font-medium text-gray-300">created_at:</span> ${createdAtText}</p>
-                <p><span class="font-medium text-gray-300">updated_at:</span> ${updatedAtText}</p>
-                <p class="mt-2"><span class="font-medium text-gray-300">Último pagamento (created_by do pagamento):</span> ${lastPaymentText}</p>
-            </div>
-        `;
-
-        showModal(loanAuditModal);
-    } catch (error) {
-        console.error('Erro ao carregar detalhes do empréstimo (somente leitura):', error);
-        alert('Erro ao carregar detalhes do empréstimo: ' + error.message);
-    }
 }
 
 // Função otimizada para calcular valores restantes de múltiplos empréstimos em lote
