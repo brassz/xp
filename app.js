@@ -316,6 +316,7 @@ const emergencyContactModal = document.getElementById('emergencyContactModal');
 const whatsappSummaryModal = document.getElementById('whatsappSummaryModal');
 const renewalOptionsModal = document.getElementById('renewalOptionsModal');
 const renewalOptionsModal20 = document.getElementById('renewalOptionsModal20');
+const payoffLoanModal = document.getElementById('payoffLoanModal');
 
 
 // Botões
@@ -790,6 +791,7 @@ function setupEventListeners() {
     document.getElementById('cancelExpense').addEventListener('click', () => hideModal(newExpenseModal));
     document.getElementById('cancelGuarantorBtn').addEventListener('click', () => hideModal(guarantorModal));
     document.getElementById('cancelEmergencyContactBtn').addEventListener('click', () => hideModal(emergencyContactModal));
+    document.getElementById('cancelPayoffLoanBtn').addEventListener('click', () => hideModal(payoffLoanModal));
     
     // Botão de abrir modal de renovação
     document.getElementById('openRenewalModalBtn').addEventListener('click', () => openRenewalOptionsModal());
@@ -9881,15 +9883,36 @@ async function markLoanAsPaid(loanId) {
             return;
         }
         
-        // Mostrar confirmação
-        showConfirmationModal(
-            'Confirmar Quitação',
-            `Deseja realmente marcar este empréstimo como quitado?\n\nCliente: ${loan.clients?.name || 'Cliente não encontrado'}\nValor: R$ ${parseFloat(loan.amount).toFixed(2)}\nJuros: ${loan.interest_rate}%`,
-            async () => {
+        // Preencher informações do empréstimo no modal
+        const clientName = loan.clients?.name || 'Cliente não encontrado';
+        const loanAmount = parseFloat(loan.amount || 0).toFixed(2);
+        const interestRate = loan.interest_rate || 0;
+        
+        document.getElementById('payoffLoanInfo').innerHTML = 
+            `<div class="space-y-1">
+                <div><span class="text-gray-300">Cliente:</span> <span class="text-white font-semibold">${clientName}</span></div>
+                <div><span class="text-gray-300">Valor:</span> <span class="text-white font-semibold">R$ ${loanAmount}</span></div>
+                <div><span class="text-gray-300">Juros:</span> <span class="text-white font-semibold">${interestRate}%</span></div>
+            </div>`;
+        
+        // Definir data padrão como hoje
+        document.getElementById('payoffLoanDate').value = formatDateForInput(new Date());
+        
+        // Configurar o botão de confirmação
+        const confirmBtn = document.getElementById('confirmPayoffLoanBtn');
+        confirmBtn.onclick = async () => {
+            try {
+                const payoffDate = document.getElementById('payoffLoanDate').value;
+                
+                if (!payoffDate) {
+                    showInfoMessage('Por favor, informe a data da quitação');
+                    return;
+                }
+                
                 // Calcular valores
                 const loanPrincipal = parseFloat(loan.original_amount || loan.amount || 0);
-                const interestRate = parseFloat(loan.interest_rate || 0);
-                const totalWithInterest = loanPrincipal + (loanPrincipal * interestRate / 100);
+                const interestRateValue = parseFloat(loan.interest_rate || 0);
+                const totalWithInterest = loanPrincipal + (loanPrincipal * interestRateValue / 100);
                 
                 // Buscar total pago
                 const { data: payments, error: paymentsError } = await supabase
@@ -9905,11 +9928,11 @@ async function markLoanAsPaid(loanId) {
                     loan_id: loanId,
                     client_id: loan.client_id,
                     original_amount: loanPrincipal,
-                    interest_rate: interestRate,
+                    interest_rate: interestRateValue,
                     total_with_interest: totalWithInterest,
                     loan_date: loan.loan_date,
                     due_date: loan.due_date,
-                    paid_date: new Date().toISOString().split('T')[0],
+                    paid_date: payoffDate,
                     total_paid: totalPaid,
                     payment_method: 'Sistema',
                     notes: 'Quitado pelo sistema',
@@ -9947,6 +9970,9 @@ async function markLoanAsPaid(loanId) {
                 // dos pagamentos. Mantemos o empréstimo intacto e usamos paid_loans
                 // como fonte de verdade para "quitado".
                 
+                // Fechar o modal
+                hideModal(payoffLoanModal);
+                
                 // Mostrar mensagem de sucesso
                 showSuccessMessage('Empréstimo quitado com sucesso! Pagamentos preservados no banco.');
                 
@@ -9956,10 +9982,14 @@ async function markLoanAsPaid(loanId) {
                 await renderPaidLoansTable();
                 await updateDashboard();
                 await updateCharts();
-            },
-            'Marcar como Quitado',
-            true  // isPayment = true para usar botão verde
-        );
+            } catch (error) {
+                console.error('Erro ao marcar empréstimo como quitado:', error);
+                showInfoMessage('Erro ao marcar empréstimo como quitado: ' + error.message);
+            }
+        };
+        
+        // Mostrar o modal
+        showModal(payoffLoanModal);
         
     } catch (error) {
         console.error('Erro ao marcar empréstimo como quitado:', error);

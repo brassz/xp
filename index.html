@@ -4541,6 +4541,37 @@
         </div>
     </div>
 
+    <!-- Modal de Quitação de Empréstimo -->
+    <div id="payoffLoanModal" class="modal-overlay fixed inset-0 z-[100] hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-md p-6">
+                <div class="text-center">
+                    <div class="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+                        <svg class="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+                        </svg>
+                    </div>
+                    <h3 class="text-lg font-medium text-white mb-2">Marcar Empréstimo como Quitado</h3>
+                    <div class="text-left mb-4">
+                        <p class="text-sm text-gray-400 mb-4" id="payoffLoanInfo">Informações do empréstimo</p>
+                        <div class="mb-4">
+                            <label class="block text-sm font-medium text-blue-200 mb-2">Data da Quitação</label>
+                            <input type="date" id="payoffLoanDate" class="form-input w-full" required>
+                        </div>
+                    </div>
+                    <div class="flex justify-center space-x-4">
+                        <button id="cancelPayoffLoanBtn" class="px-4 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors">
+                            Cancelar
+                        </button>
+                        <button id="confirmPayoffLoanBtn" class="px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors">
+                            Confirmar Quitação
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
     <!-- Backup Modal -->
     <div id="backupModal" class="modal-overlay fixed inset-0 z-50 hidden">
         <div class="flex items-center justify-center min-h-screen p-4">
