@@ -8629,6 +8629,7 @@ function invalidateLoanRemainingAmountsCache() {
 // Importante: esta função faz apenas SELECT no banco. Não altera, não apaga e não insere dados.
 async function showLoanAuditDetails(loanId) {
     try {
+        console.log('Abrindo modal de auditoria para empréstimo:', loanId);
         if (!supabase) {
             alert('Conexão com o banco não inicializada.');
             return;
