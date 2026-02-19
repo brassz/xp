@@ -7396,7 +7396,9 @@ Titular: ${accountHolder}
 Chave: ${pixKey}
 
 ⚠ Após vencimento: multa diária R$ 50.  
-Enviar comprovante (obrigatório se pago em outra titularidade).`;
+Enviar comprovante (obrigatório se pago em outra titularidade).
+
+*Salve este é o contato oficial da empresa. Qualquer dúvida, entre em contato.*`;
 
         // Limpar o número de telefone (remover caracteres especiais)
         const cleanPhone = client.phone.replace(/\D/g, '');
@@ -7847,7 +7849,9 @@ Titular: ${accountHolder}
 Chave: ${pixKey}
 
 ⚠ Após vencimento: multa diária R$ 50.  
-Enviar comprovante (obrigatório se pago em outra titularidade).`;
+Enviar comprovante (obrigatório se pago em outra titularidade).
+
+*Salve este é o contato oficial da empresa. Qualquer dúvida, entre em contato.*`;
 
         // Limpar o número de telefone (remover caracteres especiais)
         const cleanPhone = client.phone.replace(/\D/g, '');
@@ -7995,7 +7999,9 @@ async function sendWhatsAppMessage(loanId) {
   
    ATENÇÃO!
 O pagamento DEVE ser realizado SEM FALTA até a data do vencimento.
-Após o vencimento, será aplicada uma multa diária de R$ 50,00.`;
+Após o vencimento, será aplicada uma multa diária de R$ 50,00.
+
+*Salve este é o contato oficial da empresa. Qualquer dúvida, entre em contato.*`;
 
         // Limpar o número de telefone (remover caracteres especiais)
         const cleanPhone = client.phone.replace(/\D/g, '');
@@ -8552,17 +8558,19 @@ async function generatePaymentReceipt(paymentId, loanId) {
         // Gerar mensagem do comprovante
         const receiptMessage = `🧾 *COMPROVANTE DE PAGAMENTO*
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
+        
 👤 *Cliente:* ${clientName}
 📋 *CPF:* ${clientCPF}
 📅 *Data do Pagamento:* ${formatDate(payment.payment_date)}
-
+        
 💰 *VALORES:*
 • Valor Total do Empréstimo: R$ ${totalWithInterest.toFixed(2)}
 • Valor Restante: R$ ${remainingAmount.toFixed(2)}
-
+        
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━
-Obrigado pela confiança! 💙`;
+Obrigado pela confiança! 💙
+
+*Salve este é o contato oficial da empresa. Qualquer dúvida, entre em contato.*`;
 
         // Abrir WhatsApp com a mensagem
         if (clientPhone) {
