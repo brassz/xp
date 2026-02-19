@@ -5539,9 +5539,108 @@ async function updateDashboard() {
         overdueLoansAmountElement.textContent = `R$ ${totalOverdue.toFixed(2)}`;
     }
 
+    // Calcular Saúde da Operação
+    const activeLoansCount = loans.filter(loan => loan.status !== 'paid').length;
+    const overdueLoansCount = overdueLoans.length;
+    calculateOperationHealth(activeLoansCount, overdueLoansCount);
     
     // Atualizar informações do usuário no header
     updateUserInfo();
+}
+
+// Função para calcular e exibir a Saúde da Operação
+function calculateOperationHealth(activeLoansCount, overdueLoansCount) {
+    // Se não houver empréstimos ativos, não calcular
+    if (activeLoansCount === 0) {
+        const healthScoreElement = document.getElementById('operationHealthScore');
+        const healthStatusElement = document.getElementById('operationHealthStatus');
+        const healthBarElement = document.getElementById('operationHealthBar');
+        const delinquencyRateElement = document.getElementById('operationDelinquencyRate');
+        const activeLoansElement = document.getElementById('operationHealthActiveLoans');
+        const overdueLoansElement = document.getElementById('operationHealthOverdueLoans');
+        
+        if (healthScoreElement) healthScoreElement.textContent = '0';
+        if (healthStatusElement) {
+            healthStatusElement.textContent = 'Sem dados';
+            healthStatusElement.className = 'px-3 py-1 rounded-full text-sm font-semibold bg-gray-600 text-gray-300';
+        }
+        if (healthBarElement) {
+            healthBarElement.style.width = '0%';
+            healthBarElement.className = 'h-4 rounded-full transition-all duration-500 bg-gray-600';
+        }
+        if (delinquencyRateElement) delinquencyRateElement.textContent = '0%';
+        if (activeLoansElement) activeLoansElement.textContent = '0';
+        if (overdueLoansElement) overdueLoansElement.textContent = '0';
+        return;
+    }
+    
+    // Calcular taxa de inadimplência (0 a 100%)
+    const delinquencyRate = (overdueLoansCount / activeLoansCount) * 100;
+    
+    // Calcular score de saúde (10 a 100)
+    // Quanto maior a inadimplência, menor o score
+    // Se inadimplência = 0%, score = 100
+    // Se inadimplência = 100%, score = 10
+    // Fórmula: score = 100 - (inadimplência * 0.9)
+    // Isso garante que o score mínimo seja 10 quando inadimplência = 100%
+    let healthScore = 100 - (delinquencyRate * 0.9);
+    
+    // Garantir que o score esteja entre 10 e 100
+    healthScore = Math.max(10, Math.min(100, Math.round(healthScore)));
+    
+    // Determinar status e cor baseado no score
+    let status, statusColor, barColor;
+    if (healthScore >= 80) {
+        status = 'Excelente';
+        statusColor = 'bg-green-600 text-white';
+        barColor = 'bg-green-500';
+    } else if (healthScore >= 60) {
+        status = 'Bom';
+        statusColor = 'bg-green-500 text-white';
+        barColor = 'bg-green-400';
+    } else if (healthScore >= 40) {
+        status = 'Razoável';
+        statusColor = 'bg-yellow-500 text-white';
+        barColor = 'bg-yellow-500';
+    } else {
+        status = 'Ruim';
+        statusColor = 'bg-red-600 text-white';
+        barColor = 'bg-red-600';
+    }
+    
+    // Atualizar elementos na UI
+    const healthScoreElement = document.getElementById('operationHealthScore');
+    const healthStatusElement = document.getElementById('operationHealthStatus');
+    const healthBarElement = document.getElementById('operationHealthBar');
+    const delinquencyRateElement = document.getElementById('operationDelinquencyRate');
+    const activeLoansElement = document.getElementById('operationHealthActiveLoans');
+    const overdueLoansElement = document.getElementById('operationHealthOverdueLoans');
+    
+    if (healthScoreElement) {
+        healthScoreElement.textContent = healthScore;
+    }
+    
+    if (healthStatusElement) {
+        healthStatusElement.textContent = status;
+        healthStatusElement.className = `px-3 py-1 rounded-full text-sm font-semibold ${statusColor}`;
+    }
+    
+    if (healthBarElement) {
+        healthBarElement.style.width = `${healthScore}%`;
+        healthBarElement.className = `h-4 rounded-full transition-all duration-500 ${barColor}`;
+    }
+    
+    if (delinquencyRateElement) {
+        delinquencyRateElement.textContent = `${delinquencyRate.toFixed(1)}%`;
+    }
+    
+    if (activeLoansElement) {
+        activeLoansElement.textContent = activeLoansCount;
+    }
+    
+    if (overdueLoansElement) {
+        overdueLoansElement.textContent = overdueLoansCount;
+    }
 }
 
 // Atualizar gráficos
