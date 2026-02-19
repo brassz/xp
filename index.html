@@ -1620,8 +1620,23 @@
                     </div>
                     
                     <div class="table-container">
-                        <div class="table-header px-6 py-4">
+                        <div class="table-header px-6 py-4 flex justify-between items-center">
                             <h3 class="text-lg font-semibold text-white">Empréstimos Quitados</h3>
+                            <div class="flex items-center space-x-2">
+                                <input 
+                                    type="text" 
+                                    id="paidLoansSearchInput" 
+                                    placeholder="Buscar por nome do cliente..." 
+                                    class="px-4 py-2 bg-gray-700 text-white rounded-lg border border-gray-600 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent w-64"
+                                >
+                                <button 
+                                    id="clearPaidLoansSearchBtn" 
+                                    class="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors hidden"
+                                    title="Limpar busca"
+                                >
+                                    ✕
+                                </button>
+                            </div>
                         </div>
                         <div class="overflow-x-auto">
                             <table class="w-full">

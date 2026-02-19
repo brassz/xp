@@ -879,6 +879,21 @@ function setupEventListeners() {
         searchLoans(searchTerm);
     });
 
+    // Campo de busca de empréstimos quitados
+    const paidLoansSearchInput = document.getElementById('paidLoansSearchInput');
+    if (paidLoansSearchInput) {
+        paidLoansSearchInput.addEventListener('input', function(e) {
+            const searchTerm = e.target.value;
+            searchPaidLoans(searchTerm);
+        });
+    }
+
+    // Botão de limpar busca de empréstimos quitados
+    const clearPaidLoansSearchBtn = document.getElementById('clearPaidLoansSearchBtn');
+    if (clearPaidLoansSearchBtn) {
+        clearPaidLoansSearchBtn.addEventListener('click', clearPaidLoansSearch);
+    }
+
     // Botão de limpar busca de empréstimos
     document.getElementById('clearLoanSearch').addEventListener('click', clearLoanSearch);
     
@@ -3093,8 +3108,13 @@ function changeLoanPage(newPage) {
     renderLoansTable();
 }
 
+// Variáveis globais para empréstimos quitados
+let allPaidLoans = [];
+let paidLoansClientsData = {};
+let filteredPaidLoans = [];
+
 // Renderizar tabela de empréstimos quitados
-async function renderPaidLoansTable() {
+async function renderPaidLoansTable(paidLoansToRender = null) {
     try {
         console.log('Iniciando carregamento de empréstimos quitados...');
         
@@ -3105,19 +3125,26 @@ async function renderPaidLoansTable() {
             return;
         }
         
-        // Buscar empréstimos quitados da tabela paid_loans
-        const { data: paidLoans, error } = await supabase
-            .from('paid_loans')
-            .select('*')
-            .order('paid_date', { ascending: false });
-        
-        if (error) {
-            console.error('Erro ao buscar empréstimos quitados:', error);
-            throw error;
+        // Se não foram passados empréstimos para renderizar, buscar do banco
+        let paidLoans = paidLoansToRender;
+        if (!paidLoans) {
+            // Buscar empréstimos quitados da tabela paid_loans
+            const { data: paidLoansData, error } = await supabase
+                .from('paid_loans')
+                .select('*')
+                .order('paid_date', { ascending: false });
+            
+            if (error) {
+                console.error('Erro ao buscar empréstimos quitados:', error);
+                throw error;
+            }
+            
+            paidLoans = paidLoansData || [];
+            allPaidLoans = paidLoans;
         }
         
         // Buscar dados dos clientes separadamente
-        let clientsData = {};
+        paidLoansClientsData = {};
         if (paidLoans && paidLoans.length > 0) {
             const clientIds = [...new Set(paidLoans.map(loan => loan.client_id))];
             const { data: clients, error: clientsError } = await supabase
@@ -3126,25 +3153,46 @@ async function renderPaidLoansTable() {
                 .in('id', clientIds);
             
             if (!clientsError && clients) {
-                clientsData = clients.reduce((acc, client) => {
+                paidLoansClientsData = clients.reduce((acc, client) => {
                     acc[client.id] = client;
                     return acc;
                 }, {});
             }
         }
         
-        if (error) {
-            console.error('Erro na consulta Supabase:', error);
-            throw error;
-        }
-        
         console.log('Dados recebidos:', paidLoans);
         
-        if (!paidLoans || paidLoans.length === 0) {
+        // Aplicar filtro de busca se houver
+        const searchInput = document.getElementById('paidLoansSearchInput');
+        const searchTerm = searchInput ? searchInput.value.trim() : '';
+        
+        let loansToDisplay = paidLoans;
+        if (searchTerm) {
+            const term = searchTerm.toLowerCase();
+            loansToDisplay = paidLoans.filter(loan => {
+                const client = paidLoansClientsData[loan.client_id];
+                const clientName = client ? client.name.toLowerCase() : '';
+                return clientName.includes(term);
+            });
+        }
+        
+        filteredPaidLoans = loansToDisplay;
+        
+        // Mostrar/ocultar botão de limpar busca
+        const clearBtn = document.getElementById('clearPaidLoansSearchBtn');
+        if (clearBtn) {
+            if (searchTerm) {
+                clearBtn.classList.remove('hidden');
+            } else {
+                clearBtn.classList.add('hidden');
+            }
+        }
+        
+        if (!loansToDisplay || loansToDisplay.length === 0) {
             tbody.innerHTML = `
                 <tr>
                     <td colspan="8" class="px-6 py-8 text-center text-gray-400">
-                        Nenhum empréstimo quitado
+                        ${searchTerm ? 'Nenhum empréstimo quitado encontrado para esta busca' : 'Nenhum empréstimo quitado'}
                     </td>
                 </tr>
             `;
@@ -3153,7 +3201,7 @@ async function renderPaidLoansTable() {
         
         // Renderizar linhas com valores atualizados
         let tableHTML = '';
-        for (const paidLoan of paidLoans) {
+        for (const paidLoan of loansToDisplay) {
             try {
                 // Verificar se os dados necessários existem
                 if (!paidLoan) {
@@ -3190,8 +3238,8 @@ async function renderPaidLoansTable() {
                 tableHTML += `
                     <tr class="table-row">
                         <td class="px-6 py-4 whitespace-nowrap">
-                            <div class="text-sm font-medium text-white">${clientsData[paidLoan.client_id]?.name || 'Cliente não encontrado'}</div>
-                            <div class="text-sm text-gray-300">${clientsData[paidLoan.client_id]?.cpf || ''}</div>
+                            <div class="text-sm font-medium text-white">${paidLoansClientsData[paidLoan.client_id]?.name || 'Cliente não encontrado'}</div>
+                            <div class="text-sm text-gray-300">${paidLoansClientsData[paidLoan.client_id]?.cpf || ''}</div>
                         </td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(paidLoan.original_amount)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paidLoan.interest_rate || 0}%</td>
@@ -3237,7 +3285,26 @@ async function renderPaidLoansTable() {
     }
 }
 
+// Função para buscar empréstimos quitados por nome do cliente
+let paidLoansSearchTimeout;
+function searchPaidLoans(searchTerm) {
+    // Limpar timeout anterior para implementar debounce
+    clearTimeout(paidLoansSearchTimeout);
+    
+    paidLoansSearchTimeout = setTimeout(() => {
+        // Renderizar tabela com os dados já carregados, aplicando o filtro
+        renderPaidLoansTable(allPaidLoans);
+    }, 300); // Aguardar 300ms após parar de digitar
+}
 
+// Função para limpar busca de empréstimos quitados
+function clearPaidLoansSearch() {
+    const searchInput = document.getElementById('paidLoansSearchInput');
+    if (searchInput) {
+        searchInput.value = '';
+        renderPaidLoansTable(allPaidLoans);
+    }
+}
 
 // Handlers de formulários
 async function handleNewClient(e) {
