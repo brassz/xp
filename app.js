@@ -5540,9 +5540,9 @@ async function updateDashboard() {
     }
 
     // Calcular Saúde da Operação
-    const activeLoansCount = loans.filter(loan => loan.status !== 'paid').length;
+    // Usar a variável activeLoans já calculada acima (linha 5511)
     const overdueLoansCount = overdueLoans.length;
-    calculateOperationHealth(activeLoansCount, overdueLoansCount);
+    calculateOperationHealth(activeLoans, overdueLoansCount);
     
     // Atualizar informações do usuário no header
     updateUserInfo();
