@@ -1899,10 +1899,6 @@ async function loadLoans() {
                     cpf,
                     email,
                     phone
-                ),
-                created_by_user:users!loans_created_by_fkey (
-                    full_name,
-                    email
                 )
             `)
             .order('created_at', { ascending: false });
@@ -2774,12 +2770,8 @@ async function renderLoansTable() {
             const remainingAmount = remainingAmounts[loanIndex] || 0;
             const status = getLoanStatus(loan.due_date, loan.status);
 
-            // Usuário que criou o empréstimo (se disponível)
-            const createdByName = loan.created_by_user?.full_name || '';
-            const createdByEmail = loan.created_by_user?.email || '';
-
             // Destacar empréstimos criados pelo usuário didu@nexus.com (nome do cliente em laranja)
-            const isDiduLoan = createdByEmail === 'didu@nexus.com';
+            const isDiduLoan = loan.created_by_email === 'didu@nexus.com' || loan.created_by_name === 'didu@nexus.com';
             const clientNameClass = isDiduLoan ? 'text-orange-400' : 'text-white';
             
             // Determinar a classe CSS para a data de vencimento
@@ -2790,14 +2782,7 @@ async function renderLoansTable() {
             tableHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="flex items-center space-x-2">
-                            <span class="text-sm font-medium ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</span>
-                            <button 
-                                class="text-yellow-400 hover:text-yellow-300 text-lg"
-                                title="Ver detalhes do empréstimo"
-                                onclick="showLoanAuditDetails('${loan.id}')"
-                            >❗</button>
-                        </div>
+                        <div class="text-sm font-medium ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</div>
                         <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
@@ -2830,14 +2815,7 @@ async function renderLoansTable() {
                 <div class="loan-card-mobile">
                     <div class="loan-card-header">
                         <div>
-                            <div class="flex items-center space-x-2">
-                                <span class="text-base font-semibold ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</span>
-                                <button 
-                                    class="text-yellow-400 text-lg"
-                                    title="Ver detalhes do empréstimo"
-                                    onclick="showLoanAuditDetails('${loan.id}')"
-                                >❗</button>
-                            </div>
+                            <div class="text-base font-semibold ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</div>
                             <div class="text-xs text-gray-400 mt-1">${loan.clients?.cpf || ''}</div>
                         </div>
                         <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
@@ -8631,104 +8609,6 @@ function invalidateLoanRemainingAmountsCache() {
     loanRemainingAmountsCache = {};
     lastCacheUpdate = 0;
     console.log('Cache de valores restantes invalidado');
-}
-
-// Mostrar detalhes/auditoria do empréstimo
-async function showLoanAuditDetails(loanId) {
-    try {
-        if (!supabase) {
-            alert('Conexão com o banco não inicializada.');
-            return;
-        }
-
-        // Buscar dados completos do empréstimo com cliente e usuário criador
-        const { data: loan, error: loanError } = await supabase
-            .from('loans')
-            .select(`
-                *,
-                clients (
-                    name,
-                    cpf,
-                    email,
-                    phone
-                ),
-                created_by_user:users!loans_created_by_fkey (
-                    full_name,
-                    email
-                )
-            `)
-            .eq('id', loanId)
-            .maybeSingle();
-
-        if (loanError) throw loanError;
-        if (!loan) {
-            alert('Empréstimo não encontrado.');
-            return;
-        }
-
-        // Buscar o último pagamento (quem registrou)
-        const { data: lastPayment, error: paymentError } = await supabase
-            .from('payments')
-            .select(`
-                *,
-                created_by_user:users!payments_created_by_fkey (
-                    full_name,
-                    email
-                )
-            `)
-            .eq('loan_id', loanId)
-            .order('payment_date', { ascending: false })
-            .limit(1)
-            .maybeSingle();
-
-        if (paymentError) {
-            console.warn('Erro ao buscar último pagamento:', paymentError);
-        }
-
-        // Quem criou o empréstimo
-        const creatorName = loan.created_by_user?.full_name || 'Não registrado';
-        const creatorEmail = loan.created_by_user?.email || '';
-
-        // Quem registrou o último pagamento
-        const paymentCreatorName = lastPayment?.created_by_user?.full_name || (lastPayment ? 'Usuário do sistema' : 'Nenhum pagamento registrado');
-        const paymentCreatorEmail = lastPayment?.created_by_user?.email || '';
-
-        // Quem alterou a data do empréstimo (se há updated_by)
-        let updatedByText = 'Nunca alterado';
-        if (loan.updated_by) {
-            updatedByText = 'Usuário ID: ' + loan.updated_by;
-        }
-
-        const loanAuditContent = document.getElementById('loanAuditContent');
-        const loanAuditModal = document.getElementById('loanAuditModal');
-
-        if (!loanAuditContent || !loanAuditModal) {
-            console.error('Elementos do modal de auditoria de empréstimo não encontrados.');
-            return;
-        }
-
-        loanAuditContent.innerHTML = `
-            <div>
-                <h4 class="text-lg font-semibold text-white mb-2">Informações do Empréstimo</h4>
-                <p><span class="font-medium text-gray-300">Cliente:</span> ${loan.clients?.name || 'Não encontrado'} (${loan.clients?.cpf || 'CPF não informado'})</p>
-                <p><span class="font-medium text-gray-300">Valor:</span> R$ ${parseFloat(loan.amount || 0).toFixed(2)}</p>
-                <p><span class="font-medium text-gray-300">Juros:</span> ${parseFloat(loan.interest_rate || 0)}%</p>
-                <p><span class="font-medium text-gray-300">Data do Empréstimo:</span> ${loan.loan_date ? formatDate(loan.loan_date) : '-'}</p>
-                <p><span class="font-medium text-gray-300">Data de Vencimento:</span> ${loan.due_date ? formatDate(loan.due_date) : '-'}</p>
-            </div>
-            <div class="pt-4 border-t border-gray-700">
-                <h4 class="text-lg font-semibold text-white mb-2">Auditoria</h4>
-                <p><span class="font-medium text-gray-300">Criado por:</span> ${creatorName}${creatorEmail ? ` (${creatorEmail})` : ''}</p>
-                <p><span class="font-medium text-gray-300">Último pagamento registrado por:</span> ${paymentCreatorName}${paymentCreatorEmail ? ` (${paymentCreatorEmail})` : ''}</p>
-                <p><span class="font-medium text-gray-300">Alteração de data do empréstimo:</span> ${updatedByText}</p>
-            </div>
-        `;
-
-        showModal(loanAuditModal);
-    } catch (error) {
-        console.error('Erro ao carregar detalhes do empréstimo:', error);
-        alert('Erro ao carregar detalhes do empréstimo: ' + error.message);
-    }
 }
 
 // Função otimizada para calcular valores restantes de múltiplos empréstimos em lote
