@@ -2769,6 +2769,10 @@ async function renderLoansTable() {
             const originalTotal = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
             const remainingAmount = remainingAmounts[loanIndex] || 0;
             const status = getLoanStatus(loan.due_date, loan.status);
+
+            // Destacar empréstimos criados pelo usuário didu@nexus.com (nome do cliente em laranja)
+            const isDiduLoan = loan.created_by_email === 'didu@nexus.com' || loan.created_by_name === 'didu@nexus.com';
+            const clientNameClass = isDiduLoan ? 'text-orange-400' : 'text-white';
             
             // Determinar a classe CSS para a data de vencimento
             const dueDateClass = loan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
@@ -2778,7 +2782,7 @@ async function renderLoansTable() {
             tableHTML += `
                 <tr class="table-row">
                     <td class="px-6 py-4 whitespace-nowrap">
-                        <div class="text-sm font-medium text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                        <div class="text-sm font-medium ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</div>
                         <div class="text-sm text-gray-300">${loan.clients?.cpf || ''}</div>
                     </td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
@@ -2811,7 +2815,7 @@ async function renderLoansTable() {
                 <div class="loan-card-mobile">
                     <div class="loan-card-header">
                         <div>
-                            <div class="text-base font-semibold text-white">${loan.clients?.name || 'Cliente não encontrado'}</div>
+                            <div class="text-base font-semibold ${clientNameClass}">${loan.clients?.name || 'Cliente não encontrado'}</div>
                             <div class="text-xs text-gray-400 mt-1">${loan.clients?.cpf || ''}</div>
                         </div>
                         <span class="status-badge ${getStatusClass(status)}">${getStatusText(status)}</span>
