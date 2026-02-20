@@ -11995,6 +11995,15 @@ async function generateWeeklyPaymentsPDF() {
         const endOfWeek = new Date(weekInfo.endDate);
         endOfWeek.setHours(23, 59, 59, 999);
 
+        const nextDayAfterEndOfWeek = new Date(endOfWeek);
+        nextDayAfterEndOfWeek.setHours(0, 0, 0, 0);
+        nextDayAfterEndOfWeek.setDate(nextDayAfterEndOfWeek.getDate() + 1);
+
+        const startOfWeekDateStr = formatDateForInput(startOfWeek);
+        const endOfWeekDateStr = formatDateForInput(endOfWeek);
+        const startOfWeekTimestampStr = startOfWeek.toISOString();
+        const nextDayAfterEndOfWeekTimestampStr = nextDayAfterEndOfWeek.toISOString();
+
         // Buscar todos os pagamentos da semana
         const { data: weeklyPayments, error } = await supabase
             .from('payments')
@@ -12010,16 +12019,16 @@ async function generateWeeklyPaymentsPDF() {
                     )
                 )
             `)
-            .gte('payment_date', startOfWeek.toISOString().split('T')[0])
-            .lte('payment_date', endOfWeek.toISOString().split('T')[0])
+            .gte('payment_date', startOfWeekDateStr)
+            .lte('payment_date', endOfWeekDateStr)
             .order('payment_date', { ascending: true });
 
         // Buscar empréstimos quitados na semana
         const { data: weeklyPaidLoans, error: paidLoansError } = await supabase
             .from('paid_loans')
             .select('*')
-            .gte('paid_date', startOfWeek.toISOString().split('T')[0])
-            .lte('paid_date', endOfWeek.toISOString().split('T')[0])
+            .gte('paid_date', startOfWeekDateStr)
+            .lte('paid_date', endOfWeekDateStr)
             .order('paid_date', { ascending: true });
 
         // Buscar multas de clientes da semana
@@ -12031,8 +12040,8 @@ async function generateWeeklyPaymentsPDF() {
                     name
                 )
             `)
-            .gte('created_at', startOfWeek.toISOString().split('T')[0])
-            .lte('created_at', endOfWeek.toISOString().split('T')[0])
+            .gte('created_at', startOfWeekTimestampStr)
+            .lt('created_at', nextDayAfterEndOfWeekTimestampStr)
             .order('created_at', { ascending: true });
 
         if (error) throw error;
@@ -16747,8 +16756,20 @@ async function handleWeekChange() {
 // Função para carregar dados de uma semana específica
 async function loadWeekData(startDate, endDate) {
     try {
-        const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = endDate.toISOString().split('T')[0];
+        const startDateFormatted = new Date(startDate);
+        startDateFormatted.setHours(0, 0, 0, 0);
+
+        const endDateFormatted = new Date(endDate);
+        endDateFormatted.setHours(23, 59, 59, 999);
+
+        const nextDayAfterEndDate = new Date(endDateFormatted);
+        nextDayAfterEndDate.setHours(0, 0, 0, 0);
+        nextDayAfterEndDate.setDate(nextDayAfterEndDate.getDate() + 1);
+
+        const startDateStr = formatDateForInput(startDateFormatted);
+        const endDateStr = formatDateForInput(endDateFormatted);
+        const startDateTimestampStr = startDateFormatted.toISOString();
+        const nextDayAfterEndDateTimestampStr = nextDayAfterEndDate.toISOString();
         
         // Buscar pagamentos da semana selecionada
         const { data: payments, error } = await supabase
@@ -16783,8 +16804,8 @@ async function loadWeekData(startDate, endDate) {
                     phone
                 )
             `)
-            .gte('created_at', startDateStr)
-            .lte('created_at', endDateStr)
+            .gte('created_at', startDateTimestampStr)
+            .lt('created_at', nextDayAfterEndDateTimestampStr)
             .order('created_at', { ascending: false });
 
         if (finesError) throw finesError;
@@ -16829,6 +16850,9 @@ async function showWeekClientsModal() {
     `;
 
     try {
+        const startDateStr = formatDateForInput(selectedWeekData.startDate);
+        const endDateStr = formatDateForInput(selectedWeekData.endDate);
+
         // Buscar pagamentos da semana com detalhes dos clientes
         const { data: payments, error } = await supabase
             .from('payments')
@@ -16846,8 +16870,8 @@ async function showWeekClientsModal() {
                     )
                 )
             `)
-            .gte('payment_date', selectedWeekData.startDate.toISOString().split('T')[0])
-            .lte('payment_date', selectedWeekData.endDate.toISOString().split('T')[0])
+            .gte('payment_date', startDateStr)
+            .lte('payment_date', endDateStr)
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
@@ -17218,9 +17242,15 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         
         const endDateFormatted = new Date(endDate);
         endDateFormatted.setHours(23, 59, 59, 999);
-        
-        const startDateStr = startDateFormatted.toISOString().split('T')[0];
-        const endDateStr = endDateFormatted.toISOString().split('T')[0];
+
+        const nextDayAfterEndDate = new Date(endDateFormatted);
+        nextDayAfterEndDate.setHours(0, 0, 0, 0);
+        nextDayAfterEndDate.setDate(nextDayAfterEndDate.getDate() + 1);
+
+        const startDateStr = formatDateForInput(startDateFormatted);
+        const endDateStr = formatDateForInput(endDateFormatted);
+        const startDateTimestampStr = startDateFormatted.toISOString();
+        const nextDayAfterEndDateTimestampStr = nextDayAfterEndDate.toISOString();
         
         // Buscar todos os pagamentos da semana especificada
         const { data: weeklyPayments, error } = await supabase
@@ -17250,8 +17280,8 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
                     name
                 )
             `)
-            .gte('created_at', startDateStr)
-            .lte('created_at', endDateStr)
+            .gte('created_at', startDateTimestampStr)
+            .lt('created_at', nextDayAfterEndDateTimestampStr)
             .order('created_at', { ascending: true });
 
         if (error) throw error;
