@@ -1443,8 +1443,8 @@ function setupUserPermissions() {
             const section = document.getElementById(sectionId);
             if (section) {
                 // Não remover hidden aqui, pois as seções são controladas pela navegação
-                // Apenas garantir que não estejam forçadas a esconder
-                section.style.display = '';
+                // Apenas sincronizar display com o estado atual da classe hidden
+                section.style.display = section.classList.contains('hidden') ? 'none' : 'block';
             }
         });
         
@@ -1659,8 +1659,10 @@ function handleNavigation(e) {
     // Mostrar seção correspondente
     contentSections.forEach(section => {
         section.classList.add('hidden');
+        section.style.display = 'none';
         if (section.id === target) {
             section.classList.remove('hidden');
+            section.style.display = 'block';
             section.classList.add('fade-in');
             
             // Atualizar gráficos apenas quando a seção de relatórios for exibida
@@ -19448,12 +19450,14 @@ function navigateToSection(sectionId) {
     const contentSections = document.querySelectorAll('.content-section');
     contentSections.forEach(section => {
         section.classList.add('hidden');
+        section.style.display = 'none';
     });
     
     // Mostrar a seção alvo
     const targetSection = document.getElementById(sectionId);
     if (targetSection) {
         targetSection.classList.remove('hidden');
+        targetSection.style.display = 'block';
         targetSection.classList.add('fade-in');
         requestAnimationFrame(() => {
             resetContentScrollPosition();
