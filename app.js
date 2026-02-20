@@ -11994,6 +11994,8 @@ async function generateWeeklyPaymentsPDF() {
         
         const endOfWeek = new Date(weekInfo.endDate);
         endOfWeek.setHours(23, 59, 59, 999);
+        const startOfWeekStr = formatDateForInput(startOfWeek);
+        const endOfWeekStr = formatDateForInput(endOfWeek);
 
         // Buscar todos os pagamentos da semana
         const { data: weeklyPayments, error } = await supabase
@@ -12010,16 +12012,16 @@ async function generateWeeklyPaymentsPDF() {
                     )
                 )
             `)
-            .gte('payment_date', startOfWeek.toISOString().split('T')[0])
-            .lte('payment_date', endOfWeek.toISOString().split('T')[0])
+            .gte('payment_date', startOfWeekStr)
+            .lte('payment_date', endOfWeekStr)
             .order('payment_date', { ascending: true });
 
         // Buscar empréstimos quitados na semana
         const { data: weeklyPaidLoans, error: paidLoansError } = await supabase
             .from('paid_loans')
             .select('*')
-            .gte('paid_date', startOfWeek.toISOString().split('T')[0])
-            .lte('paid_date', endOfWeek.toISOString().split('T')[0])
+            .gte('paid_date', startOfWeekStr)
+            .lte('paid_date', endOfWeekStr)
             .order('paid_date', { ascending: true });
 
         // Buscar multas de clientes da semana
@@ -12031,8 +12033,8 @@ async function generateWeeklyPaymentsPDF() {
                     name
                 )
             `)
-            .gte('created_at', startOfWeek.toISOString().split('T')[0])
-            .lte('created_at', endOfWeek.toISOString().split('T')[0])
+            .gte('created_at', startOfWeekStr)
+            .lte('created_at', endOfWeekStr)
             .order('created_at', { ascending: true });
 
         if (error) throw error;
@@ -16607,7 +16609,7 @@ async function populateWeekSelector() {
         const now = new Date();
 
         payments.forEach(payment => {
-            const date = new Date(payment.payment_date);
+            const date = parseLocalDate(payment.payment_date);
             const weekInfo = getWeekInfo(date);
             const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
             
@@ -16647,8 +16649,8 @@ async function populateWeekSelector() {
             const option = document.createElement('option');
             option.value = week.key;
             option.textContent = week.label;
-            option.dataset.startDate = week.startDate.toISOString();
-            option.dataset.endDate = week.endDate.toISOString();
+            option.dataset.startDate = formatDateForInput(week.startDate);
+            option.dataset.endDate = formatDateForInput(week.endDate);
             weekSelector.appendChild(option);
         });
 
@@ -16727,8 +16729,10 @@ async function handleWeekChange() {
         return;
     }
 
-    const startDate = new Date(selectedOption.dataset.startDate);
-    const endDate = new Date(selectedOption.dataset.endDate);
+    const startDate = parseLocalDate(selectedOption.dataset.startDate);
+    const endDate = parseLocalDate(selectedOption.dataset.endDate);
+    startDate.setHours(0, 0, 0, 0);
+    endDate.setHours(23, 59, 59, 999);
     
     selectedWeekData = {
         key: selectedOption.value,
@@ -16747,8 +16751,8 @@ async function handleWeekChange() {
 // Função para carregar dados de uma semana específica
 async function loadWeekData(startDate, endDate) {
     try {
-        const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = endDate.toISOString().split('T')[0];
+        const startDateStr = formatDateForInput(startDate);
+        const endDateStr = formatDateForInput(endDate);
         
         // Buscar pagamentos da semana selecionada
         const { data: payments, error } = await supabase
@@ -16829,6 +16833,9 @@ async function showWeekClientsModal() {
     `;
 
     try {
+        const startDateStr = formatDateForInput(selectedWeekData.startDate);
+        const endDateStr = formatDateForInput(selectedWeekData.endDate);
+
         // Buscar pagamentos da semana com detalhes dos clientes
         const { data: payments, error } = await supabase
             .from('payments')
@@ -16846,8 +16853,8 @@ async function showWeekClientsModal() {
                     )
                 )
             `)
-            .gte('payment_date', selectedWeekData.startDate.toISOString().split('T')[0])
-            .lte('payment_date', selectedWeekData.endDate.toISOString().split('T')[0])
+            .gte('payment_date', startDateStr)
+            .lte('payment_date', endDateStr)
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
@@ -17092,7 +17099,7 @@ async function getAvailableWeeksForPDF() {
         const weeks = new Map();
 
         payments.forEach(payment => {
-            const date = new Date(payment.payment_date);
+            const date = parseLocalDate(payment.payment_date);
             const weekInfo = getWeekInfo(date);
             const weekKey = `${weekInfo.year}-W${weekInfo.week}`;
             
@@ -17219,8 +17226,8 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         const endDateFormatted = new Date(endDate);
         endDateFormatted.setHours(23, 59, 59, 999);
         
-        const startDateStr = startDateFormatted.toISOString().split('T')[0];
-        const endDateStr = endDateFormatted.toISOString().split('T')[0];
+        const startDateStr = formatDateForInput(startDateFormatted);
+        const endDateStr = formatDateForInput(endDateFormatted);
         
         // Buscar todos os pagamentos da semana especificada
         const { data: weeklyPayments, error } = await supabase
