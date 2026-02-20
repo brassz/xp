@@ -11995,6 +11995,11 @@ async function generateWeeklyPaymentsPDF() {
         const endOfWeek = new Date(weekInfo.endDate);
         endOfWeek.setHours(23, 59, 59, 999);
 
+        // Usar formatDateForInput para evitar problema de timezone (toISOString no Brasil
+        // desloca o dia final para o próximo, incluindo 1 dia a mais na semana)
+        const startDateStr = formatDateForInput(startOfWeek);
+        const endDateStr = formatDateForInput(endOfWeek);
+
         // Buscar todos os pagamentos da semana
         const { data: weeklyPayments, error } = await supabase
             .from('payments')
@@ -12010,16 +12015,16 @@ async function generateWeeklyPaymentsPDF() {
                     )
                 )
             `)
-            .gte('payment_date', startOfWeek.toISOString().split('T')[0])
-            .lte('payment_date', endOfWeek.toISOString().split('T')[0])
+            .gte('payment_date', startDateStr)
+            .lte('payment_date', endDateStr)
             .order('payment_date', { ascending: true });
 
         // Buscar empréstimos quitados na semana
         const { data: weeklyPaidLoans, error: paidLoansError } = await supabase
             .from('paid_loans')
             .select('*')
-            .gte('paid_date', startOfWeek.toISOString().split('T')[0])
-            .lte('paid_date', endOfWeek.toISOString().split('T')[0])
+            .gte('paid_date', startDateStr)
+            .lte('paid_date', endDateStr)
             .order('paid_date', { ascending: true });
 
         // Buscar multas de clientes da semana
@@ -12031,8 +12036,8 @@ async function generateWeeklyPaymentsPDF() {
                     name
                 )
             `)
-            .gte('created_at', startOfWeek.toISOString().split('T')[0])
-            .lte('created_at', endOfWeek.toISOString().split('T')[0])
+            .gte('created_at', startDateStr)
+            .lte('created_at', endDateStr)
             .order('created_at', { ascending: true });
 
         if (error) throw error;
@@ -16747,8 +16752,10 @@ async function handleWeekChange() {
 // Função para carregar dados de uma semana específica
 async function loadWeekData(startDate, endDate) {
     try {
-        const startDateStr = startDate.toISOString().split('T')[0];
-        const endDateStr = endDate.toISOString().split('T')[0];
+        // Usar formatDateForInput para evitar problema de timezone (toISOString converte para UTC
+        // e no Brasil pode deslocar o dia final para o dia seguinte, incluindo 1 dia a mais)
+        const startDateStr = formatDateForInput(startDate);
+        const endDateStr = formatDateForInput(endDate);
         
         // Buscar pagamentos da semana selecionada
         const { data: payments, error } = await supabase
@@ -16846,8 +16853,8 @@ async function showWeekClientsModal() {
                     )
                 )
             `)
-            .gte('payment_date', selectedWeekData.startDate.toISOString().split('T')[0])
-            .lte('payment_date', selectedWeekData.endDate.toISOString().split('T')[0])
+            .gte('payment_date', formatDateForInput(selectedWeekData.startDate))
+            .lte('payment_date', formatDateForInput(selectedWeekData.endDate))
             .order('payment_date', { ascending: false });
 
         if (error) throw error;
@@ -17219,8 +17226,10 @@ async function generateWeeklyPaymentsPDFForDates(startDate, endDate) {
         const endDateFormatted = new Date(endDate);
         endDateFormatted.setHours(23, 59, 59, 999);
         
-        const startDateStr = startDateFormatted.toISOString().split('T')[0];
-        const endDateStr = endDateFormatted.toISOString().split('T')[0];
+        // Usar formatDateForInput para evitar problema de timezone (toISOString no Brasil
+        // desloca o dia final para o próximo, incluindo 1 dia a mais na semana)
+        const startDateStr = formatDateForInput(startDateFormatted);
+        const endDateStr = formatDateForInput(endDateFormatted);
         
         // Buscar todos os pagamentos da semana especificada
         const { data: weeklyPayments, error } = await supabase
