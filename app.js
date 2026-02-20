@@ -1591,6 +1591,22 @@ function controlFinesBoxVisibility(targetTab) {
     }
 }
 
+// Garantir que a troca de abas sempre comece no topo
+function resetContentScrollPosition() {
+    const mainContent = document.querySelector('#dashboard main');
+    if (mainContent) {
+        mainContent.scrollTop = 0;
+    }
+
+    const scrollingElement = document.scrollingElement || document.documentElement;
+    if (scrollingElement) {
+        scrollingElement.scrollTop = 0;
+    }
+
+    document.body.scrollTop = 0;
+    window.scrollTo(0, 0);
+}
+
 // Navegação
 function handleNavigation(e) {
     e.preventDefault();
@@ -1697,13 +1713,12 @@ function handleNavigation(e) {
             if (target === 'commissions') {
                 console.log('Seção de comissões ativada, inicializando...');
                 initializeCommissionsSection();
-                const mainContent = document.querySelector('#dashboard main');
-                if (mainContent) {
-                    mainContent.scrollTop = 0;
-                }
-                window.scrollTo(0, 0);
             }
             
+            // Após ativar a seção, garantir posição no topo
+            requestAnimationFrame(() => {
+                resetContentScrollPosition();
+            });
 
         }
     });
@@ -19440,6 +19455,9 @@ function navigateToSection(sectionId) {
     if (targetSection) {
         targetSection.classList.remove('hidden');
         targetSection.classList.add('fade-in');
+        requestAnimationFrame(() => {
+            resetContentScrollPosition();
+        });
         
         // Carregar dados específicos da seção se necessário
         if (sectionId === 'installments') {
