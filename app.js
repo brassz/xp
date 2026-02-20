@@ -1697,6 +1697,11 @@ function handleNavigation(e) {
             if (target === 'commissions') {
                 console.log('Seção de comissões ativada, inicializando...');
                 initializeCommissionsSection();
+                const mainContent = document.querySelector('#dashboard main');
+                if (mainContent) {
+                    mainContent.scrollTop = 0;
+                }
+                window.scrollTo(0, 0);
             }
             
 
@@ -18279,7 +18284,6 @@ function renderCommissionsTable(commissionsDetails) {
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     <div>R$ ${item.paymentAmount.toFixed(2)}</div>
-                    <div class="text-xs text-gray-400">J: ${item.paid_interest?.toFixed(2) || '0.00'} | C: ${item.paid_capital?.toFixed(2) || '0.00'}</div>
                 </td>
                 <td class="px-3 py-3 whitespace-nowrap text-xs text-gray-300">
                     R$ ${item.loanAmount.toFixed(2)}
