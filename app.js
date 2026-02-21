@@ -2787,12 +2787,12 @@ async function renderLoansTable() {
             const remainingAmount = remainingAmounts[loanIndex] || 0;
             const status = getLoanStatus(loan.due_date, loan.status);
 
-            // Mogiana: destacar em vermelho os empréstimos marcados como DIDU.
+            // Mogiana: destacar em verde os empréstimos marcados como DIDU.
             // Outras empresas mantêm o destaque legado em laranja por criador.
             const isDiduLoanMarked = loan.is_didu === true || loan.is_didu === 'true';
             const isLegacyDiduCreatorLoan = currentCompany !== 'mogiana' &&
                 (loan.created_by_email === 'didu@nexus.com' || loan.created_by_name === 'didu@nexus.com');
-            const clientNameClass = isDiduLoanMarked ? 'text-red-500' : (isLegacyDiduCreatorLoan ? 'text-orange-400' : 'text-white');
+            const clientNameClass = isDiduLoanMarked ? 'text-green-400' : (isLegacyDiduCreatorLoan ? 'text-orange-400' : 'text-white');
             
             // Determinar a classe CSS para a data de vencimento
             const dueDateClass = loan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
