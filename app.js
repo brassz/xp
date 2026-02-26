@@ -9691,7 +9691,7 @@ Agradecemos pela confiança e pontualidade. Estamos sempre à disposição para 
 
 Tenha um ótimo dia! 😊
 
-_Equipe Grupo Creditas_`;
+*Salve este é o contato oficial da empresa. Qualquer dúvida, entre em contato*`;
     },
 
     lembrete: (data) => {
