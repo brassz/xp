@@ -9720,15 +9720,15 @@ _Equipe Grupo Creditas_`;
         
         return `✅ *Pagamento recebido, ${data.clientName}!*
 
-Recebemos seu pagamento com sucesso!${paymentDetails}
+Seu pagamento foi registrado com sucesso!${paymentDetails}
 
 ${nextDateText}
 
-Agradecemos pela confiança. Para dúvidas ou negociações, estamos sempre disponíveis.
+Agradecemos pela confiança e pontualidade. Estamos sempre à disposição para esclarecer dúvidas.
 
-Conte conosco! 🤝
+Tenha um ótimo dia!
 
-_Equipe Grupo Creditas_`;
+*Salve este é o contato oficial da empresa. Qualquer dúvida, entre em contato*`;
     }
 };
 
