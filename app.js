@@ -2791,8 +2791,8 @@ async function renderLoansTable() {
             const isDiduLoan = loan.created_by_email === 'didu@nexus.com' || loan.created_by_name === 'didu@nexus.com';
             const clientNameClass = isDiduLoan ? 'text-orange-400' : 'text-white';
             
-            // Determinar a classe CSS para a data de vencimento
-            const dueDateClass = loan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
+            // Determinar a classe CSS para a data de vencimento (temporariamente sem destaque amarelo)
+            const dueDateClass = 'text-gray-300';
             const dueDateTitle = loan.due_date_manually_changed ? 'Data de vencimento alterada manualmente' : '';
             
             // HTML da tabela (desktop)
@@ -3231,8 +3231,8 @@ async function renderPaidLoansTable(paidLoansToRender = null) {
                     }
                 };
                 
-                // Determinar a classe CSS para a data de vencimento
-                const dueDateClass = paidLoan.due_date_manually_changed ? 'text-yellow-400 font-bold' : 'text-gray-300';
+                // Determinar a classe CSS para a data de vencimento (temporariamente sem destaque amarelo)
+                const dueDateClass = 'text-gray-300';
                 const dueDateTitle = paidLoan.due_date_manually_changed ? 'Data de vencimento alterada manualmente' : '';
                 
                 tableHTML += `
