@@ -760,7 +760,6 @@ function setupEventListeners() {
     
     // Configurar modal de mensagens de pagamento
     setupPaymentMessageEventListeners();
-    setupScorePageListeners();
 
     // WhatsApp Summary modal
     document.getElementById('cancelWhatsAppBtn').addEventListener('click', () => hideModal(whatsappSummaryModal));
@@ -1759,12 +1758,7 @@ function handleNavigation(e) {
                 console.log('Seção de comissões ativada, inicializando...');
                 initializeCommissionsSection();
             }
-
-            // Carregar página de Score quando for exibida
-            if (target === 'score') {
-                console.log('Seção Score ativada, carregando...');
-                loadScorePage();
-            }
+            
 
         }
     });
@@ -5769,204 +5763,6 @@ function calculateOperationHealth(activeLoansCount, overdueLoansCount) {
     if (overdueLoansElement) {
         overdueLoansElement.textContent = overdueLoansCount;
     }
-}
-
-// ========== SCORE DE CRÉDITO ==========
-// Recomendações: 1-6 Cuidado / Não realizar | 7-8 Analisar | 8-10 Realizar empréstimo
-function getScoreRecommendation(score) {
-    if (score >= 8) return { key: 'realizar', label: 'Realizar empréstimo', color: 'green', bg: 'bg-green-500/20', border: 'border-green-500', text: 'text-green-400' };
-    if (score >= 7) return { key: 'analisar', label: 'Analisar empréstimo', color: 'yellow', bg: 'bg-yellow-500/20', border: 'border-yellow-500', text: 'text-yellow-400' };
-    return { key: 'cuidado', label: 'Cuidado / Não realizar', color: 'red', bg: 'bg-red-500/20', border: 'border-red-500', text: 'text-red-400' };
-}
-
-function calculateClientScore(clientId, clientName, activeLoansList, paidLoansList, paymentsByLoanId, finesList) {
-    const today = new Date();
-    today.setHours(0, 0, 0, 0);
-
-    const activeCount = activeLoansList.length;
-    const paidCount = paidLoansList.length;
-    const overdueActive = activeLoansList.filter(l => {
-        const due = parseLocalDate(l.due_date);
-        return due && due < today && l.status !== 'paid';
-    }).length;
-    const totalFines = (finesList || []).reduce((s, f) => s + parseFloat(f.amount || 0), 0);
-    const hasFines = (finesList || []).length > 0 || totalFines > 0;
-
-    let totalBorrowed = 0;
-    let totalPaid = 0;
-    paidLoansList.forEach(pl => {
-        totalBorrowed += parseFloat(pl.original_amount || pl.amount || 0);
-        totalPaid += parseFloat(pl.total_paid || 0);
-    });
-    activeLoansList.forEach(l => {
-        totalBorrowed += parseFloat(l.original_amount || l.amount || 0);
-    });
-    // Pagamentos já refletidos em total_paid dos quitados; para ativos podemos somar payments
-    const paidFromPayments = (paymentsByLoanId || []).reduce((s, p) => s + parseFloat(p.amount || 0), 0);
-    totalPaid += paidFromPayments;
-
-    let score = 5; // base
-    if (paidCount >= 5) score += 2;
-    else if (paidCount >= 2) score += 1.2;
-    else if (paidCount >= 1) score += 0.6;
-    if (overdueActive > 0) score -= 2;
-    else if (activeCount > 0 && paidCount > 0) score += 0.5; // tem ativo mas já quitou antes
-    if (hasFines) score -= 1;
-    if (paidCount > 0 && activeCount === 0) score += 0.5; // histórico limpo
-    if (totalBorrowed > 0 && totalPaid >= totalBorrowed * 0.95) score += 0.5;
-
-    score = Math.max(1, Math.min(10, Math.round(score * 10) / 10));
-    const rec = getScoreRecommendation(score);
-
-    const details = [];
-    if (paidCount > 0) details.push(`${paidCount} empréstimo(s) quitado(s)`);
-    if (activeCount > 0) details.push(`${activeCount} empréstimo(s) ativo(s)`);
-    if (overdueActive > 0) details.push(`${overdueActive} em atraso`);
-    if (hasFines) details.push('Possui multas');
-    if (totalBorrowed > 0) details.push(`Total pago: R$ ${totalPaid.toFixed(2)}`);
-
-    return {
-        score,
-        recommendation: rec,
-        summary: rec.label,
-        details,
-        paidCount,
-        activeCount,
-        overdueActive,
-        hasFines,
-        totalBorrowed,
-        totalPaid
-    };
-}
-
-async function loadScorePage() {
-    const loadingEl = document.getElementById('scoreLoadingIndicator');
-    const contentEl = document.getElementById('scoreContent');
-    const emptyEl = document.getElementById('scoreEmpty');
-
-    if (loadingEl) loadingEl.classList.remove('hidden');
-    if (contentEl) contentEl.innerHTML = '';
-    if (emptyEl) emptyEl.classList.add('hidden');
-
-    try {
-        await loadClients();
-        await loadLoans();
-
-        const { data: paidLoansData, error: paidErr } = await supabase
-            .from('paid_loans')
-            .select('*');
-        const paidLoans = paidErr ? [] : (paidLoansData || []);
-
-        const { data: finesData, error: finesErr } = await supabase
-            .from('client_fines')
-            .select('*');
-        const allFines = finesErr ? [] : (finesData || []);
-
-        const { data: paymentsData } = await supabase
-            .from('payments')
-            .select('loan_id, amount');
-        const paymentsByClient = {};
-        (paymentsData || []).forEach(p => {
-            const lid = p.loan_id;
-            const loan = loans.find(l => l.id === lid) || paidLoans.find(pl => pl.loan_id === lid);
-            if (loan && loan.client_id) {
-                const cid = loan.client_id;
-                if (!paymentsByClient[cid]) paymentsByClient[cid] = [];
-                paymentsByClient[cid].push(p);
-            }
-        });
-
-        const scoreList = [];
-        for (const client of clients) {
-            const cid = client.id;
-            const activeLoansList = loans.filter(l => l.client_id === cid);
-            const paidLoansList = paidLoans.filter(p => p.client_id === cid);
-            // Pagamentos apenas de empréstimos ativos (quitados já entram em total_paid de paid_loans)
-            const paymentsForClient = (paymentsByClient[cid] || []).filter(p => activeLoansList.some(l => l.id === p.loan_id));
-            const finesList = allFines.filter(f => f.client_id === cid);
-            const result = calculateClientScore(cid, client.name, activeLoansList, paidLoansList, paymentsForClient, finesList);
-            scoreList.push({
-                clientId: cid,
-                clientName: client.name || 'Sem nome',
-                cpf: client.cpf || '',
-                ...result
-            });
-        }
-
-        const searchInput = document.getElementById('scoreSearchInput');
-        const filterRec = document.getElementById('scoreFilterRecommendation');
-        const searchTerm = (searchInput && searchInput.value) ? searchInput.value.trim().toLowerCase() : '';
-        const filterValue = (filterRec && filterRec.value) ? filterRec.value : 'all';
-
-        let filtered = scoreList;
-        if (searchTerm) {
-            filtered = filtered.filter(s => (s.clientName || '').toLowerCase().includes(searchTerm) || (s.cpf || '').replace(/\D/g, '').includes(searchTerm.replace(/\D/g, '')));
-        }
-        if (filterValue !== 'all') {
-            filtered = filtered.filter(s => s.recommendation.key === filterValue);
-        }
-
-        if (loadingEl) loadingEl.classList.add('hidden');
-        if (filtered.length === 0) {
-            if (contentEl) contentEl.innerHTML = '';
-            if (emptyEl) {
-                emptyEl.classList.remove('hidden');
-                emptyEl.textContent = scoreList.length === 0 ? 'Nenhum cliente cadastrado.' : 'Nenhum cliente corresponde aos filtros.';
-            }
-            return;
-        }
-        if (emptyEl) emptyEl.classList.add('hidden');
-
-        const cardsHTML = filtered.map(s => {
-            const rec = s.recommendation;
-            return `
-                <div class="glass-card rounded-xl p-5 border ${rec.border} border-opacity-50 hover:border-opacity-100 transition-all">
-                    <div class="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-                        <div class="flex items-center gap-4">
-                            <div class="w-14 h-14 rounded-full bg-gray-700 flex items-center justify-center text-2xl font-bold ${rec.text}">${(s.clientName || '?').charAt(0).toUpperCase()}</div>
-                            <div>
-                                <h3 class="text-lg font-semibold text-white">${(s.clientName || 'Cliente').replace(/</g, '&lt;')}</h3>
-                                ${s.cpf ? `<p class="text-sm text-gray-400">CPF: ${String(s.cpf).replace(/</g, '&lt;')}</p>` : ''}
-                            </div>
-                        </div>
-                        <div class="flex items-center gap-4 flex-wrap">
-                            <div class="flex items-center gap-2">
-                                <span class="text-gray-400 text-sm">Score:</span>
-                                <span class="text-2xl font-bold ${rec.text}">${s.score.toFixed(1)}</span>
-                                <span class="text-gray-500">/10</span>
-                            </div>
-                            <span class="px-3 py-1 rounded-full text-sm font-semibold ${rec.bg} ${rec.text} border ${rec.border}">${rec.label}</span>
-                        </div>
-                    </div>
-                    <div class="mt-4 pt-4 border-t border-gray-700">
-                        <p class="text-sm text-gray-300 mb-2">Resumo:</p>
-                        <ul class="text-sm text-gray-400 space-y-1">
-                            ${s.details.map(d => `<li>• ${d}</li>`).join('')}
-                        </ul>
-                    </div>
-                </div>
-            `;
-        }).join('');
-
-        if (contentEl) contentEl.innerHTML = cardsHTML;
-    } catch (err) {
-        console.error('Erro ao carregar Score:', err);
-        if (loadingEl) loadingEl.classList.add('hidden');
-        if (contentEl) contentEl.innerHTML = '<p class="text-red-400 text-center py-8">Erro ao carregar scores. Tente novamente.</p>';
-        if (emptyEl) emptyEl.classList.add('hidden');
-    }
-}
-
-// Event listeners da página Score (chamados no DOMContentLoaded)
-function setupScorePageListeners() {
-    const refreshBtn = document.getElementById('scoreRefreshBtn');
-    const searchInput = document.getElementById('scoreSearchInput');
-    const filterRec = document.getElementById('scoreFilterRecommendation');
-    if (refreshBtn) refreshBtn.addEventListener('click', () => loadScorePage());
-    const runFilter = () => { if (document.getElementById('score').classList.contains('hidden') === false) loadScorePage(); };
-    if (searchInput) searchInput.addEventListener('input', runFilter);
-    if (searchInput) searchInput.addEventListener('change', runFilter);
-    if (filterRec) filterRec.addEventListener('change', runFilter);
 }
 
 // Atualizar gráficos
@@ -19770,8 +19566,6 @@ function navigateToSection(sectionId) {
             loadInstallments();
         } else if (sectionId === 'loans') {
             // Os dados de loans já devem estar carregados
-        } else if (sectionId === 'score') {
-            loadScorePage();
         }
     }
 }
