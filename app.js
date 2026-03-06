@@ -2805,7 +2805,7 @@ async function renderLoansTable() {
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${parseFloat(loan.amount).toFixed(2)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${loan.interest_rate}%</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${formatDate(loan.loan_date)}</td>
-                    <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateClass}" title="${dueDateTitle}">${formatDate(loan.due_date)}${loan.due_date_manually_changed ? ' ⚠️' : ''}</td>
+                    <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateClass}" title="${dueDateTitle}">${formatDate(loan.due_date)}</td>
                     <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-white">
                         <div>Original: R$ ${originalTotal.toFixed(2)}</div>
                         <div class="text-blue-300">Restante: R$ ${remainingAmount.toFixed(2)}</div>
@@ -2852,7 +2852,7 @@ async function renderLoansTable() {
                         </div>
                         <div class="loan-card-info-item">
                             <span class="loan-card-info-label">Vencimento</span>
-                            <span class="loan-card-info-value ${dueDateClass}">${formatDate(loan.due_date)}${loan.due_date_manually_changed ? ' ⚠️' : ''}</span>
+                            <span class="loan-card-info-value ${dueDateClass}">${formatDate(loan.due_date)}</span>
                         </div>
                         <div class="loan-card-info-item">
                             <span class="loan-card-info-label">Total Original</span>
@@ -3244,7 +3244,7 @@ async function renderPaidLoansTable(paidLoansToRender = null) {
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">R$ ${safeFormatNumber(paidLoan.original_amount)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${paidLoan.interest_rate || 0}%</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm text-gray-300">${safeFormatDate(paidLoan.loan_date)}</td>
-                        <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateClass}" title="${dueDateTitle}">${safeFormatDate(paidLoan.due_date)}${paidLoan.due_date_manually_changed ? ' ⚠️' : ''}</td>
+                        <td class="px-6 py-4 whitespace-nowrap text-sm ${dueDateClass}" title="${dueDateTitle}">${safeFormatDate(paidLoan.due_date)}</td>
                         <td class="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-300">
                             R$ ${safeFormatNumber(paidLoan.total_paid)}
                         </td>
