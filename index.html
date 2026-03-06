@@ -3075,8 +3075,8 @@
                                 RENOVAR 20+
                             </button>
                             <button type="button" id="openRenewalModalBtn" class="px-6 py-2 bg-gradient-to-r from-purple-600 to-pink-600 text-white rounded-lg hover:from-purple-500 hover:to-pink-500 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105 flex items-center justify-center">
-                                <span class="text-lg mr-2">🔄</span>
-                                RENOVAR 30+
+                                <span class="text-lg mr-2">💳</span>
+                                Registrar pagamento
                             </button>
                         </div>
                     </div>
@@ -3090,6 +3090,52 @@
                         </div>
                     </div>
                 </form>
+            </div>
+        </div>
+    </div>
+
+    <!-- Confirm Next Due Date Modal (30+) -->
+    <div id="confirmNextDueDateModal" class="modal-overlay fixed inset-0 z-50 hidden">
+        <div class="flex items-center justify-center min-h-screen p-4">
+            <div class="modal-content w-full max-w-md p-6">
+                <div class="flex items-center justify-between mb-6">
+                    <h3 class="text-xl font-semibold text-white">Confirmar próxima data de vencimento</h3>
+                    <button id="closeConfirmNextDueDateModal" class="text-gray-400 hover:text-white transition-colors">
+                        <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
+                        </svg>
+                    </button>
+                </div>
+
+                <div class="bg-gray-800 p-4 rounded-lg mb-6">
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-gray-400 text-sm">Cliente:</span>
+                        <span class="text-white font-semibold" id="confirmNextDueDateClientName">-</span>
+                    </div>
+                    <div class="flex justify-between items-center mb-2">
+                        <span class="text-gray-400 text-sm">Vencimento atual:</span>
+                        <span class="text-gray-200 font-semibold" id="confirmNextDueDateCurrent">-</span>
+                    </div>
+                    <div class="flex justify-between items-center">
+                        <span class="text-gray-400 text-sm">Próximo vencimento:</span>
+                        <span class="text-blue-400 font-semibold" id="confirmNextDueDatePreview">-</span>
+                    </div>
+                </div>
+
+                <div class="mb-6">
+                    <label class="block text-sm font-medium text-blue-200 mb-1">Próxima data de vencimento</label>
+                    <input type="date" id="confirmNextDueDateInput" class="form-input w-full">
+                    <p class="text-xs text-gray-400 mt-2">Confirme (ou ajuste) a data antes de registrar o pagamento.</p>
+                </div>
+
+                <div class="flex flex-col sm:flex-row justify-end items-stretch sm:items-center gap-3">
+                    <button type="button" id="cancelConfirmNextDueDateBtn" class="px-6 py-2 border border-gray-600 text-gray-300 rounded-lg hover:bg-gray-700 transition-colors font-medium">
+                        Cancelar
+                    </button>
+                    <button type="button" id="confirmConfirmNextDueDateBtn" class="px-6 py-2 bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-lg hover:from-blue-500 hover:to-indigo-500 transition-all duration-300 font-semibold shadow-lg hover:shadow-xl transform hover:scale-105">
+                        Continuar
+                    </button>
+                </div>
             </div>
         </div>
     </div>

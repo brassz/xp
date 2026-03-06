@@ -277,6 +277,9 @@ let capitalRaisingClients = [];
 let charts = {};
 let isLoadingData = false; // Flag para evitar carregamento múltiplo
 
+// Override temporário para confirmar/ajustar a próxima data de vencimento (fluxo 30+)
+let pendingRenewalDueDateOverride = null; // { loanId, renewalDays, dueDateStr }
+
 
 // Elementos DOM
 const loginPage = document.getElementById('loginPage');
@@ -299,6 +302,7 @@ const newClientModal = document.getElementById('newClientModal');
 const newLoanModal = document.getElementById('newLoanModal');
 const paymentModal = document.getElementById('paymentModal');
 const paymentMessageModal = document.getElementById('paymentMessageModal');
+const confirmNextDueDateModal = document.getElementById('confirmNextDueDateModal');
 const editClientModal = document.getElementById('editClientModal');
 const editLoanModal = document.getElementById('editLoanModal');
 const confirmationModal = document.getElementById('confirmationModal');
@@ -794,12 +798,18 @@ function setupEventListeners() {
     document.getElementById('cancelPayoffLoanBtn').addEventListener('click', () => hideModal(payoffLoanModal));
     
     // Botão de abrir modal de renovação
-    document.getElementById('openRenewalModalBtn').addEventListener('click', () => openRenewalOptionsModal());
+    document.getElementById('openRenewalModalBtn').addEventListener('click', () => openConfirmNextDueDateModal(30));
     document.getElementById('openRenewal20Btn').addEventListener('click', () => openRenewalOptionsModal20());
     
     // Event listeners para o modal de opções de renovação 30 dias
-    document.getElementById('closeRenewalOptionsModal').addEventListener('click', () => hideModal(renewalOptionsModal));
-    document.getElementById('cancelRenewalBtn').addEventListener('click', () => hideModal(renewalOptionsModal));
+    document.getElementById('closeRenewalOptionsModal').addEventListener('click', () => {
+        clearPendingRenewalDueDateOverride();
+        hideModal(renewalOptionsModal);
+    });
+    document.getElementById('cancelRenewalBtn').addEventListener('click', () => {
+        clearPendingRenewalDueDateOverride();
+        hideModal(renewalOptionsModal);
+    });
     document.getElementById('renewalCapitalJuros').addEventListener('click', () => handleNewRenewalPayment('capital_juros', 30));
     document.getElementById('renewalSomenteJuros').addEventListener('click', () => handleNewRenewalPayment('somente_juros', 30));
     document.getElementById('renewalSomenteCapital').addEventListener('click', () => handleNewRenewalPayment('somente_capital', 30));
@@ -810,6 +820,56 @@ function setupEventListeners() {
     document.getElementById('renewal20CapitalJuros').addEventListener('click', () => handleNewRenewalPayment('capital_juros', 20));
     document.getElementById('renewal20SomenteJuros').addEventListener('click', () => handleNewRenewalPayment('somente_juros', 20));
     document.getElementById('renewal20SomenteCapital').addEventListener('click', () => handleNewRenewalPayment('somente_capital', 20));
+
+    // Modal de confirmação da próxima data de vencimento (antes do fluxo 30+)
+    if (document.getElementById('closeConfirmNextDueDateModal')) {
+        document.getElementById('closeConfirmNextDueDateModal').addEventListener('click', () => {
+            clearPendingRenewalDueDateOverride();
+            hideModal(confirmNextDueDateModal);
+        });
+    }
+    if (document.getElementById('cancelConfirmNextDueDateBtn')) {
+        document.getElementById('cancelConfirmNextDueDateBtn').addEventListener('click', () => {
+            clearPendingRenewalDueDateOverride();
+            hideModal(confirmNextDueDateModal);
+        });
+    }
+    if (document.getElementById('confirmConfirmNextDueDateBtn')) {
+        document.getElementById('confirmConfirmNextDueDateBtn').addEventListener('click', async () => {
+            try {
+                const input = document.getElementById('confirmNextDueDateInput');
+                const dueDateStr = input?.value;
+                if (!dueDateStr) {
+                    alert('Selecione uma próxima data de vencimento para continuar.');
+                    return;
+                }
+
+                const loanId = document.getElementById('paymentForm')?.dataset?.loanId;
+                const renewalDays = pendingRenewalDueDateOverride?.renewalDays || 30;
+
+                pendingRenewalDueDateOverride = {
+                    loanId,
+                    renewalDays,
+                    dueDateStr
+                };
+
+                hideModal(confirmNextDueDateModal);
+                await openRenewalOptionsModal({ overrideDueDateStr: dueDateStr, renewalDays });
+            } catch (e) {
+                console.error('Erro ao confirmar próxima data de vencimento:', e);
+                alert('Erro ao confirmar a data. Tente novamente.');
+            }
+        });
+    }
+    if (document.getElementById('confirmNextDueDateInput')) {
+        document.getElementById('confirmNextDueDateInput').addEventListener('change', () => {
+            const input = document.getElementById('confirmNextDueDateInput');
+            const preview = document.getElementById('confirmNextDueDatePreview');
+            if (input?.value && preview) {
+                preview.textContent = formatDate(input.value);
+            }
+        });
+    }
     
     // Event listeners para calcular data de vencimento automaticamente
     document.getElementById('loanDate').addEventListener('change', calculateLoanDueDate);
@@ -3715,8 +3775,65 @@ function calculateNextDueDateByTermDays(loanDate, currentDueDate, termDays) {
     }
 }
 
+function clearPendingRenewalDueDateOverride() {
+    pendingRenewalDueDateOverride = null;
+}
+
+function getPendingRenewalDueDateOverride(loanId, renewalDays) {
+    if (!pendingRenewalDueDateOverride) return null;
+    if (pendingRenewalDueDateOverride.loanId !== loanId) return null;
+    if (pendingRenewalDueDateOverride.renewalDays !== renewalDays) return null;
+    if (!pendingRenewalDueDateOverride.dueDateStr) return null;
+    return pendingRenewalDueDateOverride.dueDateStr;
+}
+
+async function openConfirmNextDueDateModal(renewalDays = 30) {
+    try {
+        const loanId = document.getElementById('paymentForm')?.dataset?.loanId;
+        const paymentAmount = parseFloat(document.getElementById('paymentAmount')?.value);
+
+        // Validar se há um valor de pagamento
+        if (!paymentAmount || paymentAmount <= 0) {
+            alert('Por favor, insira um valor de pagamento válido antes de registrar o pagamento.');
+            return;
+        }
+
+        // Obter o empréstimo atual
+        const loan = loans.find(l => l.id === loanId);
+        if (!loan) {
+            alert('Empréstimo não encontrado.');
+            return;
+        }
+
+        // Calcular data sugerida
+        const suggestedDueDateStr = calculateNextDueDateByTermDays(loan.loan_date, loan.due_date, renewalDays);
+
+        pendingRenewalDueDateOverride = {
+            loanId,
+            renewalDays,
+            dueDateStr: suggestedDueDateStr
+        };
+
+        // Preencher modal
+        const clientNameEl = document.getElementById('confirmNextDueDateClientName');
+        const currentEl = document.getElementById('confirmNextDueDateCurrent');
+        const previewEl = document.getElementById('confirmNextDueDatePreview');
+        const inputEl = document.getElementById('confirmNextDueDateInput');
+
+        if (clientNameEl) clientNameEl.textContent = loan.clients?.name || 'Cliente não encontrado';
+        if (currentEl) currentEl.textContent = formatDate(loan.due_date);
+        if (previewEl) previewEl.textContent = formatDate(suggestedDueDateStr);
+        if (inputEl) inputEl.value = suggestedDueDateStr;
+
+        showModal(confirmNextDueDateModal);
+    } catch (error) {
+        console.error('Erro ao abrir confirmação da próxima data de vencimento:', error);
+        alert('Erro ao abrir a confirmação da data: ' + error.message);
+    }
+}
+
 // Função para abrir modal de opções de renovação (30 dias)
-async function openRenewalOptionsModal() {
+async function openRenewalOptionsModal({ overrideDueDateStr = null, renewalDays = null } = {}) {
     try {
         const loanId = document.getElementById('paymentForm').dataset.loanId;
         const paymentAmount = parseFloat(document.getElementById('paymentAmount').value);
@@ -3738,9 +3855,10 @@ async function openRenewalOptionsModal() {
         document.getElementById('renewalClientName').textContent = loan.clients?.name || 'Cliente não encontrado';
         document.getElementById('renewalPaymentAmount').textContent = `R$ ${paymentAmount.toFixed(2)}`;
         
-        // Calcular nova data de vencimento baseado no term_days do empréstimo (ou padrão 30)
-        const termDays = loan.term_days || 30;
-        const newDueDateStr = calculateNextDueDateByTermDays(loan.loan_date, loan.due_date, termDays);
+        // Calcular nova data de vencimento (ou usar override confirmado)
+        const termDays = renewalDays ?? (loan.term_days || 30);
+        const pendingOverride = getPendingRenewalDueDateOverride(loanId, termDays);
+        const newDueDateStr = overrideDueDateStr || pendingOverride || calculateNextDueDateByTermDays(loan.loan_date, loan.due_date, termDays);
         document.getElementById('renewalNewDueDate').textContent = formatDate(newDueDateStr);
         
         // Mostrar modal
@@ -3833,7 +3951,8 @@ async function handleNewRenewalPayment(paymentOption, renewalDays = 30) {
         }
         
         // Calcular nova data de vencimento baseado nos dias de renovação
-        const newDueDateStr = calculateNextDueDateByTermDays(loan.loan_date, loan.due_date, renewalDays);
+        const pendingOverride = getPendingRenewalDueDateOverride(loanId, renewalDays);
+        const newDueDateStr = pendingOverride || calculateNextDueDateByTermDays(loan.loan_date, loan.due_date, renewalDays);
         
         // Confirmar com o usuário
         const confirmMsg = `Confirmar renovação do empréstimo por +${renewalDays} dias?\n\nTipo: ${paymentDescription}\nValor do pagamento: R$ ${paymentAmount.toFixed(2)}\nNova data de vencimento: ${formatDate(newDueDateStr)}`;
@@ -3905,6 +4024,7 @@ async function handleNewRenewalPayment(paymentOption, renewalDays = 30) {
         }
         
         // Fechar modais após recarregar
+        clearPendingRenewalDueDateOverride();
         hideModal(renewalOptionsModal);
         hideModal(renewalOptionsModal20);
         hideModal(paymentModal);
@@ -3938,6 +4058,8 @@ async function handleNewRenewalPayment(paymentOption, renewalDays = 30) {
             if (cancelBtn) cancelBtn.disabled = false;
             if (renewalBtn) renewalBtn.disabled = false;
         }
+
+        clearPendingRenewalDueDateOverride();
         
         // Ocultar botão de renovação 20 se existir
         const renewal20Btn = document.getElementById('openRenewal20Btn');
