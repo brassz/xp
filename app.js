@@ -1527,6 +1527,13 @@ function setupUserPermissions() {
 }
 
 async function handleLogout() {
+    // Se o usuário estiver "online" no atendimento, desativar automaticamente
+    try {
+        await waSafeGoOffline();
+    } catch (err) {
+        console.warn('Falha ao desativar atendimento online no logout (não crítico):', err);
+    }
+
     // Limpar timeout do usuário se existir
     clearUserTimeout();
     
@@ -1757,6 +1764,12 @@ function handleNavigation(e) {
             if (target === 'commissions') {
                 console.log('Seção de comissões ativada, inicializando...');
                 initializeCommissionsSection();
+            }
+
+            // Inicializar seção de atendimento (WhatsApp) quando for exibida
+            if (target === 'atendimento') {
+                console.log('Seção de atendimento ativada, inicializando...');
+                initAtendimentoSection();
             }
             
 
@@ -5604,19 +5617,15 @@ async function updateDashboard() {
     // Calcular total de parcelamentos
     let totalInstallmentsValue = 0;
     try {
-        const { data: installments, error: installmentsError } = await supabase
-            .from('installments')
-            .select('amount, interest_amount, status');
+        // Schema atual: installments não tem amount/interest_amount.
+        // O valor "em aberto" pode ser obtido somando parcelas pendentes/vencidas em installment_payments.
+        const { data: installmentPayments, error: installmentPaymentsError } = await supabase
+            .from('installment_payments')
+            .select('amount, status')
+            .in('status', ['pending', 'overdue', 'partial']);
         
-        if (!installmentsError && installments) {
-            // Somar apenas parcelamentos não quitados (status != 'paid')
-            totalInstallmentsValue = installments
-                .filter(inst => inst.status !== 'paid')
-                .reduce((sum, inst) => {
-                    const amount = parseFloat(inst.amount) || 0;
-                    const interest = parseFloat(inst.interest_amount) || 0;
-                    return sum + amount + interest;
-                }, 0);
+        if (!installmentPaymentsError && installmentPayments) {
+            totalInstallmentsValue = installmentPayments.reduce((sum, p) => sum + (parseFloat(p.amount) || 0), 0);
         }
     } catch (error) {
         console.error('Erro ao calcular total de parcelamentos:', error);
@@ -11399,7 +11408,8 @@ async function handleNewExpense(e) {
 async function loadExpenses() {
     try {
         // Carregar despesas sem join - mais simples e confiável
-        let expensesQuery = supabase.from('expenses')
+        let expensesQuery = supabase
+            .from('expenses')
             .select('*');
         
         // Se não for admin ou manager, filtrar apenas despesas próprias
@@ -11407,8 +11417,9 @@ async function loadExpenses() {
             expensesQuery = expensesQuery.eq('user_id', currentUser.id);
         }
         
-        const { data: expensesData, error: expensesError } = await expensesQuery
-            .order('date', { ascending: false });
+        // Alguns bancos usam expense_date (novo schema) e outros usam date (schema antigo).
+        // Para evitar erro 400 por coluna inexistente, não ordenamos no SQL e ordenamos aqui.
+        const { data: expensesData, error: expensesError } = await expensesQuery;
             
         if (expensesError) throw expensesError;
         
@@ -11423,25 +11434,39 @@ async function loadExpenses() {
             // Continuar mesmo sem categorias
         }
         
-        // Criar mapa de categorias por nome
-        const categoriesMap = {};
+        // Criar mapas de categorias por nome e por id
+        const categoriesByName = {};
+        const categoriesById = {};
         (categoriesData || []).forEach(category => {
-            categoriesMap[category.name] = category;
+            if (category?.name) categoriesByName[category.name] = category;
+            if (category?.id) categoriesById[category.id] = category;
         });
         
         // Processar despesas
         expenses = (expensesData || []).map(expense => ({
             ...expense,
-            // A categoria vem como nome (texto) na coluna 'category'
-            expense_categories: expense.category ? categoriesMap[expense.category] : null
+            // Compatibilidade:
+            // - schema novo: category_id + expense_date
+            // - schema antigo: category (nome) + date
+            date: expense.expense_date || expense.date,
+            expense_categories: expense.category_id
+                ? categoriesById[expense.category_id]
+                : (expense.category ? categoriesByName[expense.category] : null)
         }));
+
+        // Ordenar do mais recente para o mais antigo
+        expenses.sort((a, b) => {
+            const da = new Date(a.date || 0).getTime();
+            const db = new Date(b.date || 0).getTime();
+            return db - da;
+        });
         
         displayExpenses();
         updateExpensesSummary();
         
     } catch (error) {
         console.error('Erro ao carregar despesas:', error);
-        showInfoMessage('Erro ao carregar despesas: ' + error.message);
+        showInfoMessage('Erro ao carregar despesas: ' + (error?.message || JSON.stringify(error)));
     }
 }
 
@@ -11483,7 +11508,7 @@ function displayExpenses() {
                 <span class="text-white font-semibold">R$ ${expense.amount.toFixed(2).replace('.', ',')}</span>
             </td>
             <td class="px-6 py-4">
-                <span class="text-gray-300">${formatDate(expense.date)}</span>
+                <span class="text-gray-300">${formatDate(expense.expense_date || expense.date)}</span>
             </td>
             <td class="px-6 py-4">
                 <div>
@@ -19589,3 +19614,276 @@ async function initNotifications() {
 
 // Atualizar notificações periodicamente (a cada 5 minutos)
 setInterval(initNotifications, 5 * 60 * 1000);
+
+// =====================================================
+// ATENDIMENTO (WHATSAPP BOT + BAILEYS)
+// =====================================================
+let atendimentoInitialized = false;
+let atendimentoPollId = null;
+
+function waGetCompanyId() {
+    if (typeof currentCompany === 'string' && currentCompany) return currentCompany;
+    return localStorage.getItem('selectedCompany') || 'nexus';
+}
+
+function waGetBotBaseUrlFromStorage() {
+    return localStorage.getItem('waBotUrl') || '';
+}
+
+function waGetBotBaseUrl() {
+    const input = document.getElementById('botUrlInput');
+    const defaultUrl = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+        ? 'http://localhost:3333'
+        : '';
+    const raw = (input?.value || waGetBotBaseUrlFromStorage() || defaultUrl).trim();
+    const normalized = raw.replace(/\/+$/, '');
+    if (input && input.value !== normalized) input.value = normalized;
+    localStorage.setItem('waBotUrl', normalized);
+    return normalized;
+}
+
+function waIsLocalAddress(urlString) {
+    try {
+        const u = new URL(urlString);
+        return u.hostname === 'localhost' || u.hostname === '127.0.0.1';
+    } catch {
+        return false;
+    }
+}
+
+function waCanCallBot() {
+    const base = waGetBotBaseUrl();
+    if (!base) {
+        return { ok: false, reason: 'Configure a URL do bot (https) na aba Atendimento.' };
+    }
+
+    // Em produção (Vercel/https), o navegador bloqueia acesso a http://localhost por Private Network Access.
+    const isPageLocal = location.hostname === 'localhost' || location.hostname === '127.0.0.1';
+    const isLocalBot = waIsLocalAddress(base);
+    const isHttpsPage = location.protocol === 'https:';
+
+    if (!isPageLocal && isHttpsPage && isLocalBot) {
+        return {
+            ok: false,
+            reason: 'Em produção, o navegador bloqueia http://localhost. Use uma URL pública HTTPS do bot (ex: tunnel/ngrok/cloudflare).'
+        };
+    }
+
+    return { ok: true };
+}
+
+async function waRequest(path, options = {}) {
+    const can = waCanCallBot();
+    if (!can.ok) throw new Error(can.reason);
+
+    const base = waGetBotBaseUrl();
+    const url = `${base}${path}`;
+    
+    const res = await fetch(url, {
+        headers: { 'Content-Type': 'application/json', ...(options.headers || {}) },
+        ...options
+    });
+    
+    const text = await res.text();
+    let data;
+    try {
+        data = text ? JSON.parse(text) : {};
+    } catch {
+        data = { raw: text };
+    }
+    
+    if (!res.ok) {
+        const msg = data?.error || data?.message || `HTTP ${res.status}`;
+        throw new Error(msg);
+    }
+    
+    return data;
+}
+
+function waSetStatusBadge(connected) {
+    const badge = document.getElementById('waStatusText');
+    if (!badge) return;
+    
+    badge.classList.remove('status-active', 'status-overdue', 'status-pending');
+    
+    if (connected) {
+        badge.classList.add('status-active');
+        badge.textContent = 'Conectado';
+    } else {
+        badge.classList.add('status-pending');
+        badge.textContent = 'Desconectado';
+    }
+}
+
+async function waRefreshStatus() {
+    const status = await waRequest('/api/whatsapp/status', { method: 'GET' });
+    const connected = Boolean(status?.whatsapp?.connected);
+    waSetStatusBadge(connected);
+    
+    const onlineToggle = document.getElementById('waOnlineToggle');
+    if (onlineToggle) onlineToggle.checked = Boolean(status?.billing?.online);
+    
+    const templateTextarea = document.getElementById('waTemplateTextarea');
+    if (templateTextarea && !atendimentoInitialized) {
+        templateTextarea.value = status?.billing?.template || '';
+    }
+    
+    return status;
+}
+
+async function waRefreshQr() {
+    const qr = await waRequest('/api/whatsapp/qr', { method: 'GET' });
+    
+    const img = document.getElementById('waQrImg');
+    const empty = document.getElementById('waQrEmpty');
+    const updatedAt = document.getElementById('waQrUpdatedAt');
+    
+    if (updatedAt) updatedAt.textContent = qr?.qrUpdatedAt || '-';
+    
+    if (qr?.qrDataUrl) {
+        if (img) {
+            img.src = qr.qrDataUrl;
+            img.classList.remove('hidden');
+        }
+        if (empty) empty.classList.add('hidden');
+    } else {
+        if (img) {
+            img.removeAttribute('src');
+            img.classList.add('hidden');
+        }
+        if (empty) empty.classList.remove('hidden');
+    }
+    
+    return qr;
+}
+
+async function waConnect() {
+    await waRequest('/api/whatsapp/connect', { method: 'POST', body: '{}' });
+    await waRefreshStatus();
+    await waRefreshQr();
+    showNotification('WhatsApp: conectando... escaneie o QR se aparecer.', 'success');
+}
+
+async function waLogout() {
+    await waRequest('/api/whatsapp/logout', { method: 'POST', body: '{}' });
+    await waRefreshStatus();
+    await waRefreshQr();
+    showNotification('WhatsApp desconectado.', 'success');
+}
+
+async function waSetOnline(online) {
+    const payload = { online: Boolean(online), companyId: waGetCompanyId() };
+    await waRequest('/api/whatsapp/online', { method: 'POST', body: JSON.stringify(payload) });
+    await waRefreshStatus();
+    showNotification(`Atendimento ${online ? 'ativado' : 'desativado'}.`, 'success');
+}
+
+async function waSaveTemplate() {
+    const templateTextarea = document.getElementById('waTemplateTextarea');
+    const template = templateTextarea?.value || '';
+    await waRequest('/api/whatsapp/template', { method: 'POST', body: JSON.stringify({ template }) });
+    showNotification('Template salvo no bot.', 'success');
+}
+
+async function waSendTest() {
+    const to = (document.getElementById('waTestToInput')?.value || '').trim();
+    const message = (document.getElementById('waTestMessageInput')?.value || '').trim();
+    if (!to || !message) {
+        showNotification('Informe telefone e mensagem para teste.', 'warning');
+        return;
+    }
+    await waRequest('/api/whatsapp/send', { method: 'POST', body: JSON.stringify({ to, message }) });
+    showNotification('Mensagem de teste enviada (se o WhatsApp estiver conectado).', 'success');
+}
+
+function initAtendimentoSection() {
+    const botUrlInput = document.getElementById('botUrlInput');
+    if (botUrlInput && !botUrlInput.value) {
+        const defaultUrl = (location.hostname === 'localhost' || location.hostname === '127.0.0.1')
+            ? 'http://localhost:3333'
+            : '';
+        botUrlInput.value = waGetBotBaseUrlFromStorage() || defaultUrl;
+    }
+    
+    const connectBtn = document.getElementById('waConnectBtn');
+    const logoutBtn = document.getElementById('waLogoutBtn');
+    const refreshBtn = document.getElementById('waRefreshBtn');
+    const onlineToggle = document.getElementById('waOnlineToggle');
+    const saveTemplateBtn = document.getElementById('waSaveTemplateBtn');
+    const sendTestBtn = document.getElementById('waSendTestBtn');
+    
+    if (!atendimentoInitialized) {
+        connectBtn?.addEventListener('click', () => waConnect().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao conectar WhatsApp: ${err.message}`, 'error');
+        }));
+        logoutBtn?.addEventListener('click', () => waLogout().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao desconectar WhatsApp: ${err.message}`, 'error');
+        }));
+        refreshBtn?.addEventListener('click', () => waRefreshQr().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao atualizar QR: ${err.message}`, 'error');
+        }));
+        onlineToggle?.addEventListener('change', (e) => waSetOnline(e.target.checked).catch(err => {
+            console.error(err);
+            showNotification(`Erro ao alterar online: ${err.message}`, 'error');
+            // Recarregar status para refletir estado real
+            waRefreshStatus().catch(() => {});
+        }));
+        saveTemplateBtn?.addEventListener('click', () => waSaveTemplate().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao salvar template: ${err.message}`, 'error');
+        }));
+        sendTestBtn?.addEventListener('click', () => waSendTest().catch(err => {
+            console.error(err);
+            showNotification(`Erro ao enviar teste: ${err.message}`, 'error');
+        }));
+        
+        botUrlInput?.addEventListener('change', () => {
+            try { waGetBotBaseUrl(); } catch {}
+        });
+        
+        atendimentoInitialized = true;
+    }
+    
+    // Atualizar status/QR imediatamente
+    Promise.all([
+        waRefreshStatus().catch(err => console.warn('Status WhatsApp indisponível:', err)),
+        waRefreshQr().catch(err => console.warn('QR WhatsApp indisponível:', err))
+    ]).catch(() => {});
+    
+    // Poll apenas enquanto a seção estiver visível
+    if (!atendimentoPollId) {
+        atendimentoPollId = setInterval(() => {
+            const section = document.getElementById('atendimento');
+            if (!section || section.classList.contains('hidden')) return;
+
+            // Evitar spam de erro quando o bot está em localhost e o app está em https (Vercel)
+            const can = waCanCallBot();
+            if (!can.ok) {
+                waSetStatusBadge(false);
+                const qrEmpty = document.getElementById('waQrEmpty');
+                if (qrEmpty) qrEmpty.textContent = can.reason;
+                return;
+            }
+
+            waRefreshStatus().catch(() => {});
+            waRefreshQr().catch(() => {});
+        }, 5000);
+    }
+}
+
+async function waSafeGoOffline() {
+    const storedUrl = waGetBotBaseUrlFromStorage();
+    if (!storedUrl) return;
+    // Tenta desligar, mas não bloqueia logout.
+    try {
+        await waRequest('/api/whatsapp/online', {
+            method: 'POST',
+            body: JSON.stringify({ online: false, companyId: waGetCompanyId() })
+        });
+    } catch {
+        // ignore
+    }
+}

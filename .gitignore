@@ -72,3 +72,7 @@ Thumbs.db
 # Backup files
 *.bak
 *.backup
+
+# WhatsApp bot runtime data (Baileys)
+whatsapp-bot/.auth/
+whatsapp-bot/data/
