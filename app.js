@@ -19122,7 +19122,7 @@ async function generateLoanPDF(loanId) {
             doc.setFont(undefined, 'normal');
             
             for (const guarantor of clientGuarantors) {
-                checkPageBreak(30);
+                checkPageBreak(35);
                 doc.text(`Nome: ${guarantor.name || 'N/A'}`, margin, yPosition);
                 yPosition += lineHeight;
                 doc.text(`CPF: ${guarantor.cpf || 'N/A'}`, margin, yPosition);
@@ -19133,6 +19133,14 @@ async function generateLoanPDF(loanId) {
                 if (guarantor.relationship) {
                     doc.text(`Relacionamento: ${getRelationshipText(guarantor.relationship)}`, margin, yPosition);
                     yPosition += lineHeight;
+                }
+
+                if (guarantor.address) {
+                    const guarantorAddressLines = doc.splitTextToSize(`Endereco: ${guarantor.address}`, pageWidth - 2 * margin);
+                    guarantorAddressLines.forEach(line => {
+                        doc.text(line, margin, yPosition);
+                        yPosition += lineHeight;
+                    });
                 }
                 
                 yPosition += 3;
