@@ -5601,29 +5601,55 @@ async function updateDashboard() {
         'Empréstimos Processados': remainingDetails.length
     });
     
-    // Calcular total de parcelamentos
+    // Calcular total de parcelamentos (valor restante a receber)
+    // Observação: parcelamentos são independentes de empréstimos (tabela installments/ installment_payments)
     let totalInstallmentsValue = 0;
     try {
         const { data: installments, error: installmentsError } = await supabase
             .from('installments')
-            .select('amount, interest_amount, status');
+            .select('id, total_installments, installment_amount, status');
         
-        if (!installmentsError && installments) {
-            // Somar apenas parcelamentos não quitados (status != 'paid')
-            totalInstallmentsValue = installments
-                .filter(inst => inst.status !== 'paid')
-                .reduce((sum, inst) => {
-                    const amount = parseFloat(inst.amount) || 0;
-                    const interest = parseFloat(inst.interest_amount) || 0;
-                    return sum + amount + interest;
-                }, 0);
+        if (!installmentsError && Array.isArray(installments) && installments.length > 0) {
+            const activeInstallments = installments.filter(inst => inst.status === 'active');
+            const installmentIds = activeInstallments.map(inst => inst.id);
+            
+            let paymentsByInstallmentId = new Map();
+            if (installmentIds.length > 0) {
+                const { data: installmentPayments, error: installmentPaymentsError } = await supabase
+                    .from('installment_payments')
+                    .select('installment_id, paid_amount')
+                    .in('installment_id', installmentIds);
+                
+                if (!installmentPaymentsError && Array.isArray(installmentPayments)) {
+                    installmentPayments.forEach(p => {
+                        const installmentId = p.installment_id;
+                        const paidAmount = parseFloat(p.paid_amount) || 0;
+                        paymentsByInstallmentId.set(
+                            installmentId,
+                            (paymentsByInstallmentId.get(installmentId) || 0) + paidAmount
+                        );
+                    });
+                }
+            }
+            
+            totalInstallmentsValue = activeInstallments.reduce((sum, inst) => {
+                const totalInstallments = parseInt(inst.total_installments, 10) || 0;
+                const installmentAmount = parseFloat(inst.installment_amount) || 0;
+                const totalDue = totalInstallments * installmentAmount;
+                const totalPaid = paymentsByInstallmentId.get(inst.id) || 0;
+                const remaining = Math.max(totalDue - totalPaid, 0);
+                return sum + remaining;
+            }, 0);
         }
     } catch (error) {
         console.error('Erro ao calcular total de parcelamentos:', error);
     }
     
+    // Total Emprestado (Visão Geral) deve incluir os parcelamentos também
+    const totalEmprestadoComParcelamentos = totalEmprestado + totalInstallmentsValue;
+    
     // Atualizar elementos na UI
-    document.getElementById('totalLoaned').textContent = `R$ ${totalEmprestado.toFixed(2)}`;
+    document.getElementById('totalLoaned').textContent = `R$ ${totalEmprestadoComParcelamentos.toFixed(2)}`;
     document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
     document.getElementById('totalInterestRemaining').textContent = `R$ ${totalInterestRemaining.toFixed(2)}`;
     document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
