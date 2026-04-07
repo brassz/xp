@@ -5549,7 +5549,7 @@ function calculateNextDueDateKeepingOriginalDay(loanDate, currentDueDate) {
 async function updateDashboard() {
     document.getElementById('totalClients').textContent = clients.length;
     
-    // Calcular total emprestado incluindo empréstimos ativos, quitados e cancelados
+    // Capital total em empréstimos: ativos (tabela loans) + quitados (paid_loans), sem juros
     // Usar original_amount ao invés de amount, pois amount pode ser reduzido por pagamentos de capital
     let totalLoaned = loans.reduce((sum, loan) => {
         const originalAmount = parseFloat(loan.original_amount || loan.amount);
@@ -5604,6 +5604,30 @@ async function updateDashboard() {
             total: `R$ ${totalLoaned.toFixed(2)}`
         }
     });
+
+    // Capital de parcelamentos independentes (total_amount = principal informado; sem juros).
+    // Parcelamentos vinculados a empréstimo (loan_id) não entram: o capital já está no total dos empréstimos.
+    let totalInstallmentPrincipal = 0;
+    try {
+        const { data: instRows, error: instPrincipalError } = await supabase
+            .from('installments')
+            .select('total_amount, loan_id')
+            .in('status', ['active', 'completed']);
+
+        if (!instPrincipalError && Array.isArray(instRows)) {
+            totalInstallmentPrincipal = instRows.reduce((sum, row) => {
+                if (row.loan_id) {
+                    return sum;
+                }
+                return sum + (parseFloat(row.total_amount) || 0);
+            }, 0);
+        }
+    } catch (error) {
+        console.error('Erro ao somar capital de parcelamentos:', error);
+    }
+
+    // Total emprestado (visão geral) = capital de todos os empréstimos + capital dos parcelamentos independentes (sem juros)
+    const totalEmprestadoCapital = totalLoaned + totalInstallmentPrincipal;
     
     // Calcular valores restantes de todos os empréstimos em lote (com detalhes)
     const loanIds = loans.map(loan => loan.id);
@@ -5670,11 +5694,14 @@ async function updateDashboard() {
         console.error('Erro ao calcular total de parcelamentos:', error);
     }
     
-    // Total Emprestado (Visão Geral) deve incluir os parcelamentos também
-    const totalEmprestadoComParcelamentos = totalEmprestado + totalInstallmentsValue;
+    console.log('📊 TOTAL EMPRESTADO (capital, sem juros):', {
+        'Capital empréstimos (ativos+quitados)': `R$ ${totalLoaned.toFixed(2)}`,
+        'Capital parcelamentos independentes': `R$ ${totalInstallmentPrincipal.toFixed(2)}`,
+        'Total': `R$ ${totalEmprestadoCapital.toFixed(2)}`
+    });
     
     // Atualizar elementos na UI
-    document.getElementById('totalLoaned').textContent = `R$ ${totalEmprestadoComParcelamentos.toFixed(2)}`;
+    document.getElementById('totalLoaned').textContent = `R$ ${totalEmprestadoCapital.toFixed(2)}`;
     document.getElementById('totalInterest').textContent = `R$ ${totalInterest.toFixed(2)}`;
     document.getElementById('totalInterestRemaining').textContent = `R$ ${totalInterestRemaining.toFixed(2)}`;
     document.getElementById('totalRemaining').textContent = `R$ ${totalRemaining.toFixed(2)}`;
