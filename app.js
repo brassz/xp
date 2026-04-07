@@ -149,6 +149,9 @@ const COMPANIES_CONFIG = {
     }
 };
 
+// Empresas disponíveis no login (demais temporariamente desativadas — ver COMPANIES_CONFIG)
+const COMPANY_LOGIN_ENABLED = ['brunoassoni'];
+
 // Variáveis globais para configuração atual
 let currentCompany = null;
 
@@ -165,6 +168,12 @@ async function initializeCompany(companyId) {
         const error = `Empresa ${companyId} não encontrada na configuração`;
         console.error(error);
         throw new Error(error);
+    }
+
+    if (!COMPANY_LOGIN_ENABLED.includes(companyId)) {
+        const msg = 'Esta empresa está temporariamente indisponível.';
+        console.error(msg, companyId);
+        throw new Error(msg);
     }
     
     currentCompany = companyId;
@@ -415,6 +424,14 @@ async function initializeApp() {
     console.log('Empresa salva no localStorage:', savedCompany);
     
     if (savedUser && savedCompany) {
+        if (!COMPANY_LOGIN_ENABLED.includes(savedCompany)) {
+            console.warn('Sessão com empresa desativada, limpando armazenamento:', savedCompany);
+            localStorage.removeItem('nexusUser');
+            localStorage.removeItem('selectedCompany');
+            localStorage.removeItem('brunoAssoniActivated');
+            showLogin();
+            return;
+        }
         try {
             console.log('Restaurando sessão anterior...');
             // Restaurar empresa selecionada
@@ -1208,10 +1225,6 @@ async function handleLogin(e) {
     console.log('Event type:', e.type);
     console.log('Timestamp:', new Date().toISOString());
     
-    // Verificar se Franca Private está ativado
-    const francaPrivateActivated = localStorage.getItem('brunoAssoniActivated');
-    const savedCompany = localStorage.getItem('selectedCompany');
-    
     const companySelectEl = document.getElementById('companySelect');
     if (!companySelectEl) {
         console.error('✗ Elemento companySelect não encontrado');
@@ -1220,12 +1233,10 @@ async function handleLogin(e) {
     }
     console.log('✓ companySelectEl encontrado');
     
-    let companyId = companySelectEl.value;
-    
-    // Se Franca Private está ativado, usar automaticamente
-    if (francaPrivateActivated === 'true' && savedCompany === 'brunoassoni') {
-        companyId = 'brunoassoni';
-        console.log('Usando Franca Private automaticamente');
+    // Apenas FRANCA PRIVATE ativa no momento (ignora valor manipulado no DOM)
+    const companyId = 'brunoassoni';
+    if (companySelectEl.value && companySelectEl.value !== companyId) {
+        companySelectEl.value = companyId;
     }
     
     const emailEl = document.getElementById('loginEmail');
@@ -4634,6 +4645,20 @@ function showLogin() {
     if (!dashboard) {
         console.error('dashboard não encontrado no DOM!');
         return;
+    }
+
+    const companySelect = document.getElementById('companySelect');
+    if (companySelect) {
+        const companyRow = companySelect.parentElement;
+        if (companyRow) {
+            companyRow.style.display = '';
+        }
+        companySelect.setAttribute('required', 'required');
+        companySelect.value = 'brunoassoni';
+    }
+    const francaPrivateMsg = document.getElementById('francaPrivateMessage');
+    if (francaPrivateMsg) {
+        francaPrivateMsg.remove();
     }
     
     loginPage.classList.remove('hidden');
