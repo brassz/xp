@@ -4256,10 +4256,24 @@ async function handlePayment(e) {
             const totalLoanAmount = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
             const remainingAmount = await calculateLoanRemainingAmount(loanId);
             
-            let newStatus = 'partial_paid';
+            // Determinar o novo status baseado no pagamento
+            let newStatus;
             if (paymentAmount >= remainingAmount) {
                 newStatus = 'paid';
+            } else {
+                // Se não quitou totalmente, manter como ativo (não partial_paid)
+                // pois partial_paid é usado para parcelamentos
+                newStatus = 'active';
             }
+            
+            console.log('=== ATUALIZANDO STATUS SEM RECÁLCULO ===');
+            console.log('Informações do pagamento:', {
+                paymentAmount,
+                remainingAmount,
+                totalLoanAmount,
+                newStatus,
+                loanId
+            });
             
             // Preparar dados de atualização
             updateData = {
@@ -5218,6 +5232,9 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
             difference: Math.abs(paymentAmount - currentInterestAmount)
         });
         
+        // Verificar se o pagamento é apenas os juros pendentes (renovação)
+        const isInterestOnlyPayment = Math.abs(paymentAmount - currentInterestAmount) <= (currentInterestAmount * 0.01);
+        
         // LÓGICA PARA PAGAMENTO ANTECIPADO
         if (isEarlyPayment) {
             console.log('=== PROCESSANDO PAGAMENTO ANTECIPADO ===');
@@ -5322,15 +5339,22 @@ async function checkAndRecalculateLoan(loanId, paymentAmount, paymentType) {
             }
         }
         
-        // Verificar se o pagamento é apenas os juros pendentes (renovação)
-        const isInterestOnlyPayment = Math.abs(paymentAmount - currentInterestAmount) <= (currentInterestAmount * 0.01);
-        
+        // LÓGICA PARA PAGAMENTO NO VENCIMENTO OU APÓS VENCIMENTO
         if (isInterestOnlyPayment) {
             // PAGAMENTO APENAS DE JUROS: Capital permanece o mesmo
             // Próximo mês: mesmo capital + novos juros
-            // Não há recálculo, apenas renovação da data
+            // Renovação da data de vencimento para +30 dias
             const currentDueDate = parseLocalDate(loan.due_date);
             const newDueDate = new Date(currentDueDate.getFullYear(), currentDueDate.getMonth() + 1, currentDueDate.getDate());
+            
+            console.log('=== PROCESSANDO RENOVAÇÃO DE EMPRÉSTIMO ===');
+            console.log('Pagamento de juros no vencimento/após vencimento:', {
+                paymentAmount,
+                currentCapital,
+                currentInterestAmount,
+                currentDueDate: loan.due_date,
+                newDueDate: newDueDate.toISOString().split('T')[0]
+            });
             
             return {
                 shouldRecalculate: true,
