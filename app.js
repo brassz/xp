@@ -2858,9 +2858,12 @@ async function renderLoansTable() {
             const remainingAmount = remainingAmounts[loanIndex] || 0;
             const status = getLoanStatus(loan.due_date, loan.status);
 
-            // Destacar empréstimos criados pelo usuário didu@nexus.com (nome do cliente em laranja)
-            const isDiduLoan = loan.created_by_email === 'didu@nexus.com' || loan.created_by_name === 'didu@nexus.com';
-            const clientNameClass = isDiduLoan ? 'text-orange-400' : 'text-white';
+            // Mogiana: destacar em verde os empréstimos marcados como DIDU.
+            // Outras empresas mantêm o destaque legado em laranja por criador.
+            const isDiduLoanMarked = loan.is_didu === true || loan.is_didu === 'true';
+            const isLegacyDiduCreatorLoan = currentCompany !== 'mogiana' &&
+                (loan.created_by_email === 'didu@nexus.com' || loan.created_by_name === 'didu@nexus.com');
+            const clientNameClass = isDiduLoanMarked ? 'text-green-400' : (isLegacyDiduCreatorLoan ? 'text-orange-400' : 'text-white');
             
             // Determinar a classe CSS para a data de vencimento (temporariamente sem destaque amarelo)
             const dueDateClass = 'text-gray-300';
@@ -3548,6 +3551,8 @@ async function handleNewLoan(e) {
     }
     
     const loanAmount = parseFloat(document.getElementById('loanAmount').value);
+    const isMogianaCompany = currentCompany === 'mogiana';
+    const isDiduLoan = isMogianaCompany && document.getElementById('loanIsDidu')?.checked === true;
     
     const formData = {
         client_id: document.getElementById('loanClient').value,
@@ -3561,6 +3566,10 @@ async function handleNewLoan(e) {
         created_by: currentUser.id,
         created_at: new Date().toISOString()
     };
+
+    if (isMogianaCompany) {
+        formData.is_didu = isDiduLoan;
+    }
     
     try {
         console.log('🔄 Iniciando criação de empréstimo...', formData);
@@ -4552,6 +4561,7 @@ function showModal(modal) {
     if (modal === newLoanModal) {
         populateClientSelect();
         setDefaultDates();
+        updateLoanDiduVisibility();
         // Configurar busca de clientes
         setupClientSearch(
             'loanClientSearch',
@@ -4711,6 +4721,9 @@ function showDashboard() {
         
         console.log('Indicadores de empresa atualizados:', companyName);
     }
+
+    // Atualizar visibilidade da opção DIDU no modal de empréstimo
+    updateLoanDiduVisibility();
     
     // Configurar timeout para usuário logado
     setupActivityListeners();
@@ -4753,6 +4766,20 @@ function populateClientSelect() {
         option.textContent = `${client.name} - ${client.cpf}`;
         select.appendChild(option);
     });
+}
+
+function updateLoanDiduVisibility() {
+    const diduContainer = document.getElementById('loanDiduContainer');
+    const diduCheckbox = document.getElementById('loanIsDidu');
+
+    if (!diduContainer || !diduCheckbox) return;
+
+    const shouldShowDiduOption = currentCompany === 'mogiana';
+    diduContainer.classList.toggle('hidden', !shouldShowDiduOption);
+
+    if (!shouldShowDiduOption) {
+        diduCheckbox.checked = false;
+    }
 }
 
 function setDefaultDates() {
