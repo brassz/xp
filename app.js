@@ -7036,6 +7036,7 @@ async function handleGuarantorForm(e) {
             showSuccessMessage(`Avalista "${formData.name}" atualizado com sucesso!`);
         } else {
             // Criar novo avalista
+            formData.created_by = currentUser.id;
             formData.created_at = new Date().toISOString();
             
             const { data, error } = await supabase
