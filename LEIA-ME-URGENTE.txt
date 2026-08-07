@@ -1,0 +1,97 @@
+╔════════════════════════════════════════════════════════════════╗
+║                                                                ║
+║     🔥 SOLUÇÃO RÁPIDA - ERRO DE RENOVAÇÃO DE EMPRÉSTIMO 🔥    ║
+║                                                                ║
+╚════════════════════════════════════════════════════════════════╝
+
+❌ ERRO QUE VOCÊ ESTÁ TENDO:
+   "new row for relation "payments" violates check constraint 
+    "payments_payment_type_check"
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✅ SOLUÇÃO EM 3 PASSOS SIMPLES (2 MINUTOS):
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+1️⃣  ABRA O ARQUIVO:
+    
+    📂 SOLUCAO-VISUAL-PASSO-A-PASSO.html
+    
+    (Dê um duplo clique nele)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+2️⃣  SIGA AS INSTRUÇÕES VISUAIS
+    
+    O arquivo tem um guia passo a passo interativo que vai
+    te guiar por todo o processo.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+3️⃣  PRONTO!
+    
+    Após seguir os passos, o erro vai sumir. ✅
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚡ OU SE PREFERIR A SOLUÇÃO SUPER RÁPIDA:
+
+1. Acesse o Supabase da sua empresa
+2. Vá em SQL Editor → New Query
+3. Cole este comando:
+
+   ALTER TABLE payments DROP CONSTRAINT IF EXISTS payments_payment_type_check;
+
+4. Clique em RUN
+5. Limpe o cache do navegador (Ctrl+Shift+Del)
+6. Feche e abra o navegador novamente
+7. Tente renovar novamente
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+📌 LINKS DIRETOS PARA O SUPABASE:
+
+🏆 NEXUS:
+   https://supabase.com/dashboard/project/mhtxyxizfnxupwmilith/sql/new
+
+🌊 LITORAL CRED:
+   https://supabase.com/dashboard/project/dtifsfzmnjnllzzlndxv/sql/new
+
+☕ MOGIANA CRED:
+   https://supabase.com/dashboard/project/eemfnpefgojllvzzaimu/sql/new
+
+🌾 ERECHIM:
+   https://supabase.com/dashboard/project/adjrvtupfshdhwjvhmgj/sql/new
+
+👑 IMPERATRIZ CRED:
+   https://supabase.com/dashboard/project/eppzphzwwpvpoocospxy/sql/new
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+⚠️  IMPORTANTE: Execute o comando no Supabase da EMPRESA CERTA!
+    (A mesma empresa que você está usando no sistema quando o erro aparece)
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+💡 TEMPO ESTIMADO: 2 minutos por empresa
+💡 É SEGURO: Não apaga nenhum dado
+💡 PODE REPETIR: Se executar múltiplas vezes, não tem problema
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+❓ SE AINDA DER ERRO DEPOIS DE APLICAR:
+
+1. Você aplicou no Supabase da empresa CORRETA?
+2. Você limpou o cache do navegador?
+3. Você fechou E reabriu o navegador?
+4. Você fez logout/login no sistema?
+
+Se fez tudo isso e ainda dá erro, veja o arquivo:
+📂 TROUBLESHOOTING.md
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+✨ COMECE AGORA: Abra o arquivo SOLUCAO-VISUAL-PASSO-A-PASSO.html
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
