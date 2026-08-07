@@ -1118,6 +1118,9 @@ function setupEventListeners() {
     
     // Validação do valor de pagamento - REMOVIDO: Agora usa apenas RENOVAR 30+
     // document.getElementById('paymentAmount').addEventListener('input', validatePaymentAmount);
+
+    // Cobranças (bot WhatsApp)
+    setupCobrancasEventListeners();
     
     // Marcar como configurado
     eventListenersSetup = true;
@@ -1762,6 +1765,14 @@ function handleNavigation(e) {
             if (target === 'overdueLoans') {
                 console.log('Seção de empréstimos vencidos ativada, carregando dados...');
                 loadOverdueLoans();
+            }
+
+            // Inicializar seção de cobranças (bot WhatsApp)
+            if (target === 'cobrancas') {
+                console.log('Seção de cobranças ativada, inicializando...');
+                // Garantir que parcelamentos estejam carregados (loadData() não carrega installments)
+                loadInstallments();
+                initCobrancasSection();
             }
             
             // Inicializar seção de comissões quando for exibida
@@ -13373,7 +13384,7 @@ async function loadInstallments() {
             .from('installments')
             .select(`
                 *,
-                clients (name),
+                clients (name, phone),
                 loans (amount, due_date),
                 installment_payments (status, due_date, paid_date)
             `)
@@ -19675,3 +19686,817 @@ async function initNotifications() {
 
 // Atualizar notificações periodicamente (a cada 5 minutos)
 setInterval(initNotifications, 5 * 60 * 1000);
+
+// ========================================
+// COBRANÇAS (BOT WHATSAPP - WPPCONNECT)
+// ========================================
+
+const COBRANCAS_DELAY_MS = 10 * 60 * 1000; // 10 minutos
+const COBRANCAS_TEMPLATE_STORAGE_KEY = 'cobrancasMessageTemplate';
+const WPP_STORAGE_KEY = 'wppconnectConfig';
+
+let cobrancasListenersSetup = false;
+let cobrancasInitialized = false;
+
+const cobrancasState = {
+    rows: [],
+    selectedClientIds: new Set(),
+    isSending: false,
+    queue: [],
+    currentIndex: 0,
+    timeoutId: null,
+    resultsByClientId: new Map() // clientId -> { ok: boolean, error?: string, sentAt?: string }
+};
+
+function setupCobrancasEventListeners() {
+    // Só configurar se os elementos existirem nesta build
+    const refreshBtn = document.getElementById('cobrancasRefreshBtn');
+    if (!refreshBtn) return;
+    if (cobrancasListenersSetup) return;
+
+    const selectAllBtn = document.getElementById('cobrancasSelectAllBtn');
+    const clearSelectionBtn = document.getElementById('cobrancasClearSelectionBtn');
+    const startBtn = document.getElementById('cobrancasStartBtn');
+    const stopBtn = document.getElementById('cobrancasStopBtn');
+    const filterEl = document.getElementById('cobrancasFilter');
+    const searchEl = document.getElementById('cobrancasSearch');
+    const includeLoansEl = document.getElementById('cobrancasIncludeLoans');
+    const includeInstallmentsEl = document.getElementById('cobrancasIncludeInstallments');
+    const templateEl = document.getElementById('cobrancasMessageTemplate');
+
+    const wppConnectBtn = document.getElementById('wppConnectBtn');
+    const wppRefreshQrBtn = document.getElementById('wppRefreshQrBtn');
+    const wppCheckStatusBtn = document.getElementById('wppCheckStatusBtn');
+
+    refreshBtn.addEventListener('click', () => refreshCobrancasList());
+    selectAllBtn?.addEventListener('click', () => cobrancasSelectAll());
+    clearSelectionBtn?.addEventListener('click', () => cobrancasClearSelection());
+    startBtn?.addEventListener('click', () => cobrancasStartSending());
+    stopBtn?.addEventListener('click', () => cobrancasStopSending());
+
+    filterEl?.addEventListener('change', () => refreshCobrancasList());
+    includeLoansEl?.addEventListener('change', () => refreshCobrancasList());
+    includeInstallmentsEl?.addEventListener('change', () => refreshCobrancasList());
+
+    if (searchEl) {
+        let t;
+        searchEl.addEventListener('input', () => {
+            clearTimeout(t);
+            t = setTimeout(() => refreshCobrancasList(), 200);
+        });
+    }
+
+    if (templateEl) {
+        templateEl.addEventListener('input', () => {
+            localStorage.setItem(COBRANCAS_TEMPLATE_STORAGE_KEY, templateEl.value || '');
+        });
+    }
+
+    wppConnectBtn?.addEventListener('click', async () => {
+        try {
+            saveWppConfigFromUI();
+            await wppTryStartSession();
+            await wppRefreshQr();
+            await wppCheckStatus();
+        } catch (e) {
+            console.error('Erro ao conectar WPPConnect:', e);
+            showNotification(`Erro WPPConnect: ${e?.message || 'falha ao conectar'}`, 'error');
+            // Evitar "promise rejeitada não tratada"
+        }
+    });
+    wppRefreshQrBtn?.addEventListener('click', async () => {
+        try {
+            saveWppConfigFromUI();
+            await wppRefreshQr();
+        } catch (e) {
+            console.error('Erro ao atualizar QR WPPConnect:', e);
+            showNotification(`Erro ao atualizar QR: ${e?.message || 'falha'}`, 'error');
+        }
+    });
+    wppCheckStatusBtn?.addEventListener('click', async () => {
+        try {
+            saveWppConfigFromUI();
+            await wppCheckStatus();
+        } catch (e) {
+            console.error('Erro ao checar status WPPConnect:', e);
+            showNotification(`Erro ao checar status: ${e?.message || 'falha'}`, 'error');
+        }
+    });
+
+    cobrancasListenersSetup = true;
+}
+
+function initCobrancasSection() {
+    if (cobrancasInitialized) {
+        // Mesmo inicializada, ao abrir a aba vale atualizar a lista (dados podem ter mudado)
+        refreshCobrancasList();
+        return;
+    }
+
+    loadWppConfigToUI();
+    ensureDefaultCobrancasTemplate();
+    refreshCobrancasList();
+    cobrancasInitialized = true;
+}
+
+function ensureDefaultCobrancasTemplate() {
+    const templateEl = document.getElementById('cobrancasMessageTemplate');
+    if (!templateEl) return;
+
+    const saved = localStorage.getItem(COBRANCAS_TEMPLATE_STORAGE_KEY);
+    if (saved && saved.trim()) {
+        templateEl.value = saved;
+        return;
+    }
+
+    const defaultTemplate = [
+        'Olá {NOME}!',
+        '',
+        'Identificamos os seguintes vencimentos:',
+        '{ITENS}',
+        '',
+        'Por favor, regularize o quanto antes.',
+        'Após o vencimento, pode haver multa diária.',
+        ''
+    ].join('\n');
+
+    templateEl.value = defaultTemplate;
+    localStorage.setItem(COBRANCAS_TEMPLATE_STORAGE_KEY, defaultTemplate);
+}
+
+function getNormalizedToday() {
+    const d = new Date();
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function normalizeDateInput(dateStr) {
+    if (!dateStr) return null;
+    const d = new Date(dateStr);
+    if (isNaN(d.getTime())) return null;
+    d.setHours(0, 0, 0, 0);
+    return d;
+}
+
+function cleanPhoneToBR(phone) {
+    if (!phone) return '';
+    const digits = String(phone).replace(/\D/g, '');
+    if (!digits) return '';
+    return digits.startsWith('55') ? digits : '55' + digits;
+}
+
+function refreshCobrancasList() {
+    const tbody = document.getElementById('cobrancasTableBody');
+    if (!tbody) return;
+
+    const filter = document.getElementById('cobrancasFilter')?.value || 'both';
+    const includeLoans = !!document.getElementById('cobrancasIncludeLoans')?.checked;
+    const includeInstallments = !!document.getElementById('cobrancasIncludeInstallments')?.checked;
+    const search = (document.getElementById('cobrancasSearch')?.value || '').trim().toLowerCase();
+
+    const rows = buildCobrancasRows({ filter, includeLoans, includeInstallments, search });
+    cobrancasState.rows = rows;
+
+    // Remover seleções de clientes que não estão mais visíveis
+    const visibleIds = new Set(rows.map(r => r.clientId));
+    cobrancasState.selectedClientIds.forEach(id => {
+        if (!visibleIds.has(id)) cobrancasState.selectedClientIds.delete(id);
+    });
+
+    renderCobrancasTable();
+    updateCobrancasSelectedCount();
+}
+
+function buildCobrancasRows({ filter, includeLoans, includeInstallments, search }) {
+    const today = getNormalizedToday();
+    const wantsOverdue = filter === 'overdue' || filter === 'both';
+    const wantsDueToday = filter === 'due_today' || filter === 'both';
+
+    /** @type {Map<string, any>} */
+    const byClientId = new Map();
+
+    const addItem = (clientId, clientName, clientPhone, item) => {
+        if (!clientId) return;
+        const current = byClientId.get(clientId) || {
+            clientId,
+            clientName: clientName || 'Cliente',
+            clientPhone: clientPhone || '',
+            items: [],
+        };
+
+        // Preferir preencher nome/telefone se ainda estiver vazio
+        if (!current.clientName && clientName) current.clientName = clientName;
+        if (!current.clientPhone && clientPhone) current.clientPhone = clientPhone;
+
+        current.items.push(item);
+        byClientId.set(clientId, current);
+    };
+
+    if (includeLoans && Array.isArray(loans) && loans.length > 0) {
+        for (const loan of loans) {
+            if (!loan?.due_date) continue;
+
+            const computed = typeof getLoanStatus === 'function'
+                ? getLoanStatus(loan.due_date, loan.status)
+                : (loan.status || '');
+
+            if (computed !== 'active' && computed !== 'overdue') continue;
+
+            const due = normalizeDateInput(loan.due_date);
+            if (!due) continue;
+
+            const isOverdue = due.getTime() < today.getTime();
+            const isDueToday = due.getTime() === today.getTime();
+
+            if ((isOverdue && !wantsOverdue) || (isDueToday && !wantsDueToday)) continue;
+            if (!isOverdue && !isDueToday) continue;
+
+            const clientName = loan.clients?.name || '';
+            const clientPhone = loan.clients?.phone || '';
+            addItem(loan.client_id, clientName, clientPhone, {
+                type: 'loan',
+                refId: loan.id,
+                status: isOverdue ? 'overdue' : 'due_today',
+                dueDate: loan.due_date,
+                amount: parseFloat(loan.amount) || 0
+            });
+        }
+    }
+
+    if (includeInstallments && Array.isArray(installments) && installments.length > 0) {
+        for (const inst of installments) {
+            const payments = Array.isArray(inst.installment_payments) ? inst.installment_payments : [];
+            const pending = payments.filter(p => p.status === 'pending' && p.due_date);
+            if (pending.length === 0) continue;
+
+            pending.sort((a, b) => new Date(a.due_date) - new Date(b.due_date));
+            const next = pending[0];
+
+            const due = normalizeDateInput(next.due_date);
+            if (!due) continue;
+
+            const isOverdue = due.getTime() < today.getTime();
+            const isDueToday = due.getTime() === today.getTime();
+            if ((isOverdue && !wantsOverdue) || (isDueToday && !wantsDueToday)) continue;
+            if (!isOverdue && !isDueToday) continue;
+
+            addItem(inst.client_id, inst.clients?.name || '', inst.clients?.phone || '', {
+                type: 'installment',
+                refId: inst.id,
+                status: isOverdue ? 'overdue' : 'due_today',
+                dueDate: next.due_date,
+                amount: parseFloat(next.amount || inst.installment_amount) || 0
+            });
+        }
+    }
+
+    let rows = Array.from(byClientId.values()).map(group => {
+        const earliestDue = group.items
+            .map(i => normalizeDateInput(i.dueDate))
+            .filter(Boolean)
+            .sort((a, b) => a - b)[0] || null;
+
+        const hasOverdue = group.items.some(i => i.status === 'overdue');
+        const hasDueToday = group.items.some(i => i.status === 'due_today');
+
+        let statusLabel = '—';
+        let statusClass = 'bg-gray-700 text-gray-200';
+        if (hasOverdue) {
+            statusLabel = 'Vencido';
+            statusClass = 'bg-red-900 text-red-300';
+        } else if (hasDueToday) {
+            statusLabel = 'Vence hoje';
+            statusClass = 'bg-yellow-900 text-yellow-300';
+        }
+
+        const loanCount = group.items.filter(i => i.type === 'loan').length;
+        const instCount = group.items.filter(i => i.type === 'installment').length;
+        const itemsLabelParts = [];
+        if (loanCount) itemsLabelParts.push(`${loanCount} empréstimo(s)`);
+        if (instCount) itemsLabelParts.push(`${instCount} parcelamento(s)`);
+
+        return {
+            clientId: group.clientId,
+            clientName: group.clientName,
+            clientPhone: group.clientPhone,
+            earliestDueDate: earliestDue ? earliestDue.toISOString() : null,
+            itemsLabel: itemsLabelParts.join(' • ') || `${group.items.length} item(ns)`,
+            statusLabel,
+            statusClass,
+            items: group.items
+        };
+    });
+
+    if (search) {
+        rows = rows.filter(r => {
+            const name = (r.clientName || '').toLowerCase();
+            const phone = (r.clientPhone || '').toLowerCase();
+            return name.includes(search) || phone.includes(search);
+        });
+    }
+
+    // Ordenação: vencidos primeiro, depois vence hoje, depois data
+    rows.sort((a, b) => {
+        const aOver = a.items.some(i => i.status === 'overdue') ? 1 : 0;
+        const bOver = b.items.some(i => i.status === 'overdue') ? 1 : 0;
+        if (aOver !== bOver) return bOver - aOver;
+
+        const aDue = a.items.some(i => i.status === 'due_today') ? 1 : 0;
+        const bDue = b.items.some(i => i.status === 'due_today') ? 1 : 0;
+        if (aDue !== bDue) return bDue - aDue;
+
+        const aDate = a.earliestDueDate ? new Date(a.earliestDueDate) : new Date(0);
+        const bDate = b.earliestDueDate ? new Date(b.earliestDueDate) : new Date(0);
+        return aDate - bDate;
+    });
+
+    return rows;
+}
+
+function renderCobrancasTable() {
+    const tbody = document.getElementById('cobrancasTableBody');
+    if (!tbody) return;
+
+    if (!cobrancasState.rows || cobrancasState.rows.length === 0) {
+        tbody.innerHTML = `
+            <tr>
+                <td colspan="6" class="px-6 py-8 text-center text-gray-400">
+                    Nenhum cliente encontrado com os filtros selecionados.
+                </td>
+            </tr>
+        `;
+        return;
+    }
+
+    tbody.innerHTML = cobrancasState.rows.map(row => {
+        const cleanPhone = cleanPhoneToBR(row.clientPhone);
+        const canSend = !!cleanPhone;
+
+        const checked = cobrancasState.selectedClientIds.has(row.clientId);
+        const checkboxHtml = `
+            <input
+                type="checkbox"
+                class="cobrancas-checkbox rounded"
+                data-client-id="${row.clientId}"
+                ${checked ? 'checked' : ''}
+                ${canSend ? '' : 'disabled'}
+                title="${canSend ? 'Selecionar' : 'Cliente sem telefone cadastrado'}"
+            >
+        `;
+
+        const dueText = row.earliestDueDate ? formatDate(row.earliestDueDate) : '-';
+        const resultInfo = cobrancasState.resultsByClientId.get(row.clientId);
+        const resultText = resultInfo
+            ? (resultInfo.ok ? `✅ Enviado ${resultInfo.sentAt ? '(' + resultInfo.sentAt + ')' : ''}` : `❌ Erro: ${resultInfo.error || 'falha'}`)
+            : '';
+
+        return `
+            <tr class="table-row hover:bg-gray-700 transition-colors">
+                <td class="px-6 py-4 text-white">${checkboxHtml}</td>
+                <td class="px-6 py-4 text-white">
+                    <div class="font-medium">${row.clientName}</div>
+                    ${resultText ? `<div class="text-xs text-gray-400 mt-1">${resultText}</div>` : ''}
+                </td>
+                <td class="px-6 py-4 text-gray-300">${row.clientPhone || '-'}</td>
+                <td class="px-6 py-4 text-gray-300">${row.itemsLabel}</td>
+                <td class="px-6 py-4 text-gray-300">${dueText}</td>
+                <td class="px-6 py-4">
+                    <span class="px-2 py-1 text-xs font-medium rounded-full ${row.statusClass}">${row.statusLabel}</span>
+                </td>
+            </tr>
+        `;
+    }).join('');
+
+    // Re-registrar listeners dos checkboxes
+    tbody.querySelectorAll('.cobrancas-checkbox').forEach(cb => {
+        cb.addEventListener('change', (e) => {
+            const id = e.currentTarget.getAttribute('data-client-id');
+            if (!id) return;
+            if (e.currentTarget.checked) {
+                cobrancasState.selectedClientIds.add(id);
+            } else {
+                cobrancasState.selectedClientIds.delete(id);
+            }
+            updateCobrancasSelectedCount();
+        });
+    });
+}
+
+function updateCobrancasSelectedCount() {
+    const el = document.getElementById('cobrancasCount');
+    if (el) el.textContent = `${cobrancasState.selectedClientIds.size} selecionado(s)`;
+}
+
+function cobrancasSelectAll() {
+    for (const row of cobrancasState.rows) {
+        const cleanPhone = cleanPhoneToBR(row.clientPhone);
+        if (cleanPhone) cobrancasState.selectedClientIds.add(row.clientId);
+    }
+    renderCobrancasTable();
+    updateCobrancasSelectedCount();
+}
+
+function cobrancasClearSelection() {
+    cobrancasState.selectedClientIds.clear();
+    renderCobrancasTable();
+    updateCobrancasSelectedCount();
+}
+
+function formatCobrancasItemsForClient(row) {
+    // Itens agrupados por cliente
+    const lines = [];
+    for (const item of row.items) {
+        const due = item.dueDate ? formatDate(item.dueDate) : '-';
+        const amount = (parseFloat(item.amount) || 0).toFixed(2).replace('.', ',');
+        const label = item.type === 'loan' ? 'Empréstimo' : 'Parcelamento';
+        const status = item.status === 'overdue' ? 'VENCIDO' : 'VENCE HOJE';
+        lines.push(`- ${label}: R$ ${amount} • Venc.: ${due} • ${status}`);
+    }
+    return lines.join('\n');
+}
+
+async function cobrancasStartSending() {
+    if (cobrancasState.isSending) return;
+
+    const selectedRows = cobrancasState.rows.filter(r => cobrancasState.selectedClientIds.has(r.clientId));
+    if (selectedRows.length === 0) {
+        showNotification('Selecione pelo menos 1 cliente para enviar.', 'warning');
+        return;
+    }
+
+    const cfg = getWppConfigFromUI();
+    saveWppConfig(cfg);
+
+    // Tentar checar status antes de enviar
+    try {
+        await wppCheckStatus();
+    } catch (e) {
+        // Segue mesmo assim: alguns servidores bloqueiam status sem token
+        console.warn('Falha ao checar status WPPConnect:', e);
+    }
+
+    const template = (document.getElementById('cobrancasMessageTemplate')?.value || '').trim();
+    if (!template) {
+        showNotification('Defina um template de mensagem antes de enviar.', 'warning');
+        return;
+    }
+
+    // Montar fila (1 mensagem por cliente)
+    cobrancasState.queue = selectedRows.map(row => {
+        const phone = cleanPhoneToBR(row.clientPhone);
+        const itens = formatCobrancasItemsForClient(row);
+        const msg = template
+            .replaceAll('{NOME}', row.clientName || '')
+            .replaceAll('{ITENS}', itens);
+        return { clientId: row.clientId, clientName: row.clientName, phone, message: msg };
+    }).filter(q => !!q.phone);
+
+    if (cobrancasState.queue.length === 0) {
+        showNotification('Nenhum cliente selecionado possui telefone válido.', 'warning');
+        return;
+    }
+
+    cobrancasState.isSending = true;
+    cobrancasState.currentIndex = 0;
+    cobrancasState.resultsByClientId.clear();
+    cobrancasUpdateProgress(`Iniciando envio (1/${cobrancasState.queue.length})...`);
+
+    await cobrancasSendNext();
+}
+
+function cobrancasStopSending() {
+    if (cobrancasState.timeoutId) {
+        clearTimeout(cobrancasState.timeoutId);
+        cobrancasState.timeoutId = null;
+    }
+    cobrancasState.isSending = false;
+    cobrancasUpdateProgress('Fila parada.');
+}
+
+function cobrancasUpdateProgress(text) {
+    const el = document.getElementById('cobrancasProgress');
+    if (el) el.textContent = text;
+}
+
+async function cobrancasSendNext() {
+    if (!cobrancasState.isSending) return;
+
+    const total = cobrancasState.queue.length;
+    if (cobrancasState.currentIndex >= total) {
+        cobrancasState.isSending = false;
+        cobrancasUpdateProgress(`Finalizado. Enviadas ${total} mensagem(ns).`);
+        renderCobrancasTable();
+        return;
+    }
+
+    const idx = cobrancasState.currentIndex;
+    const job = cobrancasState.queue[idx];
+
+    cobrancasUpdateProgress(`Enviando ${idx + 1}/${total} para ${job.clientName}...`);
+
+    try {
+        await wppSendMessage(job.phone, job.message);
+        cobrancasState.resultsByClientId.set(job.clientId, {
+            ok: true,
+            sentAt: new Date().toLocaleString()
+        });
+    } catch (error) {
+        console.error('Erro ao enviar cobrança via WPPConnect:', error);
+        cobrancasState.resultsByClientId.set(job.clientId, {
+            ok: false,
+            error: error?.message || 'Falha ao enviar'
+        });
+    }
+
+    renderCobrancasTable();
+
+    cobrancasState.currentIndex += 1;
+    if (cobrancasState.currentIndex >= total) {
+        cobrancasState.isSending = false;
+        cobrancasUpdateProgress(`Finalizado. Enviadas ${total} mensagem(ns).`);
+        return;
+    }
+
+    const nextIdx = cobrancasState.currentIndex + 1;
+    cobrancasUpdateProgress(`Aguardando 10 minutos... Próxima: ${nextIdx}/${total}.`);
+
+    cobrancasState.timeoutId = setTimeout(() => {
+        cobrancasSendNext();
+    }, COBRANCAS_DELAY_MS);
+}
+
+// ------------------------
+// WPPConnect helper
+// ------------------------
+
+function getWppConfigFromUI() {
+    const baseUrl = (document.getElementById('wppBaseUrl')?.value || '').trim();
+    const session = (document.getElementById('wppSession')?.value || '').trim();
+    const token = (document.getElementById('wppToken')?.value || '').trim();
+    return { baseUrl, session, token };
+}
+
+function saveWppConfigFromUI() {
+    const cfg = getWppConfigFromUI();
+    saveWppConfig(cfg);
+    return cfg;
+}
+
+function saveWppConfig(cfg) {
+    localStorage.setItem(WPP_STORAGE_KEY, JSON.stringify(cfg || {}));
+}
+
+function loadWppConfigToUI() {
+    const cfg = loadWppConfig();
+    const baseUrlEl = document.getElementById('wppBaseUrl');
+    const sessionEl = document.getElementById('wppSession');
+    const tokenEl = document.getElementById('wppToken');
+
+    // Default para VPS (pode ser sobrescrito no UI/localStorage)
+    if (baseUrlEl && !baseUrlEl.value) baseUrlEl.value = cfg.baseUrl || 'http://212.85.19.210:21465';
+    if (sessionEl && !sessionEl.value) sessionEl.value = cfg.session || 'default';
+    if (tokenEl && !tokenEl.value) tokenEl.value = cfg.token || '';
+}
+
+function loadWppConfig() {
+    try {
+        const raw = localStorage.getItem(WPP_STORAGE_KEY);
+        const parsed = raw ? JSON.parse(raw) : {};
+        return {
+            baseUrl: parsed.baseUrl || '',
+            session: parsed.session || '',
+            token: parsed.token || ''
+        };
+    } catch {
+        return { baseUrl: '', session: '', token: '' };
+    }
+}
+
+function normalizeBaseUrl(baseUrl) {
+    return (baseUrl || '').replace(/\/+$/, '');
+}
+
+function setWppStatusBadge(stateText, variant = 'idle') {
+    const badge = document.getElementById('wppStatusBadge');
+    if (!badge) return;
+
+    badge.textContent = stateText || '—';
+    badge.className = 'px-2 py-1 text-xs rounded-full';
+
+    if (variant === 'connected') {
+        badge.className += ' bg-green-900 text-green-300';
+    } else if (variant === 'warning') {
+        badge.className += ' bg-yellow-900 text-yellow-300';
+    } else if (variant === 'error') {
+        badge.className += ' bg-red-900 text-red-300';
+    } else {
+        badge.className += ' bg-gray-700 text-gray-200';
+    }
+}
+
+async function wppFetchJson(path, options = {}) {
+    const cfg = getWppConfigFromUI();
+    const baseUrl = normalizeBaseUrl(cfg.baseUrl);
+    const session = cfg.session;
+
+    if (!baseUrl || !session) {
+        throw new Error('Configure Base URL e Sessão do WPPConnect.');
+    }
+
+    const url = `${baseUrl}${path.replace('{session}', encodeURIComponent(session))}`;
+    const headers = {
+        ...(options.headers || {}),
+    };
+
+    if (!headers['Content-Type'] && options.body) {
+        headers['Content-Type'] = 'application/json';
+    }
+
+    if (cfg.token) {
+        // Compatível com servidores que usam Bearer
+        headers['Authorization'] = cfg.token.startsWith('Bearer ') ? cfg.token : `Bearer ${cfg.token}`;
+        // Alguns setups aceitam "token" também
+        headers['token'] = cfg.token;
+    }
+
+    const res = await fetch(url, { ...options, headers });
+    const contentType = res.headers.get('content-type') || '';
+    const text = await res.text();
+
+    if (!res.ok) {
+        throw new Error(`WPPConnect HTTP ${res.status}: ${text || res.statusText}`);
+    }
+
+    if (contentType.includes('application/json')) {
+        try {
+            return JSON.parse(text);
+        } catch {
+            return text;
+        }
+    }
+
+    // Alguns endpoints retornam texto/base64
+    return text;
+}
+
+async function wppTryStartSession() {
+    // Alguns servidores exigem start da sessão antes do QR
+    const candidates = [
+        '/api/{session}/start-session',
+        '/api/{session}/start'
+    ];
+
+    for (const path of candidates) {
+        try {
+            await wppFetchJson(path, { method: 'POST' });
+            return;
+        } catch (e) {
+            // Ignorar e tentar o próximo
+            console.warn('Falha ao iniciar sessão WPPConnect em', path, e?.message || e);
+        }
+    }
+}
+
+async function wppCheckStatus() {
+    setWppStatusBadge('Checando...', 'idle');
+    const candidates = [
+        // Rotas oficiais do wppconnect-server (conforme Swagger)
+        '/api/{session}/status-session',
+        '/api/{session}/check-connection-session',
+        // Fallbacks (variantes)
+        '/api/{session}/status'
+    ];
+
+    let data = null;
+    for (const path of candidates) {
+        try {
+            data = await wppFetchJson(path, { method: 'GET' });
+            break;
+        } catch (e) {
+            console.warn('Falha ao checar status WPPConnect em', path, e?.message || e);
+        }
+    }
+
+    if (!data) {
+        setWppStatusBadge('Erro no status', 'error');
+        // Não lançar erro aqui para evitar "Uncaught (in promise)" em UI.
+        // Quem chama pode tratar/avisar; aqui retornamos null.
+        return null;
+    }
+
+    const statusStr = typeof data === 'string'
+        ? data
+        : (data.status || data.state || data.message || JSON.stringify(data));
+
+    const normalized = String(statusStr).toLowerCase();
+    if (normalized.includes('connected') || normalized.includes('islogged') || normalized.includes('qrreadsuccess')) {
+        setWppStatusBadge('Conectado', 'connected');
+    } else if (normalized.includes('qr') || normalized.includes('scan')) {
+        setWppStatusBadge('Aguardando QR', 'warning');
+    } else {
+        setWppStatusBadge(statusStr, 'idle');
+    }
+
+    return data;
+}
+
+function wppShowQr(srcOrText) {
+    const img = document.getElementById('wppQrImg');
+    const text = document.getElementById('wppQrText');
+    if (!img || !text) return;
+
+    if (srcOrText && String(srcOrText).startsWith('data:image')) {
+        img.src = srcOrText;
+        img.classList.remove('hidden');
+        text.classList.add('hidden');
+        return;
+    }
+
+    img.classList.add('hidden');
+    text.classList.remove('hidden');
+    text.textContent = srcOrText ? String(srcOrText) : 'QR Code indisponível.';
+}
+
+async function wppRefreshQr() {
+    const candidates = [
+        // Rota oficial do wppconnect-server (conforme Swagger)
+        '/api/{session}/qrcode-session',
+        // Fallbacks (variantes)
+        '/api/{session}/qrcode',
+        '/api/{session}/qr-code'
+    ];
+
+    let data = null;
+    for (const path of candidates) {
+        try {
+            data = await wppFetchJson(path, { method: 'GET' });
+            break;
+        } catch (e) {
+            console.warn('Falha ao buscar QR WPPConnect em', path, e?.message || e);
+        }
+    }
+
+    if (!data) {
+        wppShowQr('Erro ao carregar QR Code.');
+        throw new Error('Não foi possível carregar QR Code do WPPConnect.');
+    }
+
+    // Normalizar formatos comuns
+    if (typeof data === 'string') {
+        // Pode ser base64 puro
+        if (data.startsWith('data:image')) {
+            wppShowQr(data);
+            return;
+        }
+        if (/^[A-Za-z0-9+/=]+$/.test(data) && data.length > 200) {
+            wppShowQr(`data:image/png;base64,${data}`);
+            return;
+        }
+        wppShowQr(data);
+        return;
+    }
+
+    const qrcode = data.qrcode || data.base64 || data.qr || data.image || data.data;
+    if (qrcode && String(qrcode).startsWith('data:image')) {
+        wppShowQr(qrcode);
+        return;
+    }
+    if (qrcode && /^[A-Za-z0-9+/=]+$/.test(String(qrcode)) && String(qrcode).length > 200) {
+        wppShowQr(`data:image/png;base64,${qrcode}`);
+        return;
+    }
+
+    // Fallback: mostrar JSON
+    wppShowQr(JSON.stringify(data));
+}
+
+async function wppSendMessage(phone, message) {
+    const payloadCandidates = [
+        { phone, message },
+        { phone, text: message },
+        { number: phone, message }
+    ];
+
+    const paths = [
+        '/api/{session}/send-message',
+        '/api/{session}/send-text',
+        '/api/{session}/sendText'
+    ];
+
+    let lastErr = null;
+    for (const path of paths) {
+        for (const payload of payloadCandidates) {
+            try {
+                return await wppFetchJson(path, {
+                    method: 'POST',
+                    body: JSON.stringify(payload)
+                });
+            } catch (e) {
+                lastErr = e;
+                // Tentar próximos
+            }
+        }
+    }
+
+    throw lastErr || new Error('Falha ao enviar mensagem no WPPConnect.');
+}
