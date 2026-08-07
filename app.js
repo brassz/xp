@@ -16824,7 +16824,7 @@ async function populateWeekSelector() {
                     week: weekInfo.week,
                     startDate: weekInfo.startDate,
                     endDate: weekInfo.endDate,
-                    label: `Semana ${weekInfo.week}/${weekInfo.year} (${weekInfo.startDate.toLocaleDateString('pt-BR')} - ${weekInfo.endDate.toLocaleDateString('pt-BR')})`
+                    label: `Semana ${weekInfo.week}/${weekInfo.year} (${formatDate(weekInfo.startDate.toISOString().split('T')[0])} - ${formatDate(weekInfo.endDate.toISOString().split('T')[0])})`
                 });
             }
         });
@@ -16839,7 +16839,7 @@ async function populateWeekSelector() {
                 week: currentWeekInfo.week,
                 startDate: currentWeekInfo.startDate,
                 endDate: currentWeekInfo.endDate,
-                label: `Semana ${currentWeekInfo.week}/${currentWeekInfo.year} (${currentWeekInfo.startDate.toLocaleDateString('pt-BR')} - ${currentWeekInfo.endDate.toLocaleDateString('pt-BR')}) - ATUAL`
+                label: `Semana ${currentWeekInfo.week}/${currentWeekInfo.year} (${formatDate(currentWeekInfo.startDate.toISOString().split('T')[0])} - ${formatDate(currentWeekInfo.endDate.toISOString().split('T')[0])}) - ATUAL`
             });
         }
 
@@ -16942,8 +16942,8 @@ async function handleWeekChange() {
         label: selectedOption.textContent
     };
 
-    // Atualizar display do período
-    updatePaymentPeriodDisplay(`${startDate.toLocaleDateString('pt-BR')} - ${endDate.toLocaleDateString('pt-BR')}`);
+    // Atualizar display do período - APENAS CORRIGIR A EXIBIÇÃO VISUAL
+    updatePaymentPeriodDisplay(`${formatDate(startDate.toISOString().split('T')[0])} - ${formatDate(endDate.toISOString().split('T')[0])}`);
 
     // Carregar dados da semana selecionada
     await loadWeekData(startDate, endDate);
@@ -17235,7 +17235,7 @@ async function showPDFHistoryModal() {
                                             </span>
                                         `}
                                     </div>
-                                    <p class="text-sm text-gray-400">${week.startDate.toLocaleDateString('pt-BR')} - ${week.endDate.toLocaleDateString('pt-BR')}</p>
+                                    <p class="text-sm text-gray-400">${formatDate(week.startDate.toISOString().split('T')[0])} - ${formatDate(week.endDate.toISOString().split('T')[0])}</p>
                                     <div class="flex items-center space-x-4 mt-2 text-xs text-gray-400">
                                         <span>💰 ${week.totalAmount.toFixed(2)}</span>
                                         <span>📊 ${week.paymentCount} pagamentos</span>
