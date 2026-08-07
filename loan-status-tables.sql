@@ -121,6 +121,15 @@ ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_client_id FOREIGN 
 ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_cancelled_by FOREIGN KEY (cancelled_by) REFERENCES users(id);
 ALTER TABLE cancelled_loans ADD CONSTRAINT fk_cancelled_loans_created_by FOREIGN KEY (created_by) REFERENCES users(id);
 
+-- =====================================================
+-- ADICIONAR CONSTRAINTS ÚNICAS PARA loan_id
+-- =====================================================
+-- Estas constraints são necessárias para o ON CONFLICT funcionar corretamente
+ALTER TABLE paid_loans ADD CONSTRAINT unique_paid_loan_id UNIQUE (loan_id);
+ALTER TABLE overdue_loans ADD CONSTRAINT unique_overdue_loan_id UNIQUE (loan_id);
+ALTER TABLE partial_paid_loans ADD CONSTRAINT unique_partial_paid_loan_id UNIQUE (loan_id);
+ALTER TABLE cancelled_loans ADD CONSTRAINT unique_cancelled_loan_id UNIQUE (loan_id);
+
 -- Índices para melhor performance
 CREATE INDEX idx_paid_loans_loan_id ON paid_loans(loan_id);
 CREATE INDEX idx_paid_loans_client_id ON paid_loans(client_id);
