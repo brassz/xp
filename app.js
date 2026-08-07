@@ -4125,6 +4125,12 @@ async function handlePayment(e) {
     const includeFine = document.getElementById('includeFineCheckbox').checked;
     const fineAmount = includeFine ? parseFloat(document.getElementById('fineAmount').value) || 0 : 0;
     
+    console.log('🔍 [DEBUG] Multa:', {
+        includeFine,
+        fineAmount,
+        fineInputValue: document.getElementById('fineAmount').value
+    });
+    
     try {
         // Validar se o valor não está abaixo do mínimo
         const minimumText = document.getElementById('paymentMinimumAmount').textContent;
@@ -4202,20 +4208,27 @@ async function handlePayment(e) {
         } else {
             // Criar novo pagamento
             console.log('🔄 Criando novo pagamento para empréstimo:', loanId);
+            const paymentData = {
+                loan_id: loanId,
+                amount: paymentAmount,
+                payment_date: paymentDate,
+                payment_type: finalPaymentType,
+                notes: combinedNotes,
+                fine_amount: fineAmount,
+                created_by: currentUser.id,
+                created_at: new Date().toISOString()
+            };
+            console.log('🔍 [DEBUG] Dados do pagamento sendo inserido:', paymentData);
+            
             const { error } = await supabase
                 .from('payments')
-                .insert([{
-                    loan_id: loanId,
-                    amount: paymentAmount,
-                    payment_date: paymentDate,
-                    payment_type: finalPaymentType,
-                    notes: combinedNotes,
-                    fine_amount: fineAmount,
-                    created_by: currentUser.id,
-                    created_at: new Date().toISOString()
-                }]);
+                .insert([paymentData]);
             paymentError = error;
-            if (!error) console.log('✅ Pagamento registrado com sucesso');
+            if (!error) {
+                console.log('✅ Pagamento registrado com sucesso');
+            } else {
+                console.error('❌ Erro ao registrar pagamento:', error);
+            }
         }
         
         if (paymentError) {
@@ -8518,6 +8531,17 @@ async function loadPaymentHistory(loanId) {
             .order('payment_date', { ascending: false });
         
         if (error) throw error;
+        
+        console.log('🔍 [DEBUG] Pagamentos carregados para histórico:', data.length);
+        if (data.length > 0) {
+            console.log('🔍 [DEBUG] Primeiro pagamento:', {
+                id: data[0].id,
+                amount: data[0].amount,
+                fine_amount: data[0].fine_amount,
+                payment_type: data[0].payment_type,
+                allKeys: Object.keys(data[0])
+            });
+        }
         
         const tbody = document.getElementById('paymentHistoryTableBody');
         tbody.innerHTML = ''; // Limpar tabela antes de renderizar
@@ -16564,7 +16588,19 @@ function renderWeeklyPaymentsTable(payments) {
     tbody.style.display = '';
     if (emptyState) emptyState.classList.add('hidden');
 
-    payments.forEach(payment => {
+    console.log('🔍 [DEBUG] Renderizando pagamentos:', payments.length);
+    
+    payments.forEach((payment, index) => {
+        if (index === 0) {
+            console.log('🔍 [DEBUG] Exemplo de pagamento:', {
+                id: payment.id,
+                amount: payment.amount,
+                fine_amount: payment.fine_amount,
+                payment_type: payment.payment_type,
+                payment_method: payment.payment_method,
+                allKeys: Object.keys(payment)
+            });
+        }
         const client = payment.loans?.clients;
         const loan = payment.loans;
         
@@ -16588,13 +16624,13 @@ function renderWeeklyPaymentsTable(payments) {
                 <div class="text-sm font-medium text-green-400">R$ ${payment.amount.toFixed(2)}</div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <div class="text-sm font-medium ${payment.fine_amount > 0 ? 'text-red-400' : 'text-gray-500'}">
-                    ${payment.fine_amount > 0 ? `R$ ${payment.fine_amount.toFixed(2)}` : '-'}
+                <div class="text-sm font-medium ${(parseFloat(payment.fine_amount) || 0) > 0 ? 'text-red-400' : 'text-gray-500'}">
+                    ${(parseFloat(payment.fine_amount) || 0) > 0 ? `R$ ${(parseFloat(payment.fine_amount) || 0).toFixed(2)}` : '-'}
                 </div>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
-                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_method)}">
-                    ${getPaymentMethodText(payment.payment_method)}
+                <span class="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${getPaymentMethodBadgeClass(payment.payment_type)}">
+                    ${getPaymentTypeText(payment.payment_type)}
                 </span>
             </td>
             <td class="px-6 py-4 whitespace-nowrap">
@@ -16685,7 +16721,19 @@ function getPaymentMethodBadgeClass(method) {
         'dinheiro': 'bg-green-100 text-green-800',
         'transferencia': 'bg-blue-100 text-blue-800',
         'cartao': 'bg-yellow-100 text-yellow-800',
-        'cheque': 'bg-gray-100 text-gray-800'
+        'cheque': 'bg-gray-100 text-gray-800',
+        'partial': 'bg-blue-100 text-blue-800',
+        'full': 'bg-green-100 text-green-800',
+        'interest': 'bg-yellow-100 text-yellow-800',
+        'principal': 'bg-blue-100 text-blue-800',
+        'adjustment': 'bg-gray-100 text-gray-800',
+        'renewal': 'bg-purple-100 text-purple-800',
+        'interest_renewal': 'bg-purple-100 text-purple-800',
+        'early_payment_partial_interest': 'bg-blue-100 text-blue-800',
+        'early_payment_interest_renewal': 'bg-purple-100 text-purple-800',
+        'early_payment_capital_reduction': 'bg-green-100 text-green-800',
+        'capital_payment': 'bg-green-100 text-green-800',
+        'partial_interest': 'bg-yellow-100 text-yellow-800'
     };
     return classes[method] || 'bg-gray-100 text-gray-800';
 }
@@ -17157,7 +17205,7 @@ function renderWeekClientsModal(clients, weekData) {
                                 </div>
                                 <div class="text-right">
                                     <p class="text-sm font-semibold text-green-400">R$ ${payment.amount.toFixed(2)}</p>
-                                    <p class="text-xs text-gray-400">${getPaymentMethodText(payment.payment_method)}</p>
+                                    <p class="text-xs text-gray-400">${getPaymentTypeText(payment.payment_type)}</p>
                                 </div>
                             </div>
                         `).join('')}
