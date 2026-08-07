@@ -578,6 +578,28 @@ function setupEventListeners() {
 
     generatePdfBtn.addEventListener('click', generateMonthlyLoansPDF);
     
+    // Event listener para o botão de Backup Completo
+    const generateBackupBtn = document.getElementById('generateBackupBtn');
+    if (generateBackupBtn) {
+        console.log('Botão de backup encontrado, adicionando event listener');
+        generateBackupBtn.addEventListener('click', function(e) {
+            e.preventDefault();
+            console.log('Botão de backup clicado');
+            
+            // Chamar a função de forma assíncrona
+            (async () => {
+                try {
+                    await generateCompleteBackupPDF();
+                } catch (error) {
+                    console.error('Erro ao gerar backup:', error);
+                    alert('Erro ao gerar backup: ' + error.message);
+                }
+            })();
+        });
+    } else {
+        console.error('Botão generateBackupBtn não encontrado');
+    }
+    
     // Event listener para o botão de PDF de pagamentos semanais
     const generateWeeklyPaymentsPdfBtn = document.getElementById('generateWeeklyPaymentsPdfBtn');
     if (generateWeeklyPaymentsPdfBtn) {
@@ -11936,6 +11958,421 @@ async function generateContract(loanId) {
     } catch (error) {
         console.error('Erro ao gerar contrato:', error);
         showInfoMessage('Erro ao gerar contrato: ' + error.message);
+    }
+}
+
+// Função para gerar backup completo do sistema em PDF
+async function generateCompleteBackupPDF() {
+    console.log('=== INICIANDO GERAÇÃO DE BACKUP COMPLETO ===');
+    console.log('window.jspdf disponível?', !!window.jspdf);
+    console.log('clients array:', Array.isArray(clients), 'length:', clients?.length);
+    console.log('loans array:', Array.isArray(loans), 'length:', loans?.length);
+    
+    // Teste simples para verificar se jsPDF está disponível
+    if (!window.jspdf) {
+        console.error('jsPDF não está carregado!');
+        alert('Erro: Biblioteca jsPDF não está disponível. Recarregue a página.');
+        return;
+    }
+    
+    console.log('jsPDF está disponível, continuando...');
+    
+    try {
+        console.log('Clientes disponíveis:', clients.length);
+        console.log('Empréstimos disponíveis:', loans.length);
+        
+        // Testar se showNotification existe
+        if (typeof showNotification === 'function') {
+            showNotification('Gerando backup completo do sistema... Por favor, aguarde.', 'info');
+        } else {
+            console.warn('showNotification não está disponível');
+            alert('Gerando backup completo... Por favor, aguarde.');
+        }
+        
+        // Buscar todos os dados necessários com tratamento de erro individual
+        console.log('Buscando dados do banco...');
+        
+        // Buscar pagamentos
+        let allPayments = { data: [], error: null };
+        try {
+            console.log('Buscando pagamentos...');
+            allPayments = await supabase.from('payments').select('*').order('payment_date', { ascending: false });
+            console.log('Pagamentos encontrados:', allPayments.data?.length || 0);
+            if (allPayments.error) console.error('Erro ao buscar pagamentos:', allPayments.error);
+        } catch (e) {
+            console.error('Exceção ao buscar pagamentos:', e);
+        }
+        
+        // Buscar empréstimos quitados
+        let paidLoans = { data: [], error: null };
+        try {
+            console.log('Buscando empréstimos quitados...');
+            paidLoans = await supabase.from('paid_loans').select('*').order('paid_date', { ascending: false });
+            console.log('Empréstimos quitados encontrados:', paidLoans.data?.length || 0);
+            if (paidLoans.error) console.error('Erro ao buscar empréstimos quitados:', paidLoans.error);
+        } catch (e) {
+            console.error('Exceção ao buscar empréstimos quitados:', e);
+        }
+        
+        // Buscar parcelamentos
+        let allInstallments = { data: [], error: null };
+        try {
+            console.log('Buscando parcelamentos...');
+            allInstallments = await supabase.from('installments').select('*').order('created_at', { ascending: false });
+            console.log('Parcelamentos encontrados:', allInstallments.data?.length || 0);
+            if (allInstallments.error) console.error('Erro ao buscar parcelamentos:', allInstallments.error);
+        } catch (e) {
+            console.error('Exceção ao buscar parcelamentos:', e);
+        }
+        
+        // Buscar pagamentos de parcelamento
+        let allInstallmentPayments = { data: [], error: null };
+        try {
+            console.log('Buscando pagamentos de parcelamento...');
+            allInstallmentPayments = await supabase.from('installment_payments').select('*').order('payment_date', { ascending: false });
+            console.log('Pagamentos de parcelamento encontrados:', allInstallmentPayments.data?.length || 0);
+            if (allInstallmentPayments.error) console.error('Erro ao buscar pagamentos de parcelamento:', allInstallmentPayments.error);
+        } catch (e) {
+            console.error('Exceção ao buscar pagamentos de parcelamento:', e);
+        }
+        
+        // Buscar levantamentos de capital
+        let allCapitalRaisings = { data: [], error: null };
+        try {
+            console.log('Buscando levantamentos de capital...');
+            allCapitalRaisings = await supabase.from('capital_raisings').select('*').order('created_at', { ascending: false });
+            console.log('Levantamentos de capital encontrados:', allCapitalRaisings.data?.length || 0);
+            if (allCapitalRaisings.error) console.error('Erro ao buscar capital:', allCapitalRaisings.error);
+        } catch (e) {
+            console.error('Exceção ao buscar capital:', e);
+        }
+        
+        // Buscar clientes de capital
+        let allCapitalClients = { data: [], error: null };
+        try {
+            console.log('Buscando clientes de capital...');
+            allCapitalClients = await supabase.from('capital_raising_clients').select('*');
+            console.log('Clientes de capital encontrados:', allCapitalClients.data?.length || 0);
+            if (allCapitalClients.error) console.error('Erro ao buscar clientes de capital:', allCapitalClients.error);
+        } catch (e) {
+            console.error('Exceção ao buscar clientes de capital:', e);
+        }
+        
+        console.log('=== RESUMO DOS DADOS BUSCADOS ===');
+        console.log('Pagamentos:', allPayments.data?.length || 0);
+        console.log('Empréstimos Quitados:', paidLoans.data?.length || 0);
+        console.log('Parcelamentos:', allInstallments.data?.length || 0);
+        console.log('Pagamentos de Parcelamento:', allInstallmentPayments.data?.length || 0);
+        console.log('Levantamentos de Capital:', allCapitalRaisings.data?.length || 0);
+        console.log('Clientes de Capital:', allCapitalClients.data?.length || 0);
+        
+        // Criar novo documento PDF
+        console.log('Criando documento PDF...');
+        const { jsPDF } = window.jspdf;
+        const doc = new jsPDF();
+        console.log('Documento PDF criado');
+        
+        const pageWidth = doc.internal.pageSize.width;
+        const pageHeight = doc.internal.pageSize.height;
+        const margin = 15;
+        const maxWidth = pageWidth - (margin * 2);
+        let yPosition = 20;
+        
+        // Função para adicionar nova página se necessário
+        const checkPageBreak = (neededSpace = 10) => {
+            if (yPosition + neededSpace > pageHeight - 20) {
+                doc.addPage();
+                yPosition = 20;
+                return true;
+            }
+            return false;
+        };
+        
+        // Função para adicionar cabeçalho azul
+        const addBlueHeader = (text, y) => {
+            doc.setFillColor(59, 130, 246); // Cor azul #3b82f6
+            doc.rect(margin, y - 8, maxWidth, 12, 'F');
+            doc.setTextColor(255, 255, 255);
+            doc.setFontSize(14);
+            doc.setFont('helvetica', 'bold');
+            doc.text(text, pageWidth / 2, y, { align: 'center' });
+            doc.setTextColor(0, 0, 0);
+        };
+        
+        // Cabeçalho principal azul
+        doc.setFillColor(30, 64, 175); // Cor azul escuro #1e40af
+        doc.rect(0, 0, pageWidth, 40, 'F');
+        
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(20);
+        doc.setFont('helvetica', 'bold');
+        doc.text('BACKUP COMPLETO DO SISTEMA', pageWidth / 2, 20, { align: 'center' });
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        const now = new Date();
+        doc.text(`Gerado em: ${now.toLocaleDateString('pt-BR')}, ${now.toLocaleTimeString('pt-BR')}`, pageWidth / 2, 30, { align: 'center' });
+        
+        yPosition = 50;
+        doc.setTextColor(0, 0, 0);
+        
+        // ===== ESTATÍSTICAS GERAIS =====
+        addBlueHeader('ESTATÍSTICAS GERAIS', yPosition);
+        yPosition += 15;
+        
+        doc.setFontSize(10);
+        doc.setFont('helvetica', 'normal');
+        
+        // Calcular estatísticas
+        const activeLoans = loans.filter(l => l.status === 'active' || l.status === 'overdue').length;
+        const overdueLoans = loans.filter(l => l.status === 'overdue').length;
+        const todayDueLoans = loans.filter(l => {
+            const dueDate = new Date(l.due_date);
+            const today = new Date();
+            return dueDate.toDateString() === today.toDateString();
+        }).length;
+        
+        doc.text(`• Total de Clientes: ${clients.length}`, margin, yPosition);
+        yPosition += 6;
+        doc.text(`• Empréstimos Ativos: ${activeLoans}`, margin, yPosition);
+        yPosition += 6;
+        doc.text(`• Empréstimos Vencidos: ${overdueLoans}`, margin, yPosition);
+        yPosition += 6;
+        doc.text(`• Empréstimos que Vencem Hoje: ${todayDueLoans}`, margin, yPosition);
+        yPosition += 6;
+        doc.text(`• Total de Pagamentos: ${allPayments.data ? allPayments.data.length : 0}`, margin, yPosition);
+        yPosition += 6;
+        doc.text(`• Total de Despesas: ${expenses.length}`, margin, yPosition);
+        yPosition += 6;
+        doc.text(`• Levantamentos de Capital: ${allCapitalRaisings.data ? allCapitalRaisings.data.length : 0}`, margin, yPosition);
+        yPosition += 6;
+        doc.text(`• Avistas Registrados: ${guarantors.length}`, margin, yPosition);
+        yPosition += 10;
+        
+        // ===== CLIENTES =====
+        if (clients && clients.length > 0) {
+            checkPageBreak(20);
+            addBlueHeader(`CLIENTES (${clients.length})`, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            clients.forEach((client, index) => {
+                checkPageBreak(20);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${index + 1}. ${client.name || 'Nome não informado'}`, margin, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`   CPF: ${client.cpf || 'N/A'} | Telefone: ${client.phone || 'N/A'}`, margin, yPosition);
+                yPosition += 5;
+                doc.text(`   Endereço: ${client.address || 'N/A'}`, margin, yPosition);
+                yPosition += 7;
+            });
+        } else {
+            console.log('Nenhum cliente disponível para incluir no PDF');
+        }
+        
+        // ===== EMPRÉSTIMOS ATIVOS =====
+        const activeLoansData = loans ? loans.filter(l => l.status === 'active' || l.status === 'overdue') : [];
+        if (activeLoansData.length > 0) {
+            checkPageBreak(20);
+            addBlueHeader(`EMPRÉSTIMOS ATIVOS (${activeLoansData.length})`, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            for (const loan of activeLoansData) {
+            checkPageBreak(25);
+            
+            const client = clients.find(c => c.id === loan.client_id);
+            const clientName = client ? client.name : 'Cliente não encontrado';
+            const total = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+            const status = loan.status === 'overdue' ? 'VENCIDO' : 'ATIVO';
+            
+            doc.setFont('helvetica', 'bold');
+            doc.text(`Cliente: ${clientName}`, margin, yPosition);
+            yPosition += 5;
+            
+            doc.setFont('helvetica', 'normal');
+            doc.text(`   Valor: R$ ${parseFloat(loan.amount).toFixed(2)} | Juros: ${loan.interest_rate}% | Total: R$ ${total.toFixed(2)}`, margin, yPosition);
+            yPosition += 5;
+            doc.text(`   Data: ${new Date(loan.loan_date).toLocaleDateString('pt-BR')} | Vencimento: ${new Date(loan.due_date).toLocaleDateString('pt-BR')} | Status: ${status}`, margin, yPosition);
+            yPosition += 7;
+            }
+        } else {
+            console.log('Nenhum empréstimo ativo para incluir no PDF');
+        }
+        
+        // ===== EMPRÉSTIMOS VENCIDOS =====
+        const overdueLoansData = loans ? loans.filter(l => l.status === 'overdue') : [];
+        if (overdueLoansData.length > 0) {
+            checkPageBreak(20);
+            addBlueHeader(`EMPRÉSTIMOS VENCIDOS (${overdueLoansData.length})`, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            for (const loan of overdueLoansData) {
+                checkPageBreak(25);
+                
+                const client = clients.find(c => c.id === loan.client_id);
+                const clientName = client ? client.name : 'Cliente não encontrado';
+                const total = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+                const daysOverdue = Math.floor((new Date() - new Date(loan.due_date)) / (1000 * 60 * 60 * 24));
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Cliente: ${clientName}`, margin, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`   Valor: R$ ${parseFloat(loan.amount).toFixed(2)} | Total: R$ ${total.toFixed(2)} | Dias em atraso: ${daysOverdue}`, margin, yPosition);
+                yPosition += 5;
+                doc.text(`   Vencimento: ${new Date(loan.due_date).toLocaleDateString('pt-BR')}`, margin, yPosition);
+                yPosition += 7;
+            }
+        }
+        
+        // ===== EMPRÉSTIMOS QUE VENCEM HOJE =====
+        const todayDueLoansData = loans ? loans.filter(l => {
+            const dueDate = new Date(l.due_date);
+            const today = new Date();
+            return dueDate.toDateString() === today.toDateString();
+        }) : [];
+        
+        if (todayDueLoansData.length > 0) {
+            checkPageBreak(20);
+            addBlueHeader(`EMPRÉSTIMOS QUE VENCEM HOJE (${todayDueLoansData.length})`, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            for (const loan of todayDueLoansData) {
+                checkPageBreak(25);
+                
+                const client = clients.find(c => c.id === loan.client_id);
+                const clientName = client ? client.name : 'Cliente não encontrado';
+                const total = parseFloat(loan.amount) + (parseFloat(loan.amount) * parseFloat(loan.interest_rate) / 100);
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Cliente: ${clientName}`, margin, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`   Valor: R$ ${parseFloat(loan.amount).toFixed(2)} | Total: R$ ${total.toFixed(2)}`, margin, yPosition);
+                yPosition += 5;
+                doc.text(`   Telefone: ${client ? client.phone : 'N/A'}`, margin, yPosition);
+                yPosition += 7;
+            }
+        }
+        
+        // ===== PAGAMENTOS =====
+        if (allPayments.data && allPayments.data.length > 0) {
+            checkPageBreak(20);
+            addBlueHeader(`TODOS OS PAGAMENTOS (${allPayments.data.length})`, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            const paymentsToShow = allPayments.data.slice(0, 100); // Limitar a 100 para não ficar muito grande
+            
+            for (const payment of paymentsToShow) {
+                checkPageBreak(20);
+                
+                const loan = loans.find(l => l.id === payment.loan_id);
+                const client = loan ? clients.find(c => c.id === loan.client_id) : null;
+                const clientName = client ? client.name : 'Cliente não encontrado';
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`${new Date(payment.payment_date).toLocaleDateString('pt-BR')} - ${clientName} - R$ ${parseFloat(payment.amount).toFixed(2)}`, margin, yPosition);
+                yPosition += 6;
+            }
+            
+            if (allPayments.data.length > 100) {
+                doc.setFont('helvetica', 'italic');
+                doc.text(`... e mais ${allPayments.data.length - 100} pagamentos`, margin, yPosition);
+                yPosition += 10;
+            }
+        }
+        
+        // ===== LEVANTAMENTOS DE CAPITAL =====
+        if (allCapitalRaisings.data && allCapitalRaisings.data.length > 0) {
+            checkPageBreak(20);
+            addBlueHeader(`LEVANTAMENTOS DE CAPITAL (${allCapitalRaisings.data.length})`, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            for (const capital of allCapitalRaisings.data) {
+                checkPageBreak(20);
+                
+                const clientsCount = allCapitalClients.data ? 
+                    allCapitalClients.data.filter(cc => cc.capital_raising_id === capital.id && cc.ativo).length : 0;
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`${capital.descricao || 'Sem descrição'}`, margin, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`   Valor: R$ ${parseFloat(capital.valor_total || 0).toFixed(2)} | Data: ${new Date(capital.data_inicio).toLocaleDateString('pt-BR')}`, margin, yPosition);
+                yPosition += 5;
+                doc.text(`   Clientes participantes: ${clientsCount} | Status: ${capital.ativo ? 'Ativo' : 'Inativo'}`, margin, yPosition);
+                yPosition += 7;
+            }
+        }
+        
+        // ===== PARCELAMENTOS =====
+        if (allInstallments.data && allInstallments.data.length > 0) {
+            checkPageBreak(20);
+            addBlueHeader(`PARCELAMENTOS (${allInstallments.data.length})`, yPosition);
+            yPosition += 15;
+            
+            doc.setFontSize(9);
+            for (const installment of allInstallments.data) {
+                checkPageBreak(25);
+                
+                const client = clients.find(c => c.id === installment.client_id);
+                const clientName = client ? client.name : 'Cliente não encontrado';
+                
+                // Contar parcelas pagas
+                const paidInstallments = allInstallmentPayments.data ? 
+                    allInstallmentPayments.data.filter(ip => ip.installment_id === installment.id).length : 0;
+                
+                doc.setFont('helvetica', 'bold');
+                doc.text(`Cliente: ${clientName}`, margin, yPosition);
+                yPosition += 5;
+                
+                doc.setFont('helvetica', 'normal');
+                doc.text(`   Total: R$ ${parseFloat(installment.total_amount).toFixed(2)} | Parcelas: ${installment.installments_count}`, margin, yPosition);
+                yPosition += 5;
+                doc.text(`   Parcelas Pagas: ${paidInstallments} | Data: ${new Date(installment.created_at).toLocaleDateString('pt-BR')}`, margin, yPosition);
+                yPosition += 7;
+            }
+        }
+        
+        // Salvar o PDF
+        console.log('Salvando PDF...');
+        const companyName = getCurrentCompanyConfig() ? getCurrentCompanyConfig().name : 'SISTEMA';
+        const fileName = `Backup_Completo_${companyName.replace(/\s+/g, '_')}_${now.toISOString().split('T')[0]}_${now.getHours()}-${now.getMinutes()}.pdf`;
+        
+        console.log('Tentando salvar arquivo:', fileName);
+        doc.save(fileName);
+        
+        console.log('=== PDF GERADO COM SUCESSO ===');
+        console.log('Nome do arquivo:', fileName);
+        console.log('Total de páginas:', doc.internal.getNumberOfPages());
+        
+        if (typeof showNotification === 'function') {
+            showNotification('Backup completo gerado com sucesso!', 'success');
+        } else {
+            alert('Backup completo gerado com sucesso!');
+        }
+        
+    } catch (error) {
+        console.error('=== ERRO AO GERAR BACKUP ===');
+        console.error('Erro:', error);
+        console.error('Stack:', error.stack);
+        
+        if (typeof showNotification === 'function') {
+            showNotification('Erro ao gerar backup completo: ' + error.message, 'error');
+        } else {
+            alert('Erro ao gerar backup completo: ' + error.message);
+        }
     }
 }
 
